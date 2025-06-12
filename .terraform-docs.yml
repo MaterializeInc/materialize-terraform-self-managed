@@ -1,0 +1,12 @@
+formatter: markdown
+
+output-file: README.md
+output-mode: inject
+sections:
+  show-header: true
+  show-inputs: true
+  show-outputs: true
+  show-providers: false
+  show-requirements: false
+  show-resources: false
+  show-data-sources: false
