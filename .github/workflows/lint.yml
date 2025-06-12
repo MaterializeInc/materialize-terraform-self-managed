@@ -28,8 +28,14 @@ jobs:
           tflint --recursive --format compact
 
   validate:
-    name: Validate
+    name: Validate Examples
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        example:
+          # Add new examples here as they are created
+          - "aws/examples/simple"
+      fail-fast: false
     steps:
       - uses: actions/checkout@v4
 
@@ -37,12 +43,19 @@ jobs:
         with:
           terraform_version: "1.7.0"
 
+      - name: Check if example exists
+        run: |
+          if [ ! -d "${{ matrix.example }}" ]; then
+            echo "Example directory ${{ matrix.example }} does not exist, skipping"
+            exit 0
+          fi
+
       - name: Terraform Init
         run: |
-          cd examples/simple
+          cd ${{ matrix.example }}
           terraform init -backend=false
 
       - name: Terraform Validate
         run: |
-          cd examples/simple
+          cd ${{ matrix.example }}
           terraform validate
