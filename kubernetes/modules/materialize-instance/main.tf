@@ -25,6 +25,7 @@ resource "kubernetes_manifest" "materialize_instance" {
     spec = {
       environmentdImageRef = "materialize/environmentd:${var.environmentd_version}"
       backendSecretName    = "${var.instance_name}-materialize-backend"
+      authenticatorKind    = var.authenticator_kind
       inPlaceRollout       = var.in_place_rollout
       requestRollout       = var.request_rollout
       forceRollout         = var.force_rollout
@@ -73,11 +74,16 @@ resource "kubernetes_secret" "materialize_backend" {
     namespace = var.instance_namespace
   }
 
-  data = {
-    metadata_backend_url = var.metadata_backend_url
-    persist_backend_url  = var.persist_backend_url
-    license_key          = var.license_key == null ? "" : var.license_key
-  }
+  data = merge(
+    {
+      metadata_backend_url = var.metadata_backend_url
+      persist_backend_url  = var.persist_backend_url
+      license_key          = var.license_key == null ? "" : var.license_key
+    },
+    var.authenticator_kind == "Password" && var.external_login_password_mz_system != null ? {
+      external_login_password_mz_system = var.external_login_password_mz_system
+    } : {}
+  )
 
   depends_on = [
     kubernetes_namespace.instance

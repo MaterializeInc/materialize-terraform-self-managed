@@ -120,3 +120,21 @@ variable "balancer_cpu_request" {
   type        = string
   default     = "100m"
 }
+
+variable "authenticator_kind" {
+  description = "Kind of authenticator to use for Materialize instance"
+  type        = string
+  default     = "None"
+
+  validation {
+    condition     = contains(["None", "Password"], var.authenticator_kind)
+    error_message = "Authenticator kind must be either 'None' or 'Password'"
+  }
+}
+
+variable "external_login_password_mz_system" {
+  description = "Password for external login to mz_system. Must be set if authenticator_kind is 'Password'."
+  type        = string
+  default     = null
+  sensitive   = true
+}
