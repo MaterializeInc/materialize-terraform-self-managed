@@ -1,0 +1,61 @@
+name: Lint and Test
+
+on:
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.7.0"
+
+      - name: Terraform Format Check
+        run: terraform fmt -check -recursive
+
+      - uses: terraform-linters/setup-tflint@v4
+        with:
+          tflint_version: v0.50.0
+
+      - name: TFLint
+        run: |
+          tflint --init
+          tflint --recursive --format compact
+
+  validate:
+    name: Validate Examples
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        example:
+          # Add new examples here as they are created
+          - "aws/examples/simple"
+      fail-fast: false
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.7.0"
+
+      - name: Check if example exists
+        run: |
+          if [ ! -d "${{ matrix.example }}" ]; then
+            echo "Example directory ${{ matrix.example }} does not exist, skipping"
+            exit 0
+          fi
+
+      - name: Terraform Init
+        run: |
+          cd ${{ matrix.example }}
+          terraform init -backend=false
+
+      - name: Terraform Validate
+        run: |
+          cd ${{ matrix.example }}
+          terraform validate
