@@ -144,6 +144,12 @@ resource "random_password" "database_password" {
   override_special = "!#$%&*()-_=+[]{}<>:?"
 }
 
+resource "random_password" "external_login_password_mz_system" {
+  length           = 16
+  special          = true
+  override_special = "!#$%&*()-_=+[]{}<>:?"
+}
+
 # 7. Setup dedicated database instance for Materialize
 module "database" {
   source                     = "../../modules/database"
@@ -187,6 +193,9 @@ module "materialize_instance" {
   instance_namespace   = "materialize-environment"
   metadata_backend_url = local.metadata_backend_url
   persist_backend_url  = local.persist_backend_url
+
+  # The password for the external login to the Materialize instance
+  external_login_password_mz_system = random_password.external_login_password_mz_system.result
 
   depends_on = [
     module.eks,
