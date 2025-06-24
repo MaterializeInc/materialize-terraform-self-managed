@@ -234,9 +234,9 @@ locals {
 
   # Disk support configuration
   disk_config = {
-    install_openebs           = var.enable_disk_support ? lookup(var.disk_support_config, "install_openebs", true) : false
-    openebs_version           = lookup(var.disk_support_config, "openebs_version", "4.2.0")
-    openebs_namespace         = lookup(var.disk_support_config, "openebs_namespace", "openebs")
+    install_openebs   = var.enable_disk_support ? lookup(var.disk_support_config, "install_openebs", true) : false
+    openebs_version   = lookup(var.disk_support_config, "openebs_version", "4.2.0")
+    openebs_namespace = lookup(var.disk_support_config, "openebs_namespace", "openebs")
   }
 
   metadata_backend_url = format(

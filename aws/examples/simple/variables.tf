@@ -30,12 +30,12 @@ variable "enable_disk_support" {
 
 variable "disk_support_config" {
   description = "Configuration for the disk support"
-  type        = object({
-    install_openebs = bool
+  type = object({
+    install_openebs   = bool
     openebs_namespace = string
-    openebs_version = string
+    openebs_version   = string
   })
-  default     = {}
+  default = {}
 }
 
 variable "kubernetes_namespace" {
