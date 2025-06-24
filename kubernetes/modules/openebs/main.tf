@@ -1,5 +1,5 @@
 resource "kubernetes_namespace" "openebs" {
-  count = var.create_openebs_namespace ? 1 : 0
+  count = var.install_openebs && var.create_openebs_namespace ? 1 : 0
 
   metadata {
     name = var.openebs_namespace
@@ -7,6 +7,8 @@ resource "kubernetes_namespace" "openebs" {
 }
 
 resource "helm_release" "openebs" {
+  count = var.install_openebs ? 1 : 0
+
   name       = "openebs"
   namespace  = var.openebs_namespace
   repository = "https://openebs.github.io/openebs"
