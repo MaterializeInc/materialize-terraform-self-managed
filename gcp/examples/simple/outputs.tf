@@ -57,21 +57,21 @@ output "connection_strings" {
 output "operator" {
   description = "Materialize operator details"
   value = var.install_materialize_operator ? {
-    namespace             = module.operator[0].operator_namespace
-    release_name          = module.operator[0].operator_release_name
-    release_status        = module.operator[0].operator_release_status
+    namespace      = module.operator[0].operator_namespace
+    release_name   = module.operator[0].operator_release_name
+    release_status = module.operator[0].operator_release_status
   } : null
 }
 
 output "materialize_instance" {
   description = "Materialize instance details"
-  sensitive = true
+  sensitive   = true
   value = var.install_materialize_instance ? {
-    name = module.materialize_instance[0].instance_name
-    namespace = module.materialize_instance[0].instance_namespace
-    resource_id = module.materialize_instance[0].instance_resource_id
+    name                 = module.materialize_instance[0].instance_name
+    namespace            = module.materialize_instance[0].instance_namespace
+    resource_id          = module.materialize_instance[0].instance_resource_id
     metadata_backend_url = module.materialize_instance[0].metadata_backend_url
-    persist_backend_url = module.materialize_instance[0].persist_backend_url
+    persist_backend_url  = module.materialize_instance[0].persist_backend_url
   } : null
 }
 

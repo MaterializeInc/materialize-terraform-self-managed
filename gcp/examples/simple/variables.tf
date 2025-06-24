@@ -58,7 +58,7 @@ variable "database_config" {
 
   default = {
     tier     = "db-custom-2-4096"
-    version  = "POSTGRES_15" 
+    version  = "POSTGRES_15"
     username = "materialize"
     db_name  = "materialize"
   }

@@ -23,7 +23,7 @@ locals {
   disk_setup_labels = merge(
     var.labels,
     {
-      "app"                          = local.disk_setup_name
+      "app" = local.disk_setup_name
     }
   )
 }
@@ -31,7 +31,7 @@ locals {
 resource "google_container_node_pool" "primary_nodes" {
   provider = google
 
-  name     = "${var.nodepool_name}"
+  name     = var.nodepool_name
   location = var.region
   cluster  = var.cluster_name
   project  = var.project_id
@@ -88,7 +88,7 @@ resource "kubernetes_namespace" "disk_setup" {
   count = var.enable_disk_setup ? 1 : 0
 
   metadata {
-    name = local.disk_setup_name
+    name   = local.disk_setup_name
     labels = local.disk_setup_labels
   }
 
@@ -106,7 +106,7 @@ resource "kubernetes_daemonset" "disk_setup" {
   metadata {
     name      = local.disk_setup_name
     namespace = kubernetes_namespace.disk_setup[0].metadata[0].name
-    labels = local.disk_setup_labels
+    labels    = local.disk_setup_labels
   }
 
   spec {

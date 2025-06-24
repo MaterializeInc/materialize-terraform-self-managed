@@ -29,10 +29,10 @@ locals {
 
   # Disk support configuration
   disk_config = {
-    install_openebs           = var.enable_disk_support ? lookup(var.disk_support_config, "install_openebs", true) : false
-    local_ssd_count           = lookup(var.disk_support_config, "local_ssd_count", 1)
-    openebs_version           = lookup(var.disk_support_config, "openebs_version", "4.2.0")
-    openebs_namespace         = lookup(var.disk_support_config, "openebs_namespace", "openebs")
+    install_openebs   = var.enable_disk_support ? lookup(var.disk_support_config, "install_openebs", true) : false
+    local_ssd_count   = lookup(var.disk_support_config, "local_ssd_count", 1)
+    openebs_version   = lookup(var.disk_support_config, "openebs_version", "4.2.0")
+    openebs_namespace = lookup(var.disk_support_config, "openebs_namespace", "openebs")
   }
 
   metadata_backend_url = format(
@@ -79,30 +79,30 @@ module "gke" {
   prefix       = var.prefix
   network_name = module.networking.network_name
   subnet_name  = module.networking.subnet_name
-  namespace = var.namespace
+  namespace    = var.namespace
 }
 
 # Create and configure node pool for the GKE cluster with compute resources
 module "nodepool" {
-  source = "../../modules/nodepool"
+  source     = "../../modules/nodepool"
   depends_on = [module.gke]
-  
-  nodepool_name = "${var.prefix}-node-pool"
-  region = var.region
-  enable_private_nodes = true
-  cluster_name = module.gke.cluster_name
-  project_id = var.project_id
-  node_count = var.gke_config.node_count
-  min_nodes = var.gke_config.min_nodes
-  max_nodes = var.gke_config.max_nodes
-  machine_type = var.gke_config.machine_type
-  disk_size_gb = var.gke_config.disk_size_gb
-  service_account_email = module.gke.service_account_email
-  labels = local.common_labels
 
-  disk_setup_image = var.disk_setup_image
+  nodepool_name         = "${var.prefix}-node-pool"
+  region                = var.region
+  enable_private_nodes  = true
+  cluster_name          = module.gke.cluster_name
+  project_id            = var.project_id
+  node_count            = var.gke_config.node_count
+  min_nodes             = var.gke_config.min_nodes
+  max_nodes             = var.gke_config.max_nodes
+  machine_type          = var.gke_config.machine_type
+  disk_size_gb          = var.gke_config.disk_size_gb
+  service_account_email = module.gke.service_account_email
+  labels                = local.common_labels
+
+  disk_setup_image  = var.disk_setup_image
   enable_disk_setup = var.enable_disk_support
-  local_ssd_count = local.disk_config.local_ssd_count
+  local_ssd_count   = local.disk_config.local_ssd_count
 }
 
 # Install OpenEBS for persistent storage management in Kubernetes
@@ -113,15 +113,15 @@ module "openebs" {
     module.nodepool
   ]
 
-  install_openebs = local.disk_config.install_openebs
-  create_openebs_namespace =  true
-  openebs_namespace = local.disk_config.openebs_namespace
-  openebs_version = local.disk_config.openebs_version
+  install_openebs          = local.disk_config.install_openebs
+  create_openebs_namespace = true
+  openebs_namespace        = local.disk_config.openebs_namespace
+  openebs_version          = local.disk_config.openebs_version
 }
 
 resource "random_password" "database_password" {
-  length  = 20
-  special = true
+  length           = 20
+  special          = true
   override_special = "!#$%&*()-_=+[]{}<>:?"
 }
 
@@ -183,12 +183,12 @@ module "certificates" {
 
 # Install Materialize Kubernetes operator for managing Materialize instances
 module "operator" {
-  count = var.install_materialize_operator ? 1 : 0
+  count  = var.install_materialize_operator ? 1 : 0
   source = "../../modules/operator"
 
   name_prefix                    = var.prefix
   use_self_signed_cluster_issuer = var.install_materialize_instance
-  region = var.region
+  region                         = var.region
 
   depends_on = [
     module.gke,
