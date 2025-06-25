@@ -83,51 +83,8 @@ variable "install_materialize_operator" {
   default     = true
 }
 
-variable "helm_chart" {
-  description = "Chart name from repository or local path to chart. For local charts, set the path to the chart directory."
-  type        = string
-  default     = "materialize-operator"
-}
-
-variable "use_local_chart" {
-  description = "Whether to use a local chart instead of one from a repository"
-  type        = bool
-  default     = false
-}
-
-variable "helm_values" {
-  description = "Values to pass to the Helm chart"
-  type        = any
-  default     = {}
-}
-
 variable "install_materialize_instance" {
   description = "Whether to install the Materialize instance. Default is false as it requires the Kubernetes cluster to be created first."
-  type        = bool
-  default     = false
-}
-
-variable "operator_version" {
-  description = "Version of the Materialize operator to install"
-  type        = string
-  default     = "v25.1.12" # META: helm-chart version
-  nullable    = false
-}
-
-variable "orchestratord_version" {
-  description = "Version of the Materialize orchestrator to install"
-  type        = string
-  default     = null
-}
-
-variable "operator_namespace" {
-  description = "Namespace for the Materialize operator"
-  type        = string
-  default     = "materialize"
-}
-
-variable "install_metrics_server" {
-  description = "Whether to install the metrics-server for the Materialize Console. Defaults to false since GKE installs one by default in the kube-system namespace. Only set to true if the GKE cluster was deployed with [monitoring explicitly turned off](https://cloud.google.com/kubernetes-engine/docs/how-to/configure-metrics#:~:text=To%20disable%20system%20metric%20collection,for%20the%20%2D%2Dmonitoring%20flag). Refer to the [GKE docs](https://cloud.google.com/kubernetes-engine/docs/how-to/configure-metrics#:~:text=To%20disable%20system%20metric%20collection,for%20the%20%2D%2Dmonitoring%20flag) for more information, including impact to GKE customer support efforts."
   type        = bool
   default     = false
 }
@@ -146,12 +103,6 @@ variable "storage_bucket_version_ttl" {
 
 variable "install_cert_manager" {
   description = "Whether to install cert-manager."
-  type        = bool
-  default     = true
-}
-
-variable "use_self_signed_cluster_issuer" {
-  description = "Whether to install and use a self-signed ClusterIssuer for TLS. To work around limitations in Terraform, this will be treated as `false` if no materialize instances are defined."
   type        = bool
   default     = true
 }
@@ -185,12 +136,9 @@ variable "disk_support_config" {
   description = "Advanced configuration for disk support (only used when enable_disk_support = true)"
   type = object({
     install_openebs       = optional(bool, true)
-    run_disk_setup_script = optional(bool, true)
     local_ssd_count       = optional(number, 1)
-    create_storage_class  = optional(bool, true)
     openebs_version       = optional(string, "4.2.0")
     openebs_namespace     = optional(string, "openebs")
-    storage_class_name    = optional(string, "openebs-lvm-instance-store-ext4")
   })
   default = {}
 }

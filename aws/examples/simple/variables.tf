@@ -29,14 +29,15 @@ variable "enable_disk_support" {
 }
 
 variable "disk_support_config" {
-  description = "Configuration for the disk support"
+  description = "Advanced configuration for disk support (only used when enable_disk_support = true)"
   type = object({
-    install_openebs   = bool
-    openebs_namespace = string
-    openebs_version   = string
+    install_openebs       = optional(bool, true)
+    openebs_version       = optional(string, "4.2.0")
+    openebs_namespace     = optional(string, "openebs")
   })
   default = {}
 }
+
 
 variable "kubernetes_namespace" {
   description = "The Kubernetes namespace for the Materialize resources"
