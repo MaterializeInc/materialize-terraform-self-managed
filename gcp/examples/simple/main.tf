@@ -38,7 +38,7 @@ locals {
   metadata_backend_url = format(
     "postgres://%s:%s@%s:5432/%s?sslmode=disable",
     var.database_config.username,
-    random_password.database_password.result,
+    urlencode(random_password.database_password.result),
     module.database.private_ip,
     var.database_config.db_name
   )
@@ -134,6 +134,7 @@ resource "random_password" "external_login_password_mz_system" {
 # Set up PostgreSQL database instance for Materialize metadata storage
 module "database" {
   source = "../../modules/database"
+  depends_on = [module.networking]
 
   database_name = var.database_config.db_name
   database_user = var.database_config.username

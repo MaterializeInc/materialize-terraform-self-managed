@@ -15,6 +15,14 @@ resource "helm_release" "openebs" {
   chart      = "openebs"
   version    = var.openebs_version
 
+  # Unable to continue with install: CustomResourceDefinition "volumesnapshotclasses.snapshot.storage.k8s.io"
+  # in namespace "" exists and cannot be imported into the current release
+  # https://github.com/openebs/website/pull/506
+  set {
+    name  = "openebs-crds.csi.volumeSnapshots.enabled"
+    value = "false"
+  }
+
   set {
     name  = "engines.replicated.mayastor.enabled"
     value = "false"
