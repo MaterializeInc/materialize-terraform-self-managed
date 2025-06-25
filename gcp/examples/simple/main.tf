@@ -133,7 +133,7 @@ resource "random_password" "external_login_password_mz_system" {
 
 # Set up PostgreSQL database instance for Materialize metadata storage
 module "database" {
-  source = "../../modules/database"
+  source     = "../../modules/database"
   depends_on = [module.networking]
 
   database_name = var.database_config.db_name
