@@ -33,7 +33,29 @@ func (suite *StagedDeploymentSuite) AfterTest(suiteName, testName string) {
 	t := suite.T()
 	t.Logf("🧹 Starting cleanup stages for: %s", testName)
 
-	// Cleanup stages (run in reverse order: database first, then network)
+	// Cleanup stages (run in reverse order: GKE first, then database, then network)
+	test_structure.RunTestStage(t, "cleanup_gke_disk_enabled", func() {
+		// Only cleanup if GKE disk-enabled was created in this test run
+		if gkeOptions := test_structure.LoadTerraformOptions(t, suite.workingDir+"/gke-disk-enabled"); gkeOptions != nil {
+			t.Logf("🗑️ Cleaning up GKE with disk enabled...")
+			terraform.Destroy(t, gkeOptions)
+			t.Logf("✅ GKE disk-enabled cleanup completed")
+		} else {
+			t.Logf("♻️ No GKE disk-enabled to cleanup (was not created in this test)")
+		}
+	})
+
+	test_structure.RunTestStage(t, "cleanup_gke_disk_disabled", func() {
+		// Only cleanup if GKE disk-disabled was created in this test run
+		if gkeOptions := test_structure.LoadTerraformOptions(t, suite.workingDir+"/gke-disk-disabled"); gkeOptions != nil {
+			t.Logf("🗑️ Cleaning up GKE without disk enabled...")
+			terraform.Destroy(t, gkeOptions)
+			t.Logf("✅ GKE disk-disabled cleanup completed")
+		} else {
+			t.Logf("♻️ No GKE disk-disabled to cleanup (was not created in this test)")
+		}
+	})
+
 	test_structure.RunTestStage(t, "cleanup_database", func() {
 		// Only cleanup if database was created in this test run
 		if dbOptions := test_structure.LoadTerraformOptions(t, suite.workingDir+"/database"); dbOptions != nil {
@@ -62,8 +84,8 @@ func (suite *StagedDeploymentSuite) AfterTest(suiteName, testName string) {
 	})
 }
 
-// TestNetworkAndDatabase tests network creation followed by database
-func (suite *StagedDeploymentSuite) TestNetworkAndDatabase() {
+// TestFullDeployment tests network creation followed by database and GKE
+func (suite *StagedDeploymentSuite) TestFullDeployment() {
 	t := suite.T()
 
 	// Stage 1: Network Setup
@@ -189,6 +211,95 @@ func (suite *StagedDeploymentSuite) TestNetworkAndDatabase() {
 		suite.NotEmpty(dbInstanceName, "Database instance name should not be empty")
 
 		t.Logf("✅ Database created: %s", dbInstanceName)
+	})
+
+	// Stage 3: GKE Setup (parallel for disk-enabled and disk-disabled)
+	// GKE Disk-Enabled variant
+	test_structure.RunTestStage(t, "setup_gke_disk_enabled", func() {
+		// Ensure workingDir is set
+		if suite.workingDir == "" {
+			t.Fatal("❌ Cannot create GKE: Working directory not set. Run network setup stage first.")
+		}
+
+		// Load saved network data
+		networkName := test_structure.LoadString(t, suite.workingDir, "network_name")
+		subnetName := test_structure.LoadString(t, suite.workingDir, "subnet_name")
+		projectID := test_structure.LoadString(t, suite.workingDir, "project_id")
+		resourceId := test_structure.LoadString(t, suite.workingDir, "resource_unique_id")
+
+		// Validate required network data exists
+		if networkName == "" || subnetName == "" || projectID == "" || resourceId == "" {
+			t.Fatal("❌ Cannot create GKE: Missing network data. Run network setup stage first.")
+		}
+
+		t.Logf("🔗 Using infrastructure family: %s for GKE disk-enabled", resourceId)
+
+		gkeOptions := &terraform.Options{
+			TerraformDir: "../../gcp/examples/test-gke-disk-enabled",
+			Vars: map[string]any{
+				"project_id":   projectID,
+				"region":       TestRegion,
+				"prefix":       fmt.Sprintf("test-%s-gke-disk", resourceId),
+				"network_name": networkName,
+				"subnet_name":  subnetName,
+			},
+		}
+
+		// Save terraform options for potential cleanup stage
+		test_structure.SaveTerraformOptions(t, suite.workingDir+"/gke-disk-enabled", gkeOptions)
+
+		// Apply
+		terraform.InitAndApply(t, gkeOptions)
+
+		// Validate
+		clusterName := terraform.Output(t, gkeOptions, "cluster_name")
+		suite.NotEmpty(clusterName, "GKE cluster name should not be empty")
+
+		t.Logf("✅ GKE cluster with disk enabled created: %s", clusterName)
+	})
+
+	// GKE Disk-Disabled variant
+	test_structure.RunTestStage(t, "setup_gke_disk_disabled", func() {
+		// Ensure workingDir is set
+		if suite.workingDir == "" {
+			t.Fatal("❌ Cannot create GKE: Working directory not set. Run network setup stage first.")
+		}
+
+		// Load saved network data
+		networkName := test_structure.LoadString(t, suite.workingDir, "network_name")
+		subnetName := test_structure.LoadString(t, suite.workingDir, "subnet_name")
+		projectID := test_structure.LoadString(t, suite.workingDir, "project_id")
+		resourceId := test_structure.LoadString(t, suite.workingDir, "resource_unique_id")
+
+		// Validate required network data exists
+		if networkName == "" || subnetName == "" || projectID == "" || resourceId == "" {
+			t.Fatal("❌ Cannot create GKE: Missing network data. Run network setup stage first.")
+		}
+
+		t.Logf("🔗 Using infrastructure family: %s for GKE disk-disabled", resourceId)
+
+		gkeOptions := &terraform.Options{
+			TerraformDir: "../../gcp/examples/test-gke-disk-disabled",
+			Vars: map[string]any{
+				"project_id":   projectID,
+				"region":       TestRegion,
+				"prefix":       fmt.Sprintf("test-%s-gke-nodisk", resourceId),
+				"network_name": networkName,
+				"subnet_name":  subnetName,
+			},
+		}
+
+		// Save terraform options for potential cleanup stage
+		test_structure.SaveTerraformOptions(t, suite.workingDir+"/gke-disk-disabled", gkeOptions)
+
+		// Apply
+		terraform.InitAndApply(t, gkeOptions)
+
+		// Validate
+		clusterName := terraform.Output(t, gkeOptions, "cluster_name")
+		suite.NotEmpty(clusterName, "GKE cluster name should not be empty")
+
+		t.Logf("✅ GKE cluster without disk enabled created: %s", clusterName)
 	})
 }
 
