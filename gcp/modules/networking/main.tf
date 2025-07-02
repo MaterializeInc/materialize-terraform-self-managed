@@ -47,10 +47,15 @@ resource "google_compute_subnetwork" "subnet" {
     ip_cidr_range = var.services_cidr
   }
 
+  # Ensure subnet is created after network and route
+  depends_on = [
+    google_compute_network.vpc,
+    google_compute_route.default_route
+  ]
+
   lifecycle {
     create_before_destroy = true
   }
-
 }
 
 # Cloud Router for NAT Gateway
@@ -62,6 +67,15 @@ resource "google_compute_router" "router" {
 
   bgp {
     asn = 64514
+  }
+
+  # Ensure router is created after subnet
+  depends_on = [
+    google_compute_subnetwork.subnet
+  ]
+
+  lifecycle {
+    create_before_destroy = true
   }
 }
 
@@ -78,6 +92,11 @@ resource "google_compute_router_nat" "nat" {
     enable = true
     filter = "ERRORS_ONLY"
   }
+
+  # Ensure NAT is created after router
+  depends_on = [
+    google_compute_router.router
+  ]
 
   lifecycle {
     create_before_destroy = true
