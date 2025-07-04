@@ -31,7 +31,7 @@ locals {
 resource "google_container_node_pool" "primary_nodes" {
   provider = google
 
-  name     = var.nodepool_name
+  name     = "${var.prefix}-nodepool"
   location = var.region
   cluster  = var.cluster_name
   project  = var.project_id

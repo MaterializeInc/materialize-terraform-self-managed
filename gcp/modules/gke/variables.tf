@@ -8,6 +8,8 @@ variable "region" {
   type        = string
 }
 
+# TODO: add length validation on prefix
+# account_id   = "${var.prefix}-materialize-sa" length should be between [6-30]
 variable "prefix" {
   description = "Prefix to be used for resource names"
   type        = string

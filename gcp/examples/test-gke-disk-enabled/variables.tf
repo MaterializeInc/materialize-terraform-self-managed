@@ -28,7 +28,6 @@ variable "region" {
 variable "prefix" {
   description = "Prefix for resource names"
   type        = string
-  default     = "test-disk-enabled"
 }
 
 variable "skip_nodepool" {
@@ -63,14 +62,14 @@ variable "local_ssd_count" {
 
 variable "enable_private_nodes" {
   description = "Enable private nodes or not"
-  type = bool
-  default = true
+  type        = bool
+  default     = true
 }
 
-variable "disk_setup_enabled"{
+variable "disk_setup_enabled" {
   description = "Enable disk setup or not"
-  type = bool
-  default = true
+  type        = bool
+  default     = true
 }
 
 variable "min_nodes" {

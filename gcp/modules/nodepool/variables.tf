@@ -1,5 +1,5 @@
-variable "nodepool_name" {
-  description = "The name of the node pool"
+variable "prefix" {
+  description = "Prefix to be used for resource names"
   type        = string
 }
 

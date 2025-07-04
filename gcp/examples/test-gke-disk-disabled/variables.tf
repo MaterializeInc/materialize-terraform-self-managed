@@ -28,7 +28,6 @@ variable "region" {
 variable "prefix" {
   description = "Prefix for resource names"
   type        = string
-  default     = "test-disk-disabled"
 }
 
 variable "skip_nodepool" {
@@ -71,7 +70,7 @@ variable "disk_setup_enabled" {
 variable "disk_size" {
   description = "Disk size in GB for nodepool"
   type        = number
-  default     = 100
+  default     = 50
 }
 
 variable "min_nodes" {

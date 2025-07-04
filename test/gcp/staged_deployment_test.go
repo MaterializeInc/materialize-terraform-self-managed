@@ -82,7 +82,7 @@ func (suite *StagedDeploymentSuite) AfterTest(suiteName, testName string) {
 			t.Logf("♻️ No network to cleanup (was not created in this test)")
 		}
 	})
-}
+}	
 
 // TestFullDeployment tests network creation followed by database and GKE
 func (suite *StagedDeploymentSuite) TestFullDeployment() {
@@ -239,7 +239,7 @@ func (suite *StagedDeploymentSuite) TestFullDeployment() {
 			Vars: map[string]any{
 				"project_id":   projectID,
 				"region":       TestRegion,
-				"prefix":       fmt.Sprintf("test-%s-gke-disk", resourceId),
+				"prefix":       resourceId,
 				"network_name": networkName,
 				"subnet_name":  subnetName,
 			},
@@ -283,7 +283,7 @@ func (suite *StagedDeploymentSuite) TestFullDeployment() {
 			Vars: map[string]any{
 				"project_id":   projectID,
 				"region":       TestRegion,
-				"prefix":       fmt.Sprintf("test-%s-gke-nodisk", resourceId),
+				"prefix":       resourceId,
 				"network_name": networkName,
 				"subnet_name":  subnetName,
 			},
