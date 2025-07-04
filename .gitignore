@@ -37,3 +37,5 @@ tests/.terraform.lock.hcl
 *.env
 .envrc
 *.bak
+
+*testRuns/
