@@ -31,9 +31,9 @@ variable "enable_disk_support" {
 variable "disk_support_config" {
   description = "Advanced configuration for disk support (only used when enable_disk_support = true)"
   type = object({
-    install_openebs       = optional(bool, true)
-    openebs_version       = optional(string, "4.2.0")
-    openebs_namespace     = optional(string, "openebs")
+    install_openebs   = optional(bool, true)
+    openebs_version   = optional(string, "4.2.0")
+    openebs_namespace = optional(string, "openebs")
   })
   default = {}
 }
