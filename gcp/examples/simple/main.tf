@@ -87,7 +87,7 @@ module "nodepool" {
   source     = "../../modules/nodepool"
   depends_on = [module.gke]
 
-  nodepool_name         = "${var.prefix}-node-pool"
+  prefix                = var.prefix
   region                = var.region
   enable_private_nodes  = true
   cluster_name          = module.gke.cluster_name

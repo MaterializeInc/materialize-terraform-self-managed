@@ -1,3 +1,8 @@
+provider "google" {
+  project = var.project_id
+  region  = var.region
+}
+
 # Database test example - receives network info from test
 module "database" {
   source = "../../modules/database"
