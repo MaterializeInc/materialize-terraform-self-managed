@@ -15,3 +15,9 @@ variable "openebs_version" {
   type        = string
   default     = "4.2.0"
 }
+
+variable "install_openebs" {
+  description = "Whether to install OpenEBS"
+  type        = bool
+  default     = true
+}

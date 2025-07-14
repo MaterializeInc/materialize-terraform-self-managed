@@ -89,8 +89,9 @@ module "aws_lbc" {
 module "openebs" {
   source = "../../../kubernetes/modules/openebs"
 
-  openebs_namespace = "openebs"
-  openebs_version   = "4.2.0"
+  openebs_namespace = local.disk_config.openebs_namespace
+  openebs_version   = local.disk_config.openebs_version
+  install_openebs   = local.disk_config.install_openebs
 
   depends_on = [
     module.networking,
@@ -106,7 +107,7 @@ module "certificates" {
 
   install_cert_manager           = true
   cert_manager_install_timeout   = 300
-  cert_manager_chart_version     = "v1.13.3"
+  cert_manager_chart_version     = "v1.18.0"
   use_self_signed_cluster_issuer = var.install_materialize_instance
   cert_manager_namespace         = "cert-manager"
   name_prefix                    = var.name_prefix
@@ -230,6 +231,14 @@ module "materialize_nlb" {
 }
 
 locals {
+
+  # Disk support configuration
+  disk_config = {
+    install_openebs   = var.enable_disk_support ? lookup(var.disk_support_config, "install_openebs", true) : false
+    openebs_version   = lookup(var.disk_support_config, "openebs_version", "4.2.0")
+    openebs_namespace = lookup(var.disk_support_config, "openebs_namespace", "openebs")
+  }
+
   metadata_backend_url = format(
     "postgres://%s:%s@%s/%s?sslmode=require",
     module.database.db_instance_username,

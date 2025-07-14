@@ -22,6 +22,23 @@ variable "create_nlb" {
   default     = true
 }
 
+variable "enable_disk_support" {
+  description = "Enable disk support for Materialize using OpenEBS and NVME disks. When enabled, this configures OpenEBS, runs the disk setup script, and creates appropriate storage classes."
+  type        = bool
+  default     = true
+}
+
+variable "disk_support_config" {
+  description = "Advanced configuration for disk support (only used when enable_disk_support = true)"
+  type = object({
+    install_openebs   = optional(bool, true)
+    openebs_version   = optional(string, "4.2.0")
+    openebs_namespace = optional(string, "openebs")
+  })
+  default = {}
+}
+
+
 variable "kubernetes_namespace" {
   description = "The Kubernetes namespace for the Materialize resources"
   type        = string
