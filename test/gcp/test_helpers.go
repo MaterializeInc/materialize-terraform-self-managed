@@ -1,8 +1,10 @@
 package test
 
 import (
+	"fmt"
 	"math/rand"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/gruntwork-io/terratest/modules/terraform"
@@ -31,6 +33,45 @@ func generateGCPCompliantID() string {
 	result += string(alphanumeric[rand.Intn(len(alphanumeric))])
 
 	return result
+}
+
+// GetLatestModifiedSubDir returns the most recently modified subdirectory within the root directory
+func GetLatestModifiedSubDir(root string) (string, error) {
+	// Read only the immediate directory entries
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		return "", fmt.Errorf("failed to read directory %s: %w", root, err)
+	}
+
+	var latestDir string
+	var latestModTime time.Time
+
+	for _, entry := range entries {
+		// Skip non-directories and hidden directories
+		if !entry.IsDir() || strings.HasPrefix(entry.Name(), ".") {
+			continue
+		}
+
+		// Get full path - use string concatenation to preserve relative paths
+		fullPath := root + "/" + entry.Name()
+		info, err := entry.Info()
+		if err != nil {
+			// Skip entries we can't stat
+			continue
+		}
+
+		// Track the most recent directory
+		if latestDir == "" || info.ModTime().After(latestModTime) {
+			latestModTime = info.ModTime()
+			latestDir = fullPath
+		}
+	}
+
+	if latestDir == "" {
+		return "", fmt.Errorf("no subdirectories found in %s", root)
+	}
+
+	return latestDir, nil
 }
 
 // BaseTestSuite provides common functionality for all GCP test suites
@@ -103,7 +144,7 @@ func (suite *BaseTestSuite) BaseAfterTest(testName string) {
 
 		// Use Terratest's built-in destroy with retry
 		terraform.Destroy(t, terraformOptions)
-		
+
 		t.Logf("✅ Cleanup completed for %s", testName)
 
 		// Remove from map to free memory
