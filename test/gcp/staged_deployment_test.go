@@ -3,6 +3,7 @@ package test
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/gruntwork-io/terratest/modules/terraform"
@@ -144,26 +145,28 @@ func (suite *StagedDeploymentSuite) TestFullDeployment() {
 	if os.Getenv("SKIP_setup_network") != "" {
 		// Find and load existing network state
 		stateBaseDir := TestRunsDir
-		dirs, err := os.ReadDir(stateBaseDir)
-		if err != nil || len(dirs) == 0 {
-			t.Fatal("❌ Cannot skip network creation: No existing network state found. Run without SKIP_setup_network first.")
+		
+		// Check if state base directory exists
+		if _, err := os.Stat(stateBaseDir); os.IsNotExist(err) {
+			t.Fatal("❌ Cannot skip network creation: State directory does not exist. Run without SKIP_setup_network first.")
 		}
-
-		// Use the most recent state directory
-		var latestDir string
-		for _, dir := range dirs {
-			if dir.IsDir() {
-				latestDir = dir.Name()
-				break
-			}
+		
+		// Get the most recent state directory
+		latestDirPath, err := GetLatestModifiedSubDir(stateBaseDir)
+		if err != nil {
+			t.Fatalf("❌ Cannot skip network creation: %v", err)
 		}
-
-		if latestDir == "" {
-			t.Fatal("❌ Cannot skip network creation: No valid network state found.")
-		}
-
-		suite.workingDir = fmt.Sprintf("%s/%s", stateBaseDir, latestDir)
+		
+		// Use the full path returned by the helper
+		suite.workingDir = latestDirPath
+		latestDir := filepath.Base(latestDirPath)
+		
+		// Load network name using test_structure (handles .test-data path internally)
 		networkName := test_structure.LoadString(t, suite.workingDir, "network_name")
+		if networkName == "" {
+			t.Fatalf("❌ Cannot skip network creation: Network name is empty in state directory %s", latestDir)
+		}
+		
 		t.Logf("♻️ Skipping network creation, using existing: %s (ID: %s)", networkName, latestDir)
 	}
 
