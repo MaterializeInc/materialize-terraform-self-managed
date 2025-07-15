@@ -23,3 +23,8 @@ output "node_service_account" {
   description = "Service account email for nodes"
   value       = module.gke.service_account_email
 }
+
+output "workload_identity_sa_email" {
+  description = "The email of the Workload Identity service account"
+  value       = module.gke.workload_identity_sa_email
+}

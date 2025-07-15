@@ -34,7 +34,29 @@ func (suite *StagedDeploymentSuite) AfterTest(suiteName, testName string) {
 	t := suite.T()
 	t.Logf("🧹 Starting cleanup stages for: %s", testName)
 
-	// Cleanup stages (run in reverse order: GKE first, then database, then network)
+	// Cleanup stages (run in reverse order: Materialize, then GKE, then database, then network)
+	test_structure.RunTestStage(t, "cleanup_materialize_disk_enabled", func() {
+		// Only cleanup if Materialize disk-enabled was created in this test run
+		if mzOptions := test_structure.LoadTerraformOptions(t, suite.workingDir+"/materialize-disk-enabled"); mzOptions != nil {
+			t.Logf("🗑️ Cleaning up Materialize with disk enabled...")
+			terraform.Destroy(t, mzOptions)
+			t.Logf("✅ Materialize disk-enabled cleanup completed")
+		} else {
+			t.Logf("♻️ No Materialize disk-enabled to cleanup (was not created in this test)")
+		}
+	})
+
+	test_structure.RunTestStage(t, "cleanup_materialize_disk_disabled", func() {
+		// Only cleanup if Materialize disk-disabled was created in this test run
+		if mzOptions := test_structure.LoadTerraformOptions(t, suite.workingDir+"/materialize-disk-disabled"); mzOptions != nil {
+			t.Logf("🗑️ Cleaning up Materialize without disk enabled...")
+			terraform.Destroy(t, mzOptions)
+			t.Logf("✅ Materialize disk-disabled cleanup completed")
+		} else {
+			t.Logf("♻️ No Materialize disk-disabled to cleanup (was not created in this test)")
+		}
+	})
+
 	test_structure.RunTestStage(t, "cleanup_gke_disk_enabled", func() {
 		// Only cleanup if GKE disk-enabled was created in this test run
 		if gkeOptions := test_structure.LoadTerraformOptions(t, suite.workingDir+"/gke-disk-enabled"); gkeOptions != nil {
@@ -83,9 +105,10 @@ func (suite *StagedDeploymentSuite) AfterTest(suiteName, testName string) {
 			t.Logf("♻️ No network to cleanup (was not created in this test)")
 		}
 	})
-}	
+}
 
-// TestFullDeployment tests network creation followed by database and GKE
+// TestFullDeployment tests full infrastructure deployment with Materialize
+// Stages: Network → Database → GKE (parallel) → Materialize Operator (parallel) → Materialize Instance (parallel)
 func (suite *StagedDeploymentSuite) TestFullDeployment() {
 	t := suite.T()
 
@@ -197,9 +220,9 @@ func (suite *StagedDeploymentSuite) TestFullDeployment() {
 				"region":            TestRegion,
 				"prefix":            fmt.Sprintf("test-%s-db", resourceId),
 				"network_id":        networkId,
-				"database_password": "test-password-123!",
-				"database_name":     "materialize-test",
-				"user_name":         "materialize-test",
+				"database_password": TestPassword,
+				"database_name":     TestDBName,
+				"user_name":         TestDBUsername,
 			},
 		}
 
@@ -238,7 +261,7 @@ func (suite *StagedDeploymentSuite) TestFullDeployment() {
 		t.Logf("🔗 Using infrastructure family: %s for GKE disk-enabled", resourceId)
 
 		gkeOptions := &terraform.Options{
-			TerraformDir: "../../gcp/examples/test-gke-disk-enabled",
+			TerraformDir: "../../gcp/examples/disk-enabled/test-gke-w-nodes",
 			Vars: map[string]any{
 				"project_id":   projectID,
 				"region":       TestRegion,
@@ -282,7 +305,7 @@ func (suite *StagedDeploymentSuite) TestFullDeployment() {
 		t.Logf("🔗 Using infrastructure family: %s for GKE disk-disabled", resourceId)
 
 		gkeOptions := &terraform.Options{
-			TerraformDir: "../../gcp/examples/test-gke-disk-disabled",
+			TerraformDir: "../../gcp/examples/disk-disabled/test-gke-w-nodes",
 			Vars: map[string]any{
 				"project_id":   projectID,
 				"region":       TestRegion,
@@ -303,6 +326,122 @@ func (suite *StagedDeploymentSuite) TestFullDeployment() {
 		suite.NotEmpty(clusterName, "GKE cluster name should not be empty")
 
 		t.Logf("✅ GKE cluster without disk enabled created: %s", clusterName)
+	})
+
+	// Stage 4: Materialize Full Deployment (disk-enabled) - Two-phase deployment
+	test_structure.RunTestStage(t, "setup_materialize_disk_enabled", func() {
+		// Ensure workingDir is set
+		if suite.workingDir == "" {
+			t.Fatal("❌ Cannot install Materialize: Working directory not set. Run network setup stage first.")
+		}
+
+		// Load saved data
+		projectID := test_structure.LoadString(t, suite.workingDir, "project_id")
+		resourceId := test_structure.LoadString(t, suite.workingDir, "resource_unique_id")
+		workloadIdentitySA := terraform.Output(t, test_structure.LoadTerraformOptions(t, suite.workingDir+"/gke-disk-enabled"), "workload_identity_sa_email")
+		clusterName := terraform.Output(t, test_structure.LoadTerraformOptions(t, suite.workingDir+"/gke-disk-enabled"), "cluster_name")
+		clusterEndpoint := terraform.Output(t, test_structure.LoadTerraformOptions(t, suite.workingDir+"/gke-disk-enabled"), "cluster_endpoint")
+		clusterCA := terraform.Output(t, test_structure.LoadTerraformOptions(t, suite.workingDir+"/gke-disk-enabled"), "cluster_ca_certificate")
+		databaseHost := terraform.Output(t, test_structure.LoadTerraformOptions(t, suite.workingDir+"/database"), "private_ip")
+
+		t.Logf("🔗 Using infrastructure family: %s for Materialize (disk-enabled)", resourceId)
+
+		mzOptions := &terraform.Options{
+			TerraformDir: "../../gcp/examples/disk-enabled/test-materialize",
+			Vars: map[string]any{
+				"project_id":                   projectID,
+				"region":                       TestRegion,
+				"prefix":                       resourceId,
+				"cluster_name":                 clusterName,
+				"cluster_endpoint":             clusterEndpoint,
+				"cluster_ca_certificate":       clusterCA,
+				"workload_identity_sa_email":   workloadIdentitySA,
+				"database_host":                databaseHost,
+				"database_username":            TestDBUsername,
+				"database_name":                TestDBName,
+				"database_password":            TestPassword,
+				"external_login_password":      TestPassword,
+				"install_materialize_instance": false, // Phase 1: operator only
+			},
+		}
+
+		// Save terraform options for potential cleanup stage
+		test_structure.SaveTerraformOptions(t, suite.workingDir+"/materialize-disk-enabled", mzOptions)
+
+		// Phase 1: Apply operator only
+		terraform.InitAndApply(t, mzOptions)
+
+		t.Logf("✅ Phase 1: Materialize operator installed on disk-enabled cluster")
+
+		// Phase 2: Update variables for instance deployment
+		mzOptions.Vars["install_materialize_instance"] = true
+
+		// Phase 2: Apply with instance enabled
+		terraform.Apply(t, mzOptions)
+
+		// Validate
+		instanceResourceId := terraform.Output(t, mzOptions, "instance_resource_id")
+		suite.NotEmpty(instanceResourceId, "Materialize instance resource ID should not be empty")
+
+		t.Logf("✅ Phase 2: Materialize instance created with disk-based storage: %s", instanceResourceId)
+	})
+
+	// Stage 5: Materialize Full Deployment (disk-disabled) - Two-phase deployment
+	test_structure.RunTestStage(t, "setup_materialize_disk_disabled", func() {
+		// Ensure workingDir is set
+		if suite.workingDir == "" {
+			t.Fatal("❌ Cannot install Materialize: Working directory not set. Run network setup stage first.")
+		}
+
+		// Load saved data
+		projectID := test_structure.LoadString(t, suite.workingDir, "project_id")
+		resourceId := test_structure.LoadString(t, suite.workingDir, "resource_unique_id")
+		workloadIdentitySA := terraform.Output(t, test_structure.LoadTerraformOptions(t, suite.workingDir+"/gke-disk-disabled"), "workload_identity_sa_email")
+		clusterName := terraform.Output(t, test_structure.LoadTerraformOptions(t, suite.workingDir+"/gke-disk-disabled"), "cluster_name")
+		clusterEndpoint := terraform.Output(t, test_structure.LoadTerraformOptions(t, suite.workingDir+"/gke-disk-disabled"), "cluster_endpoint")
+		clusterCA := terraform.Output(t, test_structure.LoadTerraformOptions(t, suite.workingDir+"/gke-disk-disabled"), "cluster_ca_certificate")
+		databaseHost := terraform.Output(t, test_structure.LoadTerraformOptions(t, suite.workingDir+"/database"), "private_ip")
+
+		t.Logf("🔗 Using infrastructure family: %s for Materialize (disk-disabled)", resourceId)
+
+		mzOptions := &terraform.Options{
+			TerraformDir: "../../gcp/examples/disk-disabled/test-materialize",
+			Vars: map[string]any{
+				"project_id":                   projectID,
+				"region":                       TestRegion,
+				"prefix":                       resourceId,
+				"cluster_name":                 clusterName,
+				"cluster_endpoint":             clusterEndpoint,
+				"cluster_ca_certificate":       clusterCA,
+				"workload_identity_sa_email":   workloadIdentitySA,
+				"database_host":                databaseHost,
+				"database_username":            TestDBUsername,
+				"database_name":                TestDBName,
+				"database_password":            TestPassword,
+				"external_login_password":      TestPassword,
+				"install_materialize_instance": false, // Phase 1: operator only
+			},
+		}
+
+		// Save terraform options for potential cleanup stage
+		test_structure.SaveTerraformOptions(t, suite.workingDir+"/materialize-disk-disabled", mzOptions)
+
+		// Phase 1: Apply operator only
+		terraform.InitAndApply(t, mzOptions)
+
+		t.Logf("✅ Phase 1: Materialize operator installed on disk-disabled cluster")
+
+		// Phase 2: Update variables for instance deployment
+		mzOptions.Vars["install_materialize_instance"] = true
+
+		// Phase 2: Apply with instance enabled
+		terraform.Apply(t, mzOptions)
+
+		// Validate
+		instanceResourceId := terraform.Output(t, mzOptions, "instance_resource_id")
+		suite.NotEmpty(instanceResourceId, "Materialize instance resource ID should not be empty")
+
+		t.Logf("✅ Phase 2: Materialize instance created without disk-based storage: %s", instanceResourceId)
 	})
 }
 
