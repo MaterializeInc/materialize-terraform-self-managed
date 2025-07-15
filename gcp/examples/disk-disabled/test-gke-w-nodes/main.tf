@@ -14,7 +14,7 @@ provider "kubernetes" {
 
 # GKE test example with disk-disabled nodepool - receives network info from test
 module "gke" {
-  source = "../../modules/gke"
+  source = "../../../modules/gke"
 
   project_id   = var.project_id
   region       = var.region
@@ -27,7 +27,7 @@ module "gke" {
 # Conditional nodepool creation
 module "nodepool" {
   count      = var.skip_nodepool ? 0 : 1
-  source     = "../../modules/nodepool"
+  source     = "../../../modules/nodepool"
   depends_on = [module.gke]
 
   project_id = var.project_id
