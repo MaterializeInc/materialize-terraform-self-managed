@@ -339,7 +339,6 @@ func (suite *StagedDeploymentSuite) TestFullDeployment() {
 		projectID := test_structure.LoadString(t, suite.workingDir, "project_id")
 		resourceId := test_structure.LoadString(t, suite.workingDir, "resource_unique_id")
 		workloadIdentitySA := terraform.Output(t, test_structure.LoadTerraformOptions(t, suite.workingDir+"/gke-disk-enabled"), "workload_identity_sa_email")
-		clusterName := terraform.Output(t, test_structure.LoadTerraformOptions(t, suite.workingDir+"/gke-disk-enabled"), "cluster_name")
 		clusterEndpoint := terraform.Output(t, test_structure.LoadTerraformOptions(t, suite.workingDir+"/gke-disk-enabled"), "cluster_endpoint")
 		clusterCA := terraform.Output(t, test_structure.LoadTerraformOptions(t, suite.workingDir+"/gke-disk-enabled"), "cluster_ca_certificate")
 		databaseHost := terraform.Output(t, test_structure.LoadTerraformOptions(t, suite.workingDir+"/database"), "private_ip")
@@ -352,7 +351,6 @@ func (suite *StagedDeploymentSuite) TestFullDeployment() {
 				"project_id":                   projectID,
 				"region":                       TestRegion,
 				"prefix":                       resourceId,
-				"cluster_name":                 clusterName,
 				"cluster_endpoint":             clusterEndpoint,
 				"cluster_ca_certificate":       clusterCA,
 				"workload_identity_sa_email":   workloadIdentitySA,
@@ -397,7 +395,6 @@ func (suite *StagedDeploymentSuite) TestFullDeployment() {
 		projectID := test_structure.LoadString(t, suite.workingDir, "project_id")
 		resourceId := test_structure.LoadString(t, suite.workingDir, "resource_unique_id")
 		workloadIdentitySA := terraform.Output(t, test_structure.LoadTerraformOptions(t, suite.workingDir+"/gke-disk-disabled"), "workload_identity_sa_email")
-		clusterName := terraform.Output(t, test_structure.LoadTerraformOptions(t, suite.workingDir+"/gke-disk-disabled"), "cluster_name")
 		clusterEndpoint := terraform.Output(t, test_structure.LoadTerraformOptions(t, suite.workingDir+"/gke-disk-disabled"), "cluster_endpoint")
 		clusterCA := terraform.Output(t, test_structure.LoadTerraformOptions(t, suite.workingDir+"/gke-disk-disabled"), "cluster_ca_certificate")
 		databaseHost := terraform.Output(t, test_structure.LoadTerraformOptions(t, suite.workingDir+"/database"), "private_ip")
@@ -410,7 +407,6 @@ func (suite *StagedDeploymentSuite) TestFullDeployment() {
 				"project_id":                   projectID,
 				"region":                       TestRegion,
 				"prefix":                       resourceId,
-				"cluster_name":                 clusterName,
 				"cluster_endpoint":             clusterEndpoint,
 				"cluster_ca_certificate":       clusterCA,
 				"workload_identity_sa_email":   workloadIdentitySA,
