@@ -3,6 +3,7 @@ package test
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -26,13 +27,8 @@ func (suite *StagedDeploymentTestSuite) SetupSuite() {
 
 // TearDownSuite cleans up the test suite
 func (suite *StagedDeploymentTestSuite) TearDownSuite() {
-	suite.TearDownBaseSuite()
-}
-
-// AfterTest runs after each individual test - handles cleanup stages
-func (suite *StagedDeploymentTestSuite) AfterTest(suiteName, testName string) {
 	t := suite.T()
-	t.Logf("🧹 Starting cleanup stages for: %s", testName)
+	t.Logf("🧹 Starting cleanup stages for: %s", suite.suiteName)
 
 	// Cleanup stages (run in reverse order: Database, then network)
 	test_structure.RunTestStage(t, "cleanup_database", func() {
@@ -41,6 +37,9 @@ func (suite *StagedDeploymentTestSuite) AfterTest(suiteName, testName string) {
 			t.Logf("🗑️ Cleaning up database...")
 			terraform.Destroy(t, dbOptions)
 			t.Logf("✅ Database cleanup completed")
+
+			uniqueId := test_structure.LoadString(t, suite.workingDir, "resource_unique_id")
+			cleanupTestWorkspace(t, AWSDir, uniqueId, DataBaseDir)
 		} else {
 			t.Logf("♻️ No database to cleanup (was not created in this test)")
 		}
@@ -53,6 +52,9 @@ func (suite *StagedDeploymentTestSuite) AfterTest(suiteName, testName string) {
 			terraform.Destroy(t, networkOptions)
 			t.Logf("✅ Network cleanup completed")
 
+			uniqueId := test_structure.LoadString(t, suite.workingDir, "resource_unique_id")
+			cleanupTestWorkspace(t, AWSDir, uniqueId, NetworkingDir)
+
 			// Remove entire state directory since network is the foundation
 			t.Logf("🗂️ Removing state directory: %s", suite.workingDir)
 			os.RemoveAll(suite.workingDir)
@@ -61,6 +63,7 @@ func (suite *StagedDeploymentTestSuite) AfterTest(suiteName, testName string) {
 			t.Logf("♻️ No network to cleanup (was not created in this test)")
 		}
 	})
+	suite.TearDownBaseSuite()
 }
 
 // TestFullDeployment tests full infrastructure deployment
@@ -71,62 +74,71 @@ func (suite *StagedDeploymentTestSuite) TestFullDeployment() {
 	// Stage 1: Network Setup
 	test_structure.RunTestStage(t, "setup_network", func() {
 		// Generate unique ID for this infrastructure family
-		uniqueId := generateAWSCompliantID()
-		suite.workingDir = fmt.Sprintf("%s/%s", TestRunsDir, uniqueId)
-		os.MkdirAll(suite.workingDir, 0755)
-		t.Logf("🏷️ Infrastructure ID: %s", uniqueId)
-		t.Logf("📁 State directory: %s", suite.workingDir)
+		if os.Getenv("USE_EXISTING_NETWORK") != "" {
+			suite.useExistingNetwork()
+		} else {
+			uniqueId := generateAWSCompliantID()
+			suite.workingDir = fmt.Sprintf("%s/%s", TestRunsDir, uniqueId)
+			os.MkdirAll(suite.workingDir, 0755)
+			t.Logf("🏷️ Infrastructure ID: %s", uniqueId)
+			t.Logf("📁 Test Stage Output directory: %s", suite.workingDir)
 
-		// Set up networking example
-		networkingPath := setupTestExample(t, uniqueId, "test-networking")
+			// Set up networking example
+			networkingPath := setupTestExample(t, AWSDir, uniqueId, NetworkingDir)
 
-		networkOptions := &terraform.Options{
-			TerraformDir: networkingPath,
-			Vars: map[string]interface{}{
-				"name_prefix":           fmt.Sprintf("%s-net", uniqueId),
-				"vpc_cidr":              TestVPCCIDR,
-				"availability_zones":    []string{TestAvailabilityZoneA, TestAvailabilityZoneB},
-				"private_subnet_cidrs":  []string{TestPrivateSubnetCIDRA, TestPrivateSubnetCIDRB},
-				"public_subnet_cidrs":   []string{TestPublicSubnetCIDRA, TestPublicSubnetCIDRB},
-				"single_nat_gateway":    true,
-				"create_vpc":            true,
-				"tags": map[string]string{
-					"Environment": "test",
-					"Project":     "materialize",
-					"TestRun":     uniqueId,
+			networkOptions := &terraform.Options{
+				TerraformDir: networkingPath,
+				Vars: map[string]interface{}{
+					"name_prefix":          fmt.Sprintf("%s-net", uniqueId),
+					"vpc_cidr":             TestVPCCIDR,
+					"availability_zones":   []string{TestAvailabilityZoneA, TestAvailabilityZoneB},
+					"private_subnet_cidrs": []string{TestPrivateSubnetCIDRA, TestPrivateSubnetCIDRB},
+					"public_subnet_cidrs":  []string{TestPublicSubnetCIDRA, TestPublicSubnetCIDRB},
+					"single_nat_gateway":   true,
+					"create_vpc":           true,
+					"tags": map[string]string{
+						"Environment": "test",
+						"Project":     "materialize",
+						"TestRun":     uniqueId,
+					},
 				},
-			},
-			RetryableTerraformErrors: map[string]string{
-				"RequestError": "Request failed",
-			},
-			MaxRetries:         TestMaxRetries,
-			TimeBetweenRetries: TestRetryDelay,
-			NoColor:            true,
+				RetryableTerraformErrors: map[string]string{
+					"RequestError": "Request failed",
+				},
+				MaxRetries:         TestMaxRetries,
+				TimeBetweenRetries: TestRetryDelay,
+				NoColor:            true,
+			}
+
+			// Save terraform options for potential cleanup stage
+			test_structure.SaveTerraformOptions(t, suite.workingDir, networkOptions)
+
+			// Apply
+			terraform.InitAndApply(t, networkOptions)
+
+			// Save all networking outputs for subsequent stages
+			vpcId := terraform.Output(t, networkOptions, "vpc_id")
+			privateSubnetIds := terraform.OutputList(t, networkOptions, "private_subnet_ids")
+			publicSubnetIds := terraform.OutputList(t, networkOptions, "public_subnet_ids")
+
+			// Save all outputs and resource IDs
+			test_structure.SaveString(t, suite.workingDir, "vpc_id", vpcId)
+			test_structure.SaveString(t, suite.workingDir, "resource_unique_id", uniqueId)
+			test_structure.SaveString(t, suite.workingDir, "private_subnet_ids", strings.Join(privateSubnetIds, ","))
+			test_structure.SaveString(t, suite.workingDir, "public_subnet_ids", strings.Join(publicSubnetIds, ","))
+
+			t.Logf("✅ Network infrastructure created:")
+			t.Logf("  🌐 VPC: %s", vpcId)
+			t.Logf("  🔒 Private Subnets: %v", privateSubnetIds)
+			t.Logf("  🌍 Public Subnets: %v", publicSubnetIds)
+			t.Logf("  🏷️ Resource ID: %s", uniqueId)
 		}
-
-		// Save terraform options for potential cleanup stage
-		test_structure.SaveTerraformOptions(t, suite.workingDir, networkOptions)
-
-		// Apply
-		terraform.InitAndApply(t, networkOptions)
-
-		// Save all networking outputs for subsequent stages
-		vpcId := terraform.Output(t, networkOptions, "vpc_id")
-		privateSubnetIds := terraform.OutputList(t, networkOptions, "private_subnet_ids")
-		publicSubnetIds := terraform.OutputList(t, networkOptions, "public_subnet_ids")
-
-		// Save all outputs and resource IDs
-		test_structure.SaveString(t, suite.workingDir, "vpc_id", vpcId)
-		test_structure.SaveString(t, suite.workingDir, "resource_unique_id", uniqueId)
-		test_structure.SaveString(t, suite.workingDir, "private_subnet_ids", strings.Join(privateSubnetIds, ","))
-		test_structure.SaveString(t, suite.workingDir, "public_subnet_ids", strings.Join(publicSubnetIds, ","))
-
-		t.Logf("✅ Network infrastructure created:")
-		t.Logf("  🌐 VPC: %s", vpcId)
-		t.Logf("  🔒 Private Subnets: %v", privateSubnetIds)
-		t.Logf("  🌍 Public Subnets: %v", publicSubnetIds)
-		t.Logf("  🏷️ Resource ID: %s", uniqueId)
 	})
+	if os.Getenv("SKIP_setup_network") != "" {
+		suite.useExistingNetwork()
+	}
+
+	// TODO: add eks setup stage before Database, DB depends on eks security group ids
 
 	// Stage 2: Database Setup
 	test_structure.RunTestStage(t, "setup_database", func() {
@@ -151,27 +163,28 @@ func (suite *StagedDeploymentTestSuite) TestFullDeployment() {
 		t.Logf("🔗 Using infrastructure family: %s", resourceId)
 
 		// Set up database example
-		databasePath := setupTestExample(t, resourceId, "test-database")
+		databasePath := setupTestExample(t, AWSDir, resourceId, DataBaseDir)
 
 		dbOptions := &terraform.Options{
 			TerraformDir: databasePath,
 			Vars: map[string]interface{}{
-				"name_prefix":              fmt.Sprintf("%s-db", resourceId),
-				"vpc_id":                   vpcId,
-				"database_subnet_ids":      privateSubnetIds,
-				"postgres_version":         TestPostgreSQLVersion,
-				"instance_class":           TestRDSInstanceClassSmall,
-				"allocated_storage":        TestAllocatedStorageSmall,
-				"max_allocated_storage":    TestMaxAllocatedStorageSmall,
-				"multi_az":                 false,
-				"database_name":            TestDBName,
-				"database_username":        TestDBUsername,
-				"database_password":        TestPassword,
-				"maintenance_window":       TestMaintenanceWindow,
-				"backup_window":            TestBackupWindow,
-				"backup_retention_period":  TestBackupRetentionPeriod,
-				"eks_security_group_id":        "sg-placeholder-eks",
-				"eks_node_security_group_id":   "sg-placeholder-nodes",
+				"name_prefix":                fmt.Sprintf("%s-db", resourceId),
+				"vpc_id":                     vpcId,
+				"database_subnet_ids":        privateSubnetIds,
+				"postgres_version":           TestPostgreSQLVersion,
+				"instance_class":             TestRDSInstanceClassSmall,
+				"allocated_storage":          TestAllocatedStorageSmall,
+				"max_allocated_storage":      TestMaxAllocatedStorageSmall,
+				"multi_az":                   false,
+				"database_name":              TestDBName,
+				"database_username":          TestDBUsername,
+				"database_password":          TestPassword,
+				"maintenance_window":         TestMaintenanceWindow,
+				"backup_window":              TestBackupWindow,
+				"backup_retention_period":    TestBackupRetentionPeriod,
+				// TODO: might need to provision eks first to get these IDs
+				// "eks_security_group_id":      "sg-placeholder-eks",
+				// "eks_node_security_group_id": "sg-placeholder-nodes",
 				"tags": map[string]string{
 					"Environment": "test",
 					"Project":     "materialize",
@@ -192,27 +205,56 @@ func (suite *StagedDeploymentTestSuite) TestFullDeployment() {
 		// Apply
 		terraform.InitAndApply(t, dbOptions)
 
-		// Validate
+		// Validate all database outputs
 		databaseEndpoint := terraform.Output(t, dbOptions, "database_endpoint")
 		databasePort := terraform.Output(t, dbOptions, "database_port")
+		databaseName := terraform.Output(t, dbOptions, "database_name")
+		databaseUsername := terraform.Output(t, dbOptions, "database_username")
+		databaseIdentifier := terraform.Output(t, dbOptions, "database_identifier")
+		
+		// Comprehensive validation
 		suite.NotEmpty(databaseEndpoint, "Database endpoint should not be empty")
+		suite.Contains(databaseEndpoint, ".rds.amazonaws.com", "Database endpoint should be a valid RDS endpoint")
 		suite.Equal("5432", databasePort, "Database port should be 5432")
+		suite.Equal(TestDBName, databaseName, "Database name should match the configured value")
+		suite.Equal(TestDBUsername, databaseUsername, "Database username should match the configured value")
+		suite.Contains(databaseIdentifier, resourceId, "Database identifier should contain the resource ID")
+		
+		// Save database outputs for future stages
+		test_structure.SaveString(t, suite.workingDir, "database_endpoint", databaseEndpoint)
+		test_structure.SaveString(t, suite.workingDir, "database_port", databasePort)
+		test_structure.SaveString(t, suite.workingDir, "database_name", databaseName)
+		test_structure.SaveString(t, suite.workingDir, "database_identifier", databaseIdentifier)
 
-		t.Logf("✅ Database created: %s:%s", databaseEndpoint, databasePort)
+		t.Logf("✅ Database created successfully:")
+		t.Logf("  🔗 Endpoint: %s:%s", databaseEndpoint, databasePort)
+		t.Logf("  📛 Database Name: %s", databaseName)
+		t.Logf("  👤 Username: %s", databaseUsername)
+		t.Logf("  🏷️ Identifier: %s", databaseIdentifier)
 	})
+}
+
+func (suite *StagedDeploymentTestSuite) useExistingNetwork() {
+	t := suite.T()
+	lastRunDir, err := GetLastRunTestStageDir()
+	if err != nil {
+		t.Fatalf("Unable to use existing network %v", err)
+	}
+	// Use the full path returned by the helper
+	suite.workingDir = lastRunDir
+	latestDir := filepath.Base(lastRunDir)
+
+	// Load vpc id using test_structure (handles .test-data path internally)
+	vpcID := test_structure.LoadString(t, suite.workingDir, "vpc_id")
+	if vpcID == "" {
+		t.Fatalf("❌ Cannot skip network creation: VPC Id is empty in stage output directory %s", latestDir)
+	}
+
+	t.Logf("♻️ Skipping network creation, using existing: %s (ID: %s)", vpcID, latestDir)
 }
 
 // TestStagedDeploymentSuite runs the staged deployment test suite
 func TestStagedDeploymentSuite(t *testing.T) {
-	// Check required environment variables
-	if os.Getenv("PROJECT_ROOT") == "" {
-		t.Fatal("PROJECT_ROOT environment variable must be set")
-	}
-
-	if os.Getenv("AWS_REGION") == "" && os.Getenv("AWS_DEFAULT_REGION") == "" {
-		t.Fatal("AWS_REGION or AWS_DEFAULT_REGION environment variable must be set")
-	}
-
 	// Run the test suite
 	suite.Run(t, new(StagedDeploymentTestSuite))
 }

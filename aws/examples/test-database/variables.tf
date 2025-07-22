@@ -13,15 +13,15 @@ variable "database_subnet_ids" {
   type        = list(string)
 }
 
-variable "eks_security_group_id" {
-  description = "Security group ID of the EKS cluster"
-  type        = string
-}
+# variable "eks_security_group_id" {
+#   description = "Security group ID of the EKS cluster"
+#   type        = string
+# }
 
-variable "eks_node_security_group_id" {
-  description = "Security group ID of the EKS node group"
-  type        = string
-}
+# variable "eks_node_security_group_id" {
+#   description = "Security group ID of the EKS node group"
+#   type        = string
+# }
 
 variable "postgres_version" {
   description = "PostgreSQL version"

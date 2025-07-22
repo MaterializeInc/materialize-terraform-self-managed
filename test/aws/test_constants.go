@@ -14,16 +14,16 @@ const (
 	TestAvailabilityZoneC = "us-west-2c"
 
 	// EC2 instance types that are reliably available in us-west-2
-	TestInstanceTypeSmall  = "t3.medium"  // 2 vCPU, 4 GB RAM
-	TestInstanceTypeMedium = "t3.large"   // 2 vCPU, 8 GB RAM
-	TestInstanceTypeLarge  = "t3.xlarge"  // 4 vCPU, 16 GB RAM
+	TestInstanceTypeSmall  = "t3.medium" // 2 vCPU, 4 GB RAM
+	TestInstanceTypeMedium = "t3.large"  // 2 vCPU, 8 GB RAM
+	TestInstanceTypeLarge  = "t3.xlarge" // 4 vCPU, 16 GB RAM
 
 	// EKS-specific instance types
 	TestEKSInstanceType            = "t3.medium" // Standard EKS node type
 	TestAlternativeEKSInstanceType = "t3.large"  // Alternative EKS node type
 
 	// Kubernetes version
-	TestKubernetesVersion = "1.31"
+	TestKubernetesVersion = "1.32"
 
 	// RDS instance classes that are reliably available
 	TestRDSInstanceClassSmall  = "db.t3.micro"  // 2 vCPU, 1 GB RAM
@@ -31,7 +31,7 @@ const (
 	TestRDSInstanceClassLarge  = "db.t3.medium" // 2 vCPU, 4 GB RAM
 
 	// PostgreSQL version that's widely available
-	TestPostgreSQLVersion = "15.7"
+	TestPostgreSQLVersion = "15"
 
 	// Storage sizes for testing (smaller to reduce costs)
 	TestAllocatedStorageSmall  = 20
@@ -81,4 +81,16 @@ const (
 	// Format: t{YYMMDDHHMMSS}-{random5}
 	TestResourceIDFormat = "t%s-%s"
 	TestRandomIDLength   = 5
+
+	// Dirs Containing Example terraforms for different cloud
+	// TODO: i don't feel right about hardcoding dir names in code,
+	// this shouldn't be bad, since it's just tests, but renaming dirs would need a change
+	// here as well. Could take these as env vars but might do it later if needed.
+	AWSDir   = "aws"
+	GCPDir   = "gcp"
+	AzureDir = "azure"
+
+	ExamplesDir   = "examples"
+	NetworkingDir = "test-networking"
+	DataBaseDir   = "test-database"
 )

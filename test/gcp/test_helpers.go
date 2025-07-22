@@ -154,11 +154,6 @@ func (suite *BaseTestSuite) BaseAfterTest(testName string) {
 	}
 }
 
-// StoreTerraformOptions stores terraform options for a test for later cleanup
-func (suite *BaseTestSuite) StoreTerraformOptions(testName string, options *terraform.Options) {
-	suite.terraformOptionsMap[testName] = options
-}
-
 // loadEnvironmentFiles tries to load environment files for debugging configuration
 func (suite *BaseTestSuite) loadEnvironmentFiles() {
 	envFiles := []string{".env", "debug.env", ".env.debug", ".env.local"}

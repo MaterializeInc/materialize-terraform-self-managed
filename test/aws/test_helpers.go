@@ -5,7 +5,9 @@ import (
 	"io"
 	"math/rand"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -110,22 +112,20 @@ func copyFile(src, dst string) error {
 	return nil
 }
 
-// getProjectRoot returns the root directory of the project
-// from the PROJECT_ROOT environment variable
-func getProjectRoot() string {
-	if projectRoot := os.Getenv("PROJECT_ROOT"); projectRoot != "" {
-		return projectRoot
-	}
-
-	// Fallback to current directory if PROJECT_ROOT not set
-	return "."
-}
-
 // setupTestExample copies a specific example to the test workspace
-func setupTestExample(t *testing.T, uniqueID, exampleName string) string {
-	projectRoot := getProjectRoot()
-	srcDir := filepath.Join(projectRoot, "aws", "examples", exampleName)
-	dstDir := filepath.Join(projectRoot, "aws", fmt.Sprintf("%s-examples", uniqueID), exampleName)
+func setupTestExample(t *testing.T, cloudDir, uniqueID, exampleName string) string {
+	projectRoot := getProjectRootDir()
+	if projectRoot == "" {
+		t.Fatalf("Failed to get Project Root Dir")
+	}
+	cloudDirFullPath := filepath.Join(projectRoot, cloudDir)
+	srcDir := filepath.Join(cloudDirFullPath, ExamplesDir, exampleName)
+	dstDir := filepath.Join(cloudDirFullPath, fmt.Sprintf("%s-%s", uniqueID, ExamplesDir), exampleName)
+
+	if _, err := os.Stat(dstDir); !os.IsNotExist(err) {
+		t.Logf("Using existing test example: %s", dstDir)
+		return dstDir
+	}
 
 	t.Logf("📁 Setting up test example: %s -> %s", exampleName, dstDir)
 
@@ -139,9 +139,13 @@ func setupTestExample(t *testing.T, uniqueID, exampleName string) string {
 }
 
 // cleanupTestWorkspace removes the test workspace directory
-func cleanupTestWorkspace(t *testing.T, uniqueID string) {
-	projectRoot := getProjectRoot()
-	workspaceDir := filepath.Join(projectRoot, "aws", fmt.Sprintf("%s-examples", uniqueID))
+func cleanupTestWorkspace(t *testing.T, cloudDir, uniqueID, exampleName string) {
+	projectRoot := getProjectRootDir()
+	if projectRoot == "" {
+		t.Log("Failed to get Project Root Dir, cleanup might not be successful")
+	}
+	cloudDirFullPath := filepath.Join(projectRoot, cloudDir)
+	workspaceDir := filepath.Join(cloudDirFullPath, fmt.Sprintf("%s-%s", uniqueID, ExamplesDir), exampleName)
 
 	t.Logf("🧹 Cleaning up test workspace: %s", workspaceDir)
 
@@ -159,14 +163,12 @@ type BaseTestSuite struct {
 	originalEnv         map[string]string             // Store original environment to restore later
 	terraformOptionsMap map[string]*terraform.Options // Store terraform options for cleanup
 	suiteName           string                        // Name of the test suite for logging
-	uniqueID            string                        // Unique ID for this test run
 }
 
 // SetupBaseSuite initializes common test suite functionality
 func (suite *BaseTestSuite) SetupBaseSuite(suiteName string) {
 	suite.suiteName = suiteName
-	suite.uniqueID = generateAWSCompliantID()
-	suite.T().Logf("🔧 Setting up %s Test Suite with ID: %s", suiteName, suite.uniqueID)
+	suite.T().Logf("🔧 Setting up %s Test Suite", suiteName)
 
 	// Initialize the terraform options map
 	suite.terraformOptionsMap = make(map[string]*terraform.Options)
@@ -177,7 +179,7 @@ func (suite *BaseTestSuite) SetupBaseSuite(suiteName string) {
 		"TF_LOG", "TF_LOG_PATH", "TERRATEST_LOG_PARSER", "TERRATEST_TIMEOUT",
 		"AWS_REGION", "AWS_DEFAULT_REGION", "AWS_PROFILE",
 		"TEST_REGION", "TEST_MAX_RETRIES", "TEST_RETRY_DELAY",
-		"PROJECT_ROOT",
+		"PROJECT_ROOT", "USE_EXISING_NETWORK",
 	}
 
 	for _, envVar := range envVarsToTrack {
@@ -199,11 +201,6 @@ func (suite *BaseTestSuite) SetupBaseSuite(suiteName string) {
 func (suite *BaseTestSuite) TearDownBaseSuite() {
 	t := suite.T()
 	t.Logf("🧹 Tearing down %s Test Suite...", suite.suiteName)
-
-	// Clean up test workspace
-	if suite.uniqueID != "" {
-		cleanupTestWorkspace(t, suite.uniqueID)
-	}
 
 	// Restore original environment variables
 	for envVar, originalValue := range suite.originalEnv {
@@ -241,21 +238,6 @@ func (suite *BaseTestSuite) BaseAfterTest(testName string) {
 	}
 }
 
-// StoreTerraformOptions stores terraform options for a test for later cleanup
-func (suite *BaseTestSuite) StoreTerraformOptions(testName string, options *terraform.Options) {
-	suite.terraformOptionsMap[testName] = options
-}
-
-// SetupTestExample sets up a specific test example and returns its path
-func (suite *BaseTestSuite) SetupTestExample(exampleName string) string {
-	return setupTestExample(suite.T(), suite.uniqueID, exampleName)
-}
-
-// GetUniqueID returns the unique ID for this test run
-func (suite *BaseTestSuite) GetUniqueID() string {
-	return suite.uniqueID
-}
-
 // loadEnvironmentFiles tries to load environment files for debugging configuration
 func (suite *BaseTestSuite) loadEnvironmentFiles() {
 	envFiles := []string{".env", "debug.env", ".env.debug", ".env.local"}
@@ -273,22 +255,22 @@ func (suite *BaseTestSuite) logEnvironmentConfiguration() {
 	t := suite.T()
 	t.Logf("📋 Environment Configuration:")
 
-	if projectRoot := getProjectRoot(); projectRoot != "." {
+	if projectRoot := getProjectRootDir(); projectRoot != "" {
 		t.Logf("  🏗️  Project Root: %s", projectRoot)
 	} else {
-		t.Logf("  ⚠️  WARNING: PROJECT_ROOT not set, using current directory")
-	}
-
-	if region := os.Getenv("AWS_REGION"); region != "" {
-		t.Logf("  🌍 AWS Region: %s", region)
-	} else if region := os.Getenv("AWS_DEFAULT_REGION"); region != "" {
-		t.Logf("  🌍 AWS Default Region: %s", region)
-	} else {
-		t.Logf("  ⚠️  WARNING: AWS_REGION not set, using default: %s", TestRegion)
+		t.Fatal("⚠️  Error: PROJECT_ROOT not set")
 	}
 
 	if profile := os.Getenv("AWS_PROFILE"); profile != "" {
 		t.Logf("  👤 AWS Profile: %s", profile)
+	} else {
+		t.Fatal(" 👤 Error: AWS Profile not set")
+	}
+
+	if region := os.Getenv("AWS_REGION"); region != "" {
+		t.Logf("  🌍 AWS Region: %s", region)
+	} else {
+		t.Fatal(" 🌍 Error: AWS Region not set")
 	}
 
 	if tfLog := os.Getenv("TF_LOG"); tfLog != "" {
@@ -298,12 +280,24 @@ func (suite *BaseTestSuite) logEnvironmentConfiguration() {
 	if tfLogPath := os.Getenv("TF_LOG_PATH"); tfLogPath != "" {
 		t.Logf("  📄 Terraform Log File: %s", tfLogPath)
 	}
+}
 
-	if profile := os.Getenv("AWS_PROFILE"); profile != "" {
-		t.Logf("  🔑 Using AWS profile credentials")
-	} else {
-		t.Logf("  🔑 Using default AWS credentials")
+func getProjectRootDir() string {
+	var projectRoot string
+	if projectRoot = os.Getenv("PROJECT_ROOT"); projectRoot != "" {
+		return projectRoot
 	}
+
+	outPut, err := exec.Command("git", "rev-parse", "--show-toplevel").Output()
+	if err != nil {
+		fmt.Printf("⚠️  WARNING: PROJECT_ROOT not set and failed to determine using git command: %v",
+			err)
+		return ""
+	}
+	projectRoot = strings.TrimSuffix(string(outPut), "\n")
+
+	os.Setenv("PROJECT_ROOT", projectRoot)
+	return string(projectRoot)
 }
 
 // cleanupDebugFiles cleans up debug log files
@@ -317,4 +311,61 @@ func (suite *BaseTestSuite) cleanupDebugFiles() {
 			}
 		}
 	}
+}
+
+func GetLastRunTestStageDir() (string, error) {
+	// Find and load existing network state
+	stageOutputBaseDir := TestRunsDir
+
+	// Check if state base directory exists
+	if _, err := os.Stat(stageOutputBaseDir); os.IsNotExist(err) {
+		return "", err
+	}
+
+	// Get the most recent state directory
+	latestDirPath, err := GetLatestModifiedSubDir(stageOutputBaseDir)
+	if err != nil {
+		return "", err
+	}
+
+	return latestDirPath, nil
+}
+
+// GetLatestModifiedSubDir returns the most recently modified subdirectory within the root directory
+func GetLatestModifiedSubDir(root string) (string, error) {
+	// Read only the immediate directory entries
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		return "", fmt.Errorf("failed to read directory %s: %w", root, err)
+	}
+
+	var latestDir string
+	var latestModTime time.Time
+
+	for _, entry := range entries {
+		// Skip non-directories and hidden directories
+		if !entry.IsDir() || strings.HasPrefix(entry.Name(), ".") {
+			continue
+		}
+
+		// Get full path - use string concatenation to preserve relative paths
+		fullPath := root + "/" + entry.Name()
+		info, err := entry.Info()
+		if err != nil {
+			// Skip entries we can't stat
+			continue
+		}
+
+		// Track the most recent directory
+		if latestDir == "" || info.ModTime().After(latestModTime) {
+			latestModTime = info.ModTime()
+			latestDir = fullPath
+		}
+	}
+
+	if latestDir == "" {
+		return "", fmt.Errorf("no subdirectories found in %s", root)
+	}
+
+	return latestDir, nil
 }
