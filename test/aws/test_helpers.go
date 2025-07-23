@@ -211,8 +211,6 @@ func (suite *BaseTestSuite) TearDownBaseSuite() {
 		}
 	}
 
-	// Clean up debug log files if they exist
-	suite.cleanupDebugFiles()
 
 	t.Logf("✅ Test Suite teardown completed")
 }
@@ -298,19 +296,6 @@ func getProjectRootDir() string {
 
 	os.Setenv("PROJECT_ROOT", projectRoot)
 	return string(projectRoot)
-}
-
-// cleanupDebugFiles cleans up debug log files
-func (suite *BaseTestSuite) cleanupDebugFiles() {
-	t := suite.T()
-	debugFiles := []string{"terraform-debug.log", "test-*.log"}
-	for _, pattern := range debugFiles {
-		if pattern == "terraform-debug.log" {
-			if _, err := os.Stat(pattern); err == nil {
-				t.Logf("📄 Debug log available at: %s", pattern)
-			}
-		}
-	}
 }
 
 func GetLastRunTestStageDir() (string, error) {
