@@ -81,16 +81,4 @@ const (
 	// Format: t{YYMMDDHHMMSS}-{random5}
 	TestResourceIDFormat = "t%s-%s"
 	TestRandomIDLength   = 5
-
-	// Dirs Containing Example terraforms for different cloud
-	// TODO: i don't feel right about hardcoding dir names in code,
-	// this shouldn't be bad, since it's just tests, but renaming dirs would need a change
-	// here as well. Could take these as env vars but might do it later if needed.
-	AWSDir   = "aws"
-	GCPDir   = "gcp"
-	AzureDir = "azure"
-
-	ExamplesDir   = "examples"
-	NetworkingDir = "test-networking"
-	DataBaseDir   = "test-database"
 )
