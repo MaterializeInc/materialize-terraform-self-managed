@@ -39,3 +39,6 @@ tests/.terraform.lock.hcl
 *.bak
 
 *testRuns/
+
+# AWS test run directories
+aws/*-examples/

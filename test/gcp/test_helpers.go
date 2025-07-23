@@ -127,9 +127,6 @@ func (suite *BaseTestSuite) TearDownBaseSuite() {
 		}
 	}
 
-	// Clean up debug log files if they exist
-	suite.cleanupDebugFiles()
-
 	t.Logf("✅ Test Suite teardown completed")
 }
 
@@ -152,11 +149,6 @@ func (suite *BaseTestSuite) BaseAfterTest(testName string) {
 	} else {
 		t.Logf("⚠️ No terraform options found for test: %s", testName)
 	}
-}
-
-// StoreTerraformOptions stores terraform options for a test for later cleanup
-func (suite *BaseTestSuite) StoreTerraformOptions(testName string, options *terraform.Options) {
-	suite.terraformOptionsMap[testName] = options
 }
 
 // loadEnvironmentFiles tries to load environment files for debugging configuration
@@ -193,18 +185,5 @@ func (suite *BaseTestSuite) logEnvironmentConfiguration() {
 		t.Logf("  🔑 Using credentials file: %s", credsPath)
 	} else {
 		t.Logf("  🔑 Using default application credentials")
-	}
-}
-
-// cleanupDebugFiles cleans up debug log files
-func (suite *BaseTestSuite) cleanupDebugFiles() {
-	t := suite.T()
-	debugFiles := []string{"terraform-debug.log", "test-*.log"}
-	for _, pattern := range debugFiles {
-		if pattern == "terraform-debug.log" {
-			if _, err := os.Stat(pattern); err == nil {
-				t.Logf("📄 Debug log available at: %s", pattern)
-			}
-		}
 	}
 }
