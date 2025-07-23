@@ -25,20 +25,13 @@ func (suite *BaseTestSuite) SetupBaseSuite(suiteName string, cloud string, confi
 
 	// Store original environment variables that we might modify
 	suite.OriginalEnv = make(map[string]string)
-	// envVarsToTrack := []string{
-	// 	"TF_LOG", "TF_LOG_PATH", "TERRATEST_LOG_PARSER", "TERRATEST_TIMEOUT",
-	// 	"AWS_REGION", "AWS_DEFAULT_REGION", "AWS_PROFILE",
-	// 	"TEST_REGION", "TEST_MAX_RETRIES", "TEST_RETRY_DELAY",
-	// 	"PROJECT_ROOT", "USE_EXISING_NETWORK",
-	// }
 
 	for _, config := range configurations {
 		if value, exists := os.LookupEnv(config.Key); exists {
 			suite.OriginalEnv[config.Key] = value
 		}
 	}
-
-	// Try to load .env file for debugging configuration
+	
 	suite.loadEnvironmentFiles(cloud)
 
 	// Log current configuration
