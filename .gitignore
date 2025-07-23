@@ -34,7 +34,7 @@ tests/.terraform.lock.hcl
 .vscode/
 
 # Local development
-*.env
+*local.env
 .envrc
 *.bak
 

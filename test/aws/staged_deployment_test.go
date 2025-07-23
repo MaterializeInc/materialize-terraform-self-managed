@@ -7,6 +7,11 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/MaterializeInc/materialize-terraform-self-managed/test/utils"
+	"github.com/MaterializeInc/materialize-terraform-self-managed/test/utils/basesuite"
+	"github.com/MaterializeInc/materialize-terraform-self-managed/test/utils/config"
+	"github.com/MaterializeInc/materialize-terraform-self-managed/test/utils/dir"
+	"github.com/MaterializeInc/materialize-terraform-self-managed/test/utils/helpers"
 	"github.com/gruntwork-io/terratest/modules/terraform"
 	test_structure "github.com/gruntwork-io/terratest/modules/test-structure"
 	"github.com/stretchr/testify/suite"
@@ -14,13 +19,15 @@ import (
 
 // StagedDeploymentTestSuite tests the full AWS infrastructure deployment in stages
 type StagedDeploymentTestSuite struct {
-	BaseTestSuite
+	basesuite.BaseTestSuite
 	workingDir string
 }
 
 // SetupSuite initializes the test suite
 func (suite *StagedDeploymentTestSuite) SetupSuite() {
-	suite.SetupBaseSuite("AWS Staged Deployment")
+	configurations := config.GetCommonConfigurations()
+	configurations = append(configurations, getRequiredAWSConfigurations()...)
+	suite.SetupBaseSuite("AWS Staged Deployment", utils.AWS, configurations)
 	// Working directory will be set dynamically based on uniqueId
 	suite.workingDir = "" // Will be set in network stage
 }
@@ -28,7 +35,7 @@ func (suite *StagedDeploymentTestSuite) SetupSuite() {
 // TearDownSuite cleans up the test suite
 func (suite *StagedDeploymentTestSuite) TearDownSuite() {
 	t := suite.T()
-	t.Logf("🧹 Starting cleanup stages for: %s", suite.suiteName)
+	t.Logf("🧹 Starting cleanup stages for: %s", suite.SuiteName)
 
 	// Cleanup stages (run in reverse order: Database, then network)
 	test_structure.RunTestStage(t, "cleanup_database", func() {
@@ -39,7 +46,7 @@ func (suite *StagedDeploymentTestSuite) TearDownSuite() {
 			t.Logf("✅ Database cleanup completed")
 
 			uniqueId := test_structure.LoadString(t, suite.workingDir, "resource_unique_id")
-			cleanupTestWorkspace(t, AWSDir, uniqueId, DataBaseDir)
+			helpers.CleanupTestWorkspace(t, utils.AWS, uniqueId, utils.DataBaseDir)
 		} else {
 			t.Logf("♻️ No database to cleanup (was not created in this test)")
 		}
@@ -53,7 +60,7 @@ func (suite *StagedDeploymentTestSuite) TearDownSuite() {
 			t.Logf("✅ Network cleanup completed")
 
 			uniqueId := test_structure.LoadString(t, suite.workingDir, "resource_unique_id")
-			cleanupTestWorkspace(t, AWSDir, uniqueId, NetworkingDir)
+			helpers.CleanupTestWorkspace(t, utils.AWS, uniqueId, utils.NetworkingDir)
 
 			// Remove entire state directory since network is the foundation
 			t.Logf("🗂️ Removing state directory: %s", suite.workingDir)
@@ -84,7 +91,7 @@ func (suite *StagedDeploymentTestSuite) TestFullDeployment() {
 			t.Logf("📁 Test Stage Output directory: %s", suite.workingDir)
 
 			// Set up networking example
-			networkingPath := setupTestExample(t, AWSDir, uniqueId, NetworkingDir)
+			networkingPath := helpers.SetupTestWorkspace(t, utils.AWS, uniqueId, utils.NetworkingDir)
 
 			networkOptions := &terraform.Options{
 				TerraformDir: networkingPath,
@@ -163,25 +170,25 @@ func (suite *StagedDeploymentTestSuite) TestFullDeployment() {
 		t.Logf("🔗 Using infrastructure family: %s", resourceId)
 
 		// Set up database example
-		databasePath := setupTestExample(t, AWSDir, resourceId, DataBaseDir)
+		databasePath := helpers.SetupTestWorkspace(t, utils.AWS, resourceId, utils.DataBaseDir)
 
 		dbOptions := &terraform.Options{
 			TerraformDir: databasePath,
 			Vars: map[string]interface{}{
-				"name_prefix":                fmt.Sprintf("%s-db", resourceId),
-				"vpc_id":                     vpcId,
-				"database_subnet_ids":        privateSubnetIds,
-				"postgres_version":           TestPostgreSQLVersion,
-				"instance_class":             TestRDSInstanceClassSmall,
-				"allocated_storage":          TestAllocatedStorageSmall,
-				"max_allocated_storage":      TestMaxAllocatedStorageSmall,
-				"multi_az":                   false,
-				"database_name":              TestDBName,
-				"database_username":          TestDBUsername,
-				"database_password":          TestPassword,
-				"maintenance_window":         TestMaintenanceWindow,
-				"backup_window":              TestBackupWindow,
-				"backup_retention_period":    TestBackupRetentionPeriod,
+				"name_prefix":             fmt.Sprintf("%s-db", resourceId),
+				"vpc_id":                  vpcId,
+				"database_subnet_ids":     privateSubnetIds,
+				"postgres_version":        TestPostgreSQLVersion,
+				"instance_class":          TestRDSInstanceClassSmall,
+				"allocated_storage":       TestAllocatedStorageSmall,
+				"max_allocated_storage":   TestMaxAllocatedStorageSmall,
+				"multi_az":                false,
+				"database_name":           TestDBName,
+				"database_username":       TestDBUsername,
+				"database_password":       TestPassword,
+				"maintenance_window":      TestMaintenanceWindow,
+				"backup_window":           TestBackupWindow,
+				"backup_retention_period": TestBackupRetentionPeriod,
 				// TODO: might need to provision eks first to get these IDs
 				// "eks_security_group_id":      "sg-placeholder-eks",
 				// "eks_node_security_group_id": "sg-placeholder-nodes",
@@ -211,7 +218,7 @@ func (suite *StagedDeploymentTestSuite) TestFullDeployment() {
 		databaseName := terraform.Output(t, dbOptions, "database_name")
 		databaseUsername := terraform.Output(t, dbOptions, "database_username")
 		databaseIdentifier := terraform.Output(t, dbOptions, "database_identifier")
-		
+
 		// Comprehensive validation
 		suite.NotEmpty(databaseEndpoint, "Database endpoint should not be empty")
 		suite.Contains(databaseEndpoint, ".rds.amazonaws.com", "Database endpoint should be a valid RDS endpoint")
@@ -219,7 +226,7 @@ func (suite *StagedDeploymentTestSuite) TestFullDeployment() {
 		suite.Equal(TestDBName, databaseName, "Database name should match the configured value")
 		suite.Equal(TestDBUsername, databaseUsername, "Database username should match the configured value")
 		suite.Contains(databaseIdentifier, resourceId, "Database identifier should contain the resource ID")
-		
+
 		// Save database outputs for future stages
 		test_structure.SaveString(t, suite.workingDir, "database_endpoint", databaseEndpoint)
 		test_structure.SaveString(t, suite.workingDir, "database_port", databasePort)
@@ -236,7 +243,7 @@ func (suite *StagedDeploymentTestSuite) TestFullDeployment() {
 
 func (suite *StagedDeploymentTestSuite) useExistingNetwork() {
 	t := suite.T()
-	lastRunDir, err := GetLastRunTestStageDir()
+	lastRunDir, err := dir.GetLastRunTestStageDir(TestRunsDir)
 	if err != nil {
 		t.Fatalf("Unable to use existing network %v", err)
 	}

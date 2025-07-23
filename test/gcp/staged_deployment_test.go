@@ -6,6 +6,10 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/MaterializeInc/materialize-terraform-self-managed/test/utils"
+	"github.com/MaterializeInc/materialize-terraform-self-managed/test/utils/basesuite"
+	"github.com/MaterializeInc/materialize-terraform-self-managed/test/utils/config"
+	"github.com/MaterializeInc/materialize-terraform-self-managed/test/utils/dir"
 	"github.com/gruntwork-io/terratest/modules/terraform"
 	test_structure "github.com/gruntwork-io/terratest/modules/test-structure"
 	"github.com/stretchr/testify/suite"
@@ -13,26 +17,23 @@ import (
 
 // StagedDeploymentSuite tests infrastructure deployment in stages with dependency management
 type StagedDeploymentSuite struct {
-	BaseTestSuite
+	basesuite.BaseTestSuite
 	workingDir string
 }
 
 // SetupSuite runs once before all tests in the suite
 func (suite *StagedDeploymentSuite) SetupSuite() {
-	suite.SetupBaseSuite("StagedDeployment")
+	configurations := config.GetCommonConfigurations()
+	configurations = append(configurations, getRequiredGCPConfigurations()...)
+	suite.SetupBaseSuite("GCP StagedDeployment", utils.GCP, configurations)
 	// Working directory will be set dynamically based on uniqueId
 	suite.workingDir = "" // Will be set in network stage
 }
 
 // TearDownSuite runs once after all tests in the suite
 func (suite *StagedDeploymentSuite) TearDownSuite() {
-	suite.TearDownBaseSuite()
-}
-
-// AfterTest runs after each individual test - handles cleanup stages
-func (suite *StagedDeploymentSuite) AfterTest(suiteName, testName string) {
 	t := suite.T()
-	t.Logf("🧹 Starting cleanup stages for: %s", testName)
+	t.Logf("🧹 Starting cleanup stages for: %s", suite.SuiteName)
 
 	// Cleanup stages (run in reverse order: Materialize, then GKE, then database, then network)
 	test_structure.RunTestStage(t, "cleanup_materialize_disk_enabled", func() {
@@ -105,6 +106,7 @@ func (suite *StagedDeploymentSuite) AfterTest(suiteName, testName string) {
 			t.Logf("♻️ No network to cleanup (was not created in this test)")
 		}
 	})
+	suite.TearDownBaseSuite()
 }
 
 // TestFullDeployment tests full infrastructure deployment with Materialize
@@ -166,30 +168,22 @@ func (suite *StagedDeploymentSuite) TestFullDeployment() {
 		t.Logf("  🏷️ Resource ID: %s", uniqueId)
 	})
 	if os.Getenv("SKIP_setup_network") != "" {
-		// Find and load existing network state
-		stateBaseDir := TestRunsDir
-		
-		// Check if state base directory exists
-		if _, err := os.Stat(stateBaseDir); os.IsNotExist(err) {
-			t.Fatal("❌ Cannot skip network creation: State directory does not exist. Run without SKIP_setup_network first.")
-		}
-		
 		// Get the most recent state directory
-		latestDirPath, err := GetLatestModifiedSubDir(stateBaseDir)
+		latestDirPath, err := dir.GetLastRunTestStageDir(TestRunsDir)
 		if err != nil {
 			t.Fatalf("❌ Cannot skip network creation: %v", err)
 		}
-		
+
 		// Use the full path returned by the helper
 		suite.workingDir = latestDirPath
 		latestDir := filepath.Base(latestDirPath)
-		
+
 		// Load network name using test_structure (handles .test-data path internally)
 		networkName := test_structure.LoadString(t, suite.workingDir, "network_name")
 		if networkName == "" {
 			t.Fatalf("❌ Cannot skip network creation: Network name is empty in state directory %s", latestDir)
 		}
-		
+
 		t.Logf("♻️ Skipping network creation, using existing: %s (ID: %s)", networkName, latestDir)
 	}
 

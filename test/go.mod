@@ -1,11 +1,9 @@
-module github.com/MaterializeInc/materialize-terraform-self-managed/test/gcp
+module github.com/MaterializeInc/materialize-terraform-self-managed/test
 
-go 1.23.0
-
-toolchain go1.23.5
+go 1.23.5
 
 require (
-	github.com/gruntwork-io/terratest v0.49.0
+	github.com/gruntwork-io/terratest v0.50.0
 	github.com/joho/godotenv v1.5.1
 	github.com/stretchr/testify v1.10.0
 )
