@@ -4,8 +4,8 @@ module "database" {
   name_prefix         = var.name_prefix
   vpc_id              = var.vpc_id
   database_subnet_ids = var.database_subnet_ids
-  # eks_security_group_id        = var.eks_security_group_id
-  # eks_node_security_group_id   = var.eks_node_security_group_id
+  eks_security_group_id        = var.eks_security_group_id
+  eks_node_security_group_id   = var.eks_node_security_group_id
 
   postgres_version      = var.postgres_version
   instance_class        = var.instance_class
