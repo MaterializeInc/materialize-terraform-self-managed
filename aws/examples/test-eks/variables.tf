@@ -3,6 +3,12 @@ variable "region" {
   type        = string
 }
 
+variable "profile" {
+  description = "AWS profile to use for authentication"
+  type        = string
+}
+
+
 variable "cluster_name" {
   description = "Name prefix for the EKS cluster"
   type        = string

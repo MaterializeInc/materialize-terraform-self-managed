@@ -1,11 +1,15 @@
+provider "aws" {
+  region  = var.region
+  profile = var.profile
+}
+
 module "database" {
   source = "../../modules/database"
 
   name_prefix         = var.name_prefix
   vpc_id              = var.vpc_id
   database_subnet_ids = var.database_subnet_ids
-  eks_security_group_id        = var.eks_security_group_id
-  eks_node_security_group_id   = var.eks_node_security_group_id
+  eks_clusters        = var.eks_clusters
 
   postgres_version      = var.postgres_version
   instance_class        = var.instance_class
@@ -20,6 +24,7 @@ module "database" {
   maintenance_window      = var.maintenance_window
   backup_window           = var.backup_window
   backup_retention_period = var.backup_retention_period
+
 
   tags = var.tags
 }

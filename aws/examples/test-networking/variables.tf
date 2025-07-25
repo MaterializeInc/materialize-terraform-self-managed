@@ -1,3 +1,13 @@
+variable "profile" {
+  description = "AWS profile to use for authentication"
+  type        = string
+}
+
+variable "region" {
+  description = "AWS region to deploy resources in"
+  type        = string
+}
+
 variable "name_prefix" {
   description = "Prefix for all resource names"
   type        = string

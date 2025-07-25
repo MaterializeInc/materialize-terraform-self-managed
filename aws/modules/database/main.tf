@@ -41,20 +41,26 @@ resource "aws_security_group" "database" {
   name_prefix = "${var.name_prefix}-sg-"
   vpc_id      = var.vpc_id
 
-  ingress {
-    from_port       = 5432
-    to_port         = 5432
-    protocol        = "tcp"
-    security_groups = [var.eks_security_group_id]
-    description     = "Allow PostgreSQL access from EKS cluster"
+  dynamic "ingress" {
+    for_each = var.eks_clusters
+    content {
+      from_port       = 5432
+      to_port         = 5432
+      protocol        = "tcp"
+      security_groups = [ingress.value.cluster_security_group_id]
+      description     = "Allow PostgreSQL access from EKS cluster ${ingress.value.cluster_name}"
+    }
   }
 
-  ingress {
-    from_port       = 5432
-    to_port         = 5432
-    protocol        = "tcp"
-    security_groups = [var.eks_node_security_group_id]
-    description     = "Allow PostgreSQL access from EKS nodes"
+  dynamic "ingress" {
+    for_each = var.eks_clusters
+    content {
+      from_port       = 5432
+      to_port         = 5432
+      protocol        = "tcp"
+      security_groups = [ingress.value.node_security_group_id]
+      description     = "Allow PostgreSQL access from EKS nodes ${ingress.value.cluster_name}"
+    }
   }
 
   egress {

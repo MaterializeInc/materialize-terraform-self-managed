@@ -60,7 +60,7 @@ func (suite *StagedDeploymentTestSuite) TearDownSuite() {
 			t.Logf("✅ EKS cluster (disk-disabled) cleanup completed")
 
 			uniqueId := test_structure.LoadString(t, suite.workingDir, "resource_unique_id")
-			helpers.CleanupTestWorkspace(t, utils.AWS, uniqueId+"-disk-disabled", "test-eks")
+			helpers.CleanupTestWorkspace(t, utils.AWS, uniqueId, utils.EKSDiskDisabledDir)
 		} else {
 			t.Logf("♻️ No EKS cluster (disk-disabled) to cleanup (was not created in this test)")
 		}
@@ -74,7 +74,7 @@ func (suite *StagedDeploymentTestSuite) TearDownSuite() {
 			t.Logf("✅ EKS cluster (disk-enabled) cleanup completed")
 
 			uniqueId := test_structure.LoadString(t, suite.workingDir, "resource_unique_id")
-			helpers.CleanupTestWorkspace(t, utils.AWS, uniqueId+"-disk-enabled", "test-eks")
+			helpers.CleanupTestWorkspace(t, utils.AWS, uniqueId, utils.EKSDiskEnabledDir)
 		} else {
 			t.Logf("♻️ No EKS cluster (disk-enabled) to cleanup (was not created in this test)")
 		}
@@ -105,7 +105,8 @@ func (suite *StagedDeploymentTestSuite) TearDownSuite() {
 // Stages: Network → EKS (disk-enabled) → EKS (disk-disabled) → Database
 func (suite *StagedDeploymentTestSuite) TestFullDeployment() {
 	t := suite.T()
-
+	awsRegion := os.Getenv("AWS_REGION")
+	awsProfile := os.Getenv("AWS_PROFILE")
 	// Stage 1: Network Setup
 	test_structure.RunTestStage(t, "setup_network", func() {
 		// Generate unique ID for this infrastructure family
@@ -119,11 +120,13 @@ func (suite *StagedDeploymentTestSuite) TestFullDeployment() {
 			t.Logf("📁 Test Stage Output directory: %s", suite.workingDir)
 
 			// Set up networking example
-			networkingPath := helpers.SetupTestWorkspace(t, utils.AWS, uniqueId, utils.NetworkingDir)
+			networkingPath := helpers.SetupTestWorkspace(t, utils.AWS, uniqueId, utils.NetworkingDir, utils.NetworkingDir)
 
 			networkOptions := &terraform.Options{
 				TerraformDir: networkingPath,
 				Vars: map[string]interface{}{
+					"profile":              awsProfile,
+					"region":               awsRegion,
 					"name_prefix":          fmt.Sprintf("%s-net", uniqueId),
 					"vpc_cidr":             TestVPCCIDR,
 					"availability_zones":   []string{TestAvailabilityZoneA, TestAvailabilityZoneB},
@@ -196,13 +199,14 @@ func (suite *StagedDeploymentTestSuite) TestFullDeployment() {
 		t.Logf("🔗 Using infrastructure family: %s", resourceId)
 
 		// Set up EKS example with disk enabled
-		eksPath := helpers.SetupTestWorkspace(t, utils.AWS, resourceId+"-disk-enabled", "test-eks")
+		eksPath := helpers.SetupTestWorkspace(t, utils.AWS, resourceId, utils.EKSDir, utils.EKSDiskEnabledDir)
 
 		eksOptions := &terraform.Options{
 			TerraformDir: eksPath,
 			Vars: map[string]interface{}{
-				"region":                    TestRegion,
-				"cluster_name":              fmt.Sprintf("%s-eks-disk", resourceId),
+				"profile":                   awsProfile,
+				"region":                    awsRegion,
+				"cluster_name":              fmt.Sprintf("%sdisk", resourceId),
 				"cluster_version":           TestKubernetesVersion,
 				"vpc_id":                    vpcId,
 				"subnet_ids":                privateSubnetIds,
@@ -254,16 +258,16 @@ func (suite *StagedDeploymentTestSuite) TestFullDeployment() {
 		clusterServiceCIDR := terraform.Output(t, eksOptions, "cluster_service_cidr")
 
 		// Save all outputs with disk-enabled suffix
-		test_structure.SaveString(t, suite.workingDir, "cluster_name_disk_enabled", clusterName)
-		test_structure.SaveString(t, suite.workingDir, "cluster_endpoint_disk_enabled", clusterEndpoint)
-		test_structure.SaveString(t, suite.workingDir, "cluster_security_group_id_disk_enabled", clusterSecurityGroupId)
-		test_structure.SaveString(t, suite.workingDir, "node_security_group_id_disk_enabled", nodeSecurityGroupId)
-		test_structure.SaveString(t, suite.workingDir, "oidc_provider_arn_disk_enabled", oidcProviderArn)
-		test_structure.SaveString(t, suite.workingDir, "cluster_service_cidr_disk_enabled", clusterServiceCIDR)
+		test_structure.SaveString(t, suite.workingDir+"/eks-disk-enabled", "cluster_name", clusterName)
+		test_structure.SaveString(t, suite.workingDir+"/eks-disk-enabled", "cluster_endpoint", clusterEndpoint)
+		test_structure.SaveString(t, suite.workingDir+"/eks-disk-enabled", "cluster_security_group_id", clusterSecurityGroupId)
+		test_structure.SaveString(t, suite.workingDir+"/eks-disk-enabled", "node_security_group_id", nodeSecurityGroupId)
+		test_structure.SaveString(t, suite.workingDir+"/eks-disk-enabled", "oidc_provider_arn", oidcProviderArn)
+		test_structure.SaveString(t, suite.workingDir+"/eks-disk-enabled", "cluster_service_cidr", clusterServiceCIDR)
 
 		// Save generic security group IDs for database stage
-		test_structure.SaveString(t, suite.workingDir, "cluster_security_group_id", clusterSecurityGroupId)
-		test_structure.SaveString(t, suite.workingDir, "node_security_group_id", nodeSecurityGroupId)
+		test_structure.SaveString(t, suite.workingDir+"/eks-disk-enabled", "cluster_security_group_id", clusterSecurityGroupId)
+		test_structure.SaveString(t, suite.workingDir+"/eks-disk-enabled", "node_security_group_id", nodeSecurityGroupId)
 
 		// Validate outputs
 		suite.NotEmpty(clusterName, "Cluster name should not be empty")
@@ -272,6 +276,9 @@ func (suite *StagedDeploymentTestSuite) TestFullDeployment() {
 		suite.NotEmpty(clusterSecurityGroupId, "Cluster security group ID should not be empty")
 		suite.NotEmpty(nodeSecurityGroupId, "Node security group ID should not be empty")
 		suite.NotEmpty(oidcProviderArn, "OIDC provider ARN should not be empty")
+
+		// TODO add checks to ensure disk setup is enabled
+		// use vgs/ pvs commands and verify the output
 
 		t.Logf("✅ EKS cluster (disk-enabled) created successfully:")
 		t.Logf("  📛 Cluster Name: %s", clusterName)
@@ -305,13 +312,14 @@ func (suite *StagedDeploymentTestSuite) TestFullDeployment() {
 		t.Logf("🔗 Using infrastructure family: %s", resourceId)
 
 		// Set up EKS example with disk disabled
-		eksPath := helpers.SetupTestWorkspace(t, utils.AWS, resourceId+"-disk-disabled", "test-eks")
+		eksPath := helpers.SetupTestWorkspace(t, utils.AWS, resourceId, utils.EKSDir, utils.EKSDiskDisabledDir)
 
 		eksOptions := &terraform.Options{
 			TerraformDir: eksPath,
 			Vars: map[string]interface{}{
-				"region":                    TestRegion,
-				"cluster_name":              fmt.Sprintf("%s-eks-nodisk", resourceId),
+				"profile":                   awsProfile,
+				"region":                    awsRegion,
+				"cluster_name":              fmt.Sprintf("%snodisk", resourceId),
 				"cluster_version":           TestKubernetesVersion,
 				"vpc_id":                    vpcId,
 				"subnet_ids":                privateSubnetIds,
@@ -363,12 +371,12 @@ func (suite *StagedDeploymentTestSuite) TestFullDeployment() {
 		clusterServiceCIDR := terraform.Output(t, eksOptions, "cluster_service_cidr")
 
 		// Save all outputs with disk-disabled suffix
-		test_structure.SaveString(t, suite.workingDir, "cluster_name_disk_disabled", clusterName)
-		test_structure.SaveString(t, suite.workingDir, "cluster_endpoint_disk_disabled", clusterEndpoint)
-		test_structure.SaveString(t, suite.workingDir, "cluster_security_group_id_disk_disabled", clusterSecurityGroupId)
-		test_structure.SaveString(t, suite.workingDir, "node_security_group_id_disk_disabled", nodeSecurityGroupId)
-		test_structure.SaveString(t, suite.workingDir, "oidc_provider_arn_disk_disabled", oidcProviderArn)
-		test_structure.SaveString(t, suite.workingDir, "cluster_service_cidr_disk_disabled", clusterServiceCIDR)
+		test_structure.SaveString(t, suite.workingDir+"/eks-disk-disabled", "cluster_name", clusterName)
+		test_structure.SaveString(t, suite.workingDir+"/eks-disk-disabled", "cluster_endpoint", clusterEndpoint)
+		test_structure.SaveString(t, suite.workingDir+"/eks-disk-disabled", "cluster_security_group_id", clusterSecurityGroupId)
+		test_structure.SaveString(t, suite.workingDir+"/eks-disk-disabled", "node_security_group_id", nodeSecurityGroupId)
+		test_structure.SaveString(t, suite.workingDir+"/eks-disk-disabled", "oidc_provider_arn", oidcProviderArn)
+		test_structure.SaveString(t, suite.workingDir+"/eks-disk-disabled", "cluster_service_cidr", clusterServiceCIDR)
 
 		// Validate outputs
 		suite.NotEmpty(clusterName, "Cluster name should not be empty")
@@ -407,14 +415,61 @@ func (suite *StagedDeploymentTestSuite) TestFullDeployment() {
 			t.Fatal("❌ Cannot create database: Missing network data. Run network setup stage first.")
 		}
 
+		// read eks cluster security group IDs if available for both disk-enabled and disk-disabled clusters
+		// create a list of EKS clusters with their security group IDs
+		eksClusters := []map[string]interface{}{}
+		_, err := os.Stat(suite.workingDir + "/eks-disk-enabled")
+		if err != nil {
+			t.Logf("❌ Error checking eks-disk-enabled output directory: %v",
+				err)
+		} else {
+			// Load EKS disk-enabled cluster security group IDs
+			eksSecurityGroupIdDiskEnabled := test_structure.LoadString(t, suite.workingDir+"/eks-disk-enabled", "cluster_security_group_id")
+			nodeSecurityGroupIdDiskEnabled := test_structure.LoadString(t, suite.workingDir+"/eks-disk-enabled", "node_security_group_id")
+			clusterNameDiskEnabled := test_structure.LoadString(t, suite.workingDir+"/eks-disk-enabled", "cluster_name")
+			if eksSecurityGroupIdDiskEnabled != "" && nodeSecurityGroupIdDiskEnabled != "" {
+				eksClusters = append(eksClusters, map[string]interface{}{
+					"cluster_name":              clusterNameDiskEnabled,
+					"cluster_security_group_id": eksSecurityGroupIdDiskEnabled,
+					"node_security_group_id":    nodeSecurityGroupIdDiskEnabled,
+				})
+			}
+			t.Logf("🔗 EKS cluster (disk-enabled) security group IDs loaded for database access")
+		}
+
+		_, err = os.Stat(suite.workingDir + "/eks-disk-disabled")
+		if err != nil {
+			t.Logf("❌ Error checking eks-disk-disabled output directory: %v",
+				err)
+		} else {
+			eksSecurityGroupIdDiskDisabled := test_structure.LoadString(t, suite.workingDir+"/eks-disk-disabled", "cluster_security_group_id")
+			nodeSecurityGroupIdDiskDisabled := test_structure.LoadString(t, suite.workingDir+"/eks-disk-disabled", "node_security_group_id")
+			clusterNameDiskDisabled := test_structure.LoadString(t, suite.workingDir+"/eks-disk-disabled", "cluster_name")
+			// Load EKS disk-disabled cluster security group IDs
+			if eksSecurityGroupIdDiskDisabled != "" && nodeSecurityGroupIdDiskDisabled != "" {
+				eksClusters = append(eksClusters, map[string]interface{}{
+					"cluster_name":              clusterNameDiskDisabled,
+					"cluster_security_group_id": eksSecurityGroupIdDiskDisabled,
+					"node_security_group_id":    nodeSecurityGroupIdDiskDisabled,
+				})
+			}
+			t.Logf("🔗 EKS cluster (disk-disabled) security group IDs loaded for database access")
+		}
+
+		if len(eksClusters) == 0 {
+			t.Fatal("❌ Cannot create database: No EKS clusters found. Ensure at least one EKS cluster is created before the database stage.")
+		}
+
 		t.Logf("🔗 Using infrastructure family: %s", resourceId)
 
 		// Set up database example
-		databasePath := helpers.SetupTestWorkspace(t, utils.AWS, resourceId, utils.DataBaseDir)
+		databasePath := helpers.SetupTestWorkspace(t, utils.AWS, resourceId, utils.DataBaseDir, utils.DataBaseDir)
 
 		dbOptions := &terraform.Options{
 			TerraformDir: databasePath,
 			Vars: map[string]interface{}{
+				"profile":                 awsProfile,
+				"region":                  awsRegion,
 				"name_prefix":             fmt.Sprintf("%s-db", resourceId),
 				"vpc_id":                  vpcId,
 				"database_subnet_ids":     privateSubnetIds,
@@ -430,8 +485,7 @@ func (suite *StagedDeploymentTestSuite) TestFullDeployment() {
 				"backup_window":           TestBackupWindow,
 				"backup_retention_period": TestBackupRetentionPeriod,
 				// Load EKS security group IDs if available (using disk-enabled cluster for database access)
-				"eks_security_group_id":      test_structure.LoadString(t, suite.workingDir, "cluster_security_group_id"),
-				"eks_node_security_group_id": test_structure.LoadString(t, suite.workingDir, "node_security_group_id"),
+				"eks_clusters": eksClusters,
 				"tags": map[string]string{
 					"Environment": "test",
 					"Project":     "materialize",
@@ -468,16 +522,18 @@ func (suite *StagedDeploymentTestSuite) TestFullDeployment() {
 		suite.Contains(databaseIdentifier, resourceId, "Database identifier should contain the resource ID")
 
 		// Save database outputs for future stages
-		test_structure.SaveString(t, suite.workingDir, "database_endpoint", databaseEndpoint)
-		test_structure.SaveString(t, suite.workingDir, "database_port", databasePort)
-		test_structure.SaveString(t, suite.workingDir, "database_name", databaseName)
-		test_structure.SaveString(t, suite.workingDir, "database_identifier", databaseIdentifier)
+		test_structure.SaveString(t, suite.workingDir+"/database", "database_endpoint", databaseEndpoint)
+		test_structure.SaveString(t, suite.workingDir+"/database", "database_port", databasePort)
+		test_structure.SaveString(t, suite.workingDir+"/database", "database_name", databaseName)
+		test_structure.SaveString(t, suite.workingDir+"/database", "database_identifier", databaseIdentifier)
 
 		t.Logf("✅ Database created successfully:")
 		t.Logf("  🔗 Endpoint: %s:%s", databaseEndpoint, databasePort)
 		t.Logf("  📛 Database Name: %s", databaseName)
 		t.Logf("  👤 Username: %s", databaseUsername)
 		t.Logf("  🏷️ Identifier: %s", databaseIdentifier)
+
+		// TODO add checks to ensure database is created and accessible
 	})
 }
 

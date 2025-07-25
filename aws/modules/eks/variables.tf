@@ -35,3 +35,9 @@ variable "enable_cluster_creator_admin_permissions" {
   type        = bool
   default     = true
 }
+
+variable "iam_role_use_name_prefix" {
+  description = "Use name prefix for IAM roles"
+  type        = bool
+  default     = true
+}

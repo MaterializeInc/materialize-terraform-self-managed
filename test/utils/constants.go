@@ -9,8 +9,14 @@ const (
 	GCP   = "gcp"
 	Azure = "azure"
 
-	ExamplesDir   = "examples"
-	NetworkingDir = "test-networking"
-	DataBaseDir   = "test-database"
-	MainTestDir   = "test"
+	DiskEnabledSuffix  = "-disk-enabled"
+	DiskDisabledSuffix = "-disk-disabled"
+
+	ExamplesDir        = "examples"
+	NetworkingDir      = "test-networking"
+	DataBaseDir        = "test-database"
+	EKSDir             = "test-eks"
+	EKSDiskEnabledDir  = EKSDir + DiskEnabledSuffix
+	EKSDiskDisabledDir = EKSDir + DiskDisabledSuffix
+	MainTestDir        = "test"
 )

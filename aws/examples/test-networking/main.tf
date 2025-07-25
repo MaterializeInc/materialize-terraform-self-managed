@@ -1,3 +1,8 @@
+provider "aws" {
+  region  = var.region # Replace with your desired AWS region
+  profile = var.profile
+}
+
 module "networking" {
   source = "../../modules/networking"
 

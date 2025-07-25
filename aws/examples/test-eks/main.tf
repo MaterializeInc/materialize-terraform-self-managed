@@ -1,10 +1,7 @@
 
 provider "aws" {
-  region = var.region
-
-  default_tags {
-    tags = var.tags
-  }
+  region  = var.region
+  profile = var.profile
 }
 
 
@@ -18,6 +15,19 @@ provider "kubernetes" {
   }
 }
 
+provider "helm" {
+  kubernetes {
+    host                   = module.eks.cluster_endpoint
+    cluster_ca_certificate = base64decode(module.eks.cluster_certificate_authority_data)
+
+    exec {
+      api_version = "client.authentication.k8s.io/v1beta1"
+      command     = "aws"
+      args        = ["eks", "get-token", "--cluster-name", module.eks.cluster_name]
+    }
+  }
+}
+
 module "eks" {
   source = "../../modules/eks"
 
@@ -27,6 +37,7 @@ module "eks" {
   private_subnet_ids                       = var.subnet_ids
   cluster_enabled_log_types                = var.cluster_enabled_log_types
   enable_cluster_creator_admin_permissions = var.enable_cluster_creator_admin_permissions
+  iam_role_use_name_prefix                 = var.iam_role_use_name_prefix
   tags                                     = var.tags
 }
 
@@ -36,7 +47,7 @@ module "eks_node_group" {
 
   cluster_name                      = module.eks.cluster_name
   subnet_ids                        = var.subnet_ids
-  node_group_name                   = "${var.cluster_name}-nodegroup"
+  node_group_name                   = var.cluster_name
   cluster_service_cidr              = module.eks.cluster_service_cidr
   cluster_primary_security_group_id = module.eks.node_security_group_id
   min_size                          = var.min_nodes
@@ -46,6 +57,7 @@ module "eks_node_group" {
   capacity_type                     = var.capacity_type
   enable_disk_setup                 = var.disk_setup_enabled
   labels                            = var.node_labels
+  iam_role_use_name_prefix          = var.iam_role_use_name_prefix
 
   depends_on = [module.eks]
 }
