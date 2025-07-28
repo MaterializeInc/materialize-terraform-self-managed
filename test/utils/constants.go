@@ -12,11 +12,14 @@ const (
 	DiskEnabledSuffix  = "-disk-enabled"
 	DiskDisabledSuffix = "-disk-disabled"
 
-	ExamplesDir        = "examples"
-	NetworkingDir      = "test-networking"
-	DataBaseDir        = "test-database"
-	EKSDir             = "test-eks"
-	EKSDiskEnabledDir  = EKSDir + DiskEnabledSuffix
-	EKSDiskDisabledDir = EKSDir + DiskDisabledSuffix
-	MainTestDir        = "test"
+	ExamplesDir                = "examples"
+	NetworkingDir              = "test-networking"
+	DataBaseDir                = "test-database"
+	EKSDir                     = "test-eks"
+	EKSDiskEnabledDir          = EKSDir + DiskEnabledSuffix
+	EKSDiskDisabledDir         = EKSDir + DiskDisabledSuffix
+	MaterializeDir             = "test-materialize"
+	MaterializeDiskEnabledDir  = MaterializeDir + DiskEnabledSuffix
+	MaterializeDiskDisabledDir = MaterializeDir + DiskDisabledSuffix
+	MainTestDir                = "test"
 )
