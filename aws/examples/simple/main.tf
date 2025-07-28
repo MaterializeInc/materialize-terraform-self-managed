@@ -153,21 +153,24 @@ resource "random_password" "external_login_password_mz_system" {
 
 # 7. Setup dedicated database instance for Materialize
 module "database" {
-  source                     = "../../modules/database"
-  name_prefix                = var.name_prefix
-  postgres_version           = "15"
-  instance_class             = "db.t3.large"
-  allocated_storage          = 50
-  max_allocated_storage      = 100
-  database_name              = "materialize"
-  database_username          = "materialize"
-  database_password          = random_password.database_password.result
-  multi_az                   = false
-  database_subnet_ids        = module.networking.private_subnet_ids
-  vpc_id                     = module.networking.vpc_id
-  eks_security_group_id      = module.eks.cluster_security_group_id
-  eks_node_security_group_id = module.eks.node_security_group_id
-  tags                       = {}
+  source                = "../../modules/database"
+  name_prefix           = var.name_prefix
+  postgres_version      = "15"
+  instance_class        = "db.t3.large"
+  allocated_storage     = 50
+  max_allocated_storage = 100
+  database_name         = "materialize"
+  database_username     = "materialize"
+  database_password     = random_password.database_password.result
+  multi_az              = false
+  database_subnet_ids   = module.networking.private_subnet_ids
+  vpc_id                = module.networking.vpc_id
+  eks_clusters = [{
+    cluster_name              = module.eks.cluster_name
+    cluster_security_group_id = module.eks.cluster_security_group_id
+    node_security_group_id    = module.eks.node_security_group_id
+  }]
+  tags = {}
 }
 
 # 8. Setup S3 bucket for Materialize

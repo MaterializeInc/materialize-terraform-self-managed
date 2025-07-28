@@ -1,3 +1,13 @@
+variable "profile" {
+  description = "AWS profile to use for authentication"
+  type        = string
+}
+
+variable "region" {
+  description = "AWS region to deploy resources in"
+  type        = string
+}
+
 variable "name_prefix" {
   description = "Prefix for all resource names"
   type        = string
@@ -12,16 +22,6 @@ variable "database_subnet_ids" {
   description = "List of subnet IDs for the database"
   type        = list(string)
 }
-
-# variable "eks_security_group_id" {
-#   description = "Security group ID of the EKS cluster"
-#   type        = string
-# }
-
-# variable "eks_node_security_group_id" {
-#   description = "Security group ID of the EKS node group"
-#   type        = string
-# }
 
 variable "postgres_version" {
   description = "PostgreSQL version"
@@ -82,4 +82,14 @@ variable "backup_retention_period" {
 variable "tags" {
   description = "Tags to apply to all resources"
   type        = map(string)
+}
+
+variable "eks_clusters" {
+  description = "List of EKS clusters with their security group IDs"
+  type = list(object({
+    cluster_name              = string
+    cluster_security_group_id = string
+    node_security_group_id    = string
+  }))
+  default = []
 }

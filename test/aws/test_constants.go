@@ -19,8 +19,8 @@ const (
 	TestInstanceTypeLarge  = "t3.xlarge" // 4 vCPU, 16 GB RAM
 
 	// EKS-specific instance types
-	TestEKSInstanceType            = "t3.medium" // Standard EKS node type
-	TestAlternativeEKSInstanceType = "t3.large"  // Alternative EKS node type
+	TestEKSDiskEnabledInstanceType  = "r7gd.2xlarge"
+	TestEKSDiskDisabledInstanceType = "r6gd.2xlarge"
 
 	// Kubernetes version
 	TestKubernetesVersion = "1.32"

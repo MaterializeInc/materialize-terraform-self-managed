@@ -17,6 +17,10 @@ module "node_group" {
   ami_type       = var.ami_type
   labels         = var.labels
 
+  # useful to disable this when prefix might be too long and hit following char limit
+  # expected length of name_prefix to be in the range (1 - 38)
+  iam_role_use_name_prefix = var.iam_role_use_name_prefix
+
   cloudinit_pre_nodeadm = var.enable_disk_setup ? [
     {
       content_type = "text/x-shellscript"

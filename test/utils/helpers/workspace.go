@@ -11,25 +11,21 @@ import (
 )
 
 // SetupTestWorkspace copies a specific example to the test workspace
-func SetupTestWorkspace(t *testing.T, cloudDir, uniqueID, exampleName string) string {
+func SetupTestWorkspace(t *testing.T, cloudDir, uniqueID, sourceName, destinationName string) string {
 	projectRoot := dir.GetProjectRootDir()
 	if projectRoot == "" {
 		t.Fatalf("Failed to get Project Root Dir")
 	}
 	cloudDirFullPath := filepath.Join(projectRoot, cloudDir)
-	srcDir := filepath.Join(cloudDirFullPath, utils.ExamplesDir, exampleName)
-	dstDir := filepath.Join(cloudDirFullPath, fmt.Sprintf("%s-%s", uniqueID, utils.ExamplesDir), exampleName)
+	srcDir := filepath.Join(cloudDirFullPath, utils.ExamplesDir, sourceName)
+	dstDir := filepath.Join(cloudDirFullPath, fmt.Sprintf("%s-%s", uniqueID, utils.ExamplesDir), destinationName)
 
-	if _, err := os.Stat(dstDir); !os.IsNotExist(err) {
-		t.Logf("Using existing test example: %s", dstDir)
-		return dstDir
-	}
 
-	t.Logf("📁 Setting up test example: %s -> %s", exampleName, dstDir)
+	t.Logf("📁 Setting up test example: %s -> %s", sourceName, dstDir)
 
 	err := dir.CopyDir(srcDir, dstDir)
 	if err != nil {
-		t.Fatalf("Failed to setup test example %s: %v", exampleName, err)
+		t.Fatalf("Failed to setup test example %s: %v", sourceName, err)
 	}
 
 	t.Logf("✅ Test example ready: %s", dstDir)

@@ -77,3 +77,9 @@ variable "cluster_primary_security_group_id" {
   description = "The ID of the primary security group for the cluster"
   type        = string
 }
+
+variable "iam_role_use_name_prefix" {
+  description = "Use name prefix for IAM roles"
+  type        = bool
+  default     = true
+}

@@ -47,5 +47,9 @@ module "eks" {
   # To add the current caller identity as an administrator
   enable_cluster_creator_admin_permissions = var.enable_cluster_creator_admin_permissions
 
+  # useful to disable this when prefix might be too long and hit following char limit
+  # expected length of name_prefix to be in the range (1 - 38)
+  iam_role_use_name_prefix = var.iam_role_use_name_prefix
+
   tags = var.tags
 }
