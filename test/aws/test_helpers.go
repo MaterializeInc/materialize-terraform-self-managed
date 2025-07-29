@@ -66,10 +66,28 @@ func getRequiredAWSConfigurations() []config.Configuration {
 			Key: "SKIP_cleanup_eks_disk_disabled",
 		},
 		{
-			Key: "SKIP_setup_database",
+			Key: "SKIP_setup_database_disk_enabled",
 		},
 		{
-			Key: "SKIP_cleanup_database",
+			Key: "SKIP_cleanup_database_disk_enabled",
+		},
+		{
+			Key: "SKIP_setup_database_disk_disabled",
+		},
+		{
+			Key: "SKIP_cleanup_database_disk_disabled",
+		},
+		{
+			Key: "SKIP_setup_materialize_disk_enabled",
+		},
+		{
+			Key: "SKIP_cleanup_materialize_disk_enabled",
+		},
+		{
+			Key: "SKIP_setup_materialize_disk_disabled",
+		},
+		{
+			Key: "SKIP_cleanup_materialize_disk_disabled",
 		},
 	}
 }

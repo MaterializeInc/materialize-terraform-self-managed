@@ -31,20 +31,10 @@ provider "helm" {
 module "openebs" {
   source = "../../../kubernetes/modules/openebs"
 
-  openebs_namespace = var.openebs_namespace
-  openebs_version   = var.openebs_chart_version
-  install_openebs   = var.enable_disk_support
-
-  #   openebs_namespace = local.disk_config.openebs_namespace
-  #   openebs_version   = local.disk_config.openebs_version
-  #   install_openebs   = local.disk_config.install_openebs
-
-  #   depends_on = [
-  #     module.networking,
-  #     module.eks,
-  #     module.eks_node_group,
-  #     module.aws_lbc,
-  #   ]
+  openebs_namespace    = var.openebs_namespace
+  openebs_version      = var.openebs_chart_version
+  install_openebs      = var.enable_disk_support
+  install_openebs_crds = var.install_openebs_crds
 }
 
 module "certificates" {
@@ -56,11 +46,6 @@ module "certificates" {
   use_self_signed_cluster_issuer = var.install_materialize_instance
   cert_manager_namespace         = var.cert_manager_namespace
   name_prefix                    = var.name_prefix
-  #   cert_manager_install_timeout   = 300
-  #   cert_manager_chart_version     = "v1.18.0"
-  #   use_self_signed_cluster_issuer = var.install_materialize_instance
-  #   cert_manager_namespace         = "cert-manager"
-  #   name_prefix                    = var.name_prefix
 }
 
 module "operator" {
@@ -76,20 +61,6 @@ module "operator" {
   cluster_oidc_issuer_url        = var.cluster_oidc_issuer_url
   s3_bucket_arn                  = module.storage.bucket_arn
   use_self_signed_cluster_issuer = var.install_materialize_instance
-
-  #   name_prefix                    = var.name_prefix
-  #   aws_region                     = var.aws_region
-  #   aws_account_id                 = data.aws_caller_identity.current.account_id
-  #   oidc_provider_arn              = module.eks.oidc_provider_arn
-  #   cluster_oidc_issuer_url        = module.eks.cluster_oidc_issuer_url
-  #   s3_bucket_arn                  = module.storage.bucket_arn
-  #   use_self_signed_cluster_issuer = true
-
-  #   depends_on = [
-  #     module.eks,
-  #     module.networking,
-  #     module.eks_node_group,
-  #   ]
 }
 
 module "storage" {
@@ -100,41 +71,11 @@ module "storage" {
   enable_bucket_versioning = var.enable_bucket_versioning
   enable_bucket_encryption = var.enable_bucket_encryption
   tags                     = var.tags
-  #   name_prefix            = var.name_prefix
-  #   bucket_lifecycle_rules = []
-  #   bucket_force_destroy   = true
-
-  #   # For testing purposes, we are disabling encryption and versioning to allow for easier cleanup
-  #   # This should be enabled in production environments for security and data integrity
-  #   enable_bucket_versioning = false
-  #   enable_bucket_encryption = false
-
-  #   tags = {}
 }
 
 module "materialize_instance" {
   count = var.install_materialize_instance ? 1 : 0
 
-  #   source               = "../../../kubernetes/modules/materialize-instance"
-  #   instance_name        = "main"
-  #   instance_namespace   = "materialize-environment"
-  #   metadata_backend_url = local.metadata_backend_url
-  #   persist_backend_url  = local.persist_backend_url
-
-  #   # The password for the external login to the Materialize instance
-  #   external_login_password_mz_system = random_password.external_login_password_mz_system.result
-
-  #   depends_on = [
-  #     module.eks,
-  #     module.database,
-  #     module.storage,
-  #     module.networking,
-  #     module.certificates,
-  #     module.operator,
-  #     module.aws_lbc,
-  #     module.eks_node_group,
-  #     module.openebs,
-  #   ]
   source               = "../../../kubernetes/modules/materialize-instance"
   instance_name        = var.instance_name
   instance_namespace   = var.instance_namespace

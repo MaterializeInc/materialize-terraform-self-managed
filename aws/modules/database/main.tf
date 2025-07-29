@@ -41,35 +41,6 @@ resource "aws_security_group" "database" {
   name_prefix = "${var.name_prefix}-sg-"
   vpc_id      = var.vpc_id
 
-  dynamic "ingress" {
-    for_each = var.eks_clusters
-    content {
-      from_port       = 5432
-      to_port         = 5432
-      protocol        = "tcp"
-      security_groups = [ingress.value.cluster_security_group_id]
-      description     = "Allow PostgreSQL access from EKS cluster ${ingress.value.cluster_name}"
-    }
-  }
-
-  dynamic "ingress" {
-    for_each = var.eks_clusters
-    content {
-      from_port       = 5432
-      to_port         = 5432
-      protocol        = "tcp"
-      security_groups = [ingress.value.node_security_group_id]
-      description     = "Allow PostgreSQL access from EKS nodes ${ingress.value.cluster_name}"
-    }
-  }
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
   tags = merge(var.tags, {
     Name = "${var.name_prefix}-sg"
   })
@@ -77,4 +48,34 @@ resource "aws_security_group" "database" {
   lifecycle {
     create_before_destroy = true
   }
+}
+
+resource "aws_security_group_rule" "eks_cluster_postgres_ingress" {
+  type                     = "ingress"
+  from_port                = 5432
+  to_port                  = 5432
+  protocol                 = "tcp"
+  security_group_id        = aws_security_group.database.id
+  source_security_group_id = var.cluster_security_group_id
+  description              = "Allow PostgreSQL access from EKS cluster ${var.cluster_name}"
+}
+
+resource "aws_security_group_rule" "eks_nodes_postgres_ingress" {
+  type                     = "ingress"
+  from_port                = 5432
+  to_port                  = 5432
+  protocol                 = "tcp"
+  security_group_id        = aws_security_group.database.id
+  source_security_group_id = var.node_security_group_id
+  description              = "Allow PostgreSQL access from EKS nodes ${var.cluster_name}"
+}
+
+resource "aws_security_group_rule" "allow_all_egress" {
+  type              = "egress"
+  from_port         = 0
+  to_port           = 0
+  protocol          = "-1"
+  cidr_blocks       = ["0.0.0.0/0"]
+  security_group_id = aws_security_group.database.id
+  description       = "Allow all outbound traffic"
 }

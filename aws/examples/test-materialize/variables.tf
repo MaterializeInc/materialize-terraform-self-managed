@@ -23,6 +23,11 @@ variable "cluster_certificate_authority_data" {
   type        = string
 }
 
+variable "install_openebs_crds" {
+  description = "Flag to indicate if OpenEBS CRDs should be installed"
+  type        = bool
+}
+
 variable "openebs_namespace" {
   description = "OpenEBS namespace"
   type        = string

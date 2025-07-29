@@ -12,9 +12,14 @@ const (
 	DiskEnabledSuffix  = "-disk-enabled"
 	DiskDisabledSuffix = "-disk-disabled"
 
+	DiskEnabledShortSuffix  = "de"
+	DiskDisabledShortSuffix = "dd"
+
 	ExamplesDir                = "examples"
 	NetworkingDir              = "test-networking"
 	DataBaseDir                = "test-database"
+	DatabaseDiskEnabledDir     = DataBaseDir + DiskEnabledSuffix
+	DatabaseDiskDisabledDir    = DataBaseDir + DiskDisabledSuffix
 	EKSDir                     = "test-eks"
 	EKSDiskEnabledDir          = EKSDir + DiskEnabledSuffix
 	EKSDiskDisabledDir         = EKSDir + DiskDisabledSuffix
