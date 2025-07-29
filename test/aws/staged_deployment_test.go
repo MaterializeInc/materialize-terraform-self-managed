@@ -654,7 +654,6 @@ func (suite *StagedDeploymentTestSuite) setupMaterializeStage(stage, stageDir, p
 	instanceResourceId := terraform.Output(t, materializeOptions, "instance_resource_id")
 	clusterIssuerName := terraform.Output(t, materializeOptions, "cluster_issuer_name")
 	openebsInstalled := terraform.Output(t, materializeOptions, "openebs_installed")
-	openebsNamespace := terraform.Output(t, materializeOptions, "openebs_namespace")
 	operatorNamespace := terraform.Output(t, materializeOptions, "operator_namespace")
 
 	suite.Equal("true", instanceInstalled, "Materialize instance should be installed")
@@ -667,8 +666,16 @@ func (suite *StagedDeploymentTestSuite) setupMaterializeStage(stage, stageDir, p
 	suite.NotEmpty(nlbDNSName, "NLB DNS name should not	 be empty")
 	suite.NotEmpty(clusterIssuerName, "Cluster issuer name should not be empty")
 	suite.Equal(enableDiskSupport, openebsInstalled, "OpenEBS should be installed if disk support is enabled")
-	suite.Equalf(expectedOpenEbsNamespace, openebsNamespace, "OpenEBS namespace should be %s", expectedOpenEbsNamespace)
 	suite.Equalf(expectedOperatorNamespace, operatorNamespace, "Operator namespace equal %s", expectedOperatorNamespace)
+
+	t.Logf("✅ Phase 2: Materialize instance created successfully:")
+	if enableDiskSupport {
+		openebsNamespace := terraform.Output(t, materializeOptions, "openebs_namespace")
+		suite.Equalf(expectedOpenEbsNamespace, openebsNamespace, "OpenEBS namespace should be %s", expectedOpenEbsNamespace)
+		test_structure.SaveString(t, stageDirFullPath, "openebs_namespace", openebsNamespace)
+		t.Logf("  🗄️ OpenEBS Namespace: %s", openebsNamespace)
+
+	}
 
 	test_structure.SaveString(t, stageDirFullPath, "s3_bucket_name", s3BucketName)
 	test_structure.SaveString(t, stageDirFullPath, "metadata_backend_url", metadataBackendURL)
@@ -679,10 +686,8 @@ func (suite *StagedDeploymentTestSuite) setupMaterializeStage(stage, stageDir, p
 	test_structure.SaveString(t, stageDirFullPath, "instance_resource_id", instanceResourceId)
 	test_structure.SaveString(t, stageDirFullPath, "cluster_issuer_name", clusterIssuerName)
 	test_structure.SaveString(t, stageDirFullPath, "openebs_installed", openebsInstalled)
-	test_structure.SaveString(t, stageDirFullPath, "openebs_namespace", openebsNamespace)
 	test_structure.SaveString(t, stageDirFullPath, "operator_namespace", operatorNamespace)
 
-	t.Logf("✅ Phase 2: Materialize instance created successfully:")
 	t.Logf("  🗄️ S3 Bucket: %s", s3BucketName)
 	t.Logf("  🗄️ Metadata Backend URL: %s", metadataBackendURL)
 	t.Logf("  🗄️ Persist Backend URL: %s", persistBackendURL)
@@ -692,7 +697,6 @@ func (suite *StagedDeploymentTestSuite) setupMaterializeStage(stage, stageDir, p
 	t.Logf("  🗄️ Instance Resource ID: %s", instanceResourceId)
 	t.Logf("  🗄️ Cluster Issuer Name: %s", clusterIssuerName)
 	t.Logf("  🗄️ OpenEBS Installed: %s", openebsInstalled)
-	t.Logf("  🗄️ OpenEBS Namespace: %s", openebsNamespace)
 	t.Logf("  🗄️ Operator Namespace: %s", operatorNamespace)
 	t.Logf("  🗄️ Instance Installed: %s", instanceInstalled)
 }
