@@ -98,13 +98,3 @@ variable "node_security_group_id" {
   description = "Security group ID of the EKS nodes"
   type        = string
 }
-
-variable "eks_clusters" {
-  description = "List of EKS clusters with their security group IDs"
-  type = list(object({
-    cluster_name              = string
-    cluster_security_group_id = string
-    node_security_group_id    = string
-  }))
-  default = []
-}
