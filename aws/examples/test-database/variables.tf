@@ -84,12 +84,17 @@ variable "tags" {
   type        = map(string)
 }
 
-variable "eks_clusters" {
-  description = "List of EKS clusters with their security group IDs"
-  type = list(object({
-    cluster_name              = string
-    cluster_security_group_id = string
-    node_security_group_id    = string
-  }))
-  default = []
+variable "cluster_name" {
+  description = "Name of the EKS cluster"
+  type        = string
+}
+
+variable "cluster_security_group_id" {
+  description = "Security group ID of the EKS cluster"
+  type        = string
+}
+
+variable "node_security_group_id" {
+  description = "Security group ID of the EKS nodes"
+  type        = string
 }

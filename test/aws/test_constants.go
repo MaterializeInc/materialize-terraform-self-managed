@@ -81,4 +81,7 @@ const (
 	// Format: t{YYMMDDHHMMSS}-{random5}
 	TestResourceIDFormat = "t%s-%s"
 	TestRandomIDLength   = 5
+
+	TestOpenEbsVersion     = "4.2.0"
+	TestCertManagerVersion = "1.18.0"
 )

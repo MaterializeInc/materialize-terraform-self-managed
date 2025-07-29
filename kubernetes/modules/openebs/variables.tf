@@ -21,3 +21,15 @@ variable "install_openebs" {
   type        = bool
   default     = true
 }
+
+variable "install_openebs_crds" {
+  description = "Whether to install OpenEBS CRDs"
+  type        = bool
+  default     = false
+}
+
+variable "enable_mayastor" {
+  description = "Whether to enable Mayastor in OpenEBS"
+  type        = bool
+  default     = false
+}

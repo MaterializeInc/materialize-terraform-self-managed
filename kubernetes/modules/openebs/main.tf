@@ -20,12 +20,12 @@ resource "helm_release" "openebs" {
   # https://github.com/openebs/website/pull/506
   set {
     name  = "openebs-crds.csi.volumeSnapshots.enabled"
-    value = "false"
+    value = var.install_openebs_crds ? "true" : "false"
   }
 
   set {
     name  = "engines.replicated.mayastor.enabled"
-    value = "false"
+    value = var.enable_mayastor ? "true" : "false"
   }
 
   depends_on = [kubernetes_namespace.openebs]
