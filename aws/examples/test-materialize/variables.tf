@@ -96,11 +96,6 @@ variable "cert_manager_namespace" {
   type        = string
 }
 
-variable "use_self_signed_cluster_issuer" {
-  description = "Use self-signed cluster issuer for cert-manager"
-  type        = bool
-}
-
 variable "oidc_provider_arn" {
   description = "OIDC provider ARN for the EKS cluster"
   type        = string
