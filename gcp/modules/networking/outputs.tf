@@ -1,34 +1,84 @@
 output "network_id" {
   description = "The ID of the VPC network"
-  value       = google_compute_network.vpc.id
+  value       = module.vpc.network_id
 }
 
 output "network_name" {
   description = "The name of the VPC network"
-  value       = google_compute_network.vpc.name
+  value       = module.vpc.network_name
+}
+
+output "network_self_link" {
+  description = "The URI of the VPC network"
+  value       = module.vpc.network_self_link
+}
+
+output "subnet_names" {
+  description = "The names of all subnets"
+  value       = [for subnet in var.subnets : subnet.name]
 }
 
 output "subnet_name" {
-  description = "The name of the subnet"
-  value       = google_compute_subnetwork.subnet.name
+  description = "The name of the first subnet (for backward compatibility)"
+  value       = length(var.subnets) > 0 ? var.subnets[0].name : null
 }
 
 output "subnet_id" {
-  description = "The ID of the subnet"
-  value       = google_compute_subnetwork.subnet.id
+  description = "The ID of the first subnet (for backward compatibility)"
+  value       = length(module.vpc.subnets_ids) > 0 ? module.vpc.subnets_ids[0] : null
+}
+
+output "subnets" {
+  description = "A map of subnet outputs"
+  value       = module.vpc.subnets
+}
+
+output "subnets_names" {
+  description = "The names of the subnets"
+  value       = module.vpc.subnets_names
+}
+
+output "subnets_ids" {
+  description = "The IDs of the subnets"
+  value       = module.vpc.subnets_ids
+}
+
+output "subnets_ips" {
+  description = "The IPs and CIDRs of the subnets"
+  value       = module.vpc.subnets_ips
+}
+
+output "subnets_self_links" {
+  description = "The self-links of the subnets"
+  value       = module.vpc.subnets_self_links
+}
+
+output "subnets_regions" {
+  description = "The regions where the subnets are created"
+  value       = module.vpc.subnets_regions
+}
+
+output "subnets_secondary_ranges" {
+  description = "The secondary ranges associated with these subnets"
+  value       = module.vpc.subnets_secondary_ranges
+}
+
+output "router_name" {
+  description = "The name of the Cloud Router"
+  value       = module.cloud-nat.router_name
+}
+
+output "nat_name" {
+  description = "The name of the Cloud NAT"
+  value       = module.cloud-nat.name
+}
+
+output "nat_region" {
+  description = "The region of the Cloud NAT"
+  value       = module.cloud-nat.region
 }
 
 output "private_vpc_connection" {
   description = "The private VPC connection"
   value       = google_service_networking_connection.private_vpc_connection
-}
-
-output "router_name" {
-  description = "The name of the Cloud Router"
-  value       = google_compute_router.router.name
-}
-
-output "nat_name" {
-  description = "The name of the Cloud NAT"
-  value       = google_compute_router_nat.nat.name
 }

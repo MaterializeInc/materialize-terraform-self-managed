@@ -14,20 +14,34 @@ variable "prefix" {
   type        = string
 }
 
-variable "subnet_cidr" {
-  description = "CIDR block for the subnet"
-  type        = string
-  default     = "10.100.0.0/20"
-}
-
-variable "pods_cidr" {
-  description = "CIDR block for Kubernetes pods"
-  type        = string
-  default     = "10.104.0.0/14"
-}
-
-variable "services_cidr" {
-  description = "CIDR block for Kubernetes services"
-  type        = string
-  default     = "10.108.0.0/20"
+variable "subnets" {
+  description = "List of subnet configurations including primary CIDR and secondary ranges"
+  type = list(object({
+    name           = string
+    cidr           = string
+    region         = string
+    private_access = optional(bool, true)
+    secondary_ranges = optional(list(object({
+      range_name    = string
+      ip_cidr_range = string
+    })), [])
+  }))
+  default = [
+    {
+      name           = "main-subnet"
+      cidr           = "10.100.0.0/20"
+      region         = "us-central1"
+      private_access = true
+      secondary_ranges = [
+        {
+          range_name    = "pods"
+          ip_cidr_range = "10.104.0.0/14"
+        },
+        {
+          range_name    = "services"
+          ip_cidr_range = "10.108.0.0/20"
+        }
+      ]
+    }
+  ]
 }

@@ -1,106 +1,66 @@
-resource "google_compute_network" "vpc" {
-  name                    = "${var.prefix}-network"
-  auto_create_subnetworks = false
-  project                 = var.project_id
-  mtu                     = 1460 # Optimized for GKE
+locals {
+  default_route = {
+    name              = "${var.prefix}-default-route"
+    description       = "route through IGW to access internet"
+    destination_range = "0.0.0.0/0"
+    tags              = "egress-inet"
+    next_hop_internet = "true"
+  }
+  router_name = "${var.prefix}-router"
+  routes      = concat(var.routes, [local.default_route])
 
-  lifecycle {
-    create_before_destroy = true
-    prevent_destroy       = false
+  # Create secondary ranges map for all subnets
+  secondary_ranges = {
+    for subnet in var.subnets : subnet.name => subnet.secondary_ranges
+    if length(subnet.secondary_ranges) > 0
   }
 }
 
+module "vpc" {
+  source  = "terraform-google-modules/network/google"
+  version = "~> 11.1"
 
-resource "google_compute_route" "default_route" {
-  name             = "${var.prefix}-default-route"
-  project          = var.project_id
-  network          = google_compute_network.vpc.name
-  dest_range       = "0.0.0.0/0"
-  priority         = 1000
-  next_hop_gateway = "default-internet-gateway"
+  project_id   = var.project_id
+  network_name = "${var.prefix}-network"
+  mtu          = var.mtu
 
-  # Ensure this is destroyed before the network
-  depends_on = [google_compute_network.vpc]
-
-  lifecycle {
-    create_before_destroy = true
-  }
-}
-
-resource "google_compute_subnetwork" "subnet" {
-  name          = "${var.prefix}-subnet"
-  project       = var.project_id
-  network       = google_compute_network.vpc.id
-  ip_cidr_range = var.subnet_cidr
-  region        = var.region
-
-  private_ip_google_access = true
-  purpose                  = "PRIVATE"
-
-  secondary_ip_range {
-    range_name    = "pods"
-    ip_cidr_range = var.pods_cidr
-  }
-
-  secondary_ip_range {
-    range_name    = "services"
-    ip_cidr_range = var.services_cidr
-  }
-
-  # Ensure subnet is created after network and route
-  depends_on = [
-    google_compute_network.vpc,
-    google_compute_route.default_route
+  subnets = [
+    for subnet in var.subnets : {
+      subnet_name           = subnet.name
+      subnet_ip             = subnet.cidr
+      subnet_region         = subnet.region
+      subnet_private_access = subnet.private_access
+    }
   ]
 
-  lifecycle {
-    create_before_destroy = true
-  }
-}
+  secondary_ranges = local.secondary_ranges
 
-# Cloud Router for NAT Gateway
-resource "google_compute_router" "router" {
-  name    = "${var.prefix}-router"
-  project = var.project_id
-  region  = var.region
-  network = google_compute_network.vpc.name
-
-  bgp {
-    asn = 64514
-  }
-
-  # Ensure router is created after subnet
-  depends_on = [
-    google_compute_subnetwork.subnet
-  ]
-
-  lifecycle {
-    create_before_destroy = true
-  }
+  routes = local.routes
 }
 
 # Cloud NAT for outbound internet access from private nodes
-resource "google_compute_router_nat" "nat" {
-  name                               = "${var.prefix}-nat"
-  project                            = var.project_id
-  router                             = google_compute_router.router.name
-  region                             = var.region
-  nat_ip_allocate_option             = "AUTO_ONLY"
-  source_subnetwork_ip_ranges_to_nat = "ALL_SUBNETWORKS_ALL_IP_RANGES"
+module "cloud-nat" {
+  source     = "terraform-google-modules/cloud-nat/google"
+  version    = "~> 5.0"
+  project_id = var.project_id
+  region     = var.region
 
-  log_config {
-    enable = true
-    filter = "ERRORS_ONLY"
-  }
+  # Indicates whether the Cloud Router should be created or not.
+  create_router = var.create_router
+  # Router ASN, only if router is not passed in and is created by the module.
+  router_asn    = var.router_asn
+  router        = local.router_name
+  network       = module.vpc.network_name
 
-  # Ensure NAT is created after router
-  depends_on = [
-    google_compute_router.router
-  ]
+  # Indicates whether or not to export logs	
+  log_config_enable = var.log_config_enable
+  # Specifies the desired filtering of logs on this NAT. Valid values are: 
+  # "ERRORS_ONLY", "TRANSLATIONS_ONLY", "ALL"
+  log_config_filter = var.log_config_filter
 
-  lifecycle {
-    create_before_destroy = true
-  }
+  # How NAT should be configured per Subnetwork. Valid values include:
+  # ALL_SUBNETWORKS_ALL_IP_RANGES, ALL_SUBNETWORKS_ALL_PRIMARY_IP_RANGES, LIST_OF_SUBNETWORKS.
+  source_subnetwork_ip_ranges_to_nat = var.source_subnetwork_ip_ranges_to_nat
 }
 
 resource "google_compute_global_address" "private_ip_address" {
@@ -110,8 +70,7 @@ resource "google_compute_global_address" "private_ip_address" {
   purpose       = "VPC_PEERING"
   address_type  = "INTERNAL"
   prefix_length = 16
-  network       = google_compute_network.vpc.id
-
+  network       = module.vpc.network_id
   lifecycle {
     create_before_destroy = true
   }
@@ -119,7 +78,7 @@ resource "google_compute_global_address" "private_ip_address" {
 
 resource "google_service_networking_connection" "private_vpc_connection" {
   provider                = google
-  network                 = google_compute_network.vpc.id
+  network                 = module.vpc.network_id
   service                 = "servicenetworking.googleapis.com"
   reserved_peering_ranges = [google_compute_global_address.private_ip_address.name]
 
