@@ -13,18 +13,3 @@ variable "prefix" {
   description = "Prefix to be used for resource names"
   type        = string
 }
-
-variable "subnets" {
-  description = "List of subnet configurations including primary CIDR and secondary ranges"
-  type = list(object({
-    name           = string
-    cidr           = string
-    region         = string
-    private_access = optional(bool, true)
-    secondary_ranges = optional(list(object({
-      range_name    = string
-      ip_cidr_range = string
-    })), [])
-  }))
-  default = []
-}

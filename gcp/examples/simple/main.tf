@@ -78,8 +78,8 @@ module "gke" {
   network_name = module.networking.network_name
   # we only have one subnet, so we can use the first one
   # if multiple subnets are created, we need to use the specific subnet name here
-  subnet_name  = module.networking.subnets_names[0]
-  namespace    = var.namespace
+  subnet_name = module.networking.subnets_names[0]
+  namespace   = var.namespace
 }
 
 # Create and configure node pool for the GKE cluster with compute resources

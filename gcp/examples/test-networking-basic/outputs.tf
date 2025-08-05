@@ -50,7 +50,7 @@ output "subnets_regions" {
 
 output "subnets_secondary_ranges" {
   description = "The secondary ranges associated with these subnets"
-    value       = module.networking.subnets_secondary_ranges
+  value       = module.networking.subnets_secondary_ranges
 }
 
 output "router_name" {

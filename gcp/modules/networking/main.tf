@@ -67,9 +67,9 @@ module "cloud-nat" {
   # Indicates whether the Cloud Router should be created or not.
   create_router = var.create_router
   # Router ASN, only if router is not passed in and is created by the module.
-  router_asn    = var.router_asn
-  router        = local.router_name
-  network       = module.vpc.network_name
+  router_asn = var.router_asn
+  router     = local.router_name
+  network    = module.vpc.network_name
 
   # Indicates whether or not to export logs	
   log_config_enable = var.log_config_enable

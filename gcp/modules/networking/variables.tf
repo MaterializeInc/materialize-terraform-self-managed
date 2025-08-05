@@ -28,12 +28,6 @@ variable "subnets" {
   default = []
 }
 
-variable "auto_create_subnetworks" {
-  description = "Whether to auto-create subnets"
-  type        = bool
-  default     = false
-}
-
 variable "mtu" {
   description = "MTU for the network"
   type        = number
