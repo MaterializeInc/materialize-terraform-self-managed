@@ -12,9 +12,9 @@ output "gke_cluster" {
 output "network" {
   description = "Network details"
   value = {
-    network_id   = module.networking.network_id
-    network_name = module.networking.network_name
-    subnet_name  = module.networking.subnet_name
+    network_id    = module.networking.network_id
+    network_name  = module.networking.network_name
+    subnets_names = module.networking.subnets_names
   }
 }
 

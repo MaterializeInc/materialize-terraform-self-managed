@@ -25,6 +25,7 @@ variable "subnets" {
       ip_cidr_range = string
     })), [])
   }))
+  default = []
 }
 
 variable "auto_create_subnetworks" {

@@ -143,8 +143,8 @@ func (suite *StagedDeploymentSuite) TestFullDeployment() {
 		// Save all networking outputs for subsequent stages
 		networkName := terraform.Output(t, networkOptions, "network_name")
 		networkId := terraform.Output(t, networkOptions, "network_id")
-		subnetName := terraform.Output(t, networkOptions, "subnet_name")
-		subnetId := terraform.Output(t, networkOptions, "subnet_id")
+		subnetName := terraform.Output(t, networkOptions, "default_private_subnet_name")
+		subnetId := terraform.Output(t, networkOptions, "default_private_subnet_id")
 		routerName := terraform.Output(t, networkOptions, "router_name")
 		natName := terraform.Output(t, networkOptions, "nat_name")
 		privateVpcConnection := terraform.Output(t, networkOptions, "private_vpc_connection")
@@ -152,8 +152,8 @@ func (suite *StagedDeploymentSuite) TestFullDeployment() {
 		// Save all outputs and resource IDs
 		test_structure.SaveString(t, suite.workingDir, "network_name", networkName)
 		test_structure.SaveString(t, suite.workingDir, "network_id", networkId)
-		test_structure.SaveString(t, suite.workingDir, "subnet_name", subnetName)
-		test_structure.SaveString(t, suite.workingDir, "subnet_id", subnetId)
+		test_structure.SaveString(t, suite.workingDir, "default_private_subnet_name", subnetName)
+		test_structure.SaveString(t, suite.workingDir, "default_private_subnet_id", subnetId)
 		test_structure.SaveString(t, suite.workingDir, "router_name", routerName)
 		test_structure.SaveString(t, suite.workingDir, "nat_name", natName)
 		test_structure.SaveString(t, suite.workingDir, "private_vpc_connection", privateVpcConnection)
@@ -243,7 +243,7 @@ func (suite *StagedDeploymentSuite) TestFullDeployment() {
 
 		// Load saved network data
 		networkName := test_structure.LoadString(t, suite.workingDir, "network_name")
-		subnetName := test_structure.LoadString(t, suite.workingDir, "subnet_name")
+		subnetName := test_structure.LoadString(t, suite.workingDir, "default_private_subnet_name")
 		projectID := test_structure.LoadString(t, suite.workingDir, "project_id")
 		resourceId := test_structure.LoadString(t, suite.workingDir, "resource_unique_id")
 
@@ -287,7 +287,7 @@ func (suite *StagedDeploymentSuite) TestFullDeployment() {
 
 		// Load saved network data
 		networkName := test_structure.LoadString(t, suite.workingDir, "network_name")
-		subnetName := test_structure.LoadString(t, suite.workingDir, "subnet_name")
+		subnetName := test_structure.LoadString(t, suite.workingDir, "default_private_subnet_name")
 		projectID := test_structure.LoadString(t, suite.workingDir, "project_id")
 		resourceId := test_structure.LoadString(t, suite.workingDir, "resource_unique_id")
 

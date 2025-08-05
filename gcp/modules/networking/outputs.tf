@@ -13,19 +13,14 @@ output "network_self_link" {
   value       = module.vpc.network_self_link
 }
 
-output "subnet_names" {
-  description = "The names of all subnets"
-  value       = [for subnet in var.subnets : subnet.name]
+output "default_private_subnet_name" {
+  description = "The name of the Default Private Subnet"
+  value       = length(var.subnets) == 0 ? module.vpc.subnets_names[0] : null
 }
 
-output "subnet_name" {
-  description = "The name of the first subnet (for backward compatibility)"
-  value       = length(var.subnets) > 0 ? var.subnets[0].name : null
-}
-
-output "subnet_id" {
-  description = "The ID of the first subnet (for backward compatibility)"
-  value       = length(module.vpc.subnets_ids) > 0 ? module.vpc.subnets_ids[0] : null
+output "default_private_subnet_id" {
+  description = "The ID of the Default Private Subnet"
+  value       = length(var.subnets) == 0 ? module.vpc.subnets_ids[0] : null
 }
 
 output "subnets" {
