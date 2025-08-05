@@ -18,14 +18,36 @@ variable "prefix" {
 variable "network_config" {
   description = "Network configuration for the GKE cluster"
   type = object({
-    subnet_cidr   = string
-    pods_cidr     = string
-    services_cidr = string
+    subnets = list(object({
+      name           = string
+      cidr           = string
+      region         = string
+      private_access = optional(bool, true)
+      secondary_ranges = optional(list(object({
+        range_name    = string
+        ip_cidr_range = string
+      })), [])
+    }))
   })
   default = {
-    subnet_cidr   = "10.0.0.0/20"
-    pods_cidr     = "10.48.0.0/14"
-    services_cidr = "10.52.0.0/20"
+    subnets = [
+      {
+        name           = "mz-subnet"
+        cidr           = "10.0.0.0/20"
+        region         = "us-central1"
+        private_access = true
+        secondary_ranges = [
+          {
+            range_name    = "pods"
+            ip_cidr_range = "10.48.0.0/14"
+          },
+          {
+            range_name    = "services"
+            ip_cidr_range = "10.52.0.0/20"
+          }
+        ]
+      }
+    ]
   }
 }
 

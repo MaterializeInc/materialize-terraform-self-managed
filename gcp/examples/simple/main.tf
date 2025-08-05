@@ -60,12 +60,10 @@ locals {
 module "networking" {
   source = "../../modules/networking"
 
-  project_id    = var.project_id
-  region        = var.region
-  prefix        = var.prefix
-  subnet_cidr   = var.network_config.subnet_cidr
-  pods_cidr     = var.network_config.pods_cidr
-  services_cidr = var.network_config.services_cidr
+  project_id = var.project_id
+  region     = var.region
+  prefix     = var.prefix
+  subnets    = var.network_config.subnets
 }
 
 # Set up Google Kubernetes Engine (GKE) cluster with basic configuration
@@ -78,8 +76,10 @@ module "gke" {
   region       = var.region
   prefix       = var.prefix
   network_name = module.networking.network_name
-  subnet_name  = module.networking.subnet_name
-  namespace    = var.namespace
+  # we only have one subnet, so we can use the first one
+  # if multiple subnets are created, we need to use the specific subnet name here
+  subnet_name = module.networking.subnets_names[0]
+  namespace   = var.namespace
 }
 
 # Create and configure node pool for the GKE cluster with compute resources

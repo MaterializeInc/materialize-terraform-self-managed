@@ -8,14 +8,49 @@ output "network_id" {
   value       = module.networking.network_id
 }
 
-output "subnet_name" {
+output "default_private_subnet_name" {
   description = "The name of the subnet"
-  value       = module.networking.subnet_name
+  value       = module.networking.default_private_subnet_name
 }
 
-output "subnet_id" {
+output "default_private_subnet_id" {
   description = "The ID of the subnet"
-  value       = module.networking.subnet_id
+  value       = module.networking.default_private_subnet_id
+}
+
+output "subnets" {
+  description = "A map of subnet outputs"
+  value       = module.networking.subnets
+}
+
+output "subnets_names" {
+  description = "The names of the subnets"
+  value       = module.networking.subnets_names
+}
+
+output "subnets_ids" {
+  description = "The IDs of the subnets"
+  value       = module.networking.subnets_ids
+}
+
+output "subnets_ips" {
+  description = "The IPs and CIDRs of the subnets"
+  value       = module.networking.subnets_ips
+}
+
+output "subnets_self_links" {
+  description = "The self-links of the subnets"
+  value       = module.networking.subnets_self_links
+}
+
+output "subnets_regions" {
+  description = "The regions where the subnets are created"
+  value       = module.networking.subnets_regions
+}
+
+output "subnets_secondary_ranges" {
+  description = "The secondary ranges associated with these subnets"
+  value       = module.networking.subnets_secondary_ranges
 }
 
 output "router_name" {
@@ -28,7 +63,12 @@ output "nat_name" {
   value       = module.networking.nat_name
 }
 
+output "nat_region" {
+  description = "The region of the Cloud NAT"
+  value       = module.networking.nat_region
+}
+
 output "private_vpc_connection" {
-  description = "The private VPC connection for database connectivity"
+  description = "The private VPC connection"
   value       = module.networking.private_vpc_connection
 }
