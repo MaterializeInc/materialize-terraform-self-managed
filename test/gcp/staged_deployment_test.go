@@ -117,74 +117,62 @@ func (suite *StagedDeploymentSuite) TestFullDeployment() {
 	// Stage 1: Network Setup
 	test_structure.RunTestStage(t, "setup_network", func() {
 		// Generate unique ID for this infrastructure family
-		uniqueId := generateGCPCompliantID()
-		suite.workingDir = fmt.Sprintf("%s/%s", TestRunsDir, uniqueId)
-		os.MkdirAll(suite.workingDir, 0755)
-		t.Logf("🏷️ Infrastructure ID: %s", uniqueId)
-		t.Logf("📁 State directory: %s", suite.workingDir)
+		if os.Getenv("USE_EXISTING_NETWORK") != "" {
+			suite.useExistingNetwork()
+		} else {
+			uniqueId := generateGCPCompliantID()
+			suite.workingDir = fmt.Sprintf("%s/%s", TestRunsDir, uniqueId)
+			os.MkdirAll(suite.workingDir, 0755)
+			t.Logf("🏷️ Infrastructure ID: %s", uniqueId)
+			t.Logf("📁 State directory: %s", suite.workingDir)
 
-		projectID := os.Getenv("GOOGLE_PROJECT")
+			projectID := os.Getenv("GOOGLE_PROJECT")
 
-		networkOptions := &terraform.Options{
-			TerraformDir: "../../gcp/examples/test-networking-basic",
-			Vars: map[string]any{
-				"project_id": projectID,
-				"region":     TestRegion,
-				"prefix":     fmt.Sprintf("test-%s", uniqueId),
-			},
+			networkOptions := &terraform.Options{
+				TerraformDir: "../../gcp/examples/test-networking-basic",
+				Vars: map[string]any{
+					"project_id": projectID,
+					"region":     TestRegion,
+					"prefix":     fmt.Sprintf("test-%s", uniqueId),
+				},
+			}
+
+			// Save terraform options for potential cleanup stage
+			test_structure.SaveTerraformOptions(t, suite.workingDir, networkOptions)
+
+			// Apply
+			terraform.InitAndApply(t, networkOptions)
+
+			// Save all networking outputs for subsequent stages
+			networkName := terraform.Output(t, networkOptions, "network_name")
+			networkId := terraform.Output(t, networkOptions, "network_id")
+			subnetNames := terraform.OutputList(t, networkOptions, "subnets_names")
+			subnetIds := terraform.OutputList(t, networkOptions, "subnets_ids")
+			routerName := terraform.Output(t, networkOptions, "router_name")
+			natName := terraform.Output(t, networkOptions, "nat_name")
+			privateVpcConnection := terraform.Output(t, networkOptions, "private_vpc_connection")
+
+			// Save all outputs and resource IDs
+			test_structure.SaveString(t, suite.workingDir, "network_name", networkName)
+			test_structure.SaveString(t, suite.workingDir, "network_id", networkId)
+			test_structure.SaveString(t, suite.workingDir, "subnets_names", strings.Join(subnetNames, ","))
+			test_structure.SaveString(t, suite.workingDir, "subnets_ids", strings.Join(subnetIds, ","))
+			test_structure.SaveString(t, suite.workingDir, "router_name", routerName)
+			test_structure.SaveString(t, suite.workingDir, "nat_name", natName)
+			test_structure.SaveString(t, suite.workingDir, "private_vpc_connection", privateVpcConnection)
+			test_structure.SaveString(t, suite.workingDir, "project_id", projectID)
+			test_structure.SaveString(t, suite.workingDir, "resource_unique_id", uniqueId)
+
+			t.Logf("✅ Network infrastructure created:")
+			t.Logf("  🌐 Network: %s", networkName)
+			t.Logf("  🏠 Subnets: %s", strings.Join(subnetNames, ","))
+			t.Logf("  🔀 Router: %s", routerName)
+			t.Logf("  🌍 NAT: %s", natName)
+			t.Logf("  🏷️ Resource ID: %s", uniqueId)
 		}
-
-		// Save terraform options for potential cleanup stage
-		test_structure.SaveTerraformOptions(t, suite.workingDir, networkOptions)
-
-		// Apply
-		terraform.InitAndApply(t, networkOptions)
-
-		// Save all networking outputs for subsequent stages
-		networkName := terraform.Output(t, networkOptions, "network_name")
-		networkId := terraform.Output(t, networkOptions, "network_id")
-		subnetName := terraform.Output(t, networkOptions, "default_private_subnet_name")
-		subnetId := terraform.Output(t, networkOptions, "default_private_subnet_id")
-		routerName := terraform.Output(t, networkOptions, "router_name")
-		natName := terraform.Output(t, networkOptions, "nat_name")
-		privateVpcConnection := terraform.Output(t, networkOptions, "private_vpc_connection")
-
-		// Save all outputs and resource IDs
-		test_structure.SaveString(t, suite.workingDir, "network_name", networkName)
-		test_structure.SaveString(t, suite.workingDir, "network_id", networkId)
-		test_structure.SaveString(t, suite.workingDir, "default_private_subnet_name", subnetName)
-		test_structure.SaveString(t, suite.workingDir, "default_private_subnet_id", subnetId)
-		test_structure.SaveString(t, suite.workingDir, "router_name", routerName)
-		test_structure.SaveString(t, suite.workingDir, "nat_name", natName)
-		test_structure.SaveString(t, suite.workingDir, "private_vpc_connection", privateVpcConnection)
-		test_structure.SaveString(t, suite.workingDir, "project_id", projectID)
-		test_structure.SaveString(t, suite.workingDir, "resource_unique_id", uniqueId)
-
-		t.Logf("✅ Network infrastructure created:")
-		t.Logf("  🌐 Network: %s", networkName)
-		t.Logf("  🏠 Subnet: %s", subnetName)
-		t.Logf("  🔀 Router: %s", routerName)
-		t.Logf("  🌍 NAT: %s", natName)
-		t.Logf("  🏷️ Resource ID: %s", uniqueId)
 	})
 	if os.Getenv("SKIP_setup_network") != "" {
-		// Get the most recent state directory
-		latestDirPath, err := dir.GetLastRunTestStageDir(TestRunsDir)
-		if err != nil {
-			t.Fatalf("❌ Cannot skip network creation: %v", err)
-		}
-
-		// Use the full path returned by the helper
-		suite.workingDir = latestDirPath
-		latestDir := filepath.Base(latestDirPath)
-
-		// Load network name using test_structure (handles .test-data path internally)
-		networkName := test_structure.LoadString(t, suite.workingDir, "network_name")
-		if networkName == "" {
-			t.Fatalf("❌ Cannot skip network creation: Network name is empty in state directory %s", latestDir)
-		}
-
-		t.Logf("♻️ Skipping network creation, using existing: %s (ID: %s)", networkName, latestDir)
+		suite.useExistingNetwork()
 	}
 
 	// Stage 2: Database Setup
@@ -258,14 +246,16 @@ func (suite *StagedDeploymentSuite) TestFullDeployment() {
 
 		// Load saved network data
 		networkName := test_structure.LoadString(t, suite.workingDir, "network_name")
-		subnetName := test_structure.LoadString(t, suite.workingDir, "default_private_subnet_name")
+		subnetNamesStr := test_structure.LoadString(t, suite.workingDir, "subnets_names")
+		subnetNames := strings.Split(subnetNamesStr, ",")
 		projectID := test_structure.LoadString(t, suite.workingDir, "project_id")
 		resourceId := test_structure.LoadString(t, suite.workingDir, "resource_unique_id")
 
 		// Validate required network data exists
-		if networkName == "" || subnetName == "" || projectID == "" || resourceId == "" {
+		if networkName == "" || len(subnetNames) == 0 || projectID == "" || resourceId == "" {
 			t.Fatal("❌ Cannot create GKE: Missing network data. Run network setup stage first.")
 		}
+		subnetName := subnetNames[0]
 
 		t.Logf("🔗 Using infrastructure family: %s for GKE disk-enabled", resourceId)
 
@@ -302,14 +292,16 @@ func (suite *StagedDeploymentSuite) TestFullDeployment() {
 
 		// Load saved network data
 		networkName := test_structure.LoadString(t, suite.workingDir, "network_name")
-		subnetName := test_structure.LoadString(t, suite.workingDir, "default_private_subnet_name")
+		subnetNamesStr := test_structure.LoadString(t, suite.workingDir, "subnets_names")
+		subnetNames := strings.Split(subnetNamesStr, ",")
 		projectID := test_structure.LoadString(t, suite.workingDir, "project_id")
 		resourceId := test_structure.LoadString(t, suite.workingDir, "resource_unique_id")
 
 		// Validate required network data exists
-		if networkName == "" || subnetName == "" || projectID == "" || resourceId == "" {
+		if networkName == "" || len(subnetNames) == 0 || projectID == "" || resourceId == "" {
 			t.Fatal("❌ Cannot create GKE: Missing network data. Run network setup stage first.")
 		}
+		subnetName := subnetNames[0]
 
 		t.Logf("🔗 Using infrastructure family: %s for GKE disk-disabled", resourceId)
 
@@ -457,6 +449,28 @@ func (suite *StagedDeploymentSuite) TestFullDeployment() {
 		t.Logf("✅ Phase 2: Materialize instance created without disk-based storage: %s", instanceResourceId)
 	})
 }
+
+func (suite *StagedDeploymentSuite) useExistingNetwork() {
+	t := suite.T()
+	// Get the most recent state directory
+	latestDirPath, err := dir.GetLastRunTestStageDir(TestRunsDir)
+	if err != nil {
+		t.Fatalf("❌ Cannot skip network creation: %v", err)
+	}
+
+	// Use the full path returned by the helper
+	suite.workingDir = latestDirPath
+	latestDir := filepath.Base(latestDirPath)
+
+	// Load network name using test_structure (handles .test-data path internally)
+	networkName := test_structure.LoadString(t, suite.workingDir, "network_name")
+	if networkName == "" {
+		t.Fatalf("❌ Cannot skip network creation: Network name is empty in state directory %s", latestDir)
+	}
+
+	t.Logf("♻️ Skipping network creation, using existing: %s (ID: %s)", networkName, latestDir)
+}
+
 
 // TestStagedDeploymentSuite runs the test suite
 func TestStagedDeploymentSuite(t *testing.T) {

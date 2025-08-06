@@ -25,7 +25,22 @@ variable "subnets" {
       ip_cidr_range = string
     })), [])
   }))
-  default = []
+  default = [{
+    name           = "default-private-subnet"
+    cidr           = "10.100.0.0/20"
+    region         = "us-central1"
+    private_access = true
+    secondary_ranges = [
+      {
+        range_name    = "pods"
+        ip_cidr_range = "10.104.0.0/14"
+      },
+      {
+        range_name    = "services"
+        ip_cidr_range = "10.108.0.0/20"
+      }
+    ]
+  }]
 }
 
 variable "mtu" {

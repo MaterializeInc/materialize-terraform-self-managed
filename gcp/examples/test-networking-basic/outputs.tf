@@ -8,16 +8,6 @@ output "network_id" {
   value       = module.networking.network_id
 }
 
-output "default_private_subnet_name" {
-  description = "The name of the subnet"
-  value       = module.networking.default_private_subnet_name
-}
-
-output "default_private_subnet_id" {
-  description = "The ID of the subnet"
-  value       = module.networking.default_private_subnet_id
-}
-
 output "subnets" {
   description = "A map of subnet outputs"
   value       = module.networking.subnets

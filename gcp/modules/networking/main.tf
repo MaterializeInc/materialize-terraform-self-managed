@@ -9,28 +9,10 @@ locals {
   router_name = "${var.prefix}-router"
   routes      = concat(var.routes, [local.default_route])
 
-  default_private_subnet = {
-    name           = "default-private-subnet"
-    cidr           = "10.100.0.0/20"
-    region         = "us-central1"
-    private_access = true
-    secondary_ranges = [
-      {
-        range_name    = "pods"
-        ip_cidr_range = "10.104.0.0/14"
-      },
-      {
-        range_name    = "services"
-        ip_cidr_range = "10.108.0.0/20"
-      }
-    ]
-  }
-
-  subnets = length(var.subnets) == 0 ? [local.default_private_subnet] : var.subnets
 
   # Create secondary ranges map for all subnets
   secondary_ranges = {
-    for subnet in local.subnets : subnet.name => subnet.secondary_ranges
+    for subnet in var.subnets : subnet.name => subnet.secondary_ranges
     if length(subnet.secondary_ranges) > 0
   }
 }
@@ -44,7 +26,7 @@ module "vpc" {
   mtu          = var.mtu
 
   subnets = [
-    for subnet in local.subnets : {
+    for subnet in var.subnets : {
       subnet_name           = subnet.name
       subnet_ip             = subnet.cidr
       subnet_region         = subnet.region
