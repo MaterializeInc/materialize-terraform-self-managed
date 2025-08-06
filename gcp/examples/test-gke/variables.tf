@@ -53,8 +53,8 @@ variable "enable_private_nodes" {
   type        = bool
 }
 
-variable "disk_setup_enabled" {
-  description = "Enable disk setup or not"
+variable "swap_enabled" {
+  description = "Enable swap"
   type        = bool
 }
 

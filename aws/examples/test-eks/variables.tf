@@ -79,8 +79,8 @@ variable "capacity_type" {
   type        = string
 }
 
-variable "disk_setup_enabled" {
-  description = "Enable disk setup for nodes"
+variable "swap_enabled" {
+  description = "Enable swap for nodes"
   type        = bool
 }
 

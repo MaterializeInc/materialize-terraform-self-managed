@@ -41,7 +41,7 @@ variable "license_key" {
 variable "environmentd_version" {
   description = "Version of environmentd to use"
   type        = string
-  default     = "v0.147.7" # META: mz version
+  default     = "v0.155.0" # META: mz version
   nullable    = false
 }
 

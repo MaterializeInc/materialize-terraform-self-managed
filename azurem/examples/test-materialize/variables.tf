@@ -110,19 +110,9 @@ variable "cert_manager_chart_version" {
   type        = string
 }
 
-variable "enable_disk_support" {
-  description = "Whether to install OpenEBS"
+variable "swap_enabled" {
+  description = "Enable swap"
   type        = bool
-}
-
-variable "openebs_namespace" {
-  description = "The namespace for OpenEBS"
-  type        = string
-}
-
-variable "openebs_version" {
-  description = "The version of OpenEBS"
-  type        = string
 }
 
 variable "operator_namespace" {

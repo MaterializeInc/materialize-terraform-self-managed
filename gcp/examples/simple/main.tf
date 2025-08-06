@@ -65,13 +65,8 @@ locals {
     user_name = "materialize"
   }
 
-  # Disk support configuration
-  disk_config = {
-    enable_disk_setup = true
-    local_ssd_count   = 1
-    openebs_namespace = "openebs"
-  }
-
+  local_ssd_count = 1
+  swap_enabled    = true
 
   metadata_backend_url = format(
     "postgres://%s:%s@%s:5432/%s?sslmode=disable",
@@ -139,21 +134,8 @@ module "nodepool" {
   service_account_email = module.gke.service_account_email
   labels                = local.common_labels
 
-  enable_disk_setup = local.disk_config.enable_disk_setup
-  local_ssd_count   = local.disk_config.local_ssd_count
-}
-
-# Install OpenEBS for persistent storage management in Kubernetes
-module "openebs" {
-  source = "../../../kubernetes/modules/openebs"
-  depends_on = [
-    module.gke,
-    module.nodepool
-  ]
-
-  install_openebs          = local.disk_config.enable_disk_setup
-  create_openebs_namespace = true
-  openebs_namespace        = local.disk_config.openebs_namespace
+  swap_enabled    = local.swap_enabled
+  local_ssd_count = local.local_ssd_count
 }
 
 resource "random_password" "external_login_password_mz_system" {
@@ -246,6 +228,7 @@ module "materialize_instance" {
     "iam.gke.io/gcp-service-account" = module.gke.workload_identity_sa_email
   }
 
+  license_key = var.license_key
 
   depends_on = [
     module.gke,
@@ -255,7 +238,6 @@ module "materialize_instance" {
     module.certificates,
     module.operator,
     module.nodepool,
-    module.openebs,
   ]
 }
 

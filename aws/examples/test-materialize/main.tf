@@ -28,15 +28,6 @@ provider "helm" {
   }
 }
 
-module "openebs" {
-  source = "../../../kubernetes/modules/openebs"
-
-  openebs_namespace    = var.openebs_namespace
-  openebs_version      = var.openebs_chart_version
-  install_openebs      = var.enable_disk_support
-  install_openebs_crds = var.install_openebs_crds
-}
-
 module "certificates" {
   source = "../../../kubernetes/modules/certificates"
 
@@ -51,11 +42,11 @@ module "certificates" {
 module "operator" {
   source = "../../modules/operator"
 
-  name_prefix         = var.name_prefix
-  aws_region          = var.region
-  operator_namespace  = var.operator_namespace
-  aws_account_id      = data.aws_caller_identity.current.account_id
-  enable_disk_support = var.enable_disk_support
+  name_prefix        = var.name_prefix
+  aws_region         = var.region
+  operator_namespace = var.operator_namespace
+  aws_account_id     = data.aws_caller_identity.current.account_id
+  swap_enabled       = var.swap_enabled
 
   use_self_signed_cluster_issuer = var.install_materialize_instance
 }
@@ -98,7 +89,6 @@ module "materialize_instance" {
     module.storage,
     module.certificates,
     module.operator,
-    module.openebs,
   ]
 }
 

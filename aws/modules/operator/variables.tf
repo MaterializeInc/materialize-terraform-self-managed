@@ -7,7 +7,7 @@ variable "name_prefix" {
 variable "operator_version" {
   description = "Version of the Materialize operator to install"
   type        = string
-  default     = "v25.2.6" # META: helm-chart version
+  default     = "v25.3.0-beta.1" # META: helm-chart version
   nullable    = false
 }
 
@@ -106,24 +106,15 @@ variable "use_self_signed_cluster_issuer" {
   nullable    = false
 }
 
-variable "enable_disk_support" {
-  description = "Enable disk support for Materialize using OpenEBS and NVMe instance storage. When enabled, this configures OpenEBS, runs the disk setup script for NVMe devices, and creates appropriate storage classes."
+variable "enable_license_key_checks" {
+  description = "Enable license key checks."
   type        = bool
   default     = true
   nullable    = false
 }
 
-variable "disk_support_config" {
-  description = "Advanced configuration for disk support (only used when enable_disk_support = true)"
-  type = object({
-    create_storage_class      = optional(bool, true)
-    storage_class_name        = optional(string, "openebs-lvm-instance-store-ext4")
-    storage_class_provisioner = optional(string, "local.csi.openebs.io")
-    storage_class_parameters = optional(object({
-      storage  = optional(string, "lvm")
-      fsType   = optional(string, "ext4")
-      volgroup = optional(string, "instance-store-vg")
-    }), {})
-  })
-  default = {}
+variable "swap_enabled" {
+  description = "Whether to enable swap on the local NVMe disks."
+  type        = bool
+  default     = true
 }

@@ -83,14 +83,9 @@ variable "disk_size_gb" {
   type        = number
 }
 
-variable "enable_disk_setup" {
-  description = "Whether to enable disk setup for the node pool"
+variable "swap_enabled" {
+  description = "Whether to enable swap on the local NVMe disks."
   type        = bool
-}
-
-variable "disk_setup_image" {
-  description = "The disk setup image for the node pool"
-  type        = string
 }
 
 variable "enable_azure_monitor" {

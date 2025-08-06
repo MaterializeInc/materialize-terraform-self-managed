@@ -10,13 +10,6 @@ variable "region" {
   nullable    = false
 }
 
-variable "enable_disk_setup" {
-  description = "Whether to enable the local NVMe SSD disks setup script for NVMe storage"
-  type        = bool
-  default     = true
-  nullable    = false
-}
-
 variable "cluster_name" {
   description = "The name of the GKE cluster"
   type        = string
@@ -90,13 +83,6 @@ variable "enable_private_nodes" {
   nullable    = false
 }
 
-variable "disk_setup_image" {
-  description = "Docker image for the disk setup script"
-  type        = string
-  default     = "materialize/ephemeral-storage-setup-image:v0.1.1"
-  nullable    = false
-}
-
 variable "oauth_scopes" {
   description = "OAuth scopes to assign to the node pool service account"
   type        = list(string)
@@ -111,10 +97,16 @@ variable "workload_metadata_mode" {
   nullable    = false
 }
 
-variable "pause_container_image" {
-  description = "Image for the pause container"
+variable "swap_enabled" {
+  description = "Whether to enable swap on the local NVMe disks."
+  type        = bool
+  default     = true
+}
+
+variable "disk_setup_image" {
+  description = "Docker image for the disk setup script"
   type        = string
-  default     = "gcr.io/google_containers/pause:3.2"
+  default     = "materialize/ephemeral-storage-setup-image:v0.4.0"
   nullable    = false
 }
 
@@ -129,21 +121,6 @@ variable "disk_setup_container_resource_config" {
     memory_limit   = "128Mi"
     memory_request = "128Mi"
     cpu_request    = "50m"
-  }
-  nullable = false
-}
-
-variable "taint_removal_container_resource_config" {
-  description = "Resource configuration for taint removal init container"
-  type = object({
-    memory_limit   = string
-    memory_request = string
-    cpu_request    = string
-  })
-  default = {
-    memory_limit   = "64Mi"
-    memory_request = "64Mi"
-    cpu_request    = "10m"
   }
   nullable = false
 }

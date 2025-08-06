@@ -15,12 +15,9 @@ locals {
   node_labels = merge(
     var.labels,
     {
-      "materialize.cloud/disk" = var.enable_disk_setup ? "true" : "false"
+      "materialize.cloud/swap" = var.swap_enabled ? "true" : "false"
       "workload"               = "materialize-instance"
     },
-    var.enable_disk_setup ? {
-      "materialize.cloud/disk-config-required" = "true"
-    } : {}
   )
 
   disk_setup_name = "disk-setup"
@@ -67,7 +64,7 @@ resource "azurerm_kubernetes_cluster_node_pool" "primary_nodes" {
 }
 
 resource "kubernetes_namespace" "disk_setup" {
-  count = var.enable_disk_setup ? 1 : 0
+  count = var.swap_enabled ? 1 : 0
 
   metadata {
     name   = local.disk_setup_name
@@ -77,7 +74,7 @@ resource "kubernetes_namespace" "disk_setup" {
 }
 
 resource "kubernetes_daemonset" "disk_setup" {
-  count = var.enable_disk_setup ? 1 : 0
+  count = var.swap_enabled ? 1 : 0
 
   depends_on = [
     kubernetes_namespace.disk_setup,
@@ -117,7 +114,7 @@ resource "kubernetes_daemonset" "disk_setup" {
             required_during_scheduling_ignored_during_execution {
               node_selector_term {
                 match_expressions {
-                  key      = "materialize.cloud/disk"
+                  key      = "materialize.cloud/swap"
                   operator = "In"
                   values   = ["true"]
                 }
@@ -127,7 +124,7 @@ resource "kubernetes_daemonset" "disk_setup" {
         }
 
         toleration {
-          key      = "materialize.cloud/disk-unconfigured"
+          key      = "startup-taint.cluster-autoscaler.kubernetes.io/disk-unconfigured"
           operator = "Exists"
           effect   = "NoSchedule"
         }
@@ -139,8 +136,18 @@ resource "kubernetes_daemonset" "disk_setup" {
         init_container {
           name    = local.disk_setup_name
           image   = var.disk_setup_image
-          command = ["/usr/local/bin/configure-disks.sh"]
-          args    = ["--cloud-provider", "azure"]
+          command = ["ephemeral-storage-setup"]
+          args = [
+            "swap",
+            "--cloud-provider",
+            "azure",
+            "--hack-restart-kubelet-enable-swap",
+            "--apply-sysctls",
+            # Taints can not be removed: https://github.com/Azure/AKS/issues/2934
+            #"--remove-taint",
+            #"--taint-key",
+            #local.node_taints[0].key,
+          ]
           resources {
             limits = {
               memory = var.disk_setup_container_resource_config.memory_limit
@@ -176,40 +183,11 @@ resource "kubernetes_daemonset" "disk_setup" {
           }
         }
 
-        # Taints can not be removed: https://github.com/Azure/AKS/issues/2934
-        # init_container {
-        #   name    = "taint-removal"
-        #   image   = var.disk_setup_image
-        #   command = ["/usr/local/bin/remove-taint.sh"]
-        #   resources {
-        #     limits = {
-        #       memory = "64Mi"
-        #     }
-        #     requests = {
-        #       memory = "64Mi"
-        #       cpu    = "10m"
-        #     }
-        #   }
-        #   security_context {
-        #     run_as_user = 0
-        #   }
-        #   env {
-        #     name = "NODE_NAME"
-        #     value_from {
-        #       field_ref {
-        #         field_path = "spec.nodeName"
-        #       }
-        #     }
-        #   }
-        #   env {
-        #     name  = "TAINT_KEY"
-        #     value = "materialize.cloud/disk-unconfigured"
-        #   }
-        # }
-
         container {
-          name  = "pause"
-          image = var.pause_container_image
+          name    = "pause"
+          image   = var.disk_setup_image
+          command = ["ephemeral-storage-setup"]
+          args    = ["sleep"]
           resources {
             limits = {
               memory = var.pause_container_resource_config.memory_limit
@@ -248,7 +226,7 @@ resource "kubernetes_daemonset" "disk_setup" {
 }
 
 resource "kubernetes_service_account" "disk_setup" {
-  count = var.enable_disk_setup ? 1 : 0
+  count = var.swap_enabled ? 1 : 0
 
   depends_on = [
     kubernetes_namespace.disk_setup,
@@ -261,7 +239,7 @@ resource "kubernetes_service_account" "disk_setup" {
 }
 
 resource "kubernetes_cluster_role" "disk_setup" {
-  count = var.enable_disk_setup ? 1 : 0
+  count = var.swap_enabled ? 1 : 0
 
   metadata {
     name = local.disk_setup_name
@@ -269,12 +247,12 @@ resource "kubernetes_cluster_role" "disk_setup" {
   rule {
     api_groups = [""]
     resources  = ["nodes"]
-    verbs      = ["get", "patch"]
+    verbs      = ["get", "patch", "update"]
   }
 }
 
 resource "kubernetes_cluster_role_binding" "disk_setup" {
-  count = var.enable_disk_setup ? 1 : 0
+  count = var.swap_enabled ? 1 : 0
 
   depends_on = [
     kubernetes_namespace.disk_setup,

@@ -81,8 +81,8 @@ variable "labels" {
 }
 
 # Disk setup variables
-variable "enable_disk_setup" {
-  description = "Whether to enable the local NVMe SSD disks setup script"
+variable "swap_enabled" {
+  description = "Whether to enable swap on the local NVMe disks."
   type        = bool
   default     = false
   nullable    = false
@@ -91,14 +91,7 @@ variable "enable_disk_setup" {
 variable "disk_setup_image" {
   description = "Docker image for the disk setup script"
   type        = string
-  default     = "materialize/ephemeral-storage-setup-image:v0.1.2"
-  nullable    = false
-}
-
-variable "pause_container_image" {
-  description = "Image for the pause container"
-  type        = string
-  default     = "mcr.microsoft.com/oss/kubernetes/pause:3.6"
+  default     = "materialize/ephemeral-storage-setup-image:v0.4.0"
   nullable    = false
 }
 

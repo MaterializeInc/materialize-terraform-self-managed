@@ -19,3 +19,10 @@ variable "install_materialize_instance" {
   type        = bool
   default     = false
 }
+
+variable "license_key" {
+  description = "Materialize license key"
+  type        = string
+  default     = null
+  sensitive   = true
+}

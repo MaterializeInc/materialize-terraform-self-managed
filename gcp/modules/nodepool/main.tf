@@ -1,7 +1,7 @@
 locals {
-  node_taints = var.enable_disk_setup ? [
+  node_taints = var.swap_enabled ? [
     {
-      key    = "disk-unconfigured"
+      key    = "startup-taint.cluster-autoscaler.kubernetes.io/disk-unconfigured"
       value  = "true"
       effect = "NO_SCHEDULE"
     }
@@ -10,12 +10,9 @@ locals {
   node_labels = merge(
     var.labels,
     {
-      "materialize.cloud/disk" = var.enable_disk_setup ? "true" : "false"
+      "materialize.cloud/swap" = var.swap_enabled ? "true" : "false"
       "workload"               = "materialize-instance"
     },
-    var.enable_disk_setup ? {
-      "materialize.cloud/disk-config-required" = "true"
-    } : {}
   )
 
   disk_setup_name = "disk-setup"
@@ -73,6 +70,14 @@ resource "google_container_node_pool" "primary_nodes" {
     workload_metadata_config {
       mode = var.workload_metadata_mode
     }
+
+    linux_node_config {
+      sysctls = {
+        "vm.swappiness"             = "100",
+        "vm.min_free_kbytes"        = "1048576",
+        "vm.watermark_scale_factor" = "100",
+      }
+    }
   }
 
   lifecycle {
@@ -83,7 +88,7 @@ resource "google_container_node_pool" "primary_nodes" {
 
 
 resource "kubernetes_namespace" "disk_setup" {
-  count = var.enable_disk_setup ? 1 : 0
+  count = var.swap_enabled ? 1 : 0
 
   metadata {
     name   = local.disk_setup_name
@@ -96,7 +101,7 @@ resource "kubernetes_namespace" "disk_setup" {
 }
 
 resource "kubernetes_daemonset" "disk_setup" {
-  count = var.enable_disk_setup ? 1 : 0
+  count = var.swap_enabled ? 1 : 0
   depends_on = [
     kubernetes_namespace.disk_setup
   ]
@@ -134,7 +139,7 @@ resource "kubernetes_daemonset" "disk_setup" {
             required_during_scheduling_ignored_during_execution {
               node_selector_term {
                 match_expressions {
-                  key      = "materialize.cloud/disk"
+                  key      = "materialize.cloud/swap"
                   operator = "In"
                   values   = ["true"]
                 }
@@ -148,6 +153,13 @@ resource "kubernetes_daemonset" "disk_setup" {
           operator = "Exists"
           effect   = "NoSchedule"
         }
+        # GKE adds a silly taint to prevent things from going to arm nodes.
+        # Our image is multi-arch, so we can tolerate that taint.
+        toleration {
+          key    = "kubernetes.io/arch"
+          value  = "arm64"
+          effect = "NoSchedule"
+        }
 
         # Use host network and PID namespace
         host_network = true
@@ -156,8 +168,17 @@ resource "kubernetes_daemonset" "disk_setup" {
         init_container {
           name    = local.disk_setup_name
           image   = var.disk_setup_image
-          command = ["/usr/local/bin/configure-disks.sh"]
-          args    = ["--cloud-provider", "gcp"]
+          command = ["ephemeral-storage-setup"]
+          args = [
+            "swap",
+            "--cloud-provider",
+            "gcp",
+            "--taint-key",
+            local.node_taints[0].key,
+            "--remove-taint",
+            "--hack-restart-kubelet-enable-swap",
+            "--apply-sysctls",
+          ]
           resources {
             limits = {
               memory = var.disk_setup_container_resource_config.memory_limit
@@ -194,35 +215,11 @@ resource "kubernetes_daemonset" "disk_setup" {
 
         }
 
-        init_container {
-          name    = "taint-removal"
-          image   = var.disk_setup_image
-          command = ["/usr/local/bin/remove-taint.sh"]
-          resources {
-            limits = {
-              memory = var.taint_removal_container_resource_config.memory_limit
-            }
-            requests = {
-              memory = var.taint_removal_container_resource_config.memory_request
-              cpu    = var.taint_removal_container_resource_config.cpu_request
-            }
-          }
-          security_context {
-            run_as_user = 0
-          }
-          env {
-            name = "NODE_NAME"
-            value_from {
-              field_ref {
-                field_path = "spec.nodeName"
-              }
-            }
-          }
-        }
-
         container {
-          name  = "pause"
-          image = var.pause_container_image
+          name    = "pause"
+          image   = var.disk_setup_image
+          command = ["ephemeral-storage-setup"]
+          args    = ["sleep"]
 
           resources {
             limits = {
@@ -264,7 +261,7 @@ resource "kubernetes_daemonset" "disk_setup" {
 }
 
 resource "kubernetes_service_account" "disk_setup" {
-  count = var.enable_disk_setup ? 1 : 0
+  count = var.swap_enabled ? 1 : 0
   metadata {
     name      = local.disk_setup_name
     namespace = kubernetes_namespace.disk_setup[0].metadata[0].name
@@ -272,7 +269,7 @@ resource "kubernetes_service_account" "disk_setup" {
 }
 
 resource "kubernetes_cluster_role" "disk_setup" {
-  count = var.enable_disk_setup ? 1 : 0
+  count = var.swap_enabled ? 1 : 0
   depends_on = [
     kubernetes_namespace.disk_setup
   ]
@@ -282,12 +279,12 @@ resource "kubernetes_cluster_role" "disk_setup" {
   rule {
     api_groups = [""]
     resources  = ["nodes"]
-    verbs      = ["get", "patch"]
+    verbs      = ["get", "patch", "update"]
   }
 }
 
 resource "kubernetes_cluster_role_binding" "disk_setup" {
-  count = var.enable_disk_setup ? 1 : 0
+  count = var.swap_enabled ? 1 : 0
   metadata {
     name = local.disk_setup_name
   }

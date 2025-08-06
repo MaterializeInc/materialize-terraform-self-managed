@@ -59,10 +59,9 @@ module "nodepool" {
     max_nodes  = var.max_nodes
     node_count = var.node_count
   }
-  vm_size           = var.nodepool_vm_size
-  disk_size_gb      = var.disk_size_gb
-  enable_disk_setup = var.enable_disk_setup
-  disk_setup_image  = var.disk_setup_image
+  vm_size      = var.nodepool_vm_size
+  disk_size_gb = var.disk_size_gb
+  swap_enabled = var.swap_enabled
 
   tags = var.tags
 }
