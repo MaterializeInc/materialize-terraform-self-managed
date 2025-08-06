@@ -213,7 +213,7 @@ module "materialize_instance" {
 
   source               = "../../../kubernetes/modules/materialize-instance"
   instance_name        = "main"
-  instance_namespace   = "materialize-environment"  
+  instance_namespace   = "materialize-environment"
   metadata_backend_url = local.metadata_backend_urls[0]
   persist_backend_url  = local.persist_backend_url
 

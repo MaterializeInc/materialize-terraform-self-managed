@@ -139,7 +139,7 @@ variable "database_name" {
 variable "user" {
   description = "User for metadata storage"
   type = object({
-    name = string
+    name     = string
     password = string
   })
 }

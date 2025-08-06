@@ -10,4 +10,5 @@ module "networking" {
   project_id = var.project_id
   region     = var.region
   prefix     = var.prefix
+  subnets    = var.subnets
 }
