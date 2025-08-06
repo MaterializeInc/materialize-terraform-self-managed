@@ -35,13 +35,16 @@ locals {
     openebs_namespace = lookup(var.disk_support_config, "openebs_namespace", "openebs")
   }
 
-  metadata_backend_url = format(
-    "postgres://%s:%s@%s:5432/%s?sslmode=disable",
-    var.database_config.username,
-    urlencode(random_password.database_password.result),
-    module.database.private_ip,
-    var.database_config.db_name
-  )
+  # Generate 1:1 mapping between users and databases for metadata backend URLs
+  metadata_backend_urls = [
+    for i in range(length(var.database_config.users)) : format(
+      "postgres://%s:%s@%s:5432/%s?sslmode=disable",
+      var.database_config.users[i].name,
+      urlencode(var.database_config.users[i].password != null ? var.database_config.users[i].password : random_password.database_password.result),
+      module.database.private_ip,
+      var.database_config.databases[i % length(var.database_config.databases)].name
+    )
+  ]
 
   encoded_endpoint = urlencode("https://storage.googleapis.com")
   encoded_secret   = urlencode(module.storage.hmac_secret)
@@ -136,8 +139,13 @@ module "database" {
   source     = "../../modules/database"
   depends_on = [module.networking]
 
-  database_name = var.database_config.db_name
-  database_user = var.database_config.username
+  databases = var.database_config.databases
+  users = [
+    for user in var.database_config.users : {
+      name     = user.name
+      password = user.password != null ? user.password : random_password.database_password.result
+    }
+  ]
 
   project_id = var.project_id
   region     = var.region
@@ -146,7 +154,6 @@ module "database" {
 
   tier       = var.database_config.tier
   db_version = var.database_config.version
-  password   = random_password.database_password.result
 
   labels = local.common_labels
 }
@@ -206,8 +213,8 @@ module "materialize_instance" {
 
   source               = "../../../kubernetes/modules/materialize-instance"
   instance_name        = "main"
-  instance_namespace   = "materialize-environment"
-  metadata_backend_url = local.metadata_backend_url
+  instance_namespace   = "materialize-environment"  
+  metadata_backend_url = local.metadata_backend_urls[0]
   persist_backend_url  = local.persist_backend_url
 
   # The password for the external login to the Materialize instance

@@ -37,7 +37,7 @@ locals {
 
 module "vpc" {
   source  = "terraform-google-modules/network/google"
-  version = "~> 11.1"
+  version = "11.1.1"
 
   project_id   = var.project_id
   network_name = "${var.prefix}-network"
@@ -60,7 +60,7 @@ module "vpc" {
 # Cloud NAT for outbound internet access from private nodes
 module "cloud-nat" {
   source     = "terraform-google-modules/cloud-nat/google"
-  version    = "~> 5.0"
+  version    = "5.3.0"
   project_id = var.project_id
   region     = var.region
 

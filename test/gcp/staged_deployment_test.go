@@ -210,13 +210,28 @@ func (suite *StagedDeploymentSuite) TestFullDeployment() {
 		dbOptions := &terraform.Options{
 			TerraformDir: "../../gcp/examples/test-database-basic",
 			Vars: map[string]any{
-				"project_id":        projectID,
-				"region":            TestRegion,
-				"prefix":            fmt.Sprintf("test-%s-db", resourceId),
-				"network_id":        networkId,
-				"database_password": TestPassword,
-				"database_name":     TestDBName,
-				"user_name":         TestDBUsername,
+				"project_id": projectID,
+				"region":     TestRegion,
+				"prefix":     fmt.Sprintf("test-%s-db", resourceId),
+				"network_id": networkId,
+				"databases": []map[string]any{
+					{
+						"name": TestDBNameDisk,
+					},
+					{
+						"name": TestDBNameNoDisk,
+					},
+				},
+				"users": []map[string]any{
+					{
+						"name":     TestDBUsername1,
+						"password": TestPassword,
+					},
+					{
+						"name":     TestDBUsername2,
+						"password": TestPassword,
+					},
+				},
 			},
 		}
 
@@ -342,16 +357,20 @@ func (suite *StagedDeploymentSuite) TestFullDeployment() {
 		mzOptions := &terraform.Options{
 			TerraformDir: "../../gcp/examples/disk-enabled/test-materialize",
 			Vars: map[string]any{
-				"project_id":                   projectID,
-				"region":                       TestRegion,
-				"prefix":                       resourceId,
-				"cluster_endpoint":             clusterEndpoint,
-				"cluster_ca_certificate":       clusterCA,
-				"workload_identity_sa_email":   workloadIdentitySA,
-				"database_host":                databaseHost,
-				"database_username":            TestDBUsername,
-				"database_name":                TestDBName,
-				"database_password":            TestPassword,
+				"project_id":                 projectID,
+				"region":                     TestRegion,
+				"prefix":                     resourceId,
+				"cluster_endpoint":           clusterEndpoint,
+				"cluster_ca_certificate":     clusterCA,
+				"workload_identity_sa_email": workloadIdentitySA,
+				"database_host":              databaseHost,
+				"user": []map[string]any{
+					{
+						"name":     TestDBUsername1,
+						"password": TestPassword,
+					},
+				},
+				"database_name":                TestDBNameDisk,
 				"external_login_password":      TestPassword,
 				"install_materialize_instance": false, // Phase 1: operator only
 			},
@@ -398,16 +417,20 @@ func (suite *StagedDeploymentSuite) TestFullDeployment() {
 		mzOptions := &terraform.Options{
 			TerraformDir: "../../gcp/examples/disk-disabled/test-materialize",
 			Vars: map[string]any{
-				"project_id":                   projectID,
-				"region":                       TestRegion,
-				"prefix":                       resourceId,
-				"cluster_endpoint":             clusterEndpoint,
-				"cluster_ca_certificate":       clusterCA,
-				"workload_identity_sa_email":   workloadIdentitySA,
-				"database_host":                databaseHost,
-				"database_username":            TestDBUsername,
-				"database_name":                TestDBName,
-				"database_password":            TestPassword,
+				"project_id":                 projectID,
+				"region":                     TestRegion,
+				"prefix":                     resourceId,
+				"cluster_endpoint":           clusterEndpoint,
+				"cluster_ca_certificate":     clusterCA,
+				"workload_identity_sa_email": workloadIdentitySA,
+				"database_host":              databaseHost,
+				"database_name":              TestDBNameNoDisk,
+				"user": []map[string]any{
+					{
+						"name":     TestDBUsername2,
+						"password": TestPassword,
+					},
+				},
 				"external_login_password":      TestPassword,
 				"install_materialize_instance": false, // Phase 1: operator only
 			},

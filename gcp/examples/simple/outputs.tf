@@ -21,9 +21,10 @@ output "network" {
 output "database" {
   description = "Cloud SQL instance details"
   value = {
-    name           = module.database.instance_name
-    connection_url = module.database.connection_url
-    private_ip     = module.database.private_ip
+    name       = module.database.instance_name
+    private_ip = module.database.private_ip
+    databases  = module.database.database_names
+    users      = module.database.users
   }
   sensitive = true
 }
@@ -48,7 +49,7 @@ output "service_accounts" {
 output "connection_strings" {
   description = "Formatted connection strings for Materialize"
   value = {
-    metadata_backend_url = local.metadata_backend_url
+    metadata_backend_urls = local.metadata_backend_urls 
     persist_backend_url  = local.persist_backend_url
   }
   sensitive = true

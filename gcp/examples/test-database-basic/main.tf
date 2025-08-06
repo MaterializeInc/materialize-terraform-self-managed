@@ -7,8 +7,13 @@ provider "google" {
 module "database" {
   source = "../../modules/database"
 
-  database_name = var.database_name
-  database_user = var.user_name
+  databases = var.databases
+  users = [
+    for user in var.users : {
+      name     = user.name
+      password = user.password
+    }
+  ]
 
   project_id = var.project_id
   network_id = var.network_id
@@ -16,6 +21,5 @@ module "database" {
   prefix     = var.prefix
   tier       = var.database_tier
   db_version = var.db_version
-  password   = var.database_password
 }
 

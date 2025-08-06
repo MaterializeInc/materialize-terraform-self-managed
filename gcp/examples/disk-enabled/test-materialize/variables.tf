@@ -134,21 +134,15 @@ variable "database_host" {
 variable "database_name" {
   description = "Database name for metadata storage"
   type        = string
-  default     = "materialize-test"
 }
 
-variable "database_username" {
-  description = "Database username for metadata storage"
-  type        = string
-  default     = "materialize-test"
+variable "user" {
+  description = "User for metadata storage"
+  type = object({
+    name = string
+    password = string
+  })
 }
-
-variable "database_password" {
-  description = "Database password for metadata storage"
-  type        = string
-  sensitive   = true
-}
-
 
 # Materialize instance authentication
 variable "external_login_password" {

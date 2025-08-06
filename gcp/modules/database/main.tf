@@ -1,56 +1,65 @@
-resource "google_sql_database_instance" "materialize" {
-  name             = "${var.prefix}-pg"
-  database_version = var.db_version
-  region           = var.region
-  project          = var.project_id
+module "postgresql" {
+  source  = "terraform-google-modules/sql-db/google//modules/postgresql"
+  version = "26.1.1"
 
-  timeouts {
-    create = "60m"
-    update = "45m"
-    delete = "45m"
-  }
-
-  settings {
-    tier = var.tier
-
-    ip_configuration {
-      ipv4_enabled    = false
-      private_network = var.network_id
-    }
-
-    backup_configuration {
-      enabled                        = true
-      point_in_time_recovery_enabled = true
-      backup_retention_settings {
-        retained_backups = 7
-      }
-    }
-
-    maintenance_window {
-      day          = 7
-      hour         = 3
-      update_track = "stable"
-    }
-
-    user_labels = var.labels
-  }
-
+  name                = "${var.prefix}-pg"
+  database_version    = var.db_version
+  project_id          = var.project_id
+  region              = var.region
+  tier                = var.tier
   deletion_protection = false
-}
 
-resource "google_sql_database" "materialize" {
-  name     = var.database_name
-  instance = google_sql_database_instance.materialize.name
-  project  = var.project_id
+  # Network configuration
+  ip_configuration = {
+    ipv4_enabled    = false
+    private_network = var.network_id
+  }
 
-  deletion_policy = "ABANDON"
-}
+  # Backup configuration
+  backup_configuration = {
+    enabled                        = var.backup_enabled
+    start_time                     = var.backup_start_time
+    location                       = null
+    point_in_time_recovery_enabled = var.point_in_time_recovery_enabled
+    transaction_log_retention_days = null
+    retained_backups               = var.backup_retained_backups
+    retention_unit                 = var.backup_retention_unit
+  }
 
-resource "google_sql_user" "materialize" {
-  name     = var.database_user
-  instance = google_sql_database_instance.materialize.name
-  password = var.password
-  project  = var.project_id
+  # Maintenance configuration
+  maintenance_window_day          = var.maintenance_window_day
+  maintenance_window_hour         = var.maintenance_window_hour
+  maintenance_window_update_track = var.maintenance_window_update_track
 
-  deletion_policy = "ABANDON"
+  # Disable default database and user creation
+  enable_default_db   = false
+  enable_default_user = false
+
+  # Additional databases and users (mandatory)
+  additional_databases = var.databases
+  additional_users     = var.users
+
+  # Labels
+  user_labels = var.labels
+
+  # Module specific settings
+  create_timeout = var.create_timeout
+  update_timeout = var.update_timeout
+  delete_timeout = var.delete_timeout
+
+  # Disk settings
+  disk_size             = var.disk_size
+  disk_type             = var.disk_type
+  disk_autoresize       = var.disk_autoresize
+  disk_autoresize_limit = var.disk_autoresize_limit
+
+  # Database flags
+  database_flags = var.database_flags
+
+  # Insights configuration
+  insights_config = null
+
+  # Deletion policies
+  database_deletion_policy = var.database_deletion_policy
+  user_deletion_policy     = var.user_deletion_policy
 }

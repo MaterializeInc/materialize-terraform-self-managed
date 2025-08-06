@@ -136,18 +136,13 @@ variable "database_name" {
   default     = "materialize"
 }
 
-variable "database_username" {
-  description = "Database username for metadata storage"
-  type        = string
-  default     = "materialize"
+variable "user" {
+  description = "User for metadata storage"
+  type = object({
+    name = string
+    password = string
+  })
 }
-
-variable "database_password" {
-  description = "Database password for metadata storage"
-  type        = string
-  sensitive   = true
-}
-
 
 # Materialize instance authentication
 variable "external_login_password" {
