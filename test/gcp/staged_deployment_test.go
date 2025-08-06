@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"strings"
 
 	"github.com/MaterializeInc/materialize-terraform-self-managed/test/utils"
 	"github.com/MaterializeInc/materialize-terraform-self-managed/test/utils/basesuite"
