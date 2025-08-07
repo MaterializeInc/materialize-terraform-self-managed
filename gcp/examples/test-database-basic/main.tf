@@ -8,7 +8,7 @@ module "database" {
   source = "../../modules/database"
 
   databases = var.databases
-  users = var.users
+  users     = var.users
 
   project_id = var.project_id
   network_id = var.network_id
