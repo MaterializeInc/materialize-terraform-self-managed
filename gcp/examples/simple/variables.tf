@@ -79,17 +79,14 @@ variable "database_config" {
       charset   = optional(string, "UTF8")
       collation = optional(string, "en_US.UTF8")
     })), [{ name = "materialize" }])
-    users = optional(list(object({
-      name     = string
-      password = optional(string, null) # Will use generated password if not provided
-    })), [{ name = "materialize" }])
+    user_names = optional(list(string), ["materialize"])
   })
 
   default = {
-    tier      = "db-custom-2-4096"
-    version   = "POSTGRES_15"
-    databases = [{ name = "materialize" }]
-    users     = [{ name = "materialize" }]
+    tier       = "db-custom-2-4096"
+    version    = "POSTGRES_15"
+    databases  = [{ name = "materialize" }]
+    user_names = ["materialize"]
   }
 }
 

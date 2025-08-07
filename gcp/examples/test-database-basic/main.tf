@@ -8,12 +8,7 @@ module "database" {
   source = "../../modules/database"
 
   databases = var.databases
-  users = [
-    for user in var.users : {
-      name     = user.name
-      password = user.password
-    }
-  ]
+  users = var.users
 
   project_id = var.project_id
   network_id = var.network_id

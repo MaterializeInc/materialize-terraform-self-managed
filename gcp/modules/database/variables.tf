@@ -49,12 +49,13 @@ variable "users" {
   description = "List of users to create"
   type = list(object({
     name            = string
-    password        = optional(string, null)
-    random_password = optional(bool, false)
+    password        = string
+    random_password = bool
   }))
+
   validation {
-    condition     = length(var.users) > 0
-    error_message = "At least one user must be specified."
+    condition     = length([for user in var.users : false if(user.random_password == false && (user.password == null || user.password == "")) || (user.random_password == true && (user.password != null && user.password != ""))]) == 0
+    error_message = "Password is a requird field for built_in Postgres users and you cannot set both password and random_password, choose one of them."
   }
 }
 

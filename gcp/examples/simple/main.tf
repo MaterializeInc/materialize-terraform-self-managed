@@ -35,12 +35,22 @@ locals {
     openebs_namespace = lookup(var.disk_support_config, "openebs_namespace", "openebs")
   }
 
+  users = [
+    for idx, user in var.database_config.user_names : {
+      name            = user
+      password        = random_password.database_user_passwords[idx].result
+      random_password = false
+    }
+  ]
+
+
+
   # Generate 1:1 mapping between users and databases for metadata backend URLs
   metadata_backend_urls = [
-    for i in range(length(var.database_config.users)) : format(
+    for i, user in local.users : format(
       "postgres://%s:%s@%s:5432/%s?sslmode=disable",
-      var.database_config.users[i].name,
-      urlencode(var.database_config.users[i].password != null ? var.database_config.users[i].password : random_password.database_password.result),
+      user.name,
+      urlencode(user.password),
       module.database.private_ip,
       var.database_config.databases[i % length(var.database_config.databases)].name
     )
@@ -122,7 +132,8 @@ module "openebs" {
   openebs_version          = local.disk_config.openebs_version
 }
 
-resource "random_password" "database_password" {
+resource "random_password" "database_user_passwords" {
+  for_each         = { for idx, user in var.database_config.user_names : idx => user }
   length           = 20
   special          = true
   override_special = "!#$%&*()-_=+[]{}<>:?"
@@ -140,12 +151,7 @@ module "database" {
   depends_on = [module.networking]
 
   databases = var.database_config.databases
-  users = [
-    for user in var.database_config.users : {
-      name     = user.name
-      password = user.password != null ? user.password : random_password.database_password.result
-    }
-  ]
+  users     = local.users
 
   project_id = var.project_id
   region     = var.region
