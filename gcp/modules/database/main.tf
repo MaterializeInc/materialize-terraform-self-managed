@@ -1,3 +1,13 @@
+locals {
+  # If password is not provided, random_password is treated as true
+  users = [
+    for user in var.users : {
+      name            = user.name
+      password        = user.password
+      random_password = (user.password == null || user.password == "") ? true : false
+    }
+  ]
+}
 module "postgresql" {
   source  = "terraform-google-modules/sql-db/google//modules/postgresql"
   version = "26.1.1"
@@ -14,6 +24,7 @@ module "postgresql" {
     ipv4_enabled    = false
     private_network = var.network_id
   }
+
 
   # Backup configuration
   backup_configuration = {
@@ -37,7 +48,7 @@ module "postgresql" {
 
   # Additional databases and users (mandatory)
   additional_databases = var.databases
-  additional_users     = var.users
+  additional_users     = local.users
 
   # Labels
   user_labels = var.labels

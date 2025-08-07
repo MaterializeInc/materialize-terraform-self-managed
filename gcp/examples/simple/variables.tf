@@ -74,19 +74,19 @@ variable "database_config" {
   type = object({
     tier    = optional(string, "db-custom-2-4096")
     version = optional(string, "POSTGRES_15")
-    databases = optional(list(object({
+    database = optional(object({
       name      = string
       charset   = optional(string, "UTF8")
       collation = optional(string, "en_US.UTF8")
-    })), [{ name = "materialize" }])
-    user_names = optional(list(string), ["materialize"])
+    }), { name = "materialize" })
+    user_name = string
   })
 
   default = {
-    tier       = "db-custom-2-4096"
-    version    = "POSTGRES_15"
-    databases  = [{ name = "materialize" }]
-    user_names = ["materialize"]
+    tier      = "db-custom-2-4096"
+    version   = "POSTGRES_15"
+    database  = { name = "materialize" }
+    user_name = "materialize"
   }
 }
 

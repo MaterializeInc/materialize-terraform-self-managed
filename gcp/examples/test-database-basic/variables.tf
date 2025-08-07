@@ -45,9 +45,8 @@ variable "databases" {
 variable "users" {
   description = "List of users to create"
   type = list(object({
-    name            = string
-    password        = string
-    random_password = optional(bool, false)
+    name     = string
+    password = optional(string, null)
   }))
   validation {
     condition     = length(var.users) > 0

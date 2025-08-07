@@ -20,7 +20,7 @@ output "private_ip" {
 
 output "users" {
   description = "List of created users with their credentials"
-  value       = var.users
+  value       = module.postgresql.additional_users
   sensitive   = true
 }
 
