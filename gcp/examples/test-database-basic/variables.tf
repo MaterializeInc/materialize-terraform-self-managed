@@ -33,21 +33,23 @@ variable "db_version" {
   default     = "POSTGRES_15"
 }
 
-variable "database_password" {
-  description = "Database password"
-  type        = string
-  sensitive   = true
-  default     = "test-password-123!"
+variable "databases" {
+  description = "List of databases to create"
+  type = list(object({
+    name      = string
+    charset   = optional(string, "UTF8")
+    collation = optional(string, "en_US.UTF8")
+  }))
 }
 
-variable "database_name" {
-  description = "Name of database to create"
-  type        = string
-  default     = "materialize-test"
-}
-
-variable "user_name" {
-  description = "UserName for the database that is created"
-  type        = string
-  default     = "materialize-test"
+variable "users" {
+  description = "List of users to create"
+  type = list(object({
+    name     = string
+    password = optional(string, null)
+  }))
+  validation {
+    condition     = length(var.users) > 0
+    error_message = "At least one user is required"
+  }
 }

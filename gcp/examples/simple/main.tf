@@ -35,13 +35,15 @@ locals {
     openebs_namespace = lookup(var.disk_support_config, "openebs_namespace", "openebs")
   }
 
+
   metadata_backend_url = format(
     "postgres://%s:%s@%s:5432/%s?sslmode=disable",
-    var.database_config.username,
-    urlencode(random_password.database_password.result),
+    module.database.users[0].name,
+    urlencode(module.database.users[0].password),
     module.database.private_ip,
-    var.database_config.db_name
+    var.database_config.database.name
   )
+
 
   encoded_endpoint = urlencode("https://storage.googleapis.com")
   encoded_secret   = urlencode(module.storage.hmac_secret)
@@ -119,12 +121,6 @@ module "openebs" {
   openebs_version          = local.disk_config.openebs_version
 }
 
-resource "random_password" "database_password" {
-  length           = 20
-  special          = true
-  override_special = "!#$%&*()-_=+[]{}<>:?"
-}
-
 resource "random_password" "external_login_password_mz_system" {
   length           = 16
   special          = true
@@ -136,8 +132,9 @@ module "database" {
   source     = "../../modules/database"
   depends_on = [module.networking]
 
-  database_name = var.database_config.db_name
-  database_user = var.database_config.username
+  databases = [var.database_config.database]
+  # We don't provide password, so random password is generated
+  users = [{ name = var.database_config.user_name }]
 
   project_id = var.project_id
   region     = var.region
@@ -146,7 +143,6 @@ module "database" {
 
   tier       = var.database_config.tier
   db_version = var.database_config.version
-  password   = random_password.database_password.result
 
   labels = local.common_labels
 }

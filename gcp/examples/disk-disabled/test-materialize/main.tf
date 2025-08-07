@@ -9,8 +9,8 @@ locals {
 
   metadata_backend_url = format(
     "postgres://%s:%s@%s:5432/%s?sslmode=disable",
-    var.database_username,
-    urlencode(var.database_password),
+    var.user.name,
+    urlencode(var.user.password),
     var.database_host,
     var.database_name
   )

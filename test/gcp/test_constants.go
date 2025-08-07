@@ -56,7 +56,9 @@ const (
 	TestRunsDir = "./testRuns"
 
 	// Test environment variables
-	TestPassword   = "test-password-123!"
-	TestDBName     = "materialize-test"
-	TestDBUsername = "materialize-test"
+	TestPassword     = "test-password-123!"
+	TestDBNameDisk   = "materialize-test-disk"
+	TestDBNameNoDisk = "materialize-test-nodisk"
+	TestDBUsername1  = "materialize-test-user1"
+	TestDBUsername2  = "materialize-test-user2"
 )

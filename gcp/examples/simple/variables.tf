@@ -72,17 +72,21 @@ variable "gke_config" {
 variable "database_config" {
   description = "Cloud SQL configuration"
   type = object({
-    tier     = optional(string, "db-custom-2-4096")
-    version  = optional(string, "POSTGRES_15")
-    username = optional(string, "materialize")
-    db_name  = optional(string, "materialize")
+    tier    = optional(string, "db-custom-2-4096")
+    version = optional(string, "POSTGRES_15")
+    database = optional(object({
+      name      = string
+      charset   = optional(string, "UTF8")
+      collation = optional(string, "en_US.UTF8")
+    }), { name = "materialize" })
+    user_name = string
   })
 
   default = {
-    tier     = "db-custom-2-4096"
-    version  = "POSTGRES_15"
-    username = "materialize"
-    db_name  = "materialize"
+    tier      = "db-custom-2-4096"
+    version   = "POSTGRES_15"
+    database  = { name = "materialize" }
+    user_name = "materialize"
   }
 }
 

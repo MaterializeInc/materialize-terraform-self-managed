@@ -13,16 +13,6 @@ output "network_self_link" {
   value       = module.vpc.network_self_link
 }
 
-output "default_private_subnet_name" {
-  description = "The name of the Default Private Subnet"
-  value       = length(var.subnets) == 0 ? module.vpc.subnets_names[0] : null
-}
-
-output "default_private_subnet_id" {
-  description = "The ID of the Default Private Subnet"
-  value       = length(var.subnets) == 0 ? module.vpc.subnets_ids[0] : null
-}
-
 output "subnets" {
   description = "A map of subnet outputs"
   value       = module.vpc.subnets

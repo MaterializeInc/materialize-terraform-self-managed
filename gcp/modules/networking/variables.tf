@@ -25,7 +25,6 @@ variable "subnets" {
       ip_cidr_range = string
     })), [])
   }))
-  default = []
 }
 
 variable "mtu" {

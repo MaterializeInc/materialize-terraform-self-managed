@@ -3,14 +3,14 @@ output "instance_name" {
   value       = module.database.instance_name
 }
 
-output "database_name" {
-  description = "The name of the database"
-  value       = module.database.database_name
+output "database_names" {
+  description = "List of database names"
+  value       = module.database.database_names
 }
 
-output "user_name" {
-  description = "The name of the database user"
-  value       = module.database.user_name
+output "user_names" {
+  description = "List of database user names"
+  value       = module.database.user_names
 }
 
 output "private_ip" {
@@ -18,8 +18,13 @@ output "private_ip" {
   value       = module.database.private_ip
 }
 
-output "connection_url" {
-  description = "The connection URL for the database"
-  value       = module.database.connection_url
+output "databases" {
+  description = "List of created databases"
+  value       = module.database.databases
+}
+
+output "users" {
+  description = "List of created users with credentials"
+  value       = module.database.users
   sensitive   = true
 }

@@ -21,9 +21,10 @@ output "network" {
 output "database" {
   description = "Cloud SQL instance details"
   value = {
-    name           = module.database.instance_name
-    connection_url = module.database.connection_url
-    private_ip     = module.database.private_ip
+    name       = module.database.instance_name
+    private_ip = module.database.private_ip
+    databases  = module.database.database_names
+    users      = module.database.users
   }
   sensitive = true
 }
