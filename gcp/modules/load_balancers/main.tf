@@ -14,10 +14,10 @@ resource "kubernetes_service" "console_load_balancer" {
       "materialize.cloud/name" = "mz${var.resource_id}-console"
     }
     port {
-      name        = "http"
-      port        = 8080
-      target_port = 8080
-      protocol    = "TCP"
+      name        = var.materialize_console_port_config.name
+      port        = var.materialize_console_port_config.port
+      target_port = var.materialize_console_port_config.target_port
+      protocol    = var.materialize_console_port_config.protocol
     }
   }
 
@@ -45,16 +45,16 @@ resource "kubernetes_service" "balancerd_load_balancer" {
       "materialize.cloud/name" = "mz${var.resource_id}-balancerd"
     }
     port {
-      name        = "sql"
-      port        = 6875
-      target_port = 6875
-      protocol    = "TCP"
+      name        = var.materialize_balancerd_sql_port_config.name
+      port        = var.materialize_balancerd_sql_port_config.port
+      target_port = var.materialize_balancerd_sql_port_config.target_port
+      protocol    = var.materialize_balancerd_sql_port_config.protocol
     }
     port {
-      name        = "https"
-      port        = 6876
-      target_port = 6876
-      protocol    = "TCP"
+      name        = var.materialize_balancerd_https_port_config.name
+      port        = var.materialize_balancerd_https_port_config.port
+      target_port = var.materialize_balancerd_https_port_config.target_port
+      protocol    = var.materialize_balancerd_https_port_config.protocol
     }
   }
 

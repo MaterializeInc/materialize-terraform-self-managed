@@ -63,12 +63,12 @@ locals {
   disk_config = {
     create_storage_class      = var.enable_disk_support ? lookup(var.disk_support_config, "create_storage_class", true) : false
     storage_class_name        = lookup(var.disk_support_config, "storage_class_name", "openebs-lvm-instance-store-ext4")
-    storage_class_provisioner = "local.csi.openebs.io"
-    storage_class_parameters = {
+    storage_class_provisioner = lookup(var.disk_support_config, "storage_class_provisioner", "local.csi.openebs.io")
+    storage_class_parameters = lookup(var.disk_support_config, "storage_class_parameters", {
       storage  = "lvm"
       fsType   = "ext4"
       volgroup = "instance-store-vg"
-    }
+    })
   }
 }
 
@@ -114,15 +114,18 @@ resource "helm_release" "metrics_server" {
   chart      = "metrics-server"
   version    = var.metrics_server_version
 
-  # Common configuration values
-  set {
-    name  = "args[0]"
-    value = "--kubelet-insecure-tls"
+  # Configuration values based on metrics_server_values
+  dynamic "set" {
+    for_each = var.metrics_server_values.skip_tls_verification ? [1] : []
+    content {
+      name  = "args[0]"
+      value = "--kubelet-insecure-tls"
+    }
   }
 
   set {
     name  = "metrics.enabled"
-    value = "true"
+    value = var.metrics_server_values.metrics_enabled
   }
 
   depends_on = [
