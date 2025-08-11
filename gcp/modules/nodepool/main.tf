@@ -64,16 +64,14 @@ resource "google_container_node_pool" "primary_nodes" {
 
     service_account = var.service_account_email
 
-    oauth_scopes = [
-      "https://www.googleapis.com/auth/cloud-platform"
-    ]
+    oauth_scopes = var.oauth_scopes
 
     local_nvme_ssd_block_config {
       local_ssd_count = var.local_ssd_count
     }
 
     workload_metadata_config {
-      mode = "GKE_METADATA"
+      mode = var.workload_metadata_mode
     }
   }
 
@@ -162,11 +160,11 @@ resource "kubernetes_daemonset" "disk_setup" {
           args    = ["--cloud-provider", "gcp"]
           resources {
             limits = {
-              memory = "128Mi"
+              memory = var.disk_setup_container_resource_config.memory_limit
             }
             requests = {
-              memory = "128Mi"
-              cpu    = "50m"
+              memory = var.disk_setup_container_resource_config.memory_request
+              cpu    = var.disk_setup_container_resource_config.cpu_request
             }
           }
 
@@ -199,14 +197,14 @@ resource "kubernetes_daemonset" "disk_setup" {
         init_container {
           name    = "taint-removal"
           image   = var.disk_setup_image
-          command = ["/usr/local/bin/remove-taint.sh"]
+          command = var.taint_removal_container_command.command
           resources {
             limits = {
-              memory = "64Mi"
+              memory = var.taint_removal_container_resource_config.memory_limit
             }
             requests = {
-              memory = "64Mi"
-              cpu    = "10m"
+              memory = var.taint_removal_container_resource_config.memory_request
+              cpu    = var.taint_removal_container_resource_config.cpu_request
             }
           }
           security_context {
@@ -224,15 +222,15 @@ resource "kubernetes_daemonset" "disk_setup" {
 
         container {
           name  = "pause"
-          image = "gcr.io/google_containers/pause:3.2"
+          image = var.pause_container_image
 
           resources {
             limits = {
-              memory = "8Mi"
+              memory = var.pause_container_resource_config.memory_limit
             }
             requests = {
-              memory = "8Mi"
-              cpu    = "1m"
+              memory = var.pause_container_resource_config.memory_request
+              cpu    = var.pause_container_resource_config.cpu_request
             }
           }
 
