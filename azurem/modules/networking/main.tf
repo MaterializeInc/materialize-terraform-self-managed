@@ -1,13 +1,9 @@
-resource "azurerm_resource_group" "materialize" {
-  name     = var.resource_group_name
-  location = var.location
-}
 
 # NAT Gateway Public IP
 resource "azurerm_public_ip" "nat_gateway" {
   name                = "${var.prefix}-nat-gateway-pip"
   location            = var.location
-  resource_group_name = azurerm_resource_group.materialize.name
+  resource_group_name = var.resource_group_name
   allocation_method   = "Static"
   sku                 = "Standard"
   tags                = var.tags
@@ -17,7 +13,7 @@ resource "azurerm_public_ip" "nat_gateway" {
 resource "azurerm_nat_gateway" "main" {
   name                    = "${var.prefix}-nat-gateway"
   location                = var.location
-  resource_group_name     = azurerm_resource_group.materialize.name
+  resource_group_name     = var.resource_group_name
   sku_name                = "Standard"
   idle_timeout_in_minutes = var.nat_gateway_idle_timeout
   tags                    = var.tags
@@ -36,14 +32,14 @@ module "virtual_network" {
 
   name                = "${var.prefix}-vnet"
   location            = var.location
-  resource_group_name = azurerm_resource_group.materialize.name
+  resource_group_name = var.resource_group_name
   address_space       = [var.vnet_address_space]
   tags                = var.tags
 
   subnets = {
     aks = {
       name              = "${var.prefix}-aks-subnet"
-      address_prefixes  = [var.subnet_cidr]
+      address_prefixes  = [var.aks_subnet_cidr]
       service_endpoints = ["Microsoft.Storage", "Microsoft.Sql"]
       nat_gateway = {
         id = azurerm_nat_gateway.main.id
@@ -76,14 +72,14 @@ resource "random_id" "dns_zone_suffix" {
 
 resource "azurerm_private_dns_zone" "postgres" {
   name                = "materialize${random_id.dns_zone_suffix.hex}.postgres.database.azure.com"
-  resource_group_name = azurerm_resource_group.materialize.name
+  resource_group_name = var.resource_group_name
   tags                = var.tags
 }
 
 resource "azurerm_private_dns_zone_virtual_network_link" "postgres" {
   name                  = "${var.prefix}-pg-dns-link"
   private_dns_zone_name = azurerm_private_dns_zone.postgres.name
-  resource_group_name   = azurerm_resource_group.materialize.name
+  resource_group_name   = var.resource_group_name
   virtual_network_id    = module.virtual_network.resource_id
   registration_enabled  = true
   tags                  = var.tags

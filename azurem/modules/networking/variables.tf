@@ -18,7 +18,7 @@ variable "vnet_address_space" {
   type        = string
 }
 
-variable "subnet_cidr" {
+variable "aks_subnet_cidr" {
   description = "CIDR range for the AKS subnet"
   type        = string
 }

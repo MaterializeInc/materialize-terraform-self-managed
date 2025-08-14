@@ -26,14 +26,14 @@ variable "vnet_address_space" {
   default     = "10.0.0.0/16"
 }
 
-variable "subnet_cidr" {
-  description = "The CIDR of the subnet"
+variable "aks_subnet_cidr" {
+  description = "The CIDR of the AKS subnet"
   type        = string
-  default     = "10.0.0.0/24"
+  default     = "10.0.0.0/20"
 }
 
 variable "postgres_subnet_cidr" {
   description = "The CIDR of the postgres subnet"
   type        = string
-  default     = "10.0.1.0/24"
+  default     = "10.0.16.0/24"
 }
