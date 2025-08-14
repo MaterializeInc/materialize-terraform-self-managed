@@ -64,6 +64,18 @@ variable "install_metrics_server" {
   default     = false
 }
 
+variable "metrics_server_values" {
+  description = "Configuration values for metrics-server"
+  type = object({
+    metrics_enabled       = string
+    skip_tls_verification = bool
+  })
+  default = {
+    metrics_enabled       = "true"
+    skip_tls_verification = true
+  }
+}
+
 variable "region" {
   description = "Region/Zone for the operator Helm values."
   type        = string

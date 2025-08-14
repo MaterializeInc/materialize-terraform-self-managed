@@ -82,3 +82,75 @@ variable "disk_setup_image" {
   type        = string
   default     = "materialize/ephemeral-storage-setup-image:v0.1.1"
 }
+
+variable "oauth_scopes" {
+  description = "OAuth scopes to assign to the node pool service account"
+  type        = list(string)
+  default     = ["https://www.googleapis.com/auth/cloud-platform"]
+}
+
+variable "workload_metadata_mode" {
+  description = "Mode for workload metadata configuration"
+  type        = string
+  default     = "GKE_METADATA"
+}
+
+variable "pause_container_image" {
+  description = "Image for the pause container"
+  type        = string
+  default     = "gcr.io/google_containers/pause:3.2"
+}
+
+
+
+variable "disk_setup_container_resource_config" {
+  description = "Resource configuration for disk setup init container"
+  type = object({
+    memory_limit   = string
+    memory_request = string
+    cpu_request    = string
+  })
+  default = {
+    memory_limit   = "128Mi"
+    memory_request = "128Mi"
+    cpu_request    = "50m"
+  }
+}
+
+variable "taint_removal_container_resource_config" {
+  description = "Resource configuration for taint removal init container"
+  type = object({
+    memory_limit   = string
+    memory_request = string
+    cpu_request    = string
+  })
+  default = {
+    memory_limit   = "64Mi"
+    memory_request = "64Mi"
+    cpu_request    = "10m"
+  }
+}
+
+variable "taint_removal_container_command" {
+  description = "Command configuration for taint removal container"
+  type = object({
+    command = list(string)
+  })
+  default = {
+    command = ["/usr/local/bin/remove-taint.sh"]
+  }
+}
+
+variable "pause_container_resource_config" {
+  description = "Resource configuration for pause container"
+  type = object({
+    memory_limit   = string
+    memory_request = string
+    cpu_request    = string
+  })
+  default = {
+    memory_limit   = "8Mi"
+    memory_request = "8Mi"
+    cpu_request    = "1m"
+  }
+}

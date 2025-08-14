@@ -64,6 +64,18 @@ variable "install_metrics_server" {
   default     = true
 }
 
+variable "metrics_server_values" {
+  description = "Configuration values for metrics-server"
+  type = object({
+    metrics_enabled       = string
+    skip_tls_verification = bool
+  })
+  default = {
+    metrics_enabled       = "true"
+    skip_tls_verification = true
+  }
+}
+
 variable "oidc_provider_arn" {
   description = "ARN of the OIDC provider for the EKS cluster"
   type        = string

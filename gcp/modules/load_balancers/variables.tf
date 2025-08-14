@@ -18,3 +18,21 @@ variable "internal" {
   type        = bool
   default     = true
 }
+
+variable "materialize_console_port" {
+  description = "Port configuration for Materialize console service"
+  type        = number
+  default     = 8080
+}
+
+variable "materialize_balancerd_sql_port" {
+  description = "SQL port configuration for Materialize balancerd service"
+  type        = number
+  default     = 6875
+}
+
+variable "materialize_balancerd_https_port" {
+  description = "HTTPS port configuration for Materialize balancerd service"
+  type        = number
+  default     = 6876
+}

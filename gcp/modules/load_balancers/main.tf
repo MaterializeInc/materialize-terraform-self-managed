@@ -15,7 +15,7 @@ resource "kubernetes_service" "console_load_balancer" {
     }
     port {
       name        = "http"
-      port        = 8080
+      port        = var.materialize_console_port
       target_port = 8080
       protocol    = "TCP"
     }
@@ -46,13 +46,13 @@ resource "kubernetes_service" "balancerd_load_balancer" {
     }
     port {
       name        = "sql"
-      port        = 6875
+      port        = var.materialize_balancerd_sql_port
       target_port = 6875
       protocol    = "TCP"
     }
     port {
       name        = "https"
-      port        = 6876
+      port        = var.materialize_balancerd_https_port
       target_port = 6876
       protocol    = "TCP"
     }

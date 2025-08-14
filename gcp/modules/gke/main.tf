@@ -24,7 +24,7 @@ resource "google_container_cluster" "primary" {
   location = var.region
   project  = var.project_id
 
-  networking_mode = "VPC_NATIVE"
+  networking_mode = var.networking_mode
   network         = var.network_name
   subnetwork      = var.subnet_name
 
@@ -36,23 +36,23 @@ resource "google_container_cluster" "primary" {
   }
 
   ip_allocation_policy {
-    cluster_secondary_range_name  = "pods"
-    services_secondary_range_name = "services"
+    cluster_secondary_range_name  = var.cluster_secondary_range_name
+    services_secondary_range_name = var.services_secondary_range_name
   }
 
   release_channel {
-    channel = "REGULAR"
+    channel = var.release_channel
   }
 
   addons_config {
     horizontal_pod_autoscaling {
-      disabled = false
+      disabled = var.horizontal_pod_autoscaling_disabled
     }
     http_load_balancing {
-      disabled = false
+      disabled = var.http_load_balancing_disabled
     }
     gce_persistent_disk_csi_driver_config {
-      enabled = true
+      enabled = var.gce_persistent_disk_csi_driver_enabled
     }
   }
 }
