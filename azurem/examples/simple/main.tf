@@ -40,14 +40,6 @@ module "networking" {
   postgres_subnet_cidr = var.vnet_config.postgres_subnet_cidr
 }
 
-module "database" {
-  source = "../../modules/database"
-
-  resource_group_name = var.resource_group_name
-  location            = var.location
-  prefix              = var.prefix
-}
-
 # Pattern A: Minimal system-only default node pool + separate workload node pools
 module "aks" {
   source = "../../modules/aks"

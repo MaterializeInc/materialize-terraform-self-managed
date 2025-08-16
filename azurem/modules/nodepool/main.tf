@@ -57,42 +57,6 @@ resource "azurerm_kubernetes_cluster_node_pool" "primary_nodes" {
   tags = var.tags
 }
 
-# resource "kubernetes_namespace" "openebs" {
-#   count = var.install_openebs ? 1 : 0
-
-#   metadata {
-#     name = var.openebs_namespace
-#   }
-
-#   depends_on = [
-#     azurerm_kubernetes_cluster_node_pool.primary_nodes
-#   ]
-# }
-
-# resource "helm_release" "openebs" {
-#   count = var.install_openebs ? 1 : 0
-
-#   name       = "openebs"
-#   namespace  = kubernetes_namespace.openebs[0].metadata[0].name
-#   repository = "https://openebs.github.io/openebs"
-#   chart      = "openebs"
-#   version    = var.openebs_version
-
-#   set {
-#     name  = "engines.replicated.mayastor.enabled"
-#     value = "false"
-#   }
-
-#   set {
-#     name  = "openebs-crds.csi.volumeSnapshots.enabled"
-#     value = "false"
-#   }
-
-#   depends_on = [
-#     kubernetes_namespace.openebs
-#   ]
-# }
-
 resource "kubernetes_namespace" "disk_setup" {
   count = var.enable_disk_setup ? 1 : 0
 
