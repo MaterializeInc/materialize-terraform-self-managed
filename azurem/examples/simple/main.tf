@@ -41,7 +41,7 @@ module "networking" {
   location             = var.location
   prefix               = var.prefix
   vnet_address_space   = var.vnet_config.address_space
-  aks_subnet_cidr          = var.vnet_config.aks_subnet_cidr
+  aks_subnet_cidr      = var.vnet_config.aks_subnet_cidr
   postgres_subnet_cidr = var.vnet_config.postgres_subnet_cidr
 }
 
