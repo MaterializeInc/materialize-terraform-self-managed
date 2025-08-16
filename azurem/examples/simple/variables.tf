@@ -24,12 +24,12 @@ variable "vnet_config" {
   description = "Virtual network configuration"
   type = object({
     address_space        = string
-    subnet_cidr          = string
+    aks_subnet_cidr      = string
     postgres_subnet_cidr = string
   })
   default = {
     address_space        = "10.0.0.0/16"
-    subnet_cidr          = "10.0.0.0/24"
+    aks_subnet_cidr      = "10.0.0.0/24"
     postgres_subnet_cidr = "10.0.1.0/24"
   }
 }

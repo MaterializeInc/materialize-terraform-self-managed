@@ -28,15 +28,20 @@ provider "helm" {
     cluster_ca_certificate = base64decode(module.aks.kube_config[0].cluster_ca_certificate)
   }
 }
+resource "azurerm_resource_group" "materialize" {
+  name     = var.resource_group_name
+  location = var.location
+}
+
 
 module "networking" {
   source = "../../modules/networking"
 
-  resource_group_name  = var.resource_group_name
+  resource_group_name  = azurerm_resource_group.materialize.name
   location             = var.location
   prefix               = var.prefix
   vnet_address_space   = var.vnet_config.address_space
-  subnet_cidr          = var.vnet_config.subnet_cidr
+  aks_subnet_cidr          = var.vnet_config.aks_subnet_cidr
   postgres_subnet_cidr = var.vnet_config.postgres_subnet_cidr
 }
 
