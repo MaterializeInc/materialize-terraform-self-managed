@@ -69,11 +69,9 @@ module "aks" {
 module "materialize_nodepool" {
   source = "../../modules/nodepool"
 
-  resource_group_name = var.resource_group_name
-  location            = var.location
-  prefix              = var.prefix
-  cluster_id          = module.aks.cluster_id
-  subnet_id           = module.networking.aks_subnet_id
+  prefix     = var.prefix
+  cluster_id = module.aks.cluster_id
+  subnet_id  = module.networking.aks_subnet_id
 
   # Workload-specific configuration
   autoscaling_config = {
