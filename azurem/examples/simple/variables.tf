@@ -76,6 +76,49 @@ variable "enable_disk_setup" {
   default     = true
 }
 
+variable "database_config" {
+  description = "Database configuration"
+  type = object({
+    sku_name                      = optional(string, "GP_Standard_D2s_v3")
+    postgres_version              = optional(string, "15")
+    storage_mb                    = optional(number, 32768)
+    backup_retention_days         = optional(number, 7)
+    administrator_login           = optional(string, "materialize")
+    administrator_password        = optional(string, null)
+    database_name                 = optional(string, "materialize")
+    public_network_access_enabled = optional(bool, false)
+  })
+  default = {
+    sku_name                      = "GP_Standard_D2s_v3"
+    postgres_version              = "15"
+    storage_mb                    = 32768
+    backup_retention_days         = 7
+    administrator_login           = "materialize"
+    administrator_password        = null # Will generate random password
+    database_name                 = "materialize"
+    public_network_access_enabled = false
+  }
+}
+
+variable "storage_config" {
+  description = "Storage configuration"
+  type = object({
+    account_tier             = optional(string, "Premium")
+    account_replication_type = optional(string, "LRS")
+    account_kind             = optional(string, "BlockBlobStorage")
+    container_name           = optional(string, "materialize")
+    container_access_type    = optional(string, "private")
+  })
+  default = {
+    # https://learn.microsoft.com/en-us/azure/storage/blobs/storage-blob-block-blob-premium#premium-scenarios
+    account_tier             = "Premium"
+    account_replication_type = "LRS"
+    account_kind             = "BlockBlobStorage"
+    container_name           = "materialize"
+    container_access_type    = "private"
+  }
+}
+
 variable "tags" {
   description = "Tags to apply to resources"
   type        = map(string)
