@@ -61,7 +61,7 @@ module "aks" {
 
   # System-only node pool (minimal)
   default_node_pool_vm_size     = "Standard_D2s_v3"
-  default_node_pool_node_count  = 1
+  default_node_pool_node_count  = 2
   default_node_pool_system_only = true
 
   # Optional: Enable monitoring
