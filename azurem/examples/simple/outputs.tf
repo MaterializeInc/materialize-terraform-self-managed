@@ -31,7 +31,7 @@ output "vnet_address_space" {
 }
 
 output "resource_group_name" {
-  value = module.networking.resource_group_name
+  value = azurerm_resource_group.materialize.name
 }
 
 # AKS Outputs
