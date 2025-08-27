@@ -1,11 +1,16 @@
 locals {
-  node_taints = var.enable_disk_setup ? [
-    {
-      key    = "disk-unconfigured"
-      value  = "true"
-      effect = "NO_SCHEDULE"
-    }
-  ] : []
+  # Azure has 12-character limit for node pool names
+  nodepool_name = substr(replace(var.prefix, "-", ""), 0, 12)
+
+  # Azure doesn't support node taints via Terraform (AKS limitation)
+  # Reference: https://github.com/Azure/AKS/issues/2934
+  # node_taints = []
+
+  # Auto-scaling configuration - prioritize autoscaling_config object over individual variables
+  auto_scaling_enabled = var.autoscaling_config.enabled
+  min_nodes            = var.autoscaling_config.enabled ? var.autoscaling_config.min_nodes : null
+  max_nodes            = var.autoscaling_config.enabled ? var.autoscaling_config.max_nodes : null
+  node_count           = !var.autoscaling_config.enabled ? var.autoscaling_config.node_count : null
 
   node_labels = merge(
     var.labels,
@@ -23,64 +28,34 @@ locals {
   disk_setup_labels = merge(
     var.labels,
     {
-      "app" = local.disk_setup_name
+      "app.kubernetes.io/managed-by" = "terraform"
+      "app.kubernetes.io/part-of"    = "materialize"
+      "app"                          = local.disk_setup_name
     }
   )
 }
 
-resource "google_container_node_pool" "primary_nodes" {
-  provider = google
 
-  name     = "${var.prefix}-nodepool"
-  location = var.region
-  cluster  = var.cluster_name
-  project  = var.project_id
+resource "azurerm_kubernetes_cluster_node_pool" "primary_nodes" {
+  name                        = local.nodepool_name
+  temporary_name_for_rotation = "${substr(local.nodepool_name, 0, 9)}tmp"
+  kubernetes_cluster_id       = var.cluster_id
+  vm_size                     = var.vm_size
+  auto_scaling_enabled        = local.auto_scaling_enabled
+  min_count                   = local.min_nodes
+  max_count                   = local.max_nodes
+  node_count                  = local.node_count
+  vnet_subnet_id              = var.subnet_id
+  os_disk_size_gb             = var.disk_size_gb
 
-  node_count = var.node_count
+  node_labels = local.node_labels
 
-  autoscaling {
-    min_node_count = var.min_nodes
-    max_node_count = var.max_nodes
-  }
+  # Azure limitation: Taints cannot be managed via Terraform
+  # Reference: https://github.com/Azure/AKS/issues/2934
+  # node_taints would go here if supported
 
-  network_config {
-    enable_private_nodes = var.enable_private_nodes
-  }
-
-  node_config {
-    machine_type = var.machine_type
-    disk_size_gb = var.disk_size_gb
-
-    labels = local.node_labels
-
-    dynamic "taint" {
-      for_each = local.node_taints
-      content {
-        key    = taint.value.key
-        value  = taint.value.value
-        effect = taint.value.effect
-      }
-    }
-
-    service_account = var.service_account_email
-
-    oauth_scopes = var.oauth_scopes
-
-    local_nvme_ssd_block_config {
-      local_ssd_count = var.local_ssd_count
-    }
-
-    workload_metadata_config {
-      mode = var.workload_metadata_mode
-    }
-  }
-
-  lifecycle {
-    create_before_destroy = true
-    prevent_destroy       = false
-  }
+  tags = var.tags
 }
-
 
 resource "kubernetes_namespace" "disk_setup" {
   count = var.enable_disk_setup ? 1 : 0
@@ -91,12 +66,13 @@ resource "kubernetes_namespace" "disk_setup" {
   }
 
   depends_on = [
-    google_container_node_pool.primary_nodes
+    azurerm_kubernetes_cluster_node_pool.primary_nodes
   ]
 }
 
 resource "kubernetes_daemonset" "disk_setup" {
   count = var.enable_disk_setup ? 1 : 0
+
   depends_on = [
     kubernetes_namespace.disk_setup
   ]
@@ -144,7 +120,7 @@ resource "kubernetes_daemonset" "disk_setup" {
         }
 
         toleration {
-          key      = local.node_taints[0].key
+          key      = "materialize.cloud/disk-unconfigured"
           operator = "Exists"
           effect   = "NoSchedule"
         }
@@ -157,7 +133,7 @@ resource "kubernetes_daemonset" "disk_setup" {
           name    = local.disk_setup_name
           image   = var.disk_setup_image
           command = ["/usr/local/bin/configure-disks.sh"]
-          args    = ["--cloud-provider", "gcp"]
+          args    = ["--cloud-provider", "azure"]
           resources {
             limits = {
               memory = var.disk_setup_container_resource_config.memory_limit
@@ -191,39 +167,42 @@ resource "kubernetes_daemonset" "disk_setup" {
             name       = "host-root"
             mount_path = "/host"
           }
-
         }
 
-        init_container {
-          name    = "taint-removal"
-          image   = var.disk_setup_image
-          command = ["/usr/local/bin/remove-taint.sh"]
-          resources {
-            limits = {
-              memory = var.taint_removal_container_resource_config.memory_limit
-            }
-            requests = {
-              memory = var.taint_removal_container_resource_config.memory_request
-              cpu    = var.taint_removal_container_resource_config.cpu_request
-            }
-          }
-          security_context {
-            run_as_user = 0
-          }
-          env {
-            name = "NODE_NAME"
-            value_from {
-              field_ref {
-                field_path = "spec.nodeName"
-              }
-            }
-          }
-        }
+        # Taints can not be removed: https://github.com/Azure/AKS/issues/2934
+        # init_container {
+        #   name    = "taint-removal"
+        #   image   = var.disk_setup_image
+        #   command = ["/usr/local/bin/remove-taint.sh"]
+        #   resources {
+        #     limits = {
+        #       memory = "64Mi"
+        #     }
+        #     requests = {
+        #       memory = "64Mi"
+        #       cpu    = "10m"
+        #     }
+        #   }
+        #   security_context {
+        #     run_as_user = 0
+        #   }
+        #   env {
+        #     name = "NODE_NAME"
+        #     value_from {
+        #       field_ref {
+        #         field_path = "spec.nodeName"
+        #       }
+        #     }
+        #   }
+        #   env {
+        #     name  = "TAINT_KEY"
+        #     value = "materialize.cloud/disk-unconfigured"
+        #   }
+        # }
 
         container {
           name  = "pause"
           image = var.pause_container_image
-
           resources {
             limits = {
               memory = var.pause_container_resource_config.memory_limit
@@ -233,14 +212,12 @@ resource "kubernetes_daemonset" "disk_setup" {
               cpu    = var.pause_container_resource_config.cpu_request
             }
           }
-
           security_context {
             allow_privilege_escalation = false
             read_only_root_filesystem  = true
             run_as_non_root            = true
             run_as_user                = 65534
           }
-
         }
 
         volume {
@@ -265,6 +242,7 @@ resource "kubernetes_daemonset" "disk_setup" {
 
 resource "kubernetes_service_account" "disk_setup" {
   count = var.enable_disk_setup ? 1 : 0
+
   metadata {
     name      = local.disk_setup_name
     namespace = kubernetes_namespace.disk_setup[0].metadata[0].name
@@ -273,9 +251,11 @@ resource "kubernetes_service_account" "disk_setup" {
 
 resource "kubernetes_cluster_role" "disk_setup" {
   count = var.enable_disk_setup ? 1 : 0
+
   depends_on = [
     kubernetes_namespace.disk_setup
   ]
+
   metadata {
     name = local.disk_setup_name
   }
@@ -288,6 +268,7 @@ resource "kubernetes_cluster_role" "disk_setup" {
 
 resource "kubernetes_cluster_role_binding" "disk_setup" {
   count = var.enable_disk_setup ? 1 : 0
+
   metadata {
     name = local.disk_setup_name
   }

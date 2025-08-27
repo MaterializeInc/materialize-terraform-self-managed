@@ -101,8 +101,6 @@ variable "pause_container_image" {
   default     = "gcr.io/google_containers/pause:3.2"
 }
 
-
-
 variable "disk_setup_container_resource_config" {
   description = "Resource configuration for disk setup init container"
   type = object({
@@ -128,16 +126,6 @@ variable "taint_removal_container_resource_config" {
     memory_limit   = "64Mi"
     memory_request = "64Mi"
     cpu_request    = "10m"
-  }
-}
-
-variable "taint_removal_container_command" {
-  description = "Command configuration for taint removal container"
-  type = object({
-    command = list(string)
-  })
-  default = {
-    command = ["/usr/local/bin/remove-taint.sh"]
   }
 }
 

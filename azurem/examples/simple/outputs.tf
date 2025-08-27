@@ -33,3 +33,47 @@ output "vnet_address_space" {
 output "resource_group_name" {
   value = module.networking.resource_group_name
 }
+
+# AKS Outputs
+output "aks_cluster_name" {
+  description = "The name of the AKS cluster"
+  value       = module.aks.cluster_name
+}
+
+output "aks_cluster_id" {
+  description = "The ID of the AKS cluster"
+  value       = module.aks.cluster_id
+}
+
+output "aks_cluster_fqdn" {
+  description = "The FQDN of the AKS cluster"
+  value       = module.aks.cluster_fqdn
+}
+
+output "aks_kube_config" {
+  description = "The kube config of the AKS cluster"
+  value       = module.aks.kube_config
+  sensitive   = true
+}
+
+output "aks_cluster_endpoint" {
+  description = "The endpoint of the AKS cluster"
+  value       = module.aks.cluster_endpoint
+  sensitive   = true
+}
+
+output "aks_workload_identity_client_id" {
+  description = "The client ID of the workload identity"
+  value       = module.aks.workload_identity_client_id
+}
+
+output "aks_oidc_issuer_url" {
+  description = "The OIDC issuer URL of the AKS cluster"
+  value       = module.aks.cluster_oidc_issuer_url
+}
+
+# Node Pool Outputs
+output "materialize_nodepool_name" {
+  description = "The name of the Materialize node pool"
+  value       = module.materialize_nodepool.nodepool_name
+}
