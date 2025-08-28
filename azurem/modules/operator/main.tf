@@ -23,7 +23,7 @@ locals {
             "balancerd",
           ]
           issuerRef = {
-            name = module.certificates.cluster_issuer_name
+            name = "${var.name_prefix}-root-ca"
             kind = "ClusterIssuer"
           }
         }
@@ -32,13 +32,13 @@ locals {
             "console",
           ]
           issuerRef = {
-            name = module.certificates.cluster_issuer_name
+            name = "${var.name_prefix}-root-ca"
             kind = "ClusterIssuer"
           }
         }
         internal = {
           issuerRef = {
-            name = module.certificates.cluster_issuer_name
+            name = "${var.name_prefix}-root-ca"
             kind = "ClusterIssuer"
           }
         }

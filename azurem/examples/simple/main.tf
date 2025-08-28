@@ -205,7 +205,7 @@ module "certificates" {
   name_prefix                    = var.prefix
 
   depends_on = [
-    module.gke,
+    module.aks,
     module.nodepool,
   ]
 }
@@ -241,7 +241,7 @@ module "materialize_instance" {
 
 
   depends_on = [
-    module.gke,
+    module.aks,
     module.database,
     module.storage,
     module.networking,

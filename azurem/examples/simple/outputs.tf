@@ -75,5 +75,5 @@ output "aks_oidc_issuer_url" {
 # Node Pool Outputs
 output "materialize_nodepool_name" {
   description = "The name of the Materialize node pool"
-  value       = module.materialize_nodepool.nodepool_name
+  value       = module.nodepool.nodepool_name
 }
