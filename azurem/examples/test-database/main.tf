@@ -19,7 +19,7 @@ module "database" {
   databases = var.databases
 
   # Administrator configuration
-  administrator_login = var.administrator_login
+  administrator_login    = var.administrator_login
   administrator_password = var.administrator_password
 
   # Infrastructure configuration
