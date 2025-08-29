@@ -27,4 +27,8 @@ const (
 	MaterializeDiskEnabledDir  = MaterializeDir + DiskEnabledSuffix
 	MaterializeDiskDisabledDir = MaterializeDir + DiskDisabledSuffix
 	MainTestDir                = "test"
+
+	AKSDir             = "test-aks"
+	AKSDiskEnabledDir  = AKSDir + DiskEnabledSuffix
+	AKSDiskDisabledDir = AKSDir + DiskDisabledSuffix
 )
