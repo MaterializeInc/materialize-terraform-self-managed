@@ -127,67 +127,74 @@ func (suite *StagedDeploymentTestSuite) TestFullDeployment() {
 	// Stage 1: Network Setup
 	test_structure.RunTestStage(t, "setup_network", func() {
 		// Generate unique ID for this infrastructure family
+		var uniqueId string
 		if os.Getenv("USE_EXISTING_NETWORK") != "" {
 			suite.useExistingNetwork()
+			uniqueId = test_structure.LoadString(t, suite.workingDir, "resource_unique_id")
+			if uniqueId == "" {
+				t.Fatal("❌ Cannot use existing network: Unique ID not found. Run network setup stage first.")
+			}
 		} else {
+			// Generate unique ID for this infrastructure family
 			uniqueId := generateAWSCompliantID()
 			suite.workingDir = fmt.Sprintf("%s/%s", TestRunsDir, uniqueId)
 			os.MkdirAll(suite.workingDir, 0755)
 			t.Logf("🏷️ Infrastructure ID: %s", uniqueId)
 			t.Logf("📁 Test Stage Output directory: %s", suite.workingDir)
-
-			// Set up networking example
-			networkingPath := helpers.SetupTestWorkspace(t, utils.AWS, uniqueId, utils.NetworkingDir, utils.NetworkingDir)
-
-			networkOptions := &terraform.Options{
-				TerraformDir: networkingPath,
-				Vars: map[string]interface{}{
-					"profile":              awsProfile,
-					"region":               awsRegion,
-					"name_prefix":          fmt.Sprintf("%s-net", uniqueId),
-					"vpc_cidr":             TestVPCCIDR,
-					"availability_zones":   []string{TestAvailabilityZoneA, TestAvailabilityZoneB},
-					"private_subnet_cidrs": []string{TestPrivateSubnetCIDRA, TestPrivateSubnetCIDRB},
-					"public_subnet_cidrs":  []string{TestPublicSubnetCIDRA, TestPublicSubnetCIDRB},
-					"single_nat_gateway":   true,
-					"create_vpc":           true,
-					"tags": map[string]string{
-						"Environment": "test",
-						"Project":     "materialize",
-						"TestRun":     uniqueId,
-					},
-				},
-				RetryableTerraformErrors: map[string]string{
-					"RequestError": "Request failed",
-				},
-				MaxRetries:         TestMaxRetries,
-				TimeBetweenRetries: TestRetryDelay,
-				NoColor:            true,
-			}
-
-			// Save terraform options for potential cleanup stage
-			test_structure.SaveTerraformOptions(t, suite.workingDir, networkOptions)
-
-			// Apply
-			terraform.InitAndApply(t, networkOptions)
-
-			// Save all networking outputs for subsequent stages
-			vpcId := terraform.Output(t, networkOptions, "vpc_id")
-			privateSubnetIds := terraform.OutputList(t, networkOptions, "private_subnet_ids")
-			publicSubnetIds := terraform.OutputList(t, networkOptions, "public_subnet_ids")
-
-			// Save all outputs and resource IDs
-			test_structure.SaveString(t, suite.workingDir, "vpc_id", vpcId)
+			// Save unique ID for subsequent stages
 			test_structure.SaveString(t, suite.workingDir, "resource_unique_id", uniqueId)
-			test_structure.SaveString(t, suite.workingDir, "private_subnet_ids", strings.Join(privateSubnetIds, ","))
-			test_structure.SaveString(t, suite.workingDir, "public_subnet_ids", strings.Join(publicSubnetIds, ","))
-
-			t.Logf("✅ Network infrastructure created:")
-			t.Logf("  🌐 VPC: %s", vpcId)
-			t.Logf("  🔒 Private Subnets: %v", privateSubnetIds)
-			t.Logf("  🌍 Public Subnets: %v", publicSubnetIds)
-			t.Logf("  🏷️ Resource ID: %s", uniqueId)
 		}
+		// Set up networking example
+		networkingPath := helpers.SetupTestWorkspace(t, utils.AWS, uniqueId, utils.NetworkingDir, utils.NetworkingDir)
+
+		networkOptions := &terraform.Options{
+			TerraformDir: networkingPath,
+			Vars: map[string]interface{}{
+				"profile":              awsProfile,
+				"region":               awsRegion,
+				"name_prefix":          fmt.Sprintf("%s-net", uniqueId),
+				"vpc_cidr":             TestVPCCIDR,
+				"availability_zones":   []string{TestAvailabilityZoneA, TestAvailabilityZoneB},
+				"private_subnet_cidrs": []string{TestPrivateSubnetCIDRA, TestPrivateSubnetCIDRB},
+				"public_subnet_cidrs":  []string{TestPublicSubnetCIDRA, TestPublicSubnetCIDRB},
+				"single_nat_gateway":   true,
+				"create_vpc":           true,
+				"tags": map[string]string{
+					"Environment": "test",
+					"Project":     "materialize",
+					"TestRun":     uniqueId,
+				},
+			},
+			RetryableTerraformErrors: map[string]string{
+				"RequestError": "Request failed",
+			},
+			MaxRetries:         TestMaxRetries,
+			TimeBetweenRetries: TestRetryDelay,
+			NoColor:            true,
+		}
+
+		// Save terraform options for potential cleanup stage
+		test_structure.SaveTerraformOptions(t, suite.workingDir, networkOptions)
+
+		// Apply
+		terraform.InitAndApply(t, networkOptions)
+
+		// Save all networking outputs for subsequent stages
+		vpcId := terraform.Output(t, networkOptions, "vpc_id")
+		privateSubnetIds := terraform.OutputList(t, networkOptions, "private_subnet_ids")
+		publicSubnetIds := terraform.OutputList(t, networkOptions, "public_subnet_ids")
+
+		// Save all outputs and resource IDs
+		test_structure.SaveString(t, suite.workingDir, "vpc_id", vpcId)
+		test_structure.SaveString(t, suite.workingDir, "private_subnet_ids", strings.Join(privateSubnetIds, ","))
+		test_structure.SaveString(t, suite.workingDir, "public_subnet_ids", strings.Join(publicSubnetIds, ","))
+
+		t.Logf("✅ Network infrastructure created:")
+		t.Logf("  🌐 VPC: %s", vpcId)
+		t.Logf("  🔒 Private Subnets: %v", privateSubnetIds)
+		t.Logf("  🌍 Public Subnets: %v", publicSubnetIds)
+		t.Logf("  🏷️ Resource ID: %s", uniqueId)
+
 	})
 	if os.Getenv("SKIP_setup_network") != "" {
 		suite.useExistingNetwork()

@@ -98,7 +98,7 @@ variable "cert_manager_chart_version" {
   type        = string
 }
 
-variable "install_openebs" {
+variable "enable_disk_support" {
   description = "Whether to install OpenEBS"
   type        = bool
 }
@@ -113,9 +113,9 @@ variable "openebs_version" {
   type        = string
 }
 
-variable "install_materialize_operator" {
-  description = "Whether to install the Materialize operator"
-  type        = bool
+variable "operator_namespace" {
+  description = "The namespace for the Materialize operator"
+  type        = string
 }
 
 variable "install_materialize_instance" {
@@ -123,12 +123,12 @@ variable "install_materialize_instance" {
   type        = bool
 }
 
-variable "materialize_instance_name" {
+variable "instance_name" {
   description = "The name of the Materialize instance"
   type        = string
 }
 
-variable "materialize_instance_namespace" {
+variable "instance_namespace" {
   description = "The namespace of the Materialize instance"
   type        = string
 }

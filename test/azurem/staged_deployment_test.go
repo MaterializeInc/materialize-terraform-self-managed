@@ -109,71 +109,77 @@ func (suite *StagedDeploymentTestSuite) TestFullDeployment() {
 	// Stage 1: Network Setup
 	test_structure.RunTestStage(t, "setup_network", func() {
 		// Generate unique ID for this infrastructure family
+		var uniqueId string
 		if os.Getenv("USE_EXISTING_NETWORK") != "" {
 			suite.useExistingNetwork()
+			uniqueId = test_structure.LoadString(t, suite.workingDir, "resource_unique_id")
+			if uniqueId == "" {
+				t.Fatal("❌ Cannot use existing network: Unique ID not found. Run network setup stage first.")
+			}
 		} else {
-			uniqueId := generateAzureCompliantID()
-			// Short ID will used as resource name prefix so that we don't exceed the length limit
-			shortId := strings.Split(uniqueId, "-")[1]
+			uniqueId = generateAzureCompliantID()
 			suite.workingDir = fmt.Sprintf("%s/%s", TestRunsDir, uniqueId)
 			os.MkdirAll(suite.workingDir, 0755)
 			t.Logf("🏷️ Infrastructure ID: %s", uniqueId)
 			t.Logf("📁 Test Stage Output directory: %s", suite.workingDir)
-
-			// Set up networking example
-			networkingPath := helpers.SetupTestWorkspace(t, utils.Azure, uniqueId, utils.NetworkingDir, utils.NetworkingDir)
-
-			networkOptions := &terraform.Options{
-				TerraformDir: networkingPath,
-				Vars: map[string]interface{}{
-					"subscription_id":      subscriptionID,
-					"resource_group_name":  fmt.Sprintf("%s-rg", shortId),
-					"location":             testRegion,
-					"prefix":               shortId,
-					"vnet_address_space":   TestVNetAddressSpace,
-					"aks_subnet_cidr":      TestAKSSubnetCIDR,
-					"postgres_subnet_cidr": TestPostgresSubnetCIDR,
-				},
-				RetryableTerraformErrors: map[string]string{
-					"RequestError": "Request failed",
-				},
-				MaxRetries:         TestMaxRetries,
-				TimeBetweenRetries: TestRetryDelay,
-				NoColor:            true,
-			}
-
-			// Save terraform options for potential cleanup stage
-			test_structure.SaveTerraformOptions(t, suite.workingDir, networkOptions)
-
-			// Apply
-			terraform.InitAndApply(t, networkOptions)
-
-			// Save all networking outputs for subsequent stages
-			resourceGroupName := terraform.Output(t, networkOptions, "resource_group_name")
-			vnetId := terraform.Output(t, networkOptions, "vnet_id")
-			vnetName := terraform.Output(t, networkOptions, "vnet_name")
-			aksSubnetId := terraform.Output(t, networkOptions, "aks_subnet_id")
-			aksSubnetName := terraform.Output(t, networkOptions, "aks_subnet_name")
-			postgresSubnetId := terraform.Output(t, networkOptions, "postgres_subnet_id")
-			privateDNSZoneId := terraform.Output(t, networkOptions, "private_dns_zone_id")
-
-			// Save all outputs and resource IDs
-			test_structure.SaveString(t, suite.workingDir, "resource_group_name", resourceGroupName)
-			test_structure.SaveString(t, suite.workingDir, "vnet_id", vnetId)
-			test_structure.SaveString(t, suite.workingDir, "vnet_name", vnetName)
-			test_structure.SaveString(t, suite.workingDir, "aks_subnet_id", aksSubnetId)
-			test_structure.SaveString(t, suite.workingDir, "aks_subnet_name", aksSubnetName)
-			test_structure.SaveString(t, suite.workingDir, "postgres_subnet_id", postgresSubnetId)
-			test_structure.SaveString(t, suite.workingDir, "private_dns_zone_id", privateDNSZoneId)
+			// Save unique ID for subsequent stages
 			test_structure.SaveString(t, suite.workingDir, "resource_unique_id", uniqueId)
-			test_structure.SaveString(t, suite.workingDir, "test_region", testRegion)
-
-			t.Logf("✅ Network infrastructure created:")
-			t.Logf("  🏠 Resource Group: %s", resourceGroupName)
-			t.Logf("  🌐 VNet: %s (%s)", vnetName, vnetId)
-			t.Logf("  🏠 AKS Subnet: %s", aksSubnetName)
-			t.Logf("  🏷️ Resource ID: %s", uniqueId)
 		}
+		// Short ID will used as resource name prefix so that we don't exceed the length limit
+		shortId := strings.Split(uniqueId, "-")[1]
+		// Set up networking example
+		networkingPath := helpers.SetupTestWorkspace(t, utils.Azure, uniqueId, utils.NetworkingDir, utils.NetworkingDir)
+
+		networkOptions := &terraform.Options{
+			TerraformDir: networkingPath,
+			Vars: map[string]interface{}{
+				"subscription_id":      subscriptionID,
+				"resource_group_name":  fmt.Sprintf("%s-rg", shortId),
+				"location":             testRegion,
+				"prefix":               shortId,
+				"vnet_address_space":   TestVNetAddressSpace,
+				"aks_subnet_cidr":      TestAKSSubnetCIDR,
+				"postgres_subnet_cidr": TestPostgresSubnetCIDR,
+			},
+			RetryableTerraformErrors: map[string]string{
+				"RequestError": "Request failed",
+			},
+			MaxRetries:         TestMaxRetries,
+			TimeBetweenRetries: TestRetryDelay,
+			NoColor:            true,
+		}
+
+		// Save terraform options for potential cleanup stage
+		test_structure.SaveTerraformOptions(t, suite.workingDir, networkOptions)
+
+		// Apply
+		terraform.InitAndApply(t, networkOptions)
+
+		// Save all networking outputs for subsequent stages
+		resourceGroupName := terraform.Output(t, networkOptions, "resource_group_name")
+		vnetId := terraform.Output(t, networkOptions, "vnet_id")
+		vnetName := terraform.Output(t, networkOptions, "vnet_name")
+		aksSubnetId := terraform.Output(t, networkOptions, "aks_subnet_id")
+		aksSubnetName := terraform.Output(t, networkOptions, "aks_subnet_name")
+		postgresSubnetId := terraform.Output(t, networkOptions, "postgres_subnet_id")
+		privateDNSZoneId := terraform.Output(t, networkOptions, "private_dns_zone_id")
+
+		// Save all outputs and resource IDs
+		test_structure.SaveString(t, suite.workingDir, "resource_group_name", resourceGroupName)
+		test_structure.SaveString(t, suite.workingDir, "vnet_id", vnetId)
+		test_structure.SaveString(t, suite.workingDir, "vnet_name", vnetName)
+		test_structure.SaveString(t, suite.workingDir, "aks_subnet_id", aksSubnetId)
+		test_structure.SaveString(t, suite.workingDir, "aks_subnet_name", aksSubnetName)
+		test_structure.SaveString(t, suite.workingDir, "postgres_subnet_id", postgresSubnetId)
+		test_structure.SaveString(t, suite.workingDir, "private_dns_zone_id", privateDNSZoneId)
+		test_structure.SaveString(t, suite.workingDir, "test_region", testRegion)
+
+		t.Logf("✅ Network infrastructure created:")
+		t.Logf("  🏠 Resource Group: %s", resourceGroupName)
+		t.Logf("  🌐 VNet: %s (%s)", vnetName, vnetId)
+		t.Logf("  🏠 AKS Subnet: %s", aksSubnetName)
+		t.Logf("  🏷️ Resource ID: %s", uniqueId)
+
 	})
 	if os.Getenv("SKIP_setup_network") != "" {
 		suite.useExistingNetwork()
@@ -284,7 +290,8 @@ func (suite *StagedDeploymentTestSuite) setupAKSStage(stage, stageDir, subscript
 	clusterEndpoint := terraform.Output(t, aksOptions, "cluster_endpoint")
 	workloadIdentityClientId := terraform.Output(t, aksOptions, "workload_identity_client_id")
 	clusterIdentityPrincipalId := terraform.Output(t, aksOptions, "cluster_identity_principal_id")
-	kubeConfigRaw := terraform.OutputMap(t, aksOptions, "kube_config")
+	kubeConfigList := terraform.OutputListOfObjects(t, aksOptions, "kube_config")
+	kubeConfigRaw := kubeConfigList[0]
 
 	suite.NotEmpty(clusterName, "AKS cluster name should not be empty")
 	suite.NotEmpty(kubeConfigRaw, "Kube config should not be empty")
@@ -296,9 +303,9 @@ func (suite *StagedDeploymentTestSuite) setupAKSStage(stage, stageDir, subscript
 	test_structure.SaveString(t, stageDirPath, "cluster_identity_principal_id", clusterIdentityPrincipalId)
 
 	// Save kube config components separately for easier loading
-	test_structure.SaveString(t, stageDirPath, "kube_config_client_certificate", kubeConfigRaw["client_certificate"])
-	test_structure.SaveString(t, stageDirPath, "kube_config_client_key", kubeConfigRaw["client_key"])
-	test_structure.SaveString(t, stageDirPath, "kube_config_cluster_ca_certificate", kubeConfigRaw["cluster_ca_certificate"])
+	test_structure.SaveString(t, stageDirPath, "kube_config_client_certificate", kubeConfigRaw["client_certificate"].(string))
+	test_structure.SaveString(t, stageDirPath, "kube_config_client_key", kubeConfigRaw["client_key"].(string))
+	test_structure.SaveString(t, stageDirPath, "kube_config_cluster_ca_certificate", kubeConfigRaw["cluster_ca_certificate"].(string))
 
 	t.Logf("✅ AKS cluster created successfully:")
 	t.Logf("  🏷️ Cluster Name: %s", clusterName)
@@ -382,7 +389,8 @@ func (suite *StagedDeploymentTestSuite) setupDatabaseStage(stage, stageDir, subs
 	serverFQDN := terraform.Output(t, dbOptions, "server_fqdn")
 	adminLogin := terraform.Output(t, dbOptions, "administrator_login")
 	adminPassword := terraform.Output(t, dbOptions, "administrator_password")
-	privateIP := terraform.Output(t, dbOptions, "private_ip")
+	databaseNames := terraform.OutputList(t, dbOptions, "database_names")
+	databases := terraform.OutputMapOfObjects(t, dbOptions, "databases")
 
 	// Comprehensive validation
 	suite.NotEmpty(serverName, "Database server name should not be empty")
@@ -390,18 +398,38 @@ func (suite *StagedDeploymentTestSuite) setupDatabaseStage(stage, stageDir, subs
 	suite.Equal(TestDBUsername, adminLogin, "Database username should match the configured value")
 	suite.NotEmpty(adminPassword, "Database password should not be empty")
 
+	// Validate databases
+	suite.NotEmpty(databaseNames, "Database names list should not be empty")
+	suite.Contains(databaseNames, TestDBName, "Expected database '%s' should be created", TestDBName)
+	suite.NotEmpty(databases, "Databases map should not be empty")
+	suite.Contains(databases, TestDBName, "Expected database '%s' should exist in databases map", TestDBName)
+
+	// Validate the specific database configuration
+	materializeDB, exists := databases[TestDBName]
+	suite.True(exists, "Materialize test database should exist")
+	if exists {
+		dbMap := materializeDB.(map[string]interface{})
+		suite.Equal(TestDBName, dbMap["name"], "Database name should match expected value")
+		suite.NotEmpty(dbMap["charset"], "Database charset should be set")
+		suite.NotEmpty(dbMap["collation"], "Database collation should be set")
+	}
+
 	// Save database outputs for future stages
 	test_structure.SaveString(t, stageDirPath, "server_name", serverName)
 	test_structure.SaveString(t, stageDirPath, "server_fqdn", serverFQDN)
 	test_structure.SaveString(t, stageDirPath, "administrator_login", adminLogin)
 	test_structure.SaveString(t, stageDirPath, "administrator_password", adminPassword)
-	test_structure.SaveString(t, stageDirPath, "private_ip", privateIP)
+
+	databaseNamesString := strings.Join(databaseNames, ",")
+	// Save database names and configuration for Materialize test
+	test_structure.SaveString(t, stageDirPath, "database_names", databaseNamesString)
 
 	t.Logf("✅ Database created successfully:")
 	t.Logf("  🔗 Server Name: %s", serverName)
 	t.Logf("  🔗 FQDN: %s", serverFQDN)
 	t.Logf("  👤 Username: %s", adminLogin)
-	t.Logf("  🔒 Private IP: %s", privateIP)
+	t.Logf("  🗄️ Database Names: %v", databaseNames)
+
 }
 
 func (suite *StagedDeploymentTestSuite) setupMaterializeStage(stage, stageDir, subscriptionID, region, nameSuffix, diskEnabled string) {
@@ -426,9 +454,16 @@ func (suite *StagedDeploymentTestSuite) setupMaterializeStage(stage, stageDir, s
 
 	// Load database data
 	dbStageDirFullPath := filepath.Join(suite.workingDir, utils.DatabaseDiskEnabledDir)
-	databaseHost := test_structure.LoadString(t, dbStageDirFullPath, "private_ip")
+	databaseHost := test_structure.LoadString(t, dbStageDirFullPath, "server_fqdn")
 	databaseAdminLogin := test_structure.LoadString(t, dbStageDirFullPath, "administrator_login")
 	databaseAdminPassword := test_structure.LoadString(t, dbStageDirFullPath, "administrator_password")
+	databaseNames := test_structure.LoadString(t, dbStageDirFullPath, "database_names")
+	databaseName := strings.Split(databaseNames, ",")[0]
+
+	t.Logf("🔗 Using database configuration:")
+	t.Logf("  🏠 Host: %s", databaseHost)
+	t.Logf("  🗄️ Database: %s", databaseName)
+	t.Logf("  👤 Admin User: %s", databaseAdminLogin)
 
 	// Load kube config components from saved outputs
 	kubeConfigClientCert := test_structure.LoadString(t, aksStageDirFullPath, "kube_config_client_certificate")
@@ -452,23 +487,35 @@ func (suite *StagedDeploymentTestSuite) setupMaterializeStage(stage, stageDir, s
 	// Set up Materialize example
 	materializePath := helpers.SetupTestWorkspace(t, utils.Azure, resourceId, utils.MaterializeDir, stageDir)
 
+	expectedInstanceNamespace := fmt.Sprintf("mz-instance-%s", nameSuffix)
+	expectedOperatorNamespace := fmt.Sprintf("mz-operator-%s", nameSuffix)
+	expectedOpenEbsNamespace := fmt.Sprintf("openebs-%s", nameSuffix)
+	expectedCertManagerNamespace := fmt.Sprintf("cert-manager-%s", nameSuffix)
+	enableDiskSupport := diskEnabled == "true"
+
 	materializeOptions := &terraform.Options{
 		TerraformDir: materializePath,
 		Vars: map[string]interface{}{
-			"subscription_id":               subscriptionID,
-			"location":                      region,
-			"resource_group_name":           resourceGroupName,
-			"prefix":                        fmt.Sprintf("%s%s", shortId, nameSuffix),
+			"subscription_id":     subscriptionID,
+			"location":            region,
+			"resource_group_name": resourceGroupName,
+			"prefix":              fmt.Sprintf("%s%s", shortId, nameSuffix),
+
+			// AKS details
 			"cluster_endpoint":              clusterEndpoint,
 			"cluster_identity_principal_id": clusterIdentityPrincipalId,
 			"subnets":                       []string{aksSubnetId},
 			"kube_config":                   kubeConfig,
-			"database_host":                 databaseHost,
-			"database_name":                 TestDBName,
+
+			// Database details
+			"database_host": databaseHost,
+			"database_name": databaseName,
 			"database_admin_user": map[string]interface{}{
 				"name":     databaseAdminLogin,
 				"password": databaseAdminPassword,
 			},
+
+			// Storage details
 			"storage_config": map[string]interface{}{
 				"account_tier":             TestStorageAccountTier,
 				"account_replication_type": TestStorageReplicationType,
@@ -476,23 +523,32 @@ func (suite *StagedDeploymentTestSuite) setupMaterializeStage(stage, stageDir, s
 				"container_name":           TestStorageContainerName,
 				"container_access_type":    TestStorageContainerAccessType,
 			},
+
 			"tags": map[string]string{
 				"Environment": "test",
 				"Project":     "materialize",
 				"TestRun":     resourceId,
 				"DiskEnabled": diskEnabled,
 			},
-			"install_cert_manager":           true,
-			"cert_manager_namespace":         "cert-manager",
-			"cert_manager_install_timeout":   300,
-			"cert_manager_chart_version":     TestCertManagerVersion,
-			"install_openebs":                diskEnabled == "true",
-			"openebs_namespace":              "openebs",
-			"openebs_version":                TestOpenEbsVersion,
-			"materialize_instance_name":      TestMaterializeInstanceName,
-			"materialize_instance_namespace": TestMaterializeInstanceNamespace,
-			"install_materialize_operator":   true,
-			"install_materialize_instance":   false, // Phase 1: operator only
+
+			// Cert Manager details
+			"install_cert_manager":         true,
+			"cert_manager_namespace":       expectedCertManagerNamespace,
+			"cert_manager_install_timeout": 300,
+			"cert_manager_chart_version":   TestCertManagerVersion,
+
+			// OpenEBS details
+			"enable_disk_support": enableDiskSupport,
+			"openebs_namespace":   expectedOpenEbsNamespace,
+			"openebs_version":     TestOpenEbsVersion,
+
+			// Operator details
+			"operator_namespace": expectedOperatorNamespace,
+
+			// Materialize instance details
+			"instance_name":                TestMaterializeInstanceName,
+			"instance_namespace":           expectedInstanceNamespace,
+			"install_materialize_instance": false, // Phase 1: operator only
 		},
 		RetryableTerraformErrors: map[string]string{
 			"RequestError": "Request failed",
@@ -519,34 +575,97 @@ func (suite *StagedDeploymentTestSuite) setupMaterializeStage(stage, stageDir, s
 
 	// Save Materialize outputs for subsequent stages
 	storageAccountName := terraform.Output(t, materializeOptions, "storage_account_name")
+	storageAccountKey := terraform.Output(t, materializeOptions, "storage_account_key")
+	storagePrimaryBlobEndpoint := terraform.Output(t, materializeOptions, "storage_primary_blob_endpoint")
+	storagePrimaryBlobSASToken := terraform.Output(t, materializeOptions, "storage_primary_blob_sas_token")
+	storageContainerName := terraform.Output(t, materializeOptions, "storage_container_name")
 	metadataBackendURL := terraform.Output(t, materializeOptions, "metadata_backend_url")
 	persistBackendURL := terraform.Output(t, materializeOptions, "persist_backend_url")
 	instanceInstalled := terraform.Output(t, materializeOptions, "instance_installed")
 	instanceResourceId := terraform.Output(t, materializeOptions, "instance_resource_id")
+	externalLoginPassword := terraform.Output(t, materializeOptions, "external_login_password")
+	clusterIssuerName := terraform.Output(t, materializeOptions, "cluster_issuer_name")
 	openebsInstalled := terraform.Output(t, materializeOptions, "openebs_installed")
+	operatorNamespace := terraform.Output(t, materializeOptions, "operator_namespace")
+	loadBalancerInstalled := terraform.Output(t, materializeOptions, "load_balancer_installed")
+	consoleLoadBalancerIP := terraform.Output(t, materializeOptions, "console_load_balancer_ip")
+	balancerdLoadBalancerIP := terraform.Output(t, materializeOptions, "balancerd_load_balancer_ip")
 
+	// Validation
 	suite.Equal("true", instanceInstalled, "Materialize instance should be installed")
 	suite.NotEmpty(instanceResourceId, "Materialize instance resource ID should not be empty")
+	suite.NotEmpty(externalLoginPassword, "External login password should not be empty")
+
+	// Storage validation
 	suite.NotEmpty(storageAccountName, "Storage account name should not be empty")
+	suite.NotEmpty(storageAccountKey, "Storage account key should not be empty")
+	suite.NotEmpty(storagePrimaryBlobEndpoint, "Storage primary blob endpoint should not be empty")
+	suite.NotEmpty(storagePrimaryBlobSASToken, "Storage primary blob SAS token should not be empty")
+	suite.NotEmpty(storageContainerName, "Storage container name should not be empty")
+
+	// Backend URLs validation
 	suite.NotEmpty(metadataBackendURL, "Metadata backend URL should not be empty")
 	suite.NotEmpty(persistBackendURL, "Persist backend URL should not be empty")
 
-	if diskEnabled == "true" {
+	// Certificate validation
+	suite.NotEmpty(clusterIssuerName, "Cluster issuer name should not be empty")
+
+	// Namespace validation
+	suite.NotEmpty(operatorNamespace, "Operator namespace should not be empty")
+	suite.Equal(expectedOperatorNamespace, operatorNamespace, "Operator namespace should match expected value")
+
+	// Load balancer validation
+	suite.Equal("true", loadBalancerInstalled, "Load balancer should be installed")
+	suite.NotEmpty(consoleLoadBalancerIP, "Console load balancer IP should not be empty")
+	suite.NotEmpty(balancerdLoadBalancerIP, "Balancerd load balancer IP should not be empty")
+	if enableDiskSupport {
 		suite.Equal("true", openebsInstalled, "OpenEBS should be installed if disk support is enabled")
+	} else {
+		suite.Equal("false", openebsInstalled, "OpenEBS should not be installed if disk support is disabled")
 	}
 
 	t.Logf("✅ Phase 2: Materialize instance created successfully:")
+	if enableDiskSupport {
+		openebsNamespace := terraform.Output(t, materializeOptions, "openebs_namespace")
+		suite.NotEmpty(openebsNamespace, "OpenEBS namespace should not be empty when disk support is enabled")
+		suite.Equal(expectedOpenEbsNamespace, openebsNamespace, "OpenEBS namespace should match expected value")
+		test_structure.SaveString(t, stageDirFullPath, "openebs_namespace", openebsNamespace)
+		t.Logf("  🗄️ OpenEBS Namespace: %s", openebsNamespace)
+	}
+
+	t.Logf("  🗄️ Instance Resource ID: %s", instanceResourceId)
+	t.Logf("  🗄️ Instance Installed: %s", instanceInstalled)
+	t.Logf("  🔐 External Login Password: [REDACTED]")
 	t.Logf("  🗄️ Storage Account: %s", storageAccountName)
+	t.Logf("  🔐 Storage Account Key: [REDACTED]")
+	t.Logf("  🗄️ Storage Primary Blob Endpoint: %s", storagePrimaryBlobEndpoint)
+	t.Logf("  🔐 Storage Primary Blob SAS Token: [REDACTED]")
+	t.Logf("  🗄️ Storage Container Name: %s", storageContainerName)
 	t.Logf("  🗄️ Metadata Backend URL: %s", metadataBackendURL)
 	t.Logf("  🗄️ Persist Backend URL: %s", persistBackendURL)
-	t.Logf("  🗄️ Instance Resource ID: %s", instanceResourceId)
+	t.Logf("  🗄️ Cluster Issuer Name: %s", clusterIssuerName)
 	t.Logf("  🗄️ OpenEBS Installed: %s", openebsInstalled)
+	t.Logf("  🗄️ Operator Namespace: %s", operatorNamespace)
+	t.Logf("  🗄️ Load Balancer Installed: %s", loadBalancerInstalled)
+	t.Logf("  🗄️ Console Load Balancer IP: %s", consoleLoadBalancerIP)
+	t.Logf("  🗄️ Balancerd Load Balancer IP: %s", balancerdLoadBalancerIP)
 
+	test_structure.SaveString(t, stageDirFullPath, "instance_resource_id", instanceResourceId)
+	test_structure.SaveString(t, stageDirFullPath, "instance_installed", instanceInstalled)
+	test_structure.SaveString(t, stageDirFullPath, "external_login_password", externalLoginPassword)
 	test_structure.SaveString(t, stageDirFullPath, "storage_account_name", storageAccountName)
+	test_structure.SaveString(t, stageDirFullPath, "storage_account_key", storageAccountKey)
+	test_structure.SaveString(t, stageDirFullPath, "storage_primary_blob_endpoint", storagePrimaryBlobEndpoint)
+	test_structure.SaveString(t, stageDirFullPath, "storage_primary_blob_sas_token", storagePrimaryBlobSASToken)
+	test_structure.SaveString(t, stageDirFullPath, "storage_container_name", storageContainerName)
 	test_structure.SaveString(t, stageDirFullPath, "metadata_backend_url", metadataBackendURL)
 	test_structure.SaveString(t, stageDirFullPath, "persist_backend_url", persistBackendURL)
-	test_structure.SaveString(t, stageDirFullPath, "instance_resource_id", instanceResourceId)
+	test_structure.SaveString(t, stageDirFullPath, "cluster_issuer_name", clusterIssuerName)
 	test_structure.SaveString(t, stageDirFullPath, "openebs_installed", openebsInstalled)
+	test_structure.SaveString(t, stageDirFullPath, "operator_namespace", operatorNamespace)
+	test_structure.SaveString(t, stageDirFullPath, "load_balancer_installed", loadBalancerInstalled)
+	test_structure.SaveString(t, stageDirFullPath, "console_load_balancer_ip", consoleLoadBalancerIP)
+	test_structure.SaveString(t, stageDirFullPath, "balancerd_load_balancer_ip", balancerdLoadBalancerIP)
 }
 
 func (suite *StagedDeploymentTestSuite) useExistingNetwork() {

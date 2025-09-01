@@ -39,7 +39,7 @@ const (
 	// Network CIDR blocks that don't conflict
 	TestVNetAddressSpace   = "10.100.0.0/16"
 	TestAKSSubnetCIDR      = "10.100.0.0/20"
-	TestPostgresSubnetCIDR = "10.100.1.0/24"
+	TestPostgresSubnetCIDR = "10.100.16.0/24"
 	TestServiceCIDR        = "10.101.0.0/16"
 
 	// Test timeouts (in seconds)
@@ -76,16 +76,14 @@ const (
 	TestBackupRetentionDays = 7
 
 	// Resource naming format for Azure compatibility
-	// Format: t{YYMMDDHHMMSS}-{random4}{letter}
-	TestResourceIDFormat = "t%s-%s%c"
-	TestRandomIDLength   = 4
+	// Format: t{YYMMDDHHMMSS}-{letter}{random3}{letter}
+	TestResourceIDFormat = "t%s-%c%s%c"
+	TestRandomIDLength   = 3
 
 	// Materialize configuration
 	TestOpenEbsVersion     = "4.2.0"
 	TestCertManagerVersion = "v1.17.1"
 
 	// Materialize instance defaults
-	TestMaterializeInstanceName      = "main"
-	TestMaterializeInstanceNamespace = "materialize-environment"
-	TestOperatorNamespace            = "materialize-operator"
+	TestMaterializeInstanceName = "materialize-test"
 )

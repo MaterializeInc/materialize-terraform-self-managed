@@ -70,7 +70,7 @@ module "storage" {
 module "openebs" {
   source = "../../../kubernetes/modules/openebs"
 
-  install_openebs          = var.install_openebs
+  install_openebs          = var.enable_disk_support
   create_openebs_namespace = true
   openebs_namespace        = var.openebs_namespace
   openebs_version          = var.openebs_version
@@ -88,12 +88,13 @@ module "certificates" {
 }
 
 module "operator" {
-  count  = var.install_materialize_operator ? 1 : 0
   source = "../../modules/operator"
 
   name_prefix                    = var.prefix
   use_self_signed_cluster_issuer = var.install_materialize_instance
   location                       = var.location
+  enable_disk_support            = var.enable_disk_support
+  operator_namespace             = var.operator_namespace
 
   depends_on = [
     module.certificates,
@@ -104,8 +105,8 @@ module "materialize_instance" {
   count = var.install_materialize_instance ? 1 : 0
 
   source               = "../../../kubernetes/modules/materialize-instance"
-  instance_name        = var.materialize_instance_name
-  instance_namespace   = var.materialize_instance_namespace
+  instance_name        = var.instance_name
+  instance_namespace   = var.instance_namespace
   metadata_backend_url = local.metadata_backend_url
   persist_backend_url  = local.persist_backend_url
 
@@ -125,8 +126,8 @@ module "load_balancers" {
 
   source = "../../modules/load_balancers"
 
-  instance_name = var.materialize_instance_name
-  namespace     = var.materialize_instance_namespace
+  instance_name = var.instance_name
+  namespace     = var.instance_namespace
   resource_id   = module.materialize_instance[0].instance_resource_id
   internal      = true
 

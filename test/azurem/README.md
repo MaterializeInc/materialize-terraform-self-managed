@@ -61,11 +61,10 @@ go mod tidy
 
 ### Set Environment Variables
 
-The test suite automatically loads environment variables from these files (in order):
-- `.env`
-- `local.env`
-- `.env.debug`
-- `.env.local`
+The test suite automatically loads environment variables from these files.
+- `local.env` (if this file exists, load configuration and exit)
+- `.env` (if `local.env` doesn't exist then try to load from `.env` file)
+
 
 You can also set them manually:
 ```bash
@@ -140,7 +139,7 @@ Control test execution with environment variables (can be set in .env files):
 - **State directory**: `testRuns/{uniqueId}/` is removed when network is cleaned up
 
 ### Resource Naming
-All resources follow pattern: `test-{uniqueId}-{resource}`
+All resources follow pattern: `test-{shortUniqueId}-{resource}`
 - Resource Group: `test-abc123-rg`
 - Network: `test-abc123-vnet`
 - Database: `test-abc123-db`
@@ -154,7 +153,6 @@ The tests use dedicated example configurations in `azurem/examples/`:
 - `test-aks/` - AKS cluster with node pools
 - `test-materialize/` - Materialize operator and instance
 
-**Note:** Tests follow AWS pattern with workspace copying for isolation.
 
 ## Troubleshooting
 
@@ -173,7 +171,7 @@ The tests use dedicated example configurations in `azurem/examples/`:
 ls -la test/azure/testRuns/
 
 # Run cleanup stages only
-SKIP_setup_network=true SKIP_setup_database=true SKIP_setup_aks=true go test -timeout 15m -run TestStagedDeploymentSuite -v
+SKIP_setup_network=true SKIP_setup_database=true SKIP_setup_aks=true go test -timeout 15m -run TestStagedDeploymentTestSuite -v
 
 # Manual cleanup if needed
 cd azurem/examples/test-networking-basic

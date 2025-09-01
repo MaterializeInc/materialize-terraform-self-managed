@@ -10,7 +10,7 @@ import (
 
 // generateAzureCompliantID generates a random ID that complies with Azure naming requirements
 // Azure requirements: Start with letter, contain only letters/numbers/hyphens, under 63 chars
-// Format: t{YYMMDDHHMMSS}-{random4}{letter} for timestamp ordering and uniqueness
+// Format: t{YYMMDDHHMMSS}-{letter}{random3}{letter} for timestamp ordering and uniqueness
 func generateAzureCompliantID() string {
 	rand.New(rand.NewSource(time.Now().UnixNano()))
 
@@ -18,20 +18,24 @@ func generateAzureCompliantID() string {
 	now := time.Now()
 	timestamp := now.Format("060102150405")
 
-	// Generate 4-character random middle part
+	// Generate random parts
 	const charset = "abcdefghijklmnopqrstuvwxyz0123456789"
 	const letters = "abcdefghijklmnopqrstuvwxyz"
 
+	// Start with a letter
+	startLetter := letters[rand.Intn(len(letters))]
+
+	// Generate  random middle part
 	middle := make([]byte, TestRandomIDLength)
 	for i := range middle {
 		middle[i] = charset[rand.Intn(len(charset))]
 	}
 
-	// Ensure it ends with a letter
+	// End with a letter
 	endLetter := letters[rand.Intn(len(letters))]
 
-	// Format: t{timestamp}-{random4}{letter}
-	return fmt.Sprintf(TestResourceIDFormat, timestamp, string(middle), endLetter)
+	// Format: t{timestamp}-{letter}{random3}{letter}
+	return fmt.Sprintf(TestResourceIDFormat, timestamp, startLetter, string(middle), endLetter)
 }
 
 func getRequiredAzureConfigurations() []config.Configuration {
