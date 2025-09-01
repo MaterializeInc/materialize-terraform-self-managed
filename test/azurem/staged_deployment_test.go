@@ -36,6 +36,8 @@ func (suite *StagedDeploymentTestSuite) SetupSuite() {
 func (suite *StagedDeploymentTestSuite) TearDownSuite() {
 	t := suite.T()
 	t.Logf("🧹 Starting cleanup stages for: %s", suite.SuiteName)
+	suite.testDiskDisabledCleanup()
+
 	suite.testDiskEnabledCleanup()
 
 	test_structure.RunTestStage(t, "cleanup_network", func() {
@@ -78,6 +80,25 @@ func (suite *StagedDeploymentTestSuite) testDiskEnabledCleanup() {
 	t.Logf("✅ Disk Enabled Cleanup completed successfully")
 }
 
+func (suite *StagedDeploymentTestSuite) testDiskDisabledCleanup() {
+	t := suite.T()
+	t.Log("Running Disk Disabled Cleanup Tests")
+
+	test_structure.RunTestStage(t, "cleanup_materialize_disk_disabled", func() {
+		suite.cleanupStage("cleanup_materialize_disk_disabled", utils.MaterializeDiskDisabledDir)
+	})
+
+	test_structure.RunTestStage(t, "cleanup_aks_disk_disabled", func() {
+		suite.cleanupStage("cleanup_aks_disk_disabled", utils.AKSDiskDisabledDir)
+	})
+
+	test_structure.RunTestStage(t, "cleanup_database_disk_disabled", func() {
+		suite.cleanupStage("cleanup_database_disk_disabled", utils.DatabaseDiskDisabledDir)
+	})
+
+	t.Logf("✅ Disk Disabled Cleanup completed successfully")
+}
+
 func (suite *StagedDeploymentTestSuite) cleanupStage(stageName, stageDir string) {
 	t := suite.T()
 	t.Logf("🗑️ Cleaning up %s stage: %s", stageName, stageDir)
@@ -97,7 +118,7 @@ func (suite *StagedDeploymentTestSuite) cleanupStage(stageName, stageDir string)
 }
 
 // TestFullDeployment tests full infrastructure deployment
-// Stages: Network → (disk-enabled-setup)
+// Stages: Network → (disk-enabled-setup) → (disk-disabled-setup)
 func (suite *StagedDeploymentTestSuite) TestFullDeployment() {
 	t := suite.T()
 	subscriptionID := os.Getenv("ARM_SUBSCRIPTION_ID")
@@ -187,6 +208,9 @@ func (suite *StagedDeploymentTestSuite) TestFullDeployment() {
 
 	// Test Disk Enabled Setup
 	suite.testDiskEnabledSetup(subscriptionID, testRegion)
+
+	// Test Disk Disabled Setup
+	suite.testDiskDisabledSetup(subscriptionID, testRegion)
 }
 
 func (suite *StagedDeploymentTestSuite) testDiskEnabledSetup(subscriptionID, testRegion string) {
@@ -210,6 +234,29 @@ func (suite *StagedDeploymentTestSuite) testDiskEnabledSetup(subscriptionID, tes
 			utils.DiskEnabledShortSuffix, "true")
 	})
 	t.Logf("✅ Disk Enabled Setup completed successfully")
+}
+
+func (suite *StagedDeploymentTestSuite) testDiskDisabledSetup(subscriptionID, testRegion string) {
+	t := suite.T()
+	t.Log("Running Disk Disabled Setup Tests")
+
+	// Stage 2: AKS Setup (Disk Disabled)
+	test_structure.RunTestStage(t, "setup_aks_disk_disabled", func() {
+		suite.setupAKSStage("setup_aks_disk_disabled", utils.AKSDiskDisabledDir, subscriptionID, testRegion,
+			utils.DiskDisabledShortSuffix, "false", TestAKSDiskDisabledVMSize)
+	})
+
+	test_structure.RunTestStage(t, "setup_database_disk_disabled", func() {
+		suite.setupDatabaseStage("setup_database_disk_disabled", utils.DatabaseDiskDisabledDir, subscriptionID, testRegion,
+			utils.DiskDisabledShortSuffix, "false")
+	})
+
+	// Stage 5: Materialize Setup (Disk Disabled)
+	test_structure.RunTestStage(t, "setup_materialize_disk_disabled", func() {
+		suite.setupMaterializeStage("setup_materialize_disk_disabled", utils.MaterializeDiskDisabledDir, subscriptionID, testRegion,
+			utils.DiskDisabledShortSuffix, "false")
+	})
+	t.Logf("✅ Disk Disabled Setup completed successfully")
 }
 
 func (suite *StagedDeploymentTestSuite) setupAKSStage(stage, stageDir, subscriptionID, region, nameSuffix, diskEnabled, vmSize string) {
@@ -448,12 +495,20 @@ func (suite *StagedDeploymentTestSuite) setupMaterializeStage(stage, stageDir, s
 	shortId := strings.Split(resourceId, "-")[1]
 
 	// Load AKS data
-	aksStageDirFullPath := filepath.Join(suite.workingDir, utils.AKSDiskEnabledDir)
+	aksStageDir := utils.AKSDiskDisabledDir
+	if diskEnabled == "true" {
+		aksStageDir = utils.AKSDiskEnabledDir
+	}
+	aksStageDirFullPath := filepath.Join(suite.workingDir, aksStageDir)
 	clusterEndpoint := test_structure.LoadString(t, aksStageDirFullPath, "cluster_endpoint")
 	clusterIdentityPrincipalId := test_structure.LoadString(t, aksStageDirFullPath, "cluster_identity_principal_id")
 
 	// Load database data
-	dbStageDirFullPath := filepath.Join(suite.workingDir, utils.DatabaseDiskEnabledDir)
+	databaseStageDir := utils.DatabaseDiskDisabledDir
+	if diskEnabled == "true" {
+		databaseStageDir = utils.DatabaseDiskEnabledDir
+	}
+	dbStageDirFullPath := filepath.Join(suite.workingDir, databaseStageDir)
 	databaseHost := test_structure.LoadString(t, dbStageDirFullPath, "server_fqdn")
 	databaseAdminLogin := test_structure.LoadString(t, dbStageDirFullPath, "administrator_login")
 	databaseAdminPassword := test_structure.LoadString(t, dbStageDirFullPath, "administrator_password")

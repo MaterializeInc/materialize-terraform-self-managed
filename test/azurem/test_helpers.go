@@ -75,5 +75,23 @@ func getRequiredAzureConfigurations() []config.Configuration {
 		{
 			Key: "SKIP_cleanup_materialize_disk_enabled",
 		},
+		{
+			Key: "SKIP_setup_aks_disk_disabled",
+		},
+		{
+			Key: "SKIP_cleanup_aks_disk_disabled",
+		},
+		{
+			Key: "SKIP_setup_database_disk_disabled",
+		},
+		{
+			Key: "SKIP_cleanup_database_disk_disabled",
+		},
+		{
+			Key: "SKIP_setup_materialize_disk_disabled",
+		},
+		{
+			Key: "SKIP_cleanup_materialize_disk_disabled",
+		},
 	}
 }

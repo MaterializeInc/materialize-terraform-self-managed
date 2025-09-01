@@ -16,6 +16,9 @@ const (
 	// AKS-specific VM sizes for disk-enabled setup
 	TestAKSDiskEnabledVMSize = "Standard_E4pds_v6" // 4 vCPU, 32 GB RAM, local SSD
 
+	// AKS-specific VM sizes for disk-disabled setup
+	TestAKSDiskDisabledVMSize = "Standard_D4s_v3" // 4 vCPU, 16 GB RAM, no local SSD
+
 	// Kubernetes version
 	TestKubernetesVersion = "1.32" // Stable Kubernetes version
 
