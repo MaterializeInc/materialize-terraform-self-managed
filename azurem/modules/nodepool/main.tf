@@ -74,9 +74,6 @@ resource "kubernetes_namespace" "disk_setup" {
     labels = local.disk_setup_labels
   }
 
-  depends_on = [
-    azurerm_kubernetes_cluster_node_pool.primary_nodes
-  ]
 }
 
 resource "kubernetes_daemonset" "disk_setup" {
@@ -255,7 +252,6 @@ resource "kubernetes_service_account" "disk_setup" {
 
   depends_on = [
     kubernetes_namespace.disk_setup,
-    azurerm_kubernetes_cluster_node_pool.primary_nodes
   ]
 
   metadata {
@@ -266,11 +262,6 @@ resource "kubernetes_service_account" "disk_setup" {
 
 resource "kubernetes_cluster_role" "disk_setup" {
   count = var.enable_disk_setup ? 1 : 0
-
-  depends_on = [
-    kubernetes_namespace.disk_setup,
-    azurerm_kubernetes_cluster_node_pool.primary_nodes
-  ]
 
   metadata {
     name = local.disk_setup_name
@@ -287,7 +278,8 @@ resource "kubernetes_cluster_role_binding" "disk_setup" {
 
   depends_on = [
     kubernetes_namespace.disk_setup,
-    azurerm_kubernetes_cluster_node_pool.primary_nodes
+    kubernetes_cluster_role.disk_setup,
+    kubernetes_service_account.disk_setup,
   ]
 
   metadata {

@@ -158,7 +158,6 @@ variable "disk_support_config" {
   description = "Advanced configuration for disk support (only used when enable_disk_support = true)"
   type = object({
     install_openebs   = optional(bool, true)
-    local_ssd_count   = optional(number, 1)
     openebs_version   = optional(string, "4.2.0")
     openebs_namespace = optional(string, "openebs")
   })
