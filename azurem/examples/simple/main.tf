@@ -29,6 +29,33 @@ provider "helm" {
   }
 }
 
+
+
+locals {
+  # Disk support configuration
+  disk_config = {
+    install_openebs   = var.enable_disk_support ? lookup(var.disk_support_config, "install_openebs", true) : false
+    openebs_version   = lookup(var.disk_support_config, "openebs_version", "4.2.0")
+    openebs_namespace = lookup(var.disk_support_config, "openebs_namespace", "openebs")
+  }
+
+
+  metadata_backend_url = format(
+    "postgres://%s@%s/%s?sslmode=require",
+    "${module.database.administrator_login}:${module.database.administrator_password}",
+    module.database.server_fqdn,
+    var.database_config.database_name
+  )
+
+  persist_backend_url = format(
+    "%s%s?%s",
+    module.storage.primary_blob_endpoint,
+    module.storage.container_name,
+    module.storage.primary_blob_sas_token
+  )
+}
+
+
 resource "azurerm_resource_group" "materialize" {
   name     = var.resource_group_name
   location = var.location
@@ -72,7 +99,7 @@ module "aks" {
 }
 
 # Separate workload node pool for Materialize
-module "materialize_nodepool" {
+module "nodepool" {
   source = "../../modules/nodepool"
 
   prefix     = var.prefix
@@ -88,7 +115,8 @@ module "materialize_nodepool" {
   }
   vm_size           = var.node_pool_config.vm_size
   disk_size_gb      = var.node_pool_config.disk_size_gb
-  enable_disk_setup = var.enable_disk_setup
+  enable_disk_setup = var.enable_disk_support
+  disk_setup_image  = var.disk_setup_image
 
   tags = var.tags
 }
@@ -144,4 +172,96 @@ module "storage" {
   container_access_type    = var.storage_config.container_access_type
 
   tags = var.tags
+}
+
+module "openebs" {
+  source = "../../../kubernetes/modules/openebs"
+  depends_on = [
+    module.aks,
+    module.nodepool
+  ]
+
+  install_openebs          = local.disk_config.install_openebs
+  create_openebs_namespace = true
+  openebs_namespace        = local.disk_config.openebs_namespace
+  openebs_version          = local.disk_config.openebs_version
+}
+
+resource "random_password" "external_login_password_mz_system" {
+  length           = 16
+  special          = true
+  override_special = "!#$%&*()-_=+[]{}<>:?"
+}
+
+module "certificates" {
+  source = "../../../kubernetes/modules/certificates"
+
+  install_cert_manager           = var.install_cert_manager
+  cert_manager_install_timeout   = var.cert_manager_install_timeout
+  cert_manager_chart_version     = var.cert_manager_chart_version
+  use_self_signed_cluster_issuer = var.install_materialize_instance
+  cert_manager_namespace         = var.cert_manager_namespace
+  name_prefix                    = var.prefix
+
+  depends_on = [
+    module.aks,
+    module.nodepool,
+  ]
+}
+
+module "operator" {
+  count  = var.install_materialize_operator ? 1 : 0
+  source = "../../modules/operator"
+
+  name_prefix                    = var.prefix
+  use_self_signed_cluster_issuer = var.install_materialize_instance
+  location                       = var.location
+
+  depends_on = [
+    module.aks,
+    module.nodepool,
+    module.database,
+    module.storage,
+    module.certificates,
+  ]
+}
+
+module "materialize_instance" {
+  count = var.install_materialize_instance ? 1 : 0
+
+  source               = "../../../kubernetes/modules/materialize-instance"
+  instance_name        = "main"
+  instance_namespace   = "materialize-environment"
+  metadata_backend_url = local.metadata_backend_url
+  persist_backend_url  = local.persist_backend_url
+
+  # The password for the external login to the Materialize instance
+  external_login_password_mz_system = random_password.external_login_password_mz_system.result
+
+
+  depends_on = [
+    module.aks,
+    module.database,
+    module.storage,
+    module.networking,
+    module.certificates,
+    module.operator,
+    module.nodepool,
+    module.openebs,
+  ]
+}
+
+module "load_balancers" {
+  count = var.install_materialize_instance ? 1 : 0
+
+  source = "../../modules/load_balancers"
+
+  instance_name = "main"
+  namespace     = "materialize-environment"
+  resource_id   = module.materialize_instance[0].instance_resource_id
+  internal      = true
+
+  depends_on = [
+    module.materialize_instance,
+  ]
 }

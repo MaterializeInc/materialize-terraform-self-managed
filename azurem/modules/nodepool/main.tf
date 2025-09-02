@@ -54,7 +54,16 @@ resource "azurerm_kubernetes_cluster_node_pool" "primary_nodes" {
   # Reference: https://github.com/Azure/AKS/issues/2934
   # node_taints would go here if supported
 
+  upgrade_settings {
+    max_surge                     = "10%"
+    drain_timeout_in_minutes      = 0
+    node_soak_duration_in_minutes = 0
+  }
   tags = var.tags
+
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 resource "kubernetes_namespace" "disk_setup" {
@@ -65,16 +74,14 @@ resource "kubernetes_namespace" "disk_setup" {
     labels = local.disk_setup_labels
   }
 
-  depends_on = [
-    azurerm_kubernetes_cluster_node_pool.primary_nodes
-  ]
 }
 
 resource "kubernetes_daemonset" "disk_setup" {
   count = var.enable_disk_setup ? 1 : 0
 
   depends_on = [
-    kubernetes_namespace.disk_setup
+    kubernetes_namespace.disk_setup,
+    azurerm_kubernetes_cluster_node_pool.primary_nodes
   ]
 
   metadata {
@@ -243,6 +250,10 @@ resource "kubernetes_daemonset" "disk_setup" {
 resource "kubernetes_service_account" "disk_setup" {
   count = var.enable_disk_setup ? 1 : 0
 
+  depends_on = [
+    kubernetes_namespace.disk_setup,
+  ]
+
   metadata {
     name      = local.disk_setup_name
     namespace = kubernetes_namespace.disk_setup[0].metadata[0].name
@@ -251,10 +262,6 @@ resource "kubernetes_service_account" "disk_setup" {
 
 resource "kubernetes_cluster_role" "disk_setup" {
   count = var.enable_disk_setup ? 1 : 0
-
-  depends_on = [
-    kubernetes_namespace.disk_setup
-  ]
 
   metadata {
     name = local.disk_setup_name
@@ -268,6 +275,12 @@ resource "kubernetes_cluster_role" "disk_setup" {
 
 resource "kubernetes_cluster_role_binding" "disk_setup" {
   count = var.enable_disk_setup ? 1 : 0
+
+  depends_on = [
+    kubernetes_namespace.disk_setup,
+    kubernetes_cluster_role.disk_setup,
+    kubernetes_service_account.disk_setup,
+  ]
 
   metadata {
     name = local.disk_setup_name

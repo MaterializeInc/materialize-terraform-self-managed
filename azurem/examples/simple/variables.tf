@@ -70,12 +70,6 @@ variable "node_pool_config" {
   }
 }
 
-variable "enable_disk_setup" {
-  description = "Enable disk setup for Materialize nodes"
-  type        = bool
-  default     = true
-}
-
 variable "database_config" {
   description = "Database configuration"
   type = object({
@@ -126,4 +120,66 @@ variable "tags" {
     Environment = "development"
     Project     = "materialize"
   }
+}
+
+
+variable "install_cert_manager" {
+  description = "Whether to install cert-manager."
+  type        = bool
+  default     = true
+}
+
+variable "cert_manager_namespace" {
+  description = "The name of the namespace in which cert-manager is or will be installed."
+  type        = string
+  default     = "cert-manager"
+}
+
+variable "cert_manager_install_timeout" {
+  description = "Timeout for installing the cert-manager helm chart, in seconds."
+  type        = number
+  default     = 300
+}
+
+variable "cert_manager_chart_version" {
+  description = "Version of the cert-manager helm chart to install."
+  type        = string
+  default     = "v1.17.1"
+}
+
+# Disk support configuration
+variable "enable_disk_support" {
+  description = "Enable disk support for Materialize using OpenEBS and local SSDs. When enabled, this configures OpenEBS, runs the disk setup script, and creates appropriate storage classes."
+  type        = bool
+  default     = true
+}
+
+variable "disk_support_config" {
+  description = "Advanced configuration for disk support (only used when enable_disk_support = true)"
+  type = object({
+    install_openebs   = optional(bool, true)
+    openebs_version   = optional(string, "4.2.0")
+    openebs_namespace = optional(string, "openebs")
+  })
+  default = {}
+}
+
+variable "disk_setup_image" {
+  description = "Docker image for the disk setup script"
+  type        = string
+  default     = "materialize/ephemeral-storage-setup-image:v0.1.1"
+}
+
+
+# Materialize Helm Chart Variables
+variable "install_materialize_operator" {
+  description = "Whether to install the Materialize operator"
+  type        = bool
+  default     = true
+}
+
+variable "install_materialize_instance" {
+  description = "Whether to install the Materialize instance. Default is false as it requires the Kubernetes cluster to be created first."
+  type        = bool
+  default     = false
 }
