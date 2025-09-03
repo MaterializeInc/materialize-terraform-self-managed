@@ -43,6 +43,7 @@ resource "google_container_node_pool" "primary_nodes" {
     max_node_count = var.max_nodes
   }
 
+  #nodes won't have public IP addresses by default
   network_config {
     enable_private_nodes = var.enable_private_nodes
   }

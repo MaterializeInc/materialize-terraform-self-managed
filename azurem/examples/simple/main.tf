@@ -33,11 +33,7 @@ provider "helm" {
 
 locals {
   # Disk support configuration
-  disk_config = {
-    install_openebs   = var.enable_disk_support ? lookup(var.disk_support_config, "install_openebs", true) : false
-    openebs_version   = lookup(var.disk_support_config, "openebs_version", "4.2.0")
-    openebs_namespace = lookup(var.disk_support_config, "openebs_namespace", "openebs")
-  }
+  install_openebs = var.enable_disk_support ? var.disk_support_config.install_openebs : false
 
 
   metadata_backend_url = format(
@@ -60,7 +56,6 @@ resource "azurerm_resource_group" "materialize" {
   name     = var.resource_group_name
   location = var.location
 }
-
 
 module "networking" {
   source = "../../modules/networking"
@@ -87,9 +82,9 @@ module "aks" {
   subnet_id           = module.networking.aks_subnet_id
 
   # System-only node pool (minimal)
-  default_node_pool_vm_size     = "Standard_D2s_v3"
-  default_node_pool_node_count  = 2
-  default_node_pool_system_only = true
+  default_node_pool_vm_size     = var.aks_config.default_node_pool_vm_size
+  default_node_pool_node_count  = var.aks_config.default_node_pool_node_count
+  default_node_pool_system_only = var.aks_config.default_node_pool_system_only
 
   # Optional: Enable monitoring
   enable_azure_monitor       = var.aks_config.enable_azure_monitor
@@ -127,7 +122,7 @@ module "database" {
 
   depends_on = [module.networking]
 
-  # Database configuration using new structure
+
   databases = [
     {
       name      = var.database_config.database_name
@@ -181,10 +176,10 @@ module "openebs" {
     module.nodepool
   ]
 
-  install_openebs          = local.disk_config.install_openebs
-  create_openebs_namespace = true
-  openebs_namespace        = local.disk_config.openebs_namespace
-  openebs_version          = local.disk_config.openebs_version
+  install_openebs          = local.install_openebs
+  create_openebs_namespace = var.disk_support_config.create_openebs_namespace
+  openebs_namespace        = var.disk_support_config.openebs_namespace
+  openebs_version          = var.disk_support_config.openebs_version
 }
 
 resource "random_password" "external_login_password_mz_system" {
@@ -196,11 +191,11 @@ resource "random_password" "external_login_password_mz_system" {
 module "certificates" {
   source = "../../../kubernetes/modules/certificates"
 
-  install_cert_manager           = var.install_cert_manager
-  cert_manager_install_timeout   = var.cert_manager_install_timeout
-  cert_manager_chart_version     = var.cert_manager_chart_version
+  install_cert_manager           = var.cert_manager_config.install_cert_manager
+  cert_manager_install_timeout   = var.cert_manager_config.cert_manager_install_timeout
+  cert_manager_chart_version     = var.cert_manager_config.cert_manager_chart_version
   use_self_signed_cluster_issuer = var.install_materialize_instance
-  cert_manager_namespace         = var.cert_manager_namespace
+  cert_manager_namespace         = var.cert_manager_config.cert_manager_namespace
   name_prefix                    = var.prefix
 
   depends_on = [
@@ -210,7 +205,6 @@ module "certificates" {
 }
 
 module "operator" {
-  count  = var.install_materialize_operator ? 1 : 0
   source = "../../modules/operator"
 
   name_prefix                    = var.prefix
@@ -230,14 +224,13 @@ module "materialize_instance" {
   count = var.install_materialize_instance ? 1 : 0
 
   source               = "../../../kubernetes/modules/materialize-instance"
-  instance_name        = "main"
-  instance_namespace   = "materialize-environment"
+  instance_name        = var.materialize_instance_config.instance_name
+  instance_namespace   = var.materialize_instance_config.instance_namespace
   metadata_backend_url = local.metadata_backend_url
   persist_backend_url  = local.persist_backend_url
 
   # The password for the external login to the Materialize instance
   external_login_password_mz_system = random_password.external_login_password_mz_system.result
-
 
   depends_on = [
     module.aks,
@@ -256,10 +249,10 @@ module "load_balancers" {
 
   source = "../../modules/load_balancers"
 
-  instance_name = "main"
-  namespace     = "materialize-environment"
+  instance_name = var.materialize_instance_config.instance_name
+  namespace     = var.materialize_instance_config.instance_namespace
   resource_id   = module.materialize_instance[0].instance_resource_id
-  internal      = true
+  internal      = var.load_balancer_config.internal
 
   depends_on = [
     module.materialize_instance,

@@ -26,7 +26,7 @@ variable "subnet_name" {
 }
 
 variable "namespace" {
-  description = "The namespace where the GKE cluster will be created"
+  description = "Kubernetes namespace for Materialize Operator"
   type        = string
 }
 

@@ -28,12 +28,7 @@ locals {
   })
 
   # Disk support configuration
-  disk_config = {
-    install_openebs   = var.enable_disk_support ? lookup(var.disk_support_config, "install_openebs", true) : false
-    local_ssd_count   = lookup(var.disk_support_config, "local_ssd_count", 1)
-    openebs_version   = lookup(var.disk_support_config, "openebs_version", "4.2.0")
-    openebs_namespace = lookup(var.disk_support_config, "openebs_namespace", "openebs")
-  }
+  install_openebs = var.enable_disk_support ? var.disk_support_config.install_openebs : false
 
 
   metadata_backend_url = format(
@@ -81,7 +76,7 @@ module "gke" {
   # we only have one subnet, so we can use the first one
   # if multiple subnets are created, we need to use the specific subnet name here
   subnet_name = module.networking.subnets_names[0]
-  namespace   = var.namespace
+  namespace   = var.materialize_operator_namespace
 }
 
 # Create and configure node pool for the GKE cluster with compute resources
@@ -91,20 +86,20 @@ module "nodepool" {
 
   prefix                = var.prefix
   region                = var.region
-  enable_private_nodes  = true
+  enable_private_nodes  = var.gke_nodepool_config.enable_private_nodes
   cluster_name          = module.gke.cluster_name
   project_id            = var.project_id
-  node_count            = var.gke_config.node_count
-  min_nodes             = var.gke_config.min_nodes
-  max_nodes             = var.gke_config.max_nodes
-  machine_type          = var.gke_config.machine_type
-  disk_size_gb          = var.gke_config.disk_size_gb
+  node_count            = var.gke_nodepool_config.node_count
+  min_nodes             = var.gke_nodepool_config.min_nodes
+  max_nodes             = var.gke_nodepool_config.max_nodes
+  machine_type          = var.gke_nodepool_config.machine_type
+  disk_size_gb          = var.gke_nodepool_config.disk_size_gb
   service_account_email = module.gke.service_account_email
   labels                = local.common_labels
 
   disk_setup_image  = var.disk_setup_image
   enable_disk_setup = var.enable_disk_support
-  local_ssd_count   = local.disk_config.local_ssd_count
+  local_ssd_count   = var.disk_support_config.local_ssd_count
 }
 
 # Install OpenEBS for persistent storage management in Kubernetes
@@ -115,10 +110,10 @@ module "openebs" {
     module.nodepool
   ]
 
-  install_openebs          = local.disk_config.install_openebs
-  create_openebs_namespace = true
-  openebs_namespace        = local.disk_config.openebs_namespace
-  openebs_version          = local.disk_config.openebs_version
+  install_openebs          = var.disk_support_config.install_openebs
+  create_openebs_namespace = var.disk_support_config.create_openebs_namespace
+  openebs_namespace        = var.disk_support_config.openebs_namespace
+  openebs_version          = var.disk_support_config.openebs_version
 }
 
 resource "random_password" "external_login_password_mz_system" {
@@ -155,8 +150,8 @@ module "storage" {
   region          = var.region
   prefix          = var.prefix
   service_account = module.gke.workload_identity_sa_email
-  versioning      = var.storage_bucket_versioning
-  version_ttl     = var.storage_bucket_version_ttl
+  versioning      = var.storage_config.storage_bucket_versioning
+  version_ttl     = var.storage_config.storage_bucket_version_ttl
 
   labels = local.common_labels
 }
@@ -165,11 +160,11 @@ module "storage" {
 module "certificates" {
   source = "../../../kubernetes/modules/certificates"
 
-  install_cert_manager           = var.install_cert_manager
-  cert_manager_install_timeout   = var.cert_manager_install_timeout
-  cert_manager_chart_version     = var.cert_manager_chart_version
+  install_cert_manager           = var.cert_manager_config.install_cert_manager
+  cert_manager_install_timeout   = var.cert_manager_config.cert_manager_install_timeout
+  cert_manager_chart_version     = var.cert_manager_config.cert_manager_chart_version
   use_self_signed_cluster_issuer = var.install_materialize_instance
-  cert_manager_namespace         = var.cert_manager_namespace
+  cert_manager_namespace         = var.cert_manager_config.cert_manager_namespace
   name_prefix                    = var.prefix
 
   depends_on = [
@@ -180,10 +175,10 @@ module "certificates" {
 
 # Install Materialize Kubernetes operator for managing Materialize instances
 module "operator" {
-  count  = var.install_materialize_operator ? 1 : 0
   source = "../../modules/operator"
 
   name_prefix                    = var.prefix
+  operator_namespace             = var.materialize_operator_namespace
   use_self_signed_cluster_issuer = var.install_materialize_instance
   region                         = var.region
 
@@ -201,14 +196,13 @@ module "materialize_instance" {
   count = var.install_materialize_instance ? 1 : 0
 
   source               = "../../../kubernetes/modules/materialize-instance"
-  instance_name        = "main"
-  instance_namespace   = "materialize-environment"
+  instance_name        = var.materialize_instance_config.instance_name
+  instance_namespace   = var.materialize_instance_config.instance_namespace
   metadata_backend_url = local.metadata_backend_url
   persist_backend_url  = local.persist_backend_url
 
   # The password for the external login to the Materialize instance
   external_login_password_mz_system = random_password.external_login_password_mz_system.result
-
 
   depends_on = [
     module.gke,
@@ -228,8 +222,8 @@ module "load_balancers" {
 
   source = "../../modules/load_balancers"
 
-  instance_name = "main"
-  namespace     = "materialize-environment"
+  instance_name = var.materialize_instance_config.instance_name
+  namespace     = var.materialize_instance_config.instance_namespace
   resource_id   = module.materialize_instance[0].instance_resource_id
 
   depends_on = [

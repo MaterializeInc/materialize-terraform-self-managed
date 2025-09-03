@@ -32,23 +32,24 @@ module "networking" {
 
   name_prefix = var.name_prefix
 
-  vpc_cidr             = "10.0.0.0/16"
-  availability_zones   = ["us-east-1a", "us-east-1b", "us-east-1c"]
-  private_subnet_cidrs = ["10.0.1.0/24", "10.0.2.0/24", "10.0.3.0/24"]
-  public_subnet_cidrs  = ["10.0.101.0/24", "10.0.102.0/24", "10.0.103.0/24"]
-  single_nat_gateway   = true # Use single NAT gateway to reduce costs for this example
+  vpc_cidr             = var.networking_config.vpc_cidr
+  availability_zones   = var.networking_config.availability_zones
+  private_subnet_cidrs = var.networking_config.private_subnet_cidrs
+  public_subnet_cidrs  = var.networking_config.public_subnet_cidrs
+  single_nat_gateway   = var.networking_config.single_nat_gateway
+  tags                 = var.tags
 }
 
 # 2. Create EKS cluster
 module "eks" {
   source                                   = "../../modules/eks"
   name_prefix                              = var.name_prefix
-  cluster_version                          = "1.32"
+  cluster_version                          = var.eks_config.cluster_version
   vpc_id                                   = module.networking.vpc_id
   private_subnet_ids                       = module.networking.private_subnet_ids
-  cluster_enabled_log_types                = ["api", "audit"]
-  enable_cluster_creator_admin_permissions = true
-  tags                                     = {}
+  cluster_enabled_log_types                = var.eks_config.cluster_enabled_log_types
+  enable_cluster_creator_admin_permissions = var.eks_config.enable_cluster_creator_admin_permissions
+  tags                                     = var.tags
 }
 
 # 2.1. Create EKS node group
@@ -56,23 +57,24 @@ module "eks_node_group" {
   source                            = "../../modules/eks-node-group"
   cluster_name                      = module.eks.cluster_name
   subnet_ids                        = module.networking.private_subnet_ids
-  node_group_name                   = "${var.name_prefix}-mz"
-  enable_disk_setup                 = true
+  node_group_name                   = "${var.name_prefix}-${var.eks_node_group_config.node_group_name_suffix}"
+  enable_disk_setup                 = var.enable_disk_support
   cluster_service_cidr              = module.eks.cluster_service_cidr
   cluster_primary_security_group_id = module.eks.node_security_group_id
 
-  labels = {
-    GithubRepo               = "materialize"
-    "materialize.cloud/disk" = "true"
-    "workload"               = "materialize-instance"
-  }
+  labels = var.eks_node_group_config.labels
 }
 
 # 3. Install AWS Load Balancer Controller
 module "aws_lbc" {
   source = "../../modules/aws-lbc"
 
-  name_prefix       = var.name_prefix
+  name_prefix = var.name_prefix
+
+  namespace            = var.aws_lbc_config.namespace
+  service_account_name = var.aws_lbc_config.service_account_name
+  iam_name             = var.aws_lbc_config.iam_name
+
   eks_cluster_name  = module.eks.cluster_name
   oidc_provider_arn = module.eks.oidc_provider_arn
   oidc_issuer_url   = module.eks.cluster_oidc_issuer_url
@@ -89,9 +91,9 @@ module "aws_lbc" {
 module "openebs" {
   source = "../../../kubernetes/modules/openebs"
 
-  openebs_namespace = local.disk_config.openebs_namespace
-  openebs_version   = local.disk_config.openebs_version
-  install_openebs   = local.disk_config.install_openebs
+  install_openebs   = local.install_openebs
+  openebs_namespace = var.disk_support_config.openebs_namespace
+  openebs_version   = var.disk_support_config.openebs_version
 
   depends_on = [
     module.networking,
@@ -105,11 +107,11 @@ module "openebs" {
 module "certificates" {
   source = "../../../kubernetes/modules/certificates"
 
-  install_cert_manager           = true
-  cert_manager_install_timeout   = 300
-  cert_manager_chart_version     = "v1.18.0"
+  install_cert_manager           = var.cert_manager_config.install_cert_manager
+  cert_manager_install_timeout   = var.cert_manager_config.cert_manager_install_timeout
+  cert_manager_chart_version     = var.cert_manager_config.cert_manager_chart_version
   use_self_signed_cluster_issuer = var.install_materialize_instance
-  cert_manager_namespace         = "cert-manager"
+  cert_manager_namespace         = var.cert_manager_config.cert_manager_namespace
   name_prefix                    = var.name_prefix
 
   depends_on = [
@@ -130,7 +132,7 @@ module "operator" {
   oidc_provider_arn              = module.eks.oidc_provider_arn
   cluster_oidc_issuer_url        = module.eks.cluster_oidc_issuer_url
   s3_bucket_arn                  = module.storage.bucket_arn
-  use_self_signed_cluster_issuer = true
+  use_self_signed_cluster_issuer = var.install_materialize_instance
 
   depends_on = [
     module.eks,
@@ -153,38 +155,39 @@ resource "random_password" "external_login_password_mz_system" {
 
 # 7. Setup dedicated database instance for Materialize
 module "database" {
-  source                    = "../../modules/database"
-  name_prefix               = var.name_prefix
-  postgres_version          = "15"
-  instance_class            = "db.t3.large"
-  allocated_storage         = 50
-  max_allocated_storage     = 100
-  database_name             = "materialize"
-  database_username         = "materialize"
-  database_password         = random_password.database_password.result
-  multi_az                  = false
-  database_subnet_ids       = module.networking.private_subnet_ids
-  vpc_id                    = module.networking.vpc_id
+  source      = "../../modules/database"
+  name_prefix = var.name_prefix
+
+  postgres_version      = var.database_config.postgres_version
+  instance_class        = var.database_config.instance_class
+  allocated_storage     = var.database_config.allocated_storage
+  max_allocated_storage = var.database_config.max_allocated_storage
+  multi_az              = var.database_config.multi_az
+
+  database_name     = var.database_config.database_name
+  database_username = var.database_config.database_username
+  database_password = random_password.database_password.result
+
+  database_subnet_ids = module.networking.private_subnet_ids
+  vpc_id              = module.networking.vpc_id
+
   cluster_name              = module.eks.cluster_name
   cluster_security_group_id = module.eks.cluster_security_group_id
   node_security_group_id    = module.eks.node_security_group_id
 
-  tags = {}
+  tags = var.tags
 }
 
 # 8. Setup S3 bucket for Materialize
 module "storage" {
-  source                 = "../../modules/storage"
-  name_prefix            = var.name_prefix
-  bucket_lifecycle_rules = []
-  bucket_force_destroy   = true
+  source                   = "../../modules/storage"
+  name_prefix              = var.name_prefix
+  bucket_lifecycle_rules   = var.storage_config.bucket_lifecycle_rules
+  bucket_force_destroy     = var.storage_config.bucket_force_destroy
+  enable_bucket_versioning = var.storage_config.enable_bucket_versioning
+  enable_bucket_encryption = var.storage_config.enable_bucket_encryption
 
-  # For testing purposes, we are disabling encryption and versioning to allow for easier cleanup
-  # This should be enabled in production environments for security and data integrity
-  enable_bucket_versioning = false
-  enable_bucket_encryption = false
-
-  tags = {}
+  tags = var.tags
 }
 
 # 9. Setup Materialize instance
@@ -192,8 +195,8 @@ module "materialize_instance" {
   count = var.install_materialize_instance ? 1 : 0
 
   source               = "../../../kubernetes/modules/materialize-instance"
-  instance_name        = "main"
-  instance_namespace   = "materialize-environment"
+  instance_name        = var.materialize_instance_config.instance_name
+  instance_namespace   = var.materialize_instance_config.instance_namespace
   metadata_backend_url = local.metadata_backend_url
   persist_backend_url  = local.persist_backend_url
 
@@ -219,11 +222,11 @@ module "materialize_nlb" {
 
   source = "../../modules/nlb"
 
-  instance_name                    = "main"
+  instance_name                    = var.materialize_instance_config.instance_name
   name_prefix                      = var.name_prefix
-  namespace                        = "materialize-environment"
+  namespace                        = var.materialize_instance_config.instance_namespace
   subnet_ids                       = module.networking.private_subnet_ids
-  enable_cross_zone_load_balancing = true
+  enable_cross_zone_load_balancing = var.nlb_config.enable_cross_zone_load_balancing
   vpc_id                           = module.networking.vpc_id
   mz_resource_id                   = module.materialize_instance[0].instance_resource_id
 
@@ -235,11 +238,7 @@ module "materialize_nlb" {
 locals {
 
   # Disk support configuration
-  disk_config = {
-    install_openebs   = var.enable_disk_support ? lookup(var.disk_support_config, "install_openebs", true) : false
-    openebs_version   = lookup(var.disk_support_config, "openebs_version", "4.2.0")
-    openebs_namespace = lookup(var.disk_support_config, "openebs_namespace", "openebs")
-  }
+  install_openebs = var.enable_disk_support ? var.disk_support_config.install_openebs : false
 
   metadata_backend_url = format(
     "postgres://%s:%s@%s/%s?sslmode=require",
@@ -253,8 +252,8 @@ locals {
     "s3://%s/%s:serviceaccount:%s:%s",
     module.storage.bucket_name,
     var.name_prefix,
-    "materialize-environment",
-    "main"
+    var.materialize_instance_config.instance_namespace,
+    var.materialize_instance_config.instance_name
   )
 }
 

@@ -7,7 +7,6 @@ variable "namespace" {
 variable "name_prefix" {
   description = "Prefix to use for AWS LBC resources"
   type        = string
-  default     = ""
 }
 
 variable "service_account_name" {
