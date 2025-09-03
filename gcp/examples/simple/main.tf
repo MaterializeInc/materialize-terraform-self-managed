@@ -110,7 +110,7 @@ module "openebs" {
     module.nodepool
   ]
 
-  install_openebs          = var.disk_support_config.install_openebs
+  install_openebs          = local.install_openebs
   create_openebs_namespace = var.disk_support_config.create_openebs_namespace
   openebs_namespace        = var.disk_support_config.openebs_namespace
   openebs_version          = var.disk_support_config.openebs_version
