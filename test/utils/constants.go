@@ -7,7 +7,7 @@ const (
 	// here as well. Could take these as env vars but might do it later if needed.
 	AWS   = "aws"
 	GCP   = "gcp"
-	Azure = "azure"
+	Azure = "azurem"
 
 	DiskEnabledSuffix  = "-disk-enabled"
 	DiskDisabledSuffix = "-disk-disabled"
@@ -27,4 +27,8 @@ const (
 	MaterializeDiskEnabledDir  = MaterializeDir + DiskEnabledSuffix
 	MaterializeDiskDisabledDir = MaterializeDir + DiskDisabledSuffix
 	MainTestDir                = "test"
+
+	AKSDir             = "test-aks"
+	AKSDiskEnabledDir  = AKSDir + DiskEnabledSuffix
+	AKSDiskDisabledDir = AKSDir + DiskDisabledSuffix
 )

@@ -42,3 +42,4 @@ tests/.terraform.lock.hcl
 
 # AWS test run directories
 aws/*-examples/
+azurem/*-examples/
