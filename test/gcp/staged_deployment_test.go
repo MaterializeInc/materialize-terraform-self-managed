@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"testing"
 	"strings"
+	"testing"
 
 	"github.com/MaterializeInc/materialize-terraform-self-managed/test/utils"
 	"github.com/MaterializeInc/materialize-terraform-self-managed/test/utils/basesuite"
@@ -118,59 +118,84 @@ func (suite *StagedDeploymentSuite) TestFullDeployment() {
 	// Stage 1: Network Setup
 	test_structure.RunTestStage(t, "setup_network", func() {
 		// Generate unique ID for this infrastructure family
+		var uniqueId string
 		if os.Getenv("USE_EXISTING_NETWORK") != "" {
 			suite.useExistingNetwork()
+			uniqueId = test_structure.LoadString(t, suite.workingDir, "resource_unique_id")
+			if uniqueId == "" {
+				t.Fatal("❌ Cannot use existing network: Unique ID not found. Run network setup stage first.")
+			}
 		} else {
-			uniqueId := generateGCPCompliantID()
+			uniqueId = generateGCPCompliantID()
 			suite.workingDir = fmt.Sprintf("%s/%s", TestRunsDir, uniqueId)
 			os.MkdirAll(suite.workingDir, 0755)
+
 			t.Logf("🏷️ Infrastructure ID: %s", uniqueId)
 			t.Logf("📁 State directory: %s", suite.workingDir)
-
-			projectID := os.Getenv("GOOGLE_PROJECT")
-
-			networkOptions := &terraform.Options{
-				TerraformDir: "../../gcp/examples/test-networking-basic",
-				Vars: map[string]any{
-					"project_id": projectID,
-					"region":     TestRegion,
-					"prefix":     fmt.Sprintf("test-%s", uniqueId),
-				},
-			}
-
-			// Save terraform options for potential cleanup stage
-			test_structure.SaveTerraformOptions(t, suite.workingDir, networkOptions)
-
-			// Apply
-			terraform.InitAndApply(t, networkOptions)
-
-			// Save all networking outputs for subsequent stages
-			networkName := terraform.Output(t, networkOptions, "network_name")
-			networkId := terraform.Output(t, networkOptions, "network_id")
-			subnetNames := terraform.OutputList(t, networkOptions, "subnets_names")
-			subnetIds := terraform.OutputList(t, networkOptions, "subnets_ids")
-			routerName := terraform.Output(t, networkOptions, "router_name")
-			natName := terraform.Output(t, networkOptions, "nat_name")
-			privateVpcConnection := terraform.Output(t, networkOptions, "private_vpc_connection")
-
-			// Save all outputs and resource IDs
-			test_structure.SaveString(t, suite.workingDir, "network_name", networkName)
-			test_structure.SaveString(t, suite.workingDir, "network_id", networkId)
-			test_structure.SaveString(t, suite.workingDir, "subnets_names", strings.Join(subnetNames, ","))
-			test_structure.SaveString(t, suite.workingDir, "subnets_ids", strings.Join(subnetIds, ","))
-			test_structure.SaveString(t, suite.workingDir, "router_name", routerName)
-			test_structure.SaveString(t, suite.workingDir, "nat_name", natName)
-			test_structure.SaveString(t, suite.workingDir, "private_vpc_connection", privateVpcConnection)
-			test_structure.SaveString(t, suite.workingDir, "project_id", projectID)
 			test_structure.SaveString(t, suite.workingDir, "resource_unique_id", uniqueId)
-
-			t.Logf("✅ Network infrastructure created:")
-			t.Logf("  🌐 Network: %s", networkName)
-			t.Logf("  🏠 Subnets: %s", strings.Join(subnetNames, ","))
-			t.Logf("  🔀 Router: %s", routerName)
-			t.Logf("  🌍 NAT: %s", natName)
-			t.Logf("  🏷️ Resource ID: %s", uniqueId)
 		}
+		projectID := os.Getenv("GOOGLE_PROJECT")
+
+		networkOptions := &terraform.Options{
+			TerraformDir: "../../gcp/examples/test-networking-basic",
+			Vars: map[string]any{
+				"project_id": projectID,
+				"region":     TestRegion,
+				"prefix":     fmt.Sprintf("test-%s", uniqueId),
+				"subnets": []map[string]any{
+					{
+						"name":           fmt.Sprintf("test-%s-subnet", uniqueId),
+						"cidr":           TestSubnetCIDR,
+						"region":         TestRegion,
+						"private_access": true,
+						"secondary_ranges": []map[string]any{
+							{
+								"range_name":    "pods",
+								"ip_cidr_range": TestPodsCIDR,
+							},
+							{
+								"range_name":    "services",
+								"ip_cidr_range": TestServicesCIDR,
+							},
+						},
+					},
+				},
+			},
+		}
+
+		// Save terraform options for potential cleanup stage
+		test_structure.SaveTerraformOptions(t, suite.workingDir, networkOptions)
+
+		// Apply
+		terraform.InitAndApply(t, networkOptions)
+
+		// Save all networking outputs for subsequent stages
+		networkName := terraform.Output(t, networkOptions, "network_name")
+		networkId := terraform.Output(t, networkOptions, "network_id")
+		subnetNames := terraform.OutputList(t, networkOptions, "subnets_names")
+		subnetIds := terraform.OutputList(t, networkOptions, "subnets_ids")
+		routerName := terraform.Output(t, networkOptions, "router_name")
+		natName := terraform.Output(t, networkOptions, "nat_name")
+		privateVpcConnection := terraform.Output(t, networkOptions, "private_vpc_connection")
+
+		// Save all outputs and resource IDs
+		test_structure.SaveString(t, suite.workingDir, "network_name", networkName)
+		test_structure.SaveString(t, suite.workingDir, "network_id", networkId)
+		test_structure.SaveString(t, suite.workingDir, "subnets_names", strings.Join(subnetNames, ","))
+		test_structure.SaveString(t, suite.workingDir, "subnets_ids", strings.Join(subnetIds, ","))
+		test_structure.SaveString(t, suite.workingDir, "router_name", routerName)
+		test_structure.SaveString(t, suite.workingDir, "nat_name", natName)
+		test_structure.SaveString(t, suite.workingDir, "private_vpc_connection", privateVpcConnection)
+		test_structure.SaveString(t, suite.workingDir, "project_id", projectID)
+		test_structure.SaveString(t, suite.workingDir, "resource_unique_id", uniqueId)
+
+		t.Logf("✅ Network infrastructure created:")
+		t.Logf("  🌐 Network: %s", networkName)
+		t.Logf("  🏠 Subnets: %s", strings.Join(subnetNames, ","))
+		t.Logf("  🔀 Router: %s", routerName)
+		t.Logf("  🌍 NAT: %s", natName)
+		t.Logf("  🏷️ Resource ID: %s", uniqueId)
+
 	})
 	if os.Getenv("SKIP_setup_network") != "" {
 		suite.useExistingNetwork()
@@ -357,11 +382,9 @@ func (suite *StagedDeploymentSuite) TestFullDeployment() {
 				"cluster_ca_certificate":     clusterCA,
 				"workload_identity_sa_email": workloadIdentitySA,
 				"database_host":              databaseHost,
-				"user": []map[string]any{
-					{
-						"name":     TestDBUsername1,
-						"password": TestPassword,
-					},
+				"user": map[string]any{
+					"name":     TestDBUsername1,
+					"password": TestPassword,
 				},
 				"database_name":                TestDBNameDisk,
 				"external_login_password":      TestPassword,
@@ -418,11 +441,9 @@ func (suite *StagedDeploymentSuite) TestFullDeployment() {
 				"workload_identity_sa_email": workloadIdentitySA,
 				"database_host":              databaseHost,
 				"database_name":              TestDBNameNoDisk,
-				"user": []map[string]any{
-					{
-						"name":     TestDBUsername2,
-						"password": TestPassword,
-					},
+				"user": map[string]any{
+					"name":     TestDBUsername2,
+					"password": TestPassword,
 				},
 				"external_login_password":      TestPassword,
 				"install_materialize_instance": false, // Phase 1: operator only
@@ -471,7 +492,6 @@ func (suite *StagedDeploymentSuite) useExistingNetwork() {
 
 	t.Logf("♻️ Skipping network creation, using existing: %s (ID: %s)", networkName, latestDir)
 }
-
 
 // TestStagedDeploymentSuite runs the test suite
 func TestStagedDeploymentSuite(t *testing.T) {

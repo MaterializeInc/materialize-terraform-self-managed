@@ -136,7 +136,7 @@ func (suite *StagedDeploymentTestSuite) TestFullDeployment() {
 			}
 		} else {
 			// Generate unique ID for this infrastructure family
-			uniqueId := generateAWSCompliantID()
+			uniqueId = generateAWSCompliantID()
 			suite.workingDir = fmt.Sprintf("%s/%s", TestRunsDir, uniqueId)
 			os.MkdirAll(suite.workingDir, 0755)
 			t.Logf("🏷️ Infrastructure ID: %s", uniqueId)
@@ -586,11 +586,10 @@ func (suite *StagedDeploymentTestSuite) setupMaterializeStage(stage, stageDir, p
 			"enable_bucket_encryption": false,
 
 			// Cert Manager details
-			"install_cert_manager":           true,
-			"cert_manager_install_timeout":   600,
-			"cert_manager_chart_version":     TestCertManagerVersion,
-			"cert_manager_namespace":         expectedCertManagerNamespace,
-			"use_self_signed_cluster_issuer": true,
+			"install_cert_manager":         true,
+			"cert_manager_install_timeout": 600,
+			"cert_manager_chart_version":   TestCertManagerVersion,
+			"cert_manager_namespace":       expectedCertManagerNamespace,
 
 			// Database details
 			"database_username": databaseUsername,
@@ -672,7 +671,7 @@ func (suite *StagedDeploymentTestSuite) setupMaterializeStage(stage, stageDir, p
 	suite.NotEmpty(nlbArn, "NLB ARN should not be empty")
 	suite.NotEmpty(nlbDNSName, "NLB DNS name should not	 be empty")
 	suite.NotEmpty(clusterIssuerName, "Cluster issuer name should not be empty")
-	suite.Equal(enableDiskSupport, openebsInstalled, "OpenEBS should be installed if disk support is enabled")
+	suite.Equal(diskEnabled, openebsInstalled, "OpenEBS should be installed if disk support is enabled")
 	suite.Equalf(expectedOperatorNamespace, operatorNamespace, "Operator namespace equal %s", expectedOperatorNamespace)
 
 	t.Logf("✅ Phase 2: Materialize instance created successfully:")
