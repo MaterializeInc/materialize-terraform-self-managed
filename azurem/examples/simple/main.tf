@@ -32,11 +32,59 @@ provider "helm" {
 
 
 locals {
+  resource_group_name = "materialize"
+
+  vnet_config = {
+    address_space        = "20.0.0.0/16"
+    aks_subnet_cidr      = "20.0.0.0/20"
+    postgres_subnet_cidr = "20.0.16.0/24"
+  }
+
+  aks_config = {
+    kubernetes_version         = "1.32"
+    service_cidr               = "20.1.0.0/16"
+    enable_azure_monitor       = false
+    log_analytics_workspace_id = null
+  }
+
+  node_pool_config = {
+    vm_size              = "Standard_E4pds_v6"
+    auto_scaling_enabled = true
+    min_nodes            = 1
+    max_nodes            = 5
+    node_count           = null
+    disk_size_gb         = 100
+  }
+
+  database_config = {
+    sku_name                      = "GP_Standard_D2s_v3"
+    postgres_version              = "15"
+    storage_mb                    = 32768
+    backup_retention_days         = 7
+    administrator_login           = "materialize"
+    administrator_password        = null # Will generate random password
+    database_name                 = "materialize"
+    public_network_access_enabled = false
+  }
+
+  storage_config = {
+    # https://learn.microsoft.com/en-us/azure/storage/blobs/storage-blob-block-blob-premium#premium-scenarios
+    account_tier             = "Premium"
+    account_replication_type = "LRS"
+    account_kind             = "BlockBlobStorage"
+    container_name           = "materialize"
+    container_access_type    = "private"
+  }
+
+  tags = {
+    Environment = "development"
+    Project     = "materialize"
+  }
+
   # Disk support configuration
   disk_config = {
-    install_openebs   = var.enable_disk_support ? lookup(var.disk_support_config, "install_openebs", true) : false
-    openebs_version   = lookup(var.disk_support_config, "openebs_version", "4.2.0")
-    openebs_namespace = lookup(var.disk_support_config, "openebs_namespace", "openebs")
+    enable_disk_support = true
+    openebs_namespace   = "openebs"
   }
 
 
@@ -44,7 +92,7 @@ locals {
     "postgres://%s@%s/%s?sslmode=require",
     "${module.database.administrator_login}:${module.database.administrator_password}",
     module.database.server_fqdn,
-    var.database_config.database_name
+    local.database_config.database_name
   )
 
   persist_backend_url = format(
@@ -57,7 +105,7 @@ locals {
 
 
 resource "azurerm_resource_group" "materialize" {
-  name     = var.resource_group_name
+  name     = local.resource_group_name
   location = var.location
 }
 
@@ -67,21 +115,21 @@ module "networking" {
 
   resource_group_name  = azurerm_resource_group.materialize.name
   location             = var.location
-  prefix               = var.prefix
-  vnet_address_space   = var.vnet_config.address_space
-  aks_subnet_cidr      = var.vnet_config.aks_subnet_cidr
-  postgres_subnet_cidr = var.vnet_config.postgres_subnet_cidr
+  prefix               = var.name_prefix
+  vnet_address_space   = local.vnet_config.address_space
+  aks_subnet_cidr      = local.vnet_config.aks_subnet_cidr
+  postgres_subnet_cidr = local.vnet_config.postgres_subnet_cidr
 }
 
 # Pattern A: Minimal system-only default node pool + separate workload node pools
 module "aks" {
   source = "../../modules/aks"
 
-  resource_group_name = var.resource_group_name
-  kubernetes_version  = var.aks_config.kubernetes_version
-  service_cidr        = var.aks_config.service_cidr
+  resource_group_name = azurerm_resource_group.materialize.name
+  kubernetes_version  = local.aks_config.kubernetes_version
+  service_cidr        = local.aks_config.service_cidr
   location            = var.location
-  prefix              = var.prefix
+  prefix              = var.name_prefix
   vnet_name           = module.networking.vnet_name
   subnet_name         = module.networking.aks_subnet_name
   subnet_id           = module.networking.aks_subnet_id
@@ -92,33 +140,32 @@ module "aks" {
   default_node_pool_system_only = true
 
   # Optional: Enable monitoring
-  enable_azure_monitor       = var.aks_config.enable_azure_monitor
-  log_analytics_workspace_id = var.aks_config.log_analytics_workspace_id
+  enable_azure_monitor       = local.aks_config.enable_azure_monitor
+  log_analytics_workspace_id = local.aks_config.log_analytics_workspace_id
 
-  tags = var.tags
+  tags = local.tags
 }
 
 # Separate workload node pool for Materialize
 module "nodepool" {
   source = "../../modules/nodepool"
 
-  prefix     = var.prefix
+  prefix     = var.name_prefix
   cluster_id = module.aks.cluster_id
   subnet_id  = module.networking.aks_subnet_id
 
   # Workload-specific configuration
   autoscaling_config = {
-    enabled    = var.node_pool_config.auto_scaling_enabled
-    min_nodes  = var.node_pool_config.min_nodes
-    max_nodes  = var.node_pool_config.max_nodes
-    node_count = var.node_pool_config.node_count
+    enabled    = local.node_pool_config.auto_scaling_enabled
+    min_nodes  = local.node_pool_config.min_nodes
+    max_nodes  = local.node_pool_config.max_nodes
+    node_count = local.node_pool_config.node_count
   }
-  vm_size           = var.node_pool_config.vm_size
-  disk_size_gb      = var.node_pool_config.disk_size_gb
-  enable_disk_setup = var.enable_disk_support
-  disk_setup_image  = var.disk_setup_image
+  vm_size           = local.node_pool_config.vm_size
+  disk_size_gb      = local.node_pool_config.disk_size_gb
+  enable_disk_setup = local.disk_config.enable_disk_support
 
-  tags = var.tags
+  tags = local.tags
 }
 
 
@@ -130,31 +177,31 @@ module "database" {
   # Database configuration using new structure
   databases = [
     {
-      name      = var.database_config.database_name
+      name      = local.database_config.database_name
       charset   = "UTF8"
       collation = "en_US.utf8"
     }
   ]
 
   # Administrator configuration
-  administrator_login = var.database_config.administrator_login
+  administrator_login = local.database_config.administrator_login
   # No administrator password is provided, so a random one will be generated
 
   # Infrastructure configuration
   resource_group_name = azurerm_resource_group.materialize.name
   location            = var.location
-  prefix              = var.prefix
+  prefix              = var.name_prefix
   subnet_id           = module.networking.postgres_subnet_id
   private_dns_zone_id = module.networking.private_dns_zone_id
 
   # Database server configuration
-  sku_name                      = var.database_config.sku_name
-  postgres_version              = var.database_config.postgres_version
-  storage_mb                    = var.database_config.storage_mb
-  backup_retention_days         = var.database_config.backup_retention_days
-  public_network_access_enabled = var.database_config.public_network_access_enabled
+  sku_name                      = local.database_config.sku_name
+  postgres_version              = local.database_config.postgres_version
+  storage_mb                    = local.database_config.storage_mb
+  backup_retention_days         = local.database_config.backup_retention_days
+  public_network_access_enabled = local.database_config.public_network_access_enabled
 
-  tags = var.tags
+  tags = local.tags
 }
 
 module "storage" {
@@ -162,16 +209,16 @@ module "storage" {
 
   resource_group_name      = azurerm_resource_group.materialize.name
   location                 = var.location
-  prefix                   = var.prefix
+  prefix                   = var.name_prefix
   identity_principal_id    = module.aks.cluster_identity_principal_id
   subnets                  = [module.networking.aks_subnet_id]
-  account_tier             = var.storage_config.account_tier
-  account_replication_type = var.storage_config.account_replication_type
-  account_kind             = var.storage_config.account_kind
-  container_name           = var.storage_config.container_name
-  container_access_type    = var.storage_config.container_access_type
+  account_tier             = local.storage_config.account_tier
+  account_replication_type = local.storage_config.account_replication_type
+  account_kind             = local.storage_config.account_kind
+  container_name           = local.storage_config.container_name
+  container_access_type    = local.storage_config.container_access_type
 
-  tags = var.tags
+  tags = local.tags
 }
 
 module "openebs" {
@@ -181,10 +228,9 @@ module "openebs" {
     module.nodepool
   ]
 
-  install_openebs          = local.disk_config.install_openebs
+  install_openebs          = local.disk_config.enable_disk_support
   create_openebs_namespace = true
   openebs_namespace        = local.disk_config.openebs_namespace
-  openebs_version          = local.disk_config.openebs_version
 }
 
 resource "random_password" "external_login_password_mz_system" {
@@ -196,12 +242,10 @@ resource "random_password" "external_login_password_mz_system" {
 module "certificates" {
   source = "../../../kubernetes/modules/certificates"
 
-  install_cert_manager           = var.install_cert_manager
-  cert_manager_install_timeout   = var.cert_manager_install_timeout
-  cert_manager_chart_version     = var.cert_manager_chart_version
+  install_cert_manager           = true
   use_self_signed_cluster_issuer = var.install_materialize_instance
-  cert_manager_namespace         = var.cert_manager_namespace
-  name_prefix                    = var.prefix
+  cert_manager_namespace         = "cert-manager"
+  name_prefix                    = var.name_prefix
 
   depends_on = [
     module.aks,
@@ -210,10 +254,9 @@ module "certificates" {
 }
 
 module "operator" {
-  count  = var.install_materialize_operator ? 1 : 0
   source = "../../modules/operator"
 
-  name_prefix                    = var.prefix
+  name_prefix                    = var.name_prefix
   use_self_signed_cluster_issuer = var.install_materialize_instance
   location                       = var.location
 

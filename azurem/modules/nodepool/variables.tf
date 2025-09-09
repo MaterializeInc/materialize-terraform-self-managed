@@ -1,26 +1,33 @@
 variable "prefix" {
   description = "Prefix to be used for resource names"
   type        = string
+  nullable    = false
 }
 
 variable "cluster_id" {
   description = "The ID of the AKS cluster"
   type        = string
+  nullable    = false
 }
 
 variable "subnet_id" {
   description = "The ID of the subnet"
   type        = string
+  nullable    = false
 }
 
 variable "vm_size" {
   description = "VM size for AKS nodes"
   type        = string
+  # Ask team for suitable default here.
+  nullable = false
 }
 
 variable "disk_size_gb" {
   description = "Size of the disk attached to each node"
   type        = number
+  # Ask team for suitable default here.
+  nullable = false
 }
 
 variable "autoscaling_config" {
@@ -37,7 +44,7 @@ variable "autoscaling_config" {
     max_nodes  = 10
     node_count = null
   }
-
+  nullable = false
   validation {
     condition = (
       !var.autoscaling_config.enabled || (
@@ -78,18 +85,21 @@ variable "enable_disk_setup" {
   description = "Whether to enable the local NVMe SSD disks setup script"
   type        = bool
   default     = false
+  nullable    = false
 }
 
 variable "disk_setup_image" {
   description = "Docker image for the disk setup script"
   type        = string
   default     = "materialize/ephemeral-storage-setup-image:v0.1.2"
+  nullable    = false
 }
 
 variable "pause_container_image" {
   description = "Image for the pause container"
   type        = string
   default     = "mcr.microsoft.com/oss/kubernetes/pause:3.6"
+  nullable    = false
 }
 
 variable "disk_setup_container_resource_config" {
@@ -104,6 +114,7 @@ variable "disk_setup_container_resource_config" {
     memory_request = "128Mi"
     cpu_request    = "50m"
   }
+  nullable = false
 }
 
 variable "pause_container_resource_config" {
@@ -118,4 +129,5 @@ variable "pause_container_resource_config" {
     memory_request = "8Mi"
     cpu_request    = "1m"
   }
+  nullable = false
 }

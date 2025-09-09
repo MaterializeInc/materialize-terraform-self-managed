@@ -7,6 +7,7 @@ variable "create_vpc" {
   description = "Controls if VPC should be created (it affects almost all resources)"
   type        = bool
   default     = true
+  nullable    = false
 }
 
 variable "vpc_cidr" {
@@ -32,7 +33,8 @@ variable "public_subnet_cidrs" {
 variable "single_nat_gateway" {
   description = "Use a single NAT Gateway for all private subnets"
   type        = bool
-  default     = false
+  default     = true
+  nullable    = false
 }
 
 variable "tags" {

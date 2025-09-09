@@ -1,5 +1,6 @@
 provider "aws" {
-  region = var.aws_region
+  region  = var.aws_region
+  profile = var.aws_profile
 }
 
 provider "kubernetes" {
@@ -9,7 +10,7 @@ provider "kubernetes" {
   exec {
     api_version = "client.authentication.k8s.io/v1beta1"
     command     = "aws"
-    args        = ["eks", "get-token", "--cluster-name", module.eks.cluster_name]
+    args        = ["eks", "get-token", "--cluster-name", module.eks.cluster_name, "--region", var.aws_region, "--profile", var.aws_profile]
   }
 }
 
@@ -21,7 +22,7 @@ provider "helm" {
     exec {
       api_version = "client.authentication.k8s.io/v1beta1"
       command     = "aws"
-      args        = ["eks", "get-token", "--cluster-name", module.eks.cluster_name]
+      args        = ["eks", "get-token", "--cluster-name", module.eks.cluster_name, "--region", var.aws_region, "--profile", var.aws_profile]
     }
   }
 }
@@ -36,7 +37,6 @@ module "networking" {
   availability_zones   = ["us-east-1a", "us-east-1b", "us-east-1c"]
   private_subnet_cidrs = ["10.0.1.0/24", "10.0.2.0/24", "10.0.3.0/24"]
   public_subnet_cidrs  = ["10.0.101.0/24", "10.0.102.0/24", "10.0.103.0/24"]
-  single_nat_gateway   = true # Use single NAT gateway to reduce costs for this example
 }
 
 # 2. Create EKS cluster
@@ -60,12 +60,6 @@ module "eks_node_group" {
   enable_disk_setup                 = true
   cluster_service_cidr              = module.eks.cluster_service_cidr
   cluster_primary_security_group_id = module.eks.node_security_group_id
-
-  labels = {
-    GithubRepo               = "materialize"
-    "materialize.cloud/disk" = "true"
-    "workload"               = "materialize-instance"
-  }
 }
 
 # 3. Install AWS Load Balancer Controller
@@ -89,9 +83,8 @@ module "aws_lbc" {
 module "openebs" {
   source = "../../../kubernetes/modules/openebs"
 
-  openebs_namespace = local.disk_config.openebs_namespace
-  openebs_version   = local.disk_config.openebs_version
-  install_openebs   = local.disk_config.install_openebs
+  openebs_namespace = "openebs"
+  install_openebs   = true
 
   depends_on = [
     module.networking,
@@ -106,8 +99,6 @@ module "certificates" {
   source = "../../../kubernetes/modules/certificates"
 
   install_cert_manager           = true
-  cert_manager_install_timeout   = 300
-  cert_manager_chart_version     = "v1.18.0"
   use_self_signed_cluster_issuer = var.install_materialize_instance
   cert_manager_namespace         = "cert-manager"
   name_prefix                    = var.name_prefix
@@ -215,7 +206,7 @@ module "materialize_instance" {
 
 # 10. Setup dedicated NLB for Materialize instance
 module "materialize_nlb" {
-  count = var.install_materialize_instance && var.create_nlb ? 1 : 0
+  count = var.install_materialize_instance ? 1 : 0
 
   source = "../../modules/nlb"
 
@@ -233,13 +224,6 @@ module "materialize_nlb" {
 }
 
 locals {
-
-  # Disk support configuration
-  disk_config = {
-    install_openebs   = var.enable_disk_support ? lookup(var.disk_support_config, "install_openebs", true) : false
-    openebs_version   = lookup(var.disk_support_config, "openebs_version", "4.2.0")
-    openebs_namespace = lookup(var.disk_support_config, "openebs_namespace", "openebs")
-  }
 
   metadata_backend_url = format(
     "postgres://%s:%s@%s/%s?sslmode=require",

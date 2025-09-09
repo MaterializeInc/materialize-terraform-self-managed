@@ -83,22 +83,22 @@ export SKIP_cleanup_aks_disk_enabled=true
 #### Full Test (Create network + database + AKS + Materialize, cleanup all)
 ```bash
 cd test/azure
-go test -timeout 45m -run TestStagedDeploymentTestSuite -v
+go test -timeout 45m -run TestStagedDeploymentSuite -v
 ```
 
 #### Network Only (Skip other stages and network cleanup)
 ```bash
-SKIP_setup_aks_disk_enabled=true SKIP_setup_database_disk_enabled=true SKIP_setup_materialize_disk_enabled=true SKIP_cleanup_network=true go test -timeout 15m -run TestStagedDeploymentTestSuite -v
+SKIP_setup_aks_disk_enabled=true SKIP_setup_database_disk_enabled=true SKIP_setup_materialize_disk_enabled=true SKIP_cleanup_network=true go test -timeout 15m -run TestStagedDeploymentSuite -v
 ```
 
 #### Database on Existing Network (Skip network creation, keep network after)
 ```bash
-SKIP_setup_network=true SKIP_cleanup_network=true go test -timeout 20m -run TestStagedDeploymentTestSuite -v
+SKIP_setup_network=true SKIP_cleanup_network=true go test -timeout 20m -run TestStagedDeploymentSuite -v
 ```
 
 #### Cleanup Existing Infrastructure
 ```bash
-SKIP_setup_network=true SKIP_setup_aks_disk_enabled=true SKIP_setup_database_disk_enabled=true SKIP_setup_materialize_disk_enabled=true go test -timeout 15m -run TestStagedDeploymentTestSuite -v
+SKIP_setup_network=true SKIP_setup_aks_disk_enabled=true SKIP_setup_database_disk_enabled=true SKIP_setup_materialize_disk_enabled=true go test -timeout 15m -run TestStagedDeploymentSuite -v
 ```
 
 #### All Tests
@@ -171,7 +171,7 @@ The tests use dedicated example configurations in `azurem/examples/`:
 ls -la test/azure/testRuns/
 
 # Run cleanup stages only
-SKIP_setup_network=true SKIP_setup_database=true SKIP_setup_aks=true go test -timeout 15m -run TestStagedDeploymentTestSuite -v
+SKIP_setup_network=true SKIP_setup_database=true SKIP_setup_aks=true go test -timeout 15m -run TestStagedDeploymentSuite -v
 
 # Manual cleanup if needed
 cd azurem/examples/test-networking-basic

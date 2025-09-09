@@ -1,21 +1,25 @@
 variable "project_id" {
   description = "The ID of the project where resources will be created"
   type        = string
+  nullable    = false
 }
 
 variable "region" {
   description = "The region where resources will be created"
   type        = string
+  nullable    = false
 }
 
 variable "prefix" {
   description = "Prefix to be used for resource names"
   type        = string
+  nullable    = false
 }
 
 variable "service_account" {
   description = "The email of the service account to grant access to the bucket"
   type        = string
+  nullable    = false
 }
 
 variable "labels" {
@@ -29,6 +33,7 @@ variable "versioning" {
   description = "Enable bucket versioning. This should be enabled for production deployments."
   type        = bool
   default     = true
+  nullable    = false
 }
 
 variable "lifecycle_rules" {
@@ -45,6 +50,7 @@ variable "lifecycle_rules" {
       num_newer_versions = optional(number)
     })
   }))
+  nullable = false
   default = [
     {
       action = {
@@ -62,5 +68,5 @@ variable "version_ttl" {
   description = "Sets the TTL (in days) on non current storage bucket objects. This must be set if versioning is turned on."
   type        = number
   default     = 7
-
+  nullable    = false
 }

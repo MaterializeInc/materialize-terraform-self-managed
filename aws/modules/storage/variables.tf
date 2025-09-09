@@ -1,24 +1,28 @@
 variable "name_prefix" {
   description = "Prefix for all resource names"
   type        = string
+  nullable    = false
 }
 
 variable "bucket_force_destroy" {
   description = "Enable force destroy for the S3 bucket"
   type        = bool
   default     = true
+  nullable    = false
 }
 
 variable "enable_bucket_versioning" {
   description = "Enable versioning for the S3 bucket"
   type        = bool
   default     = true
+  nullable    = false
 }
 
 variable "enable_bucket_encryption" {
   description = "Enable server-side encryption for the S3 bucket"
   type        = bool
   default     = true
+  nullable    = false
 }
 
 variable "bucket_lifecycle_rules" {
