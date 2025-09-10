@@ -572,11 +572,8 @@ func (suite *StagedDeploymentSuite) setupMaterializeStage(stage, stageDir, subsc
 
 			// Storage details
 			"storage_config": map[string]interface{}{
-				"account_tier":             TestStorageAccountTier,
-				"account_replication_type": TestStorageReplicationType,
-				"account_kind":             TestStorageAccountKind,
-				"container_name":           TestStorageContainerName,
-				"container_access_type":    TestStorageContainerAccessType,
+				"container_name":        TestStorageContainerName,
+				"container_access_type": TestStorageContainerAccessType,
 			},
 
 			"tags": map[string]string{

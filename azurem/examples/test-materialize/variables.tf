@@ -65,11 +65,8 @@ variable "database_admin_user" {
 variable "storage_config" {
   description = "Storage configuration"
   type = object({
-    account_tier             = string
-    account_replication_type = string
-    account_kind             = string
-    container_name           = string
-    container_access_type    = string
+    container_name        = string
+    container_access_type = string
   })
 }
 

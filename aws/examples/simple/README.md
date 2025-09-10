@@ -25,6 +25,7 @@ Before running Terraform, create a `terraform.tfvars` file or pass the following
 name_prefix = "simple-demo"
 install_materialize_instance = false
 aws_region = "us-east-1"
+aws_profile = "test-profile"
 ````
 
 ---

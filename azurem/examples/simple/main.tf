@@ -67,14 +67,7 @@ locals {
     public_network_access_enabled = false
   }
 
-  storage_config = {
-    # https://learn.microsoft.com/en-us/azure/storage/blobs/storage-blob-block-blob-premium#premium-scenarios
-    account_tier             = "Premium"
-    account_replication_type = "LRS"
-    account_kind             = "BlockBlobStorage"
-    container_name           = "materialize"
-    container_access_type    = "private"
-  }
+  storage_container_name = "materialize"
 
   tags = {
     Environment = "development"
@@ -207,16 +200,12 @@ module "database" {
 module "storage" {
   source = "../../modules/storage"
 
-  resource_group_name      = azurerm_resource_group.materialize.name
-  location                 = var.location
-  prefix                   = var.name_prefix
-  identity_principal_id    = module.aks.cluster_identity_principal_id
-  subnets                  = [module.networking.aks_subnet_id]
-  account_tier             = local.storage_config.account_tier
-  account_replication_type = local.storage_config.account_replication_type
-  account_kind             = local.storage_config.account_kind
-  container_name           = local.storage_config.container_name
-  container_access_type    = local.storage_config.container_access_type
+  resource_group_name   = azurerm_resource_group.materialize.name
+  location              = var.location
+  prefix                = var.name_prefix
+  identity_principal_id = module.aks.cluster_identity_principal_id
+  subnets               = [module.networking.aks_subnet_id]
+  container_name        = local.storage_container_name
 
   tags = local.tags
 }
