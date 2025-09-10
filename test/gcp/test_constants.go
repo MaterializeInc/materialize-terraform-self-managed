@@ -17,12 +17,16 @@ const (
 	TestGKEMachineType            = "n2-standard-2" // Standard GKE node type
 	TestAlternativeGKEMachineType = "n2-standard-4" // Alternative GKE node type
 
+	// GKE machine types for different disk scenarios
+	TestGKEDiskEnabledMachineType  = "n2-highmem-8"  // High-memory for disk-enabled (local SSD) scenarios
+	TestGKEDiskDisabledMachineType = "n2-standard-4" // Standard for disk-disabled scenarios
+
 	// Kubernetes version
 	TestKubernetesVersion = "1.32" // Stable Kubernetes version
 
-	// Database tiers that are reliably available
-	TestDBTierSmall  = "db-custom-1-4096" // 1 vCPU, 4 GB RAM
-	TestDBTierMedium = "db-custom-2-8192" // 2 vCPU, 8 GB RAM
+	// Database tier
+	TestDatabaseVersion = "POSTGRES_15"
+	TestDatabaseTier    = "db-custom-2-4096" // 2 vCPU, 4 GB RAM
 
 	// PostgreSQL version that's widely available
 	TestPostgreSQLVersion = "POSTGRES_15"
@@ -31,6 +35,20 @@ const (
 	TestDiskSizeSmall  = 50
 	TestDiskSizeMedium = 100
 	TestDiskSizeLarge  = 150
+
+	// GKE disk-enabled configuration
+	TestGKEDiskEnabledDiskSize      = 100
+	TestGKEDiskEnabledLocalSSDCount = 1
+
+	// GKE disk-disabled configuration
+	TestGKEDiskDisabledDiskSize      = 50
+	TestGKEDiskDisabledLocalSSDCount = 0
+
+	// GKE common configuration
+	TestGKENodeCount = 1
+	TestGKEMinNodes  = 1
+	TestGKEMaxNodes  = 3
+	TestGKENamespace = "materialize"
 
 	// Network CIDR blocks that don't conflict
 	TestSubnetCIDR   = "10.100.0.0/20" // Different from default to avoid conflicts
@@ -61,4 +79,18 @@ const (
 	TestDBNameNoDisk = "materialize-test-nodisk"
 	TestDBUsername1  = "materialize-test-user1"
 	TestDBUsername2  = "materialize-test-user2"
+
+	// Materialize configuration constants
+	TestMaterializeInstanceName = "main"
+
+	// Chart versions
+	TestCertManagerVersion = "v1.18.0"
+	TestOpenEBSVersion     = "4.2.0"
+
+	// Timeouts
+	TestCertManagerInstallTimeout = 600
+
+	// Storage configuration
+	TestStorageBucketVersioning = false
+	TestStorageBucketVersionTTL = 7
 )

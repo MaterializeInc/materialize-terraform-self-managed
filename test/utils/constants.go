@@ -31,4 +31,8 @@ const (
 	AKSDir             = "test-aks"
 	AKSDiskEnabledDir  = AKSDir + DiskEnabledSuffix
 	AKSDiskDisabledDir = AKSDir + DiskDisabledSuffix
+
+	GKEDir             = "test-gke"
+	GKEDiskEnabledDir  = GKEDir + DiskEnabledSuffix
+	GKEDiskDisabledDir = GKEDir + DiskDisabledSuffix
 )

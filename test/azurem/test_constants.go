@@ -85,7 +85,7 @@ const (
 
 	// Materialize configuration
 	TestOpenEbsVersion     = "4.2.0"
-	TestCertManagerVersion = "v1.17.1"
+	TestCertManagerVersion = "v1.18.0"
 
 	// Materialize instance defaults
 	TestMaterializeInstanceName = "materialize-test"

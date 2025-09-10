@@ -83,5 +83,5 @@ const (
 	TestRandomIDLength   = 5
 
 	TestOpenEbsVersion     = "4.2.0"
-	TestCertManagerVersion = "1.18.0"
+	TestCertManagerVersion = "v1.18.0"
 )
