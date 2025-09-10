@@ -1,10 +1,12 @@
 resource "azurerm_storage_account" "materialize" {
-  name                     = replace("${var.prefix}stg${random_string.unique.result}", "-", "")
-  resource_group_name      = var.resource_group_name
-  location                 = var.location
-  account_tier             = var.account_tier
-  account_replication_type = var.account_replication_type
-  account_kind             = var.account_kind
+  name                = replace("${var.prefix}stg${random_string.unique.result}", "-", "")
+  resource_group_name = var.resource_group_name
+  location            = var.location
+  # TODO: revisit to make sure we are using best set of values for storage account tier, replication type, and kind
+  # and what other options user have to configure this.
+  account_tier             = "Premium"
+  account_replication_type = "LRS"
+  account_kind             = "BlockBlobStorage"
 
   dynamic "network_rules" {
     for_each = length(var.subnets) == 0 ? [] : ["has_subnets"]

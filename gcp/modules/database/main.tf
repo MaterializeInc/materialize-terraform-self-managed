@@ -34,7 +34,8 @@ module "postgresql" {
     point_in_time_recovery_enabled = var.point_in_time_recovery_enabled
     transaction_log_retention_days = null
     retained_backups               = var.backup_retained_backups
-    retention_unit                 = var.backup_retention_unit
+    # https://cloud.google.com/sql/docs/mysql/admin-api/rest/v1/instances#retentionunit
+    retention_unit = var.backup_retention_unit
   }
 
   # Maintenance configuration

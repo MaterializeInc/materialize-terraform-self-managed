@@ -40,23 +40,13 @@ output "s3_bucket_name" {
 
 output "metadata_backend_url" {
   description = "PostgreSQL connection URL in the format required by Materialize"
-  value = format("postgres://%s:%s@%s/%s?sslmode=require",
-    module.database.db_instance_username,
-    urlencode(random_password.database_password.result),
-    module.database.db_instance_endpoint,
-    module.database.db_instance_name
-  )
-  sensitive = true
+  value       = local.metadata_backend_url
+  sensitive   = true
 }
 
 output "persist_backend_url" {
   description = "S3 connection URL in the format required by Materialize using IRSA"
-  value = format("s3://%s/%s:serviceaccount:%s:%s",
-    module.storage.bucket_name,
-    var.name_prefix,
-    var.kubernetes_namespace,
-    var.service_account_name
-  )
+  value       = local.persist_backend_url
 }
 
 output "oidc_provider_arn" {

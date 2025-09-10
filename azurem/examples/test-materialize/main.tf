@@ -53,16 +53,13 @@ resource "random_password" "external_login_password_mz_system" {
 module "storage" {
   source = "../../modules/storage"
 
-  resource_group_name      = var.resource_group_name
-  location                 = var.location
-  prefix                   = var.prefix
-  identity_principal_id    = var.cluster_identity_principal_id
-  subnets                  = var.subnets
-  account_tier             = var.storage_config.account_tier
-  account_replication_type = var.storage_config.account_replication_type
-  account_kind             = var.storage_config.account_kind
-  container_name           = var.storage_config.container_name
-  container_access_type    = var.storage_config.container_access_type
+  resource_group_name   = var.resource_group_name
+  location              = var.location
+  prefix                = var.prefix
+  identity_principal_id = var.cluster_identity_principal_id
+  subnets               = var.subnets
+  container_name        = var.storage_config.container_name
+  container_access_type = var.storage_config.container_access_type
 
   tags = var.tags
 }

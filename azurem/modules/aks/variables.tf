@@ -1,31 +1,37 @@
 variable "resource_group_name" {
   description = "The name of the resource group"
   type        = string
+  nullable    = false
 }
 
 variable "location" {
   description = "The location where resources will be created"
   type        = string
+  nullable    = false
 }
 
 variable "prefix" {
   description = "Prefix to be used for resource names"
   type        = string
+  nullable    = false
 }
 
 variable "vnet_name" {
   description = "The name of the virtual network."
   type        = string
+  nullable    = false
 }
 
 variable "subnet_name" {
   description = "The name of the subnet for AKS"
   type        = string
+  nullable    = false
 }
 
 variable "subnet_id" {
   description = "The ID of the subnet for AKS"
   type        = string
+  nullable    = false
 }
 
 variable "service_cidr" {
@@ -47,12 +53,15 @@ variable "tags" {
 variable "kubernetes_version" {
   description = "Version of Kubernetes to use for the AKS cluster"
   type        = string
+  default     = "1.32"
+  nullable    = false
 }
 
 variable "default_node_pool_vm_size" {
   description = "VM size for the default node pool (system node pool)"
   type        = string
   default     = "Standard_D2s_v3"
+  nullable    = false
 }
 
 variable "default_node_pool_node_count" {
@@ -70,18 +79,21 @@ variable "default_node_pool_os_disk_size_gb" {
   description = "OS disk size in GB for the default node pool"
   type        = number
   default     = 100
+  nullable    = false
 }
 
 variable "default_node_pool_system_only" {
   description = "Whether the default node pool should only run system pods (critical addons)"
   type        = bool
   default     = true
+  nullable    = false
 }
 
 variable "enable_azure_monitor" {
   description = "Enable Azure Monitor for the AKS cluster"
   type        = bool
   default     = false
+  nullable    = false
 }
 
 variable "log_analytics_workspace_id" {
@@ -94,10 +106,11 @@ variable "enable_azure_ad_rbac" {
   description = "Enable Azure Active Directory integration for RBAC"
   type        = bool
   default     = false
+  nullable    = false
 }
 
 variable "azure_ad_admin_group_object_ids" {
-  description = "List of Azure AD group object IDs that will have admin access to the cluster"
+  description = "List of Azure AD group object IDs that will have admin access to the cluster, applied only if enable_azure_ad_rbac is true"
   type        = list(string)
   default     = []
 

@@ -1,5 +1,15 @@
 locals {
   disk_setup_script = file("${path.module}/bootstrap.sh")
+  node_labels = merge(
+    var.labels,
+    {
+      "materialize.cloud/disk" = var.enable_disk_setup ? "true" : "false"
+      "workload"               = "materialize-instance"
+    },
+    var.enable_disk_setup ? {
+      "materialize.cloud/disk-config-required" = "true"
+    } : {}
+  )
 }
 
 module "node_group" {
@@ -15,7 +25,7 @@ module "node_group" {
   instance_types = var.instance_types
   capacity_type  = var.capacity_type
   ami_type       = var.ami_type
-  labels         = var.labels
+  labels         = local.node_labels
 
   # useful to disable this when prefix might be too long and hit following char limit
   # expected length of name_prefix to be in the range (1 - 38)

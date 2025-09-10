@@ -1,31 +1,37 @@
 variable "resource_group_name" {
   description = "The name of the resource group"
   type        = string
+  nullable    = false
 }
 
 variable "location" {
   description = "The location where resources will be created"
   type        = string
+  nullable    = false
 }
 
 variable "prefix" {
   description = "Prefix to be used for resource names"
   type        = string
+  nullable    = false
 }
 
 variable "subnet_id" {
   description = "The ID of the subnet for PostgreSQL"
   type        = string
+  nullable    = false
 }
 
 variable "private_dns_zone_id" {
   description = "The ID of the private DNS zone"
   type        = string
+  nullable    = false
 }
 
 variable "sku_name" {
-  description = "The SKU name for the PostgreSQL server"
+  description = "The SKU name for the PostgreSQL server, sku denotes the size of postgres server"
   type        = string
+  nullable    = false
 }
 
 variable "postgres_version" {
@@ -40,6 +46,7 @@ variable "postgres_version" {
 variable "administrator_login" {
   description = "The administrator login name for the PostgreSQL server"
   type        = string
+  nullable    = false
 }
 
 variable "administrator_password" {
@@ -71,17 +78,21 @@ variable "tags" {
 variable "storage_mb" {
   description = "The storage capacity in MB"
   type        = number
-  default     = 32768
+  # Ask team for suitable default here.
+  default  = 32768
+  nullable = false
 }
 
 variable "backup_retention_days" {
   description = "The number of days to retain backups"
   type        = number
   default     = 7
+  nullable    = false
 }
 
 variable "public_network_access_enabled" {
   description = "Whether public network access is enabled"
   type        = bool
   default     = false
+  nullable    = false
 }

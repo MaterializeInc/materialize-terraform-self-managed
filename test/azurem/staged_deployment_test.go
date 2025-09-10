@@ -17,14 +17,14 @@ import (
 	"github.com/stretchr/testify/suite"
 )
 
-// StagedDeploymentTestSuite tests the full Azure infrastructure deployment in stages
-type StagedDeploymentTestSuite struct {
+// StagedDeploymentSuite tests the full Azure infrastructure deployment in stages
+type StagedDeploymentSuite struct {
 	basesuite.BaseTestSuite
 	workingDir string
 }
 
 // SetupSuite initializes the test suite
-func (suite *StagedDeploymentTestSuite) SetupSuite() {
+func (suite *StagedDeploymentSuite) SetupSuite() {
 	configurations := config.GetCommonConfigurations()
 	configurations = append(configurations, getRequiredAzureConfigurations()...)
 	suite.SetupBaseSuite("Azure Staged Deployment", utils.Azure, configurations)
@@ -33,7 +33,7 @@ func (suite *StagedDeploymentTestSuite) SetupSuite() {
 }
 
 // TearDownSuite cleans up the test suite
-func (suite *StagedDeploymentTestSuite) TearDownSuite() {
+func (suite *StagedDeploymentSuite) TearDownSuite() {
 	t := suite.T()
 	t.Logf("🧹 Starting cleanup stages for: %s", suite.SuiteName)
 	suite.testDiskDisabledCleanup()
@@ -61,7 +61,7 @@ func (suite *StagedDeploymentTestSuite) TearDownSuite() {
 	suite.TearDownBaseSuite()
 }
 
-func (suite *StagedDeploymentTestSuite) testDiskEnabledCleanup() {
+func (suite *StagedDeploymentSuite) testDiskEnabledCleanup() {
 	t := suite.T()
 	t.Log("Running Disk Enabled Cleanup Tests")
 
@@ -80,7 +80,7 @@ func (suite *StagedDeploymentTestSuite) testDiskEnabledCleanup() {
 	t.Logf("✅ Disk Enabled Cleanup completed successfully")
 }
 
-func (suite *StagedDeploymentTestSuite) testDiskDisabledCleanup() {
+func (suite *StagedDeploymentSuite) testDiskDisabledCleanup() {
 	t := suite.T()
 	t.Log("Running Disk Disabled Cleanup Tests")
 
@@ -99,7 +99,7 @@ func (suite *StagedDeploymentTestSuite) testDiskDisabledCleanup() {
 	t.Logf("✅ Disk Disabled Cleanup completed successfully")
 }
 
-func (suite *StagedDeploymentTestSuite) cleanupStage(stageName, stageDir string) {
+func (suite *StagedDeploymentSuite) cleanupStage(stageName, stageDir string) {
 	t := suite.T()
 	t.Logf("🗑️ Cleaning up %s stage: %s", stageName, stageDir)
 
@@ -119,7 +119,7 @@ func (suite *StagedDeploymentTestSuite) cleanupStage(stageName, stageDir string)
 
 // TestFullDeployment tests full infrastructure deployment
 // Stages: Network → (disk-enabled-setup) → (disk-disabled-setup)
-func (suite *StagedDeploymentTestSuite) TestFullDeployment() {
+func (suite *StagedDeploymentSuite) TestFullDeployment() {
 	t := suite.T()
 	subscriptionID := os.Getenv("ARM_SUBSCRIPTION_ID")
 	testRegion := os.Getenv("TEST_REGION")
@@ -213,7 +213,7 @@ func (suite *StagedDeploymentTestSuite) TestFullDeployment() {
 	suite.testDiskDisabledSetup(subscriptionID, testRegion)
 }
 
-func (suite *StagedDeploymentTestSuite) testDiskEnabledSetup(subscriptionID, testRegion string) {
+func (suite *StagedDeploymentSuite) testDiskEnabledSetup(subscriptionID, testRegion string) {
 	t := suite.T()
 	t.Log("Running Disk Enabled Setup Tests")
 
@@ -236,7 +236,7 @@ func (suite *StagedDeploymentTestSuite) testDiskEnabledSetup(subscriptionID, tes
 	t.Logf("✅ Disk Enabled Setup completed successfully")
 }
 
-func (suite *StagedDeploymentTestSuite) testDiskDisabledSetup(subscriptionID, testRegion string) {
+func (suite *StagedDeploymentSuite) testDiskDisabledSetup(subscriptionID, testRegion string) {
 	t := suite.T()
 	t.Log("Running Disk Disabled Setup Tests")
 
@@ -259,7 +259,7 @@ func (suite *StagedDeploymentTestSuite) testDiskDisabledSetup(subscriptionID, te
 	t.Logf("✅ Disk Disabled Setup completed successfully")
 }
 
-func (suite *StagedDeploymentTestSuite) setupAKSStage(stage, stageDir, subscriptionID, region, nameSuffix, diskEnabled, vmSize string) {
+func (suite *StagedDeploymentSuite) setupAKSStage(stage, stageDir, subscriptionID, region, nameSuffix, diskEnabled, vmSize string) {
 	t := suite.T()
 	t.Logf("🔧 Setting up AKS stage: %s", stage)
 
@@ -360,7 +360,7 @@ func (suite *StagedDeploymentTestSuite) setupAKSStage(stage, stageDir, subscript
 	t.Logf("  🆔 Workload Identity Client ID: %s", workloadIdentityClientId)
 }
 
-func (suite *StagedDeploymentTestSuite) setupDatabaseStage(stage, stageDir, subscriptionID, region, nameSuffix, diskEnabled string) {
+func (suite *StagedDeploymentSuite) setupDatabaseStage(stage, stageDir, subscriptionID, region, nameSuffix, diskEnabled string) {
 	t := suite.T()
 	t.Logf("🔧 Setting up Database stage: %s", stage)
 
@@ -479,7 +479,7 @@ func (suite *StagedDeploymentTestSuite) setupDatabaseStage(stage, stageDir, subs
 
 }
 
-func (suite *StagedDeploymentTestSuite) setupMaterializeStage(stage, stageDir, subscriptionID, region, nameSuffix, diskEnabled string) {
+func (suite *StagedDeploymentSuite) setupMaterializeStage(stage, stageDir, subscriptionID, region, nameSuffix, diskEnabled string) {
 	t := suite.T()
 	t.Logf("🔧 Setting up Materialize stage: %s", stage)
 
@@ -572,11 +572,8 @@ func (suite *StagedDeploymentTestSuite) setupMaterializeStage(stage, stageDir, s
 
 			// Storage details
 			"storage_config": map[string]interface{}{
-				"account_tier":             TestStorageAccountTier,
-				"account_replication_type": TestStorageReplicationType,
-				"account_kind":             TestStorageAccountKind,
-				"container_name":           TestStorageContainerName,
-				"container_access_type":    TestStorageContainerAccessType,
+				"container_name":        TestStorageContainerName,
+				"container_access_type": TestStorageContainerAccessType,
 			},
 
 			"tags": map[string]string{
@@ -723,7 +720,7 @@ func (suite *StagedDeploymentTestSuite) setupMaterializeStage(stage, stageDir, s
 	test_structure.SaveString(t, stageDirFullPath, "balancerd_load_balancer_ip", balancerdLoadBalancerIP)
 }
 
-func (suite *StagedDeploymentTestSuite) useExistingNetwork() {
+func (suite *StagedDeploymentSuite) useExistingNetwork() {
 	t := suite.T()
 	// Get the most recent state directory
 	latestDirPath, err := dir.GetLastRunTestStageDir(TestRunsDir)
@@ -744,7 +741,7 @@ func (suite *StagedDeploymentTestSuite) useExistingNetwork() {
 	t.Logf("♻️ Skipping network creation, using existing: %s (ID: %s)", vnetName, latestDir)
 }
 
-// TestStagedDeploymentTestSuite runs the test suite
-func TestStagedDeploymentTestSuite(t *testing.T) {
-	suite.Run(t, new(StagedDeploymentTestSuite))
+// TestStagedDeploymentSuite runs the test suite
+func TestStagedDeploymentSuite(t *testing.T) {
+	suite.Run(t, new(StagedDeploymentSuite))
 }
