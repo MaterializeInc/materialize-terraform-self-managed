@@ -128,5 +128,4 @@ variable "external_login_password" {
 variable "disk_setup_enabled" {
   description = "Enable disk setup or not"
   type        = bool
-  default     = true
 }
