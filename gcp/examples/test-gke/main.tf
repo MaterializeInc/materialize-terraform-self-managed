@@ -12,13 +12,12 @@ provider "kubernetes" {
   cluster_ca_certificate = base64decode(module.gke.cluster_ca_certificate)
 }
 
-# GKE test example with disk-enabled nodepool - receives network info from test
 module "gke" {
-  source = "../../../modules/gke"
+  source = "../../modules/gke"
 
   project_id   = var.project_id
   region       = var.region
-  prefix       = "${var.prefix}-diskset"
+  prefix       = var.prefix
   network_name = var.network_name
   subnet_name  = var.subnet_name
   namespace    = var.namespace
@@ -27,12 +26,13 @@ module "gke" {
 # Conditional nodepool creation
 module "nodepool" {
   count      = var.skip_nodepool ? 0 : 1
-  source     = "../../../modules/nodepool"
+  source     = "../../modules/nodepool"
   depends_on = [module.gke]
 
-  project_id            = var.project_id
-  region                = var.region
-  prefix                = "${var.prefix}-diskset"
+  project_id = var.project_id
+  region     = var.region
+  prefix     = var.prefix
+
   enable_private_nodes  = var.enable_private_nodes
   cluster_name          = module.gke.cluster_name
   service_account_email = module.gke.service_account_email
@@ -40,7 +40,9 @@ module "nodepool" {
   machine_type          = var.materialize_node_type
   min_nodes             = var.min_nodes
   max_nodes             = var.max_nodes
-  enable_disk_setup     = var.disk_setup_enabled
-  disk_size_gb          = var.disk_size
-  local_ssd_count       = var.local_ssd_count
+
+
+  enable_disk_setup = var.disk_setup_enabled
+  disk_size_gb      = var.disk_size
+  local_ssd_count   = var.local_ssd_count
 }

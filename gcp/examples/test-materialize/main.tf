@@ -57,7 +57,7 @@ provider "helm" {
 
 # Create Google Cloud Storage bucket for Materialize persistent data storage
 module "storage" {
-  source = "../../../modules/storage"
+  source = "../../modules/storage"
 
   project_id      = var.project_id
   region          = var.region
@@ -71,7 +71,7 @@ module "storage" {
 
 # Install cert-manager for SSL certificate management
 module "certificates" {
-  source = "../../../../kubernetes/modules/certificates"
+  source = "../../../kubernetes/modules/certificates"
 
   install_cert_manager           = var.install_cert_manager
   cert_manager_install_timeout   = var.cert_manager_install_timeout
@@ -83,18 +83,17 @@ module "certificates" {
 
 # Install OpenEBS for disk-based storage
 module "openebs" {
-  source = "../../../../kubernetes/modules/openebs"
+  source = "../../../kubernetes/modules/openebs"
 
   openebs_namespace        = var.openebs_namespace
   openebs_version          = var.openebs_chart_version
-  install_openebs          = var.install_openebs
+  install_openebs          = var.disk_setup_enabled
   create_openebs_namespace = true
 }
 
 # Install Materialize Kubernetes operator
 module "operator" {
-  count  = var.install_materialize_operator ? 1 : 0
-  source = "../../../modules/operator"
+  source = "../../modules/operator"
 
   name_prefix                    = var.prefix
   use_self_signed_cluster_issuer = var.install_materialize_instance
@@ -113,7 +112,7 @@ module "operator" {
 module "materialize_instance" {
   count = var.install_materialize_instance ? 1 : 0
 
-  source               = "../../../../kubernetes/modules/materialize-instance"
+  source               = "../../../kubernetes/modules/materialize-instance"
   instance_name        = var.instance_name
   instance_namespace   = var.instance_namespace
   metadata_backend_url = local.metadata_backend_url
@@ -133,7 +132,7 @@ module "materialize_instance" {
 module "load_balancers" {
   count = var.install_materialize_instance ? 1 : 0
 
-  source = "../../../modules/load_balancers"
+  source = "../../modules/load_balancers"
 
   instance_name = var.instance_name
   namespace     = var.instance_namespace

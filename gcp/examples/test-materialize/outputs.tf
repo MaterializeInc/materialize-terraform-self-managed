@@ -39,11 +39,6 @@ output "openebs_namespace" {
 }
 
 # Operator outputs
-output "operator_installed" {
-  description = "Whether Materialize operator was installed"
-  value       = var.install_materialize_operator
-}
-
 output "operator_namespace" {
   description = "Materialize operator namespace"
   value       = var.operator_namespace
