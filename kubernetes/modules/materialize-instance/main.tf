@@ -63,6 +63,12 @@ resource "kubernetes_manifest" "materialize_instance" {
     }
   }
 
+  wait {
+    fields = {
+      "status.resourceId" = ".*"
+    }
+  }
+
   depends_on = [
     kubernetes_secret.materialize_backend,
     kubernetes_namespace.instance,
