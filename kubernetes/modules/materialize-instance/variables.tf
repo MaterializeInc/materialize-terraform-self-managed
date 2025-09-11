@@ -153,3 +153,10 @@ variable "external_login_password_mz_system" {
   default     = null
   sensitive   = true
 }
+
+variable "service_account_annotations" {
+  description = "Annotations for the service account. Useful for IAM roles assigned to the service account."
+  type        = map(string)
+  default     = {}
+  nullable    = false
+}

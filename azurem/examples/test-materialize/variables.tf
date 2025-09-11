@@ -18,6 +18,11 @@ variable "cluster_identity_principal_id" {
   type        = string
 }
 
+variable "workload_identity_client_id" {
+  description = "The client ID of the workload identity"
+  type        = string
+}
+
 variable "subnets" {
   description = "The subnets that should be able to access the storage account"
   type        = list(string)

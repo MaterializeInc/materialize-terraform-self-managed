@@ -26,6 +26,8 @@ resource "kubernetes_manifest" "materialize_instance" {
       environmentdImageRef = "materialize/environmentd:${var.environmentd_version}"
       backendSecretName    = "${var.instance_name}-materialize-backend"
       authenticatorKind    = var.authenticator_kind
+      # service_account_annotations
+      serviceAccountAnnotations = var.service_account_annotations
       inPlaceRollout       = var.in_place_rollout
       requestRollout       = var.request_rollout
       forceRollout         = var.force_rollout

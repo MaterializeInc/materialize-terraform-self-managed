@@ -110,6 +110,12 @@ module "materialize_instance" {
   # The password for the external login to the Materialize instance
   external_login_password_mz_system = random_password.external_login_password_mz_system.result
 
+  # Azure workload identity annotations for service account
+  service_account_annotations = {
+    "azure.workload.identity/client-id" = var.workload_identity_client_id
+    "azure.workload.identity/use"       = "true"
+  }
+
   depends_on = [
     module.certificates,
     module.operator,
