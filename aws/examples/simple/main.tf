@@ -86,6 +86,12 @@ module "openebs" {
   openebs_namespace = "openebs"
   install_openebs   = true
 
+  # Set install_openebs_crds=false if you face the following error:
+  # Unable to continue with install: CustomResourceDefinition "volumesnapshotclasses.snapshot.storage.k8s.io"
+  # in namespace "" exists and cannot be imported into the current release
+  # https://github.com/openebs/website/pull/506
+  install_openebs_crds = true
+
   depends_on = [
     module.networking,
     module.eks,
@@ -118,9 +124,6 @@ module "operator" {
   name_prefix                    = var.name_prefix
   aws_region                     = var.aws_region
   aws_account_id                 = data.aws_caller_identity.current.account_id
-  oidc_provider_arn              = module.eks.oidc_provider_arn
-  cluster_oidc_issuer_url        = module.eks.cluster_oidc_issuer_url
-  s3_bucket_arn                  = module.storage.bucket_arn
   use_self_signed_cluster_issuer = true
 
   depends_on = [
@@ -175,6 +178,12 @@ module "storage" {
   enable_bucket_versioning = false
   enable_bucket_encryption = false
 
+  # IRSA configuration
+  oidc_provider_arn         = module.eks.oidc_provider_arn
+  cluster_oidc_issuer_url   = module.eks.cluster_oidc_issuer_url
+  service_account_namespace = local.materialize_instance_namespace
+  service_account_name      = local.materialize_instance_name
+
   tags = {}
 }
 
@@ -183,8 +192,8 @@ module "materialize_instance" {
   count = var.install_materialize_instance ? 1 : 0
 
   source               = "../../../kubernetes/modules/materialize-instance"
-  instance_name        = "main"
-  instance_namespace   = "materialize-environment"
+  instance_name        = local.materialize_instance_name
+  instance_namespace   = local.materialize_instance_namespace
   metadata_backend_url = local.metadata_backend_url
   persist_backend_url  = local.persist_backend_url
 
@@ -193,7 +202,7 @@ module "materialize_instance" {
 
   # AWS IAM role annotation for service account
   service_account_annotations = {
-    "eks.amazonaws.com/role-arn" = module.operator.materialize_iam_role_arn
+    "eks.amazonaws.com/role-arn" = module.storage.materialize_s3_role_arn
   }
 
   depends_on = [
@@ -215,9 +224,9 @@ module "materialize_nlb" {
 
   source = "../../modules/nlb"
 
-  instance_name                    = "main"
+  instance_name                    = local.materialize_instance_name
   name_prefix                      = var.name_prefix
-  namespace                        = "materialize-environment"
+  namespace                        = local.materialize_instance_namespace
   subnet_ids                       = module.networking.private_subnet_ids
   enable_cross_zone_load_balancing = true
   vpc_id                           = module.networking.vpc_id
@@ -230,6 +239,9 @@ module "materialize_nlb" {
 
 locals {
 
+  materialize_instance_namespace = "materialize-environment"
+  materialize_instance_name      = "main"
+
   metadata_backend_url = format(
     "postgres://%s:%s@%s/%s?sslmode=require",
     module.database.db_instance_username,
@@ -239,11 +251,10 @@ locals {
   )
 
   persist_backend_url = format(
-    "s3://%s/%s:serviceaccount:%s:%s",
+    "s3://%s/system:serviceaccount:%s:%s",
     module.storage.bucket_name,
-    var.name_prefix,
-    "materialize-environment",
-    "main"
+    local.materialize_instance_namespace,
+    local.materialize_instance_name
   )
 }
 

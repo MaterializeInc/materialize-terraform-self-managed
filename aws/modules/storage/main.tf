@@ -51,3 +51,57 @@ resource "aws_s3_bucket_lifecycle_configuration" "materialize_storage" {
     }
   }
 }
+
+# IAM Role for Service Account (IRSA) to access S3 bucket
+resource "aws_iam_role" "materialize_s3" {
+  name = "${var.name_prefix}-mz-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = {
+          Federated = var.oidc_provider_arn
+        }
+        Action = "sts:AssumeRoleWithWebIdentity"
+        Condition = {
+          StringLike = {
+            "${trimprefix(var.cluster_oidc_issuer_url, "https://")}:sub" : "system:serviceaccount:${var.service_account_namespace}:${var.service_account_name}",
+            "${trimprefix(var.cluster_oidc_issuer_url, "https://")}:aud" : "sts.amazonaws.com"
+          }
+        }
+      }
+    ]
+  })
+
+  tags = merge(var.tags, {
+    Name      = "${var.name_prefix}-mz-role"
+    ManagedBy = "terraform"
+  })
+}
+
+# IAM Policy for S3 access
+resource "aws_iam_role_policy" "materialize_s3" {
+  name = "${var.name_prefix}-mz-role-policy"
+  role = aws_iam_role.materialize_s3.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "s3:GetObject",
+          "s3:PutObject",
+          "s3:DeleteObject",
+          "s3:ListBucket"
+        ]
+        Resource = [
+          aws_s3_bucket.materialize_storage.arn,
+          "${aws_s3_bucket.materialize_storage.arn}/*"
+        ]
+      }
+    ]
+  })
+}

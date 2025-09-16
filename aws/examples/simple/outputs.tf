@@ -61,7 +61,7 @@ output "cluster_oidc_issuer_url" {
 
 output "materialize_s3_role_arn" {
   description = "The ARN of the IAM role for Materialize"
-  value       = module.operator.materialize_s3_role_arn
+  value       = module.storage.materialize_s3_role_arn
 }
 
 output "nlb_details" {

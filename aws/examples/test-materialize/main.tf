@@ -57,9 +57,6 @@ module "operator" {
   aws_account_id      = data.aws_caller_identity.current.account_id
   enable_disk_support = var.enable_disk_support
 
-  oidc_provider_arn              = var.oidc_provider_arn
-  cluster_oidc_issuer_url        = var.cluster_oidc_issuer_url
-  s3_bucket_arn                  = module.storage.bucket_arn
   use_self_signed_cluster_issuer = var.install_materialize_instance
 }
 
@@ -70,7 +67,14 @@ module "storage" {
   bucket_force_destroy     = var.bucket_force_destroy
   enable_bucket_versioning = var.enable_bucket_versioning
   enable_bucket_encryption = var.enable_bucket_encryption
-  tags                     = var.tags
+
+  # IRSA configuration
+  oidc_provider_arn         = var.oidc_provider_arn
+  cluster_oidc_issuer_url   = var.cluster_oidc_issuer_url
+  service_account_namespace = var.instance_namespace
+  service_account_name      = var.instance_name
+
+  tags = var.tags
 }
 
 module "materialize_instance" {
@@ -87,7 +91,7 @@ module "materialize_instance" {
 
   # AWS IAM role annotation for service account
   service_account_annotations = {
-    "eks.amazonaws.com/role-arn" = module.operator.materialize_iam_role_arn
+    "eks.amazonaws.com/role-arn" = module.storage.materialize_s3_role_arn
   }
 
   depends_on = [
@@ -127,9 +131,8 @@ locals {
   )
 
   persist_backend_url = format(
-    "s3://%s/%s:serviceaccount:%s:%s",
+    "s3://%s/system:serviceaccount:%s:%s",
     module.storage.bucket_name,
-    var.name_prefix,
     var.instance_namespace,
     var.instance_name
   )
