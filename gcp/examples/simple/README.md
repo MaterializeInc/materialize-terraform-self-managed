@@ -15,7 +15,7 @@ It provisions the full infrastructure stack, including:
 
 ---
 
-### 2. Required APIs
+### Required APIs
 Your GCP project needs several APIs enabled. Here's what each API does in simple terms:
 
 ```bash
