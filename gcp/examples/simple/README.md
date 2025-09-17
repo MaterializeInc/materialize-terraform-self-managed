@@ -1,144 +1,80 @@
-# Materialize on Google Cloud Platform (GCP) - Setup Guide
+# Example: Simple Materialize Deployment on GCP
 
-## Overview
-This guide helps you set up the required infrastructure for running Materialize on Google Cloud Platform (GCP). It handles the creation of:
-- A Kubernetes cluster (GKE) for running Materialize
-- A managed PostgreSQL database (Cloud SQL)
-- Storage buckets
-- Networking setup
+This example demonstrates how to deploy a complete Materialize environment on Google Cloud Platform using the modular Terraform setup from this repository.
 
-## Prerequisites
+It provisions the full infrastructure stack, including:
+- VPC network with subnets for GKE and Cloud SQL
+- GKE cluster with node pools
+- Cloud SQL PostgreSQL database for metadata
+- Google Cloud Storage bucket for persistent storage
+- Workload Identity for secure service access
+- Materialize operator
 
-### 1. GCP Account & Project
-You need a GCP account and a project. If you don't have one:
-1. Go to [Google Cloud Console](https://console.cloud.google.com)
-2. Create a new project or select an existing one
-3. Make sure billing is enabled for your project
+> **Important:**
+> Due to a limitation with the `kubernetes_manifest` resource in Terraform, the Materialize instance **cannot be installed on the first run**. The Kubernetes cluster must be fully provisioned before applying the instance configuration.
 
-### 2. Required APIs
+---
+
+### Required APIs
 Your GCP project needs several APIs enabled. Here's what each API does in simple terms:
 
 ```bash
 # Enable these APIs in your project
-gcloud services enable container.googleapis.com          # For creating Kubernetes clusters
-gcloud services enable sqladmin.googleapis.com          # For creating databases
+gcloud services enable container.googleapis.com               # For creating Kubernetes clusters
+gcloud services enable sqladmin.googleapis.com                # For creating databases
 gcloud services enable cloudresourcemanager.googleapis.com    # For managing GCP resources
 gcloud services enable servicenetworking.googleapis.com       # For private network connections
 gcloud services enable iamcredentials.googleapis.com          # For security and authentication
 ```
 
-### 3. Required Permissions
-The account or service account running Terraform needs these permissions:
+## Getting Started
 
-1. **Editor** (`roles/editor`)
-   - Allows creation and management of most GCP resources
-   - Like having admin access to create infrastructure
+### Step 1: Set Required Variables
 
-2. **Service Account Admin** (`roles/iam.serviceAccountAdmin`)
-   - Allows creation and management of service accounts
-   - Think of this as being able to create "robot users" for different services
+Before running Terraform, create a `terraform.tfvars` file or pass the following variables:
 
-3. **Service Networking Admin** (`roles/servicenetworking.networksAdmin`)
-   - Allows setting up private network connections
-   - Needed for secure communication between services
-
-To grant these permissions, run:
-```bash
-# Replace these with your values:
-PROJECT_ID="your-project-id"
-SERVICE_ACCOUNT="your-service-account@your-project.iam.gserviceaccount.com"
-
-# Grant the permissions
-gcloud projects add-iam-policy-binding $PROJECT_ID \
-  --member="serviceAccount:$SERVICE_ACCOUNT" \
-  --role="roles/editor"
-
-gcloud projects add-iam-policy-binding $PROJECT_ID \
-  --member="serviceAccount:$SERVICE_ACCOUNT" \
-  --role="roles/iam.serviceAccountAdmin"
-
-gcloud projects add-iam-policy-binding $PROJECT_ID \
-  --member="serviceAccount:$SERVICE_ACCOUNT" \
-  --role="roles/servicenetworking.networksAdmin"
+```hcl
+project_id = "my-gcp-project"
+name_prefix = "simple-demo"
+install_materialize_instance = false
+region = "us-central1"
 ```
 
-Install the GKE `gcloud` authentication plugin to interact with GKE clusters
+---
+
+### Step 2: Deploy the Infrastructure
+
+Run the usual Terraform workflow:
 
 ```bash
-gcloud components install gke-gcloud-auth-plugin --project=$PROJECT_ID
+terraform init
+terraform apply
 ```
 
-## Setting Up Terraform
+This will provision all infrastructure components except the Materialize instance.
 
-### 1. Authentication
-There are several ways to authenticate with GCP, see the [Terraform GCP provider documentation](https://registry.terraform.io/providers/hashicorp/google/latest/docs/guides/provider_reference#authentication) for more information.
+---
 
-Here are two common ways:
+### Step 3: Deploy the Materialize Instance
 
-1. **Service Account Key File**:
-   ```bash
-   export GOOGLE_APPLICATION_CREDENTIALS="/path/to/service-account-key.json"
+Once the initial deployment completes successfully:
+
+1. Update your variable:
+
+   ```hcl
+   install_materialize_instance = true
    ```
 
-2. **Google Cloud SDK** (Good for local development):
-   ```bash
-   gcloud auth application-default login
-   ```
+2. Run `terraform apply` again to deploy the instance.
 
-### 2. Deploying
+---
 
-Access the `examples/simple` directory and follow these steps:
+## Notes
 
-1. Initialize Terraform:
-   ```bash
-   terraform init
-   ```
+* You can customize each module independently.
+* To reduce cost in your demo environment, you can tweak machine types and database tiers in `main.tf`.
+* Don't forget to destroy resources when finished:
 
-2. Preview the changes:
-   ```bash
-   terraform plan \
-     -var project_id="your-project-id" \
-     -var prefix="your-resource-prefix" \
-     -var region="us-central1"
-   ```
-
-   Alternatively, you can set these variables in a `terraform.tfvars` file:
-   ```bash
-    project_id = "your-project-id"
-    prefix = "your-resource-prefix"
-    region="your-region"
-    ```
-
-3. Apply the changes:
-   ```bash
-   terraform apply \
-     -var project_id="your-project-id" \
-     -var prefix="your-resource-prefix" \
-     -var region="us-central1"
-   ```
-
-4. When you're done, clean up:
-   ```bash
-   terraform destroy \
-     -var project_id="your-project-id" \
-     -var prefix="your-resource-prefix" \
-     -var region="us-central1"
-   ```
-
-5. The `connection_strings` output will provide you with the connection strings for metadata and persistence backends.
-
-After successfully deploying the infrastructure, you'll need to configure `kubectl` to interact with your new GKE cluster. Here's how:
-
-```sh
-# Get cluster credentials and configure kubectl
-gcloud container clusters get-credentials $(terraform output -json gke_cluster | jq -r .name) \
-    --region $(terraform output -json gke_cluster | jq -r .location) \
-    --project materialize-ci
-```
-
-After running this command, you can verify your connection:
-
-```sh
-# Verify cluster connection
-kubectl cluster-info
+```bash
+terraform destroy
 ```
