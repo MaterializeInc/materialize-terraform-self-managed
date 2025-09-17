@@ -121,6 +121,11 @@ module "materialize_instance" {
   # The password for the external login to the Materialize instance
   external_login_password_mz_system = var.external_login_password
 
+  # GCP workload identity annotation for service account
+  service_account_annotations = {
+    "iam.gke.io/gcp-service-account" = var.workload_identity_sa_email
+  }
+
   depends_on = [
     module.certificates,
     module.operator,

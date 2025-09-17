@@ -16,7 +16,7 @@ variable "prefix" {
   nullable    = false
 }
 
-variable "identity_principal_id" {
+variable "workload_identity_principal_id" {
   description = "The principal ID of the workload identity"
   type        = string
   nullable    = false
@@ -50,4 +50,28 @@ variable "container_access_type" {
     condition     = contains(["private", "blob", "container"], var.container_access_type)
     error_message = "Valid values for container_access_type are: private, blob, container."
   }
+}
+
+variable "workload_identity_id" {
+  description = "The ID of the workload identity for federated credential"
+  type        = string
+  nullable    = false
+}
+
+variable "oidc_issuer_url" {
+  description = "The OIDC issuer URL of the AKS cluster"
+  type        = string
+  nullable    = false
+}
+
+variable "service_account_namespace" {
+  description = "Kubernetes namespace for the service account that will use workload identity"
+  type        = string
+  nullable    = false
+}
+
+variable "service_account_name" {
+  description = "Kubernetes service account name that will use workload identity"
+  type        = string
+  nullable    = false
 }

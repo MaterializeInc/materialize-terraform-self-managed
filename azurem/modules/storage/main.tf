@@ -35,47 +35,17 @@ resource "random_string" "unique" {
 resource "azurerm_role_assignment" "storage_blob_contributor" {
   scope                = azurerm_storage_account.materialize.id
   role_definition_name = "Storage Blob Data Contributor"
-  principal_id         = var.identity_principal_id
+  principal_id         = var.workload_identity_principal_id
 }
 
-data "azurerm_client_config" "this" {}
-
-resource "azurerm_key_vault" "sas_token_vault" {
-  name                = "${var.prefix}-sas-tv"
+# Federated identity credential that establishes trust between the Kubernetes service account
+# and the Azure workload identity for storage access (similar to GCP Workload Identity or AWS IRSA)
+resource "azurerm_federated_identity_credential" "materialize_storage" {
+  name                = "${var.prefix}-storage-credential"
   resource_group_name = var.resource_group_name
-  location            = var.location
-  sku_name            = "standard"
-  tenant_id           = data.azurerm_client_config.this.tenant_id
-
-  access_policy {
-    tenant_id = data.azurerm_client_config.this.tenant_id
-    object_id = data.azurerm_client_config.this.object_id
-
-    key_permissions = [
-      "Create",
-      "Get",
-    ]
-
-    secret_permissions = [
-      "Set",
-      "Get",
-      "Delete",
-      "Purge",
-      "Recover"
-    ]
-  }
+  audience            = ["api://AzureADTokenExchange"]
+  issuer              = var.oidc_issuer_url
+  parent_id           = var.workload_identity_id
+  subject             = "system:serviceaccount:${var.service_account_namespace}:${var.service_account_name}"
 }
 
-# Call the Python script using Terraform's `external` provider
-data "external" "sas_token" {
-  program = ["python3", "${path.module}/generate_sas.py"]
-
-  query = {
-    subscription_id        = data.azurerm_client_config.this.subscription_id
-    storage_account_name   = azurerm_storage_account.materialize.name
-    resource_group         = var.resource_group_name
-    key_vault_name         = azurerm_key_vault.sas_token_vault.name
-    sas_secret_name        = "sas-token"
-    sas_expiry_secret_name = "sas-expiry"
-  }
-}

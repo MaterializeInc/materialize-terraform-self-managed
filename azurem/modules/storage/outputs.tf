@@ -3,12 +3,6 @@ output "storage_account_name" {
   value       = azurerm_storage_account.materialize.name
 }
 
-output "storage_account_key" {
-  description = "The primary access key for the storage account"
-  value       = azurerm_storage_account.materialize.primary_access_key
-  sensitive   = true
-}
-
 output "container_name" {
   description = "The name of the storage container"
   value       = azurerm_storage_container.materialize.name
@@ -19,8 +13,7 @@ output "primary_blob_endpoint" {
   value       = azurerm_storage_account.materialize.primary_blob_endpoint
 }
 
-output "primary_blob_sas_token" {
-  description = "The primary SAS token for accessing blob storage"
-  value       = data.external.sas_token.result.sas_token
-  sensitive   = true
+output "federated_identity_credential_id" {
+  description = "The ID of the federated identity credential for workload identity"
+  value       = azurerm_federated_identity_credential.materialize_storage.id
 }

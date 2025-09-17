@@ -336,17 +336,27 @@ func (suite *StagedDeploymentSuite) setupAKSStage(stage, stageDir, subscriptionI
 	clusterName := terraform.Output(t, aksOptions, "cluster_name")
 	clusterEndpoint := terraform.Output(t, aksOptions, "cluster_endpoint")
 	workloadIdentityClientId := terraform.Output(t, aksOptions, "workload_identity_client_id")
+	workloadIdentityPrincipalId := terraform.Output(t, aksOptions, "workload_identity_principal_id")
+	workloadIdentityId := terraform.Output(t, aksOptions, "workload_identity_id")
+	clusterOidcIssuerUrl := terraform.Output(t, aksOptions, "cluster_oidc_issuer_url")
 	clusterIdentityPrincipalId := terraform.Output(t, aksOptions, "cluster_identity_principal_id")
 	kubeConfigList := terraform.OutputListOfObjects(t, aksOptions, "kube_config")
 	kubeConfigRaw := kubeConfigList[0]
 
 	suite.NotEmpty(clusterName, "AKS cluster name should not be empty")
 	suite.NotEmpty(kubeConfigRaw, "Kube config should not be empty")
+	suite.NotEmpty(workloadIdentityClientId, "Workload identity client ID should not be empty")
+	suite.NotEmpty(workloadIdentityPrincipalId, "Workload identity principal ID should not be empty")
+	suite.NotEmpty(workloadIdentityId, "Workload identity ID should not be empty")
+	suite.NotEmpty(clusterOidcIssuerUrl, "Cluster OIDC issuer URL should not be empty")
 
 	// Save AKS outputs for Materialize stage
 	test_structure.SaveString(t, stageDirPath, "cluster_name", clusterName)
 	test_structure.SaveString(t, stageDirPath, "cluster_endpoint", clusterEndpoint)
 	test_structure.SaveString(t, stageDirPath, "workload_identity_client_id", workloadIdentityClientId)
+	test_structure.SaveString(t, stageDirPath, "workload_identity_principal_id", workloadIdentityPrincipalId)
+	test_structure.SaveString(t, stageDirPath, "workload_identity_id", workloadIdentityId)
+	test_structure.SaveString(t, stageDirPath, "cluster_oidc_issuer_url", clusterOidcIssuerUrl)
 	test_structure.SaveString(t, stageDirPath, "cluster_identity_principal_id", clusterIdentityPrincipalId)
 
 	// Save kube config components separately for easier loading
@@ -501,7 +511,10 @@ func (suite *StagedDeploymentSuite) setupMaterializeStage(stage, stageDir, subsc
 	}
 	aksStageDirFullPath := filepath.Join(suite.workingDir, aksStageDir)
 	clusterEndpoint := test_structure.LoadString(t, aksStageDirFullPath, "cluster_endpoint")
-	clusterIdentityPrincipalId := test_structure.LoadString(t, aksStageDirFullPath, "cluster_identity_principal_id")
+	workloadIdentityClientId := test_structure.LoadString(t, aksStageDirFullPath, "workload_identity_client_id")
+	workloadIdentityPrincipalId := test_structure.LoadString(t, aksStageDirFullPath, "workload_identity_principal_id")
+	workloadIdentityId := test_structure.LoadString(t, aksStageDirFullPath, "workload_identity_id")
+	clusterOidcIssuerUrl := test_structure.LoadString(t, aksStageDirFullPath, "cluster_oidc_issuer_url")
 
 	// Load database data
 	databaseStageDir := utils.DatabaseDiskDisabledDir
@@ -557,10 +570,13 @@ func (suite *StagedDeploymentSuite) setupMaterializeStage(stage, stageDir, subsc
 			"prefix":              fmt.Sprintf("%s%s", shortId, nameSuffix),
 
 			// AKS details
-			"cluster_endpoint":              clusterEndpoint,
-			"cluster_identity_principal_id": clusterIdentityPrincipalId,
-			"subnets":                       []string{aksSubnetId},
-			"kube_config":                   kubeConfig,
+			"cluster_endpoint":               clusterEndpoint,
+			"workload_identity_client_id":    workloadIdentityClientId,
+			"workload_identity_principal_id": workloadIdentityPrincipalId,
+			"workload_identity_id":           workloadIdentityId,
+			"cluster_oidc_issuer_url":        clusterOidcIssuerUrl,
+			"subnets":                        []string{aksSubnetId},
+			"kube_config":                    kubeConfig,
 
 			// Database details
 			"database_host": databaseHost,
@@ -627,9 +643,7 @@ func (suite *StagedDeploymentSuite) setupMaterializeStage(stage, stageDir, subsc
 
 	// Save Materialize outputs for subsequent stages
 	storageAccountName := terraform.Output(t, materializeOptions, "storage_account_name")
-	storageAccountKey := terraform.Output(t, materializeOptions, "storage_account_key")
 	storagePrimaryBlobEndpoint := terraform.Output(t, materializeOptions, "storage_primary_blob_endpoint")
-	storagePrimaryBlobSASToken := terraform.Output(t, materializeOptions, "storage_primary_blob_sas_token")
 	storageContainerName := terraform.Output(t, materializeOptions, "storage_container_name")
 	metadataBackendURL := terraform.Output(t, materializeOptions, "metadata_backend_url")
 	persistBackendURL := terraform.Output(t, materializeOptions, "persist_backend_url")
@@ -650,9 +664,7 @@ func (suite *StagedDeploymentSuite) setupMaterializeStage(stage, stageDir, subsc
 
 	// Storage validation
 	suite.NotEmpty(storageAccountName, "Storage account name should not be empty")
-	suite.NotEmpty(storageAccountKey, "Storage account key should not be empty")
 	suite.NotEmpty(storagePrimaryBlobEndpoint, "Storage primary blob endpoint should not be empty")
-	suite.NotEmpty(storagePrimaryBlobSASToken, "Storage primary blob SAS token should not be empty")
 	suite.NotEmpty(storageContainerName, "Storage container name should not be empty")
 
 	// Backend URLs validation
@@ -706,9 +718,7 @@ func (suite *StagedDeploymentSuite) setupMaterializeStage(stage, stageDir, subsc
 	test_structure.SaveString(t, stageDirFullPath, "instance_installed", instanceInstalled)
 	test_structure.SaveString(t, stageDirFullPath, "external_login_password", externalLoginPassword)
 	test_structure.SaveString(t, stageDirFullPath, "storage_account_name", storageAccountName)
-	test_structure.SaveString(t, stageDirFullPath, "storage_account_key", storageAccountKey)
 	test_structure.SaveString(t, stageDirFullPath, "storage_primary_blob_endpoint", storagePrimaryBlobEndpoint)
-	test_structure.SaveString(t, stageDirFullPath, "storage_primary_blob_sas_token", storagePrimaryBlobSASToken)
 	test_structure.SaveString(t, stageDirFullPath, "storage_container_name", storageContainerName)
 	test_structure.SaveString(t, stageDirFullPath, "metadata_backend_url", metadataBackendURL)
 	test_structure.SaveString(t, stageDirFullPath, "persist_backend_url", persistBackendURL)

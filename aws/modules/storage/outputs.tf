@@ -17,3 +17,8 @@ output "bucket_name" {
   description = "The name of the S3 bucket"
   value       = aws_s3_bucket.materialize_storage.bucket
 }
+
+output "materialize_s3_role_arn" {
+  description = "ARN of the IAM role for Materialize S3 access"
+  value       = aws_iam_role.materialize_s3.arn
+}

@@ -25,19 +25,39 @@ output "kube_config" {
   sensitive   = true
 }
 
+output "workload_identity_principal_id" {
+  description = "The principal ID of the workload identity"
+  value       = module.aks.workload_identity_principal_id
+}
+
 output "workload_identity_client_id" {
   description = "The client ID of the workload identity"
   value       = module.aks.workload_identity_client_id
 }
 
-output "cluster_oidc_issuer_url" {
-  description = "The OIDC issuer URL of the AKS cluster"
-  value       = module.aks.cluster_oidc_issuer_url
+output "workload_identity_id" {
+  description = "The ID of the workload identity"
+  value       = module.aks.workload_identity_id
 }
 
 output "cluster_identity_principal_id" {
   description = "The principal ID of the cluster identity"
   value       = module.aks.cluster_identity_principal_id
+}
+
+output "cluster_identity_client_id" {
+  description = "The client ID of the cluster identity"
+  value       = module.aks.cluster_identity_client_id
+}
+
+output "cluster_identity_id" {
+  description = "The ID of the cluster identity"
+  value       = module.aks.cluster_identity_id
+}
+
+output "cluster_oidc_issuer_url" {
+  description = "The OIDC issuer URL of the AKS cluster"
+  value       = module.aks.cluster_oidc_issuer_url
 }
 
 output "nodepool_name" {
