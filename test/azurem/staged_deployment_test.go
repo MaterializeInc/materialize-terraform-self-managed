@@ -643,9 +643,7 @@ func (suite *StagedDeploymentSuite) setupMaterializeStage(stage, stageDir, subsc
 
 	// Save Materialize outputs for subsequent stages
 	storageAccountName := terraform.Output(t, materializeOptions, "storage_account_name")
-	storageAccountKey := terraform.Output(t, materializeOptions, "storage_account_key")
 	storagePrimaryBlobEndpoint := terraform.Output(t, materializeOptions, "storage_primary_blob_endpoint")
-	storagePrimaryBlobSASToken := terraform.Output(t, materializeOptions, "storage_primary_blob_sas_token")
 	storageContainerName := terraform.Output(t, materializeOptions, "storage_container_name")
 	metadataBackendURL := terraform.Output(t, materializeOptions, "metadata_backend_url")
 	persistBackendURL := terraform.Output(t, materializeOptions, "persist_backend_url")
@@ -666,9 +664,7 @@ func (suite *StagedDeploymentSuite) setupMaterializeStage(stage, stageDir, subsc
 
 	// Storage validation
 	suite.NotEmpty(storageAccountName, "Storage account name should not be empty")
-	suite.NotEmpty(storageAccountKey, "Storage account key should not be empty")
 	suite.NotEmpty(storagePrimaryBlobEndpoint, "Storage primary blob endpoint should not be empty")
-	suite.NotEmpty(storagePrimaryBlobSASToken, "Storage primary blob SAS token should not be empty")
 	suite.NotEmpty(storageContainerName, "Storage container name should not be empty")
 
 	// Backend URLs validation
@@ -722,9 +718,7 @@ func (suite *StagedDeploymentSuite) setupMaterializeStage(stage, stageDir, subsc
 	test_structure.SaveString(t, stageDirFullPath, "instance_installed", instanceInstalled)
 	test_structure.SaveString(t, stageDirFullPath, "external_login_password", externalLoginPassword)
 	test_structure.SaveString(t, stageDirFullPath, "storage_account_name", storageAccountName)
-	test_structure.SaveString(t, stageDirFullPath, "storage_account_key", storageAccountKey)
 	test_structure.SaveString(t, stageDirFullPath, "storage_primary_blob_endpoint", storagePrimaryBlobEndpoint)
-	test_structure.SaveString(t, stageDirFullPath, "storage_primary_blob_sas_token", storagePrimaryBlobSASToken)
 	test_structure.SaveString(t, stageDirFullPath, "storage_container_name", storageContainerName)
 	test_structure.SaveString(t, stageDirFullPath, "metadata_backend_url", metadataBackendURL)
 	test_structure.SaveString(t, stageDirFullPath, "persist_backend_url", persistBackendURL)
