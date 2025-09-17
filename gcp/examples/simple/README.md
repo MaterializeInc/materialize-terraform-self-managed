@@ -15,6 +15,18 @@ It provisions the full infrastructure stack, including:
 
 ---
 
+### 2. Required APIs
+Your GCP project needs several APIs enabled. Here's what each API does in simple terms:
+
+```bash
+# Enable these APIs in your project
+gcloud services enable container.googleapis.com               # For creating Kubernetes clusters
+gcloud services enable sqladmin.googleapis.com                # For creating databases
+gcloud services enable cloudresourcemanager.googleapis.com    # For managing GCP resources
+gcloud services enable servicenetworking.googleapis.com       # For private network connections
+gcloud services enable iamcredentials.googleapis.com          # For security and authentication
+```
+
 ## Getting Started
 
 ### Step 1: Set Required Variables
