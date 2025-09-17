@@ -32,8 +32,6 @@ provider "helm" {
 
 
 locals {
-  resource_group_name = "materialize"
-
   vnet_config = {
     address_space        = "20.0.0.0/16"
     aks_subnet_cidr      = "20.0.0.0/20"
@@ -70,11 +68,6 @@ locals {
 
   storage_container_name = "materialize"
 
-  tags = {
-    Environment = "development"
-    Project     = "materialize"
-  }
-
   metadata_backend_url = format(
     "postgres://%s@%s/%s?sslmode=require",
     "${module.database.administrator_login}:${module.database.administrator_password}",
@@ -94,7 +87,7 @@ locals {
 
 
 resource "azurerm_resource_group" "materialize" {
-  name     = local.resource_group_name
+  name     = var.resource_group_name
   location = var.location
 }
 
@@ -134,7 +127,7 @@ module "aks" {
   enable_azure_monitor       = local.aks_config.enable_azure_monitor
   log_analytics_workspace_id = local.aks_config.log_analytics_workspace_id
 
-  tags = local.tags
+  tags = var.tags
 
   depends_on = [azurerm_resource_group.materialize]
 }
@@ -159,7 +152,7 @@ module "nodepool" {
   disk_size_gb = local.node_pool_config.disk_size_gb
   swap_enabled = local.node_pool_config.swap_enabled
 
-  tags = local.tags
+  tags = var.tags
 
   depends_on = [azurerm_resource_group.materialize]
 }
@@ -197,7 +190,7 @@ module "database" {
   backup_retention_days         = local.database_config.backup_retention_days
   public_network_access_enabled = local.database_config.public_network_access_enabled
 
-  tags = local.tags
+  tags = var.tags
 }
 
 module "storage" {
@@ -216,7 +209,7 @@ module "storage" {
   service_account_namespace = local.materialize_instance_namespace
   service_account_name      = local.materialize_instance_name
 
-  tags = local.tags
+  tags = var.tags
 
   depends_on = [azurerm_resource_group.materialize]
 }

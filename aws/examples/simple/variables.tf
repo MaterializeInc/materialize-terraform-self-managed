@@ -9,6 +9,11 @@ variable "aws_profile" {
   type        = string
 }
 
+variable "tags" {
+  description = "Tags to apply to resources created."
+  type        = map(string)
+}
+
 variable "name_prefix" {
   description = "A prefix to add to all resource names."
   type        = string

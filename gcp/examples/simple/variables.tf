@@ -9,6 +9,11 @@ variable "region" {
   default     = "us-central1"
 }
 
+variable "labels" {
+  description = "Labels to apply to resources created."
+  type        = map(string)
+}
+
 variable "name_prefix" {
   description = "Prefix to be used for resource names"
   type        = string

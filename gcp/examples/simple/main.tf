@@ -1,6 +1,7 @@
 provider "google" {
-  project = var.project_id
-  region  = var.region
+  project        = var.project_id
+  region         = var.region
+  default_labels = var.labels
 }
 
 # Configure kubernetes provider with GKE cluster credentials
