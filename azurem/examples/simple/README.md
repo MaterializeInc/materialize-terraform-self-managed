@@ -1,13 +1,14 @@
-# Example: Simple Materialize Deployment on GCP
+# Example: Simple Materialize Deployment on Azure
 
-This example demonstrates how to deploy a complete Materialize environment on Google Cloud Platform using the modular Terraform setup from this repository.
+This example demonstrates how to deploy a complete Materialize environment on Azure using the modular Terraform setup from this repository.
 
 It provisions the full infrastructure stack, including:
-- VPC network with subnets for GKE and Cloud SQL
-- GKE cluster with node pools
-- Cloud SQL PostgreSQL database for metadata
-- Google Cloud Storage bucket for persistent storage
-- Workload Identity for secure service access
+- Virtual Network with AKS and PostgreSQL subnets
+- AKS cluster with system and workload node pools
+- Azure Database for PostgreSQL Flexible Server
+- Azure Storage Account with blob container
+- OpenEBS for disk support
+- Cert-manager for TLS certificates
 - Materialize operator
 
 > **Important:**
@@ -22,10 +23,10 @@ It provisions the full infrastructure stack, including:
 Before running Terraform, create a `terraform.tfvars` file or pass the following variables:
 
 ```hcl
-project_id = "my-gcp-project"
+subscription_id = "12345678-1234-1234-1234-123456789012"
 name_prefix = "simple-demo"
 install_materialize_instance = false
-region = "us-central1"
+location = "westus2"
 ```
 
 ---
@@ -60,7 +61,7 @@ Once the initial deployment completes successfully:
 ## Notes
 
 * You can customize each module independently.
-* To reduce cost in your demo environment, you can tweak machine types and database tiers in `main.tf`.
+* To reduce cost in your demo environment, you can tweak VM sizes and database tiers in `main.tf`.
 * Don't forget to destroy resources when finished:
 
 ```bash
