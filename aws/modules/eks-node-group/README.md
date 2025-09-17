@@ -31,6 +31,7 @@ No resources.
 | <a name="input_cluster_service_cidr"></a> [cluster\_service\_cidr](#input\_cluster\_service\_cidr) | The CIDR block for the cluster service | `string` | n/a | yes |
 | <a name="input_desired_size"></a> [desired\_size](#input\_desired\_size) | Desired number of worker nodes. | `number` | `1` | no |
 | <a name="input_enable_disk_setup"></a> [enable\_disk\_setup](#input\_enable\_disk\_setup) | Whether to enable disk setup using the bootstrap script | `bool` | `true` | no |
+| <a name="input_iam_role_use_name_prefix"></a> [iam\_role\_use\_name\_prefix](#input\_iam\_role\_use\_name\_prefix) | Use name prefix for IAM roles | `bool` | `true` | no |
 | <a name="input_instance_types"></a> [instance\_types](#input\_instance\_types) | Instance types for worker nodes.<br/><br/>Recommended Configuration for Running Materialize with disk:<br/>- Tested instance types: `r6gd`, `r7gd` families (ARM-based Graviton instances)<br/>- Enable disk setup when using `r7gd`<br/>- Note: Ensure instance store volumes are available and attached to the nodes for optimal performance with disk-based workloads. | `list(string)` | <pre>[<br/>  "r7gd.2xlarge"<br/>]</pre> | no |
 | <a name="input_labels"></a> [labels](#input\_labels) | Labels to apply to the node group. | `map(string)` | `{}` | no |
 | <a name="input_max_size"></a> [max\_size](#input\_max\_size) | Maximum number of worker nodes. | `number` | `4` | no |
