@@ -1,36 +1,20 @@
 # Azure Storage Module
 
-This module creates an Azure Storage Account and Container for Materialize, along with SAS token management via Azure Key Vault.
+This module creates an Azure Storage Account and Container for Materialize with Azure Workload Identity integration for secure, credential-free access.
 
-## Prerequisites
+## Features
 
-This module requires Python 3 and specific Azure SDK packages to be installed in the environment where Terraform runs.
+- **Azure Storage Account**: Premium BlockBlobStorage for optimal performance
+- **Storage Container**: Dedicated container for Materialize data
+- **Workload Identity Integration**: Federated identity credential for Kubernetes service account authentication
+- **Role-Based Access**: Storage Blob Data Contributor role assignment for the workload identity
 
-### Install Python Dependencies
+## Authentication
 
-```bash
-pip install -r requirements.txt
-```
+This module uses Azure Workload Identity to provide secure, credential-free access to Azure Blob Storage. The module creates:
 
-Or install individually:
-```bash
-pip install azure-identity azure-storage-blob azure-mgmt-storage azure-keyvault-secrets
-```
+1. **Federated Identity Credential**: Links the Kubernetes service account to the Azure workload identity
+2. **Role Assignment**: Grants Storage Blob Data Contributor permissions to the workload identity
+3. **OIDC Trust**: Establishes trust between AKS cluster and Azure AD
 
-### Alternative Deployment Options
-
-- **Azure Cloud Shell**: Already has all required Azure SDK packages pre-installed
-
-### Environment Setup Example
-
-```bash
-# For local development
-python3 -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-pip install -r requirements.txt
-
-# Run Terraform
-terraform init
-terraform plan
-terraform apply
-```
+No SAS tokens or storage account keys are required for authentication.

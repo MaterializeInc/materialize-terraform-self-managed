@@ -41,7 +41,7 @@ variable "license_key" {
 variable "environmentd_version" {
   description = "Version of environmentd to use"
   type        = string
-  default     = "v0.130.13" # META: mz version
+  default     = "v0.147.7" # META: mz version
   nullable    = false
 }
 
@@ -155,7 +155,14 @@ variable "external_login_password_mz_system" {
 }
 
 variable "service_account_annotations" {
-  description = "Annotations for the service account. Useful for IAM roles assigned to the service account."
+  description = "Annotations for the service account associated with the materialize instance. Useful for IAM roles assigned to the service account."
+  type        = map(string)
+  default     = {}
+  nullable    = false
+}
+
+variable "pod_labels" {
+  description = "Labels for the materialize instance pod"
   type        = map(string)
   default     = {}
   nullable    = false

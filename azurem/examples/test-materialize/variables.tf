@@ -13,13 +13,23 @@ variable "resource_group_name" {
   type        = string
 }
 
-variable "cluster_identity_principal_id" {
-  description = "The principal ID of the cluster identity"
+variable "workload_identity_principal_id" {
+  description = "The principal ID of the workload identity"
   type        = string
 }
 
 variable "workload_identity_client_id" {
   description = "The client ID of the workload identity"
+  type        = string
+}
+
+variable "workload_identity_id" {
+  description = "The ID of the workload identity for federated credential"
+  type        = string
+}
+
+variable "cluster_oidc_issuer_url" {
+  description = "The OIDC issuer URL of the AKS cluster"
   type        = string
 }
 

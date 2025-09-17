@@ -44,6 +44,7 @@ func (suite *StagedDeploymentTestSuite) TearDownSuite() {
 		// Cleanup network if it was created in this test run
 		if networkOptions := test_structure.LoadTerraformOptions(t, suite.workingDir); networkOptions != nil {
 			t.Logf("🗑️ Cleaning up network...")
+			// TODO: fix cleanup when Destroy errors out because Terraform init was not successful during Terraform InitAndApply
 			terraform.Destroy(t, networkOptions)
 			t.Logf("✅ Network cleanup completed")
 

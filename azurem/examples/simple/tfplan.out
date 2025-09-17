@@ -1,0 +1,384 @@
+[0m[1mmodule.storage.random_string.unique: Refreshing state... [id=ryaauk][0m
+[0m[1mrandom_password.external_login_password_mz_system: Refreshing state... [id=none][0m
+[0m[1mmodule.networking.random_id.dns_zone_suffix: Refreshing state... [id=571J2Q][0m
+[0m[1mmodule.aks.data.azurerm_subscription.current: Reading...[0m[0m
+[0m[1mmodule.storage.data.azurerm_client_config.this: Reading...[0m[0m
+[0m[1mazurerm_resource_group.materialize: Refreshing state... [id=/subscriptions/9bc1ad3f-3401-42a3-99cd-7faeeb51e059/resourceGroups/materialize][0m
+[0m[1mmodule.storage.data.azurerm_client_config.this: Read complete after 0s [id=Y2xpZW50Q29uZmlncy9jbGllbnRJZD0wNGIwNzc5NS04ZGRiLTQ2MWEtYmJlZS0wMmY5ZTFiZjdiNDY7b2JqZWN0SWQ9MTRmNTQ5YjgtOTQ1ZS00MTgyLThhMjMtZGVmYzQ5ZWY0NzRjO3N1YnNjcmlwdGlvbklkPTliYzFhZDNmLTM0MDEtNDJhMy05OWNkLTdmYWVlYjUxZTA1OTt0ZW5hbnRJZD0wNGRmNzk1OS1kZjI1LTRiZTMtYmUzMS0xNzY5MWMyZmM0MTk=][0m
+[0m[1mmodule.aks.data.azurerm_subscription.current: Read complete after 1s [id=/subscriptions/9bc1ad3f-3401-42a3-99cd-7faeeb51e059][0m
+[0m[1mmodule.networking.azurerm_nat_gateway.main: Refreshing state... [id=/subscriptions/9bc1ad3f-3401-42a3-99cd-7faeeb51e059/resourceGroups/materialize/providers/Microsoft.Network/natGateways/sj-manual-nat-gateway][0m
+[0m[1mmodule.networking.azurerm_public_ip.nat_gateway: Refreshing state... [id=/subscriptions/9bc1ad3f-3401-42a3-99cd-7faeeb51e059/resourceGroups/materialize/providers/Microsoft.Network/publicIPAddresses/sj-manual-nat-gateway-pip][0m
+[0m[1mmodule.aks.azurerm_user_assigned_identity.workload_identity: Refreshing state... [id=/subscriptions/9bc1ad3f-3401-42a3-99cd-7faeeb51e059/resourceGroups/materialize/providers/Microsoft.ManagedIdentity/userAssignedIdentities/sj-manual-workload-identity][0m
+[0m[1mmodule.aks.azurerm_user_assigned_identity.aks_identity: Refreshing state... [id=/subscriptions/9bc1ad3f-3401-42a3-99cd-7faeeb51e059/resourceGroups/materialize/providers/Microsoft.ManagedIdentity/userAssignedIdentities/sj-manual-aks-identity][0m
+[0m[1mmodule.storage.azurerm_key_vault.sas_token_vault: Refreshing state... [id=/subscriptions/9bc1ad3f-3401-42a3-99cd-7faeeb51e059/resourceGroups/materialize/providers/Microsoft.KeyVault/vaults/sj-manual-sas-tv][0m
+[0m[1mmodule.networking.azurerm_private_dns_zone.postgres: Refreshing state... [id=/subscriptions/9bc1ad3f-3401-42a3-99cd-7faeeb51e059/resourceGroups/materialize/providers/Microsoft.Network/privateDnsZones/materializee7bd49d9.postgres.database.azure.com][0m
+[0m[1mmodule.networking.azurerm_nat_gateway_public_ip_association.main: Refreshing state... [id=/subscriptions/9bc1ad3f-3401-42a3-99cd-7faeeb51e059/resourceGroups/materialize/providers/Microsoft.Network/natGateways/sj-manual-nat-gateway|/subscriptions/9bc1ad3f-3401-42a3-99cd-7faeeb51e059/resourceGroups/materialize/providers/Microsoft.Network/publicIPAddresses/sj-manual-nat-gateway-pip][0m
+[0m[1mmodule.networking.module.virtual_network.data.azurerm_client_config.this: Reading...[0m[0m
+[0m[1mmodule.networking.module.virtual_network.random_uuid.telemetry[0]: Refreshing state... [id=74c4ca67-b714-f2cd-5024-fc1595d417b1][0m
+[0m[1mmodule.networking.module.virtual_network.data.modtm_module_source.telemetry[0]: Reading...[0m[0m
+[0m[1mmodule.networking.module.virtual_network.data.azurerm_client_config.this: Read complete after 0s [id=Y2xpZW50Q29uZmlncy9jbGllbnRJZD0wNGIwNzc5NS04ZGRiLTQ2MWEtYmJlZS0wMmY5ZTFiZjdiNDY7b2JqZWN0SWQ9MTRmNTQ5YjgtOTQ1ZS00MTgyLThhMjMtZGVmYzQ5ZWY0NzRjO3N1YnNjcmlwdGlvbklkPTliYzFhZDNmLTM0MDEtNDJhMy05OWNkLTdmYWVlYjUxZTA1OTt0ZW5hbnRJZD0wNGRmNzk1OS1kZjI1LTRiZTMtYmUzMS0xNzY5MWMyZmM0MTk=][0m
+[0m[1mmodule.networking.module.virtual_network.data.azapi_client_config.telemetry[0]: Reading...[0m[0m
+[0m[1mmodule.networking.module.virtual_network.data.modtm_module_source.telemetry[0]: Read complete after 0s[0m
+[0m[1mmodule.networking.module.virtual_network.azapi_resource.vnet: Refreshing state... [id=/subscriptions/9bc1ad3f-3401-42a3-99cd-7faeeb51e059/resourceGroups/materialize/providers/Microsoft.Network/virtualNetworks/sj-manual-vnet][0m
+[0m[1mmodule.networking.module.virtual_network.data.azapi_client_config.telemetry[0]: Read complete after 1s [id=clientConfigs/subscriptionId=9bc1ad3f-3401-42a3-99cd-7faeeb51e059;tenantId=04df7959-df25-4be3-be31-17691c2fc419][0m
+[0m[1mmodule.networking.module.virtual_network.modtm_telemetry.telemetry[0]: Refreshing state... [id=356b4b93-1ad5-4e6e-8dd6-67391a87b0ad][0m
+[0m[1mmodule.networking.azurerm_private_dns_zone_virtual_network_link.postgres: Refreshing state... [id=/subscriptions/9bc1ad3f-3401-42a3-99cd-7faeeb51e059/resourceGroups/materialize/providers/Microsoft.Network/privateDnsZones/materializee7bd49d9.postgres.database.azure.com/virtualNetworkLinks/sj-manual-pg-dns-link][0m
+[0m[1mmodule.networking.module.virtual_network.module.subnet["aks"].azapi_resource.subnet: Refreshing state... [id=/subscriptions/9bc1ad3f-3401-42a3-99cd-7faeeb51e059/resourceGroups/materialize/providers/Microsoft.Network/virtualNetworks/sj-manual-vnet/subnets/sj-manual-aks-subnet][0m
+[0m[1mmodule.networking.module.virtual_network.module.subnet["postgres"].azapi_resource.subnet: Refreshing state... [id=/subscriptions/9bc1ad3f-3401-42a3-99cd-7faeeb51e059/resourceGroups/materialize/providers/Microsoft.Network/virtualNetworks/sj-manual-vnet/subnets/sj-manual-pg-subnet][0m
+[0m[1mmodule.aks.azurerm_role_assignment.aks_network_contributer: Refreshing state... [id=/subscriptions/9bc1ad3f-3401-42a3-99cd-7faeeb51e059/resourceGroups/materialize/providers/Microsoft.Network/virtualNetworks/sj-manual-vnet/subnets/sj-manual-aks-subnet/providers/Microsoft.Authorization/roleAssignments/eb4f7c7b-7b50-511c-7573-9d9290a4504b][0m
+[0m[1mmodule.storage.azurerm_storage_account.materialize: Refreshing state... [id=/subscriptions/9bc1ad3f-3401-42a3-99cd-7faeeb51e059/resourceGroups/materialize/providers/Microsoft.Storage/storageAccounts/sjmanualstgryaauk][0m
+[0m[1mmodule.aks.azurerm_kubernetes_cluster.aks: Refreshing state... [id=/subscriptions/9bc1ad3f-3401-42a3-99cd-7faeeb51e059/resourceGroups/materialize/providers/Microsoft.ContainerService/managedClusters/sj-manual-aks][0m
+[0m[1mmodule.database.random_password.admin_password[0]: Refreshing state... [id=none][0m
+[0m[1mmodule.database.azurerm_postgresql_flexible_server.postgres: Refreshing state... [id=/subscriptions/9bc1ad3f-3401-42a3-99cd-7faeeb51e059/resourceGroups/materialize/providers/Microsoft.DBforPostgreSQL/flexibleServers/sj-manual-pg][0m
+[0m[1mmodule.database.azurerm_postgresql_flexible_server_database.databases["materialize"]: Refreshing state... [id=/subscriptions/9bc1ad3f-3401-42a3-99cd-7faeeb51e059/resourceGroups/materialize/providers/Microsoft.DBforPostgreSQL/flexibleServers/sj-manual-pg/databases/materialize][0m
+[0m[1mmodule.storage.azurerm_storage_container.materialize: Refreshing state... [id=/subscriptions/9bc1ad3f-3401-42a3-99cd-7faeeb51e059/resourceGroups/materialize/providers/Microsoft.Storage/storageAccounts/sjmanualstgryaauk/blobServices/default/containers/materialize][0m
+[0m[1mmodule.storage.azurerm_role_assignment.storage_blob_contributor: Refreshing state... [id=/subscriptions/9bc1ad3f-3401-42a3-99cd-7faeeb51e059/resourceGroups/materialize/providers/Microsoft.Storage/storageAccounts/sjmanualstgryaauk/providers/Microsoft.Authorization/roleAssignments/96043ba4-bf80-ce3c-1fed-55790084ed26][0m
+[0m[1mmodule.storage.data.external.sas_token: Reading...[0m[0m
+[0m[1mmodule.storage.azurerm_federated_identity_credential.materialize_storage: Refreshing state... [id=/subscriptions/9bc1ad3f-3401-42a3-99cd-7faeeb51e059/resourceGroups/materialize/providers/Microsoft.ManagedIdentity/userAssignedIdentities/sj-manual-workload-identity/federatedIdentityCredentials/sj-manual-storage-credential][0m
+[0m[1mmodule.nodepool.azurerm_kubernetes_cluster_node_pool.primary_nodes: Refreshing state... [id=/subscriptions/9bc1ad3f-3401-42a3-99cd-7faeeb51e059/resourceGroups/materialize/providers/Microsoft.ContainerService/managedClusters/sj-manual-aks/agentPools/sjmanual][0m
+[0m[1mmodule.nodepool.kubernetes_cluster_role.disk_setup[0]: Refreshing state... [id=disk-setup][0m
+[0m[1mmodule.nodepool.kubernetes_namespace.disk_setup[0]: Refreshing state... [id=disk-setup][0m
+[0m[1mmodule.storage.data.external.sas_token: Read complete after 5s [id=-][0m
+[0m[1mmodule.nodepool.kubernetes_service_account.disk_setup[0]: Refreshing state... [id=disk-setup/disk-setup][0m
+[0m[1mmodule.nodepool.kubernetes_cluster_role_binding.disk_setup[0]: Refreshing state... [id=disk-setup][0m
+[0m[1mmodule.nodepool.kubernetes_daemonset.disk_setup[0]: Refreshing state... [id=disk-setup/disk-setup][0m
+[0m[1mmodule.openebs.kubernetes_namespace.openebs[0]: Refreshing state... [id=openebs][0m
+[0m[1mmodule.certificates.kubernetes_namespace.cert_manager[0]: Refreshing state... [id=cert-manager][0m
+[0m[1mmodule.certificates.helm_release.cert_manager[0]: Refreshing state... [id=cert-manager][0m
+[0m[1mmodule.openebs.helm_release.openebs[0]: Refreshing state... [id=openebs][0m
+[0m[1mmodule.certificates.kubernetes_manifest.self_signed_cluster_issuer[0]: Refreshing state...[0m
+[0m[1mmodule.certificates.kubernetes_manifest.self_signed_root_ca_certificate[0]: Refreshing state...[0m
+[0m[1mmodule.certificates.kubernetes_manifest.root_ca_cluster_issuer[0]: Refreshing state...[0m
+[0m[1mmodule.operator.kubernetes_namespace.monitoring: Refreshing state... [id=monitoring][0m
+[0m[1mmodule.operator.kubernetes_namespace.materialize: Refreshing state... [id=materialize][0m
+[0m[1mmodule.operator.helm_release.materialize_operator: Refreshing state... [id=sj-manual][0m
+[0m[1mmodule.materialize_instance[0].kubernetes_namespace.instance[0]: Refreshing state... [id=materialize-environment][0m
+[0m[1mmodule.materialize_instance[0].kubernetes_secret.materialize_backend: Refreshing state... [id=materialize-environment/main-materialize-backend][0m
+[0m[1mmodule.materialize_instance[0].kubernetes_manifest.materialize_instance: Refreshing state...[0m
+[0m[1mmodule.load_balancers[0].kubernetes_service.console_load_balancer: Refreshing state... [id=materialize-environment/mz0wexwzcs1z-console-lb][0m
+[0m[1mmodule.load_balancers[0].kubernetes_service.balancerd_load_balancer: Refreshing state... [id=materialize-environment/mz0wexwzcs1z-balancerd-lb][0m
+
+Terraform used the selected providers to generate the following execution
+plan. Resource actions are indicated with the following symbols:
+  [33m~[0m update in-place[0m
+[31m-[0m/[32m+[0m destroy and then create replacement[0m
+ [36m<=[0m read (data resources)[0m
+
+Terraform will perform the following actions:
+
+[1m  # module.load_balancers[0].kubernetes_service.balancerd_load_balancer[0m must be [1m[31mreplaced[0m
+[0m[31m-[0m/[32m+[0m[0m resource "kubernetes_service" "balancerd_load_balancer" {
+      [33m~[0m[0m id                     = "materialize-environment/mz0wexwzcs1z-balancerd-lb" -> (known after apply)
+      [33m~[0m[0m status                 = [
+          [31m-[0m[0m {
+              [31m-[0m[0m load_balancer = [
+                  [31m-[0m[0m {
+                      [31m-[0m[0m ingress = [
+                          [31m-[0m[0m {
+                              [31m-[0m[0m ip       = "20.0.0.92"
+                                [90m# (1 unchanged attribute hidden)[0m[0m
+                            },
+                        ]
+                    },
+                ]
+            },
+        ] -> (known after apply)
+        [90m# (1 unchanged attribute hidden)[0m[0m
+
+      [33m~[0m[0m metadata {
+          [33m~[0m[0m generation       = 0 -> (known after apply)
+          [31m-[0m[0m labels           = {} [90m-> null[0m[0m
+          [33m~[0m[0m name             = "mz0wexwzcs1z-balancerd-lb" -> (known after apply) [31m# forces replacement[0m[0m
+          [33m~[0m[0m resource_version = "21267" -> (known after apply)
+          [33m~[0m[0m uid              = "d8c6538d-39fb-4cfc-916b-023b78967be8" -> (known after apply)
+            [90m# (3 unchanged attributes hidden)[0m[0m
+        }
+
+      [33m~[0m[0m spec {
+          [33m~[0m[0m cluster_ip                        = "20.1.194.126" -> (known after apply)
+          [33m~[0m[0m cluster_ips                       = [
+              [31m-[0m[0m "20.1.194.126",
+            ] -> (known after apply)
+          [31m-[0m[0m external_ips                      = [] [90m-> null[0m[0m
+          [33m~[0m[0m health_check_node_port            = 30299 -> (known after apply)
+          [33m~[0m[0m internal_traffic_policy           = "Cluster" -> (known after apply)
+          [33m~[0m[0m ip_families                       = [
+              [31m-[0m[0m "IPv4",
+            ] -> (known after apply)
+          [33m~[0m[0m ip_family_policy                  = "SingleStack" -> (known after apply)
+          [31m-[0m[0m load_balancer_source_ranges       = [] [90m-> null[0m[0m
+          [33m~[0m[0m selector                          = {
+              [31m-[0m[0m "materialize.cloud/name" = "mz0wexwzcs1z-balancerd"
+            } -> (known after apply)
+            [90m# (8 unchanged attributes hidden)[0m[0m
+
+          [33m~[0m[0m port {
+                name         = "sql"
+              [33m~[0m[0m node_port    = 32748 -> (known after apply)
+                [90m# (4 unchanged attributes hidden)[0m[0m
+            }
+          [33m~[0m[0m port {
+                name         = "https"
+              [33m~[0m[0m node_port    = 32078 -> (known after apply)
+                [90m# (4 unchanged attributes hidden)[0m[0m
+            }
+
+          [33m~[0m[0m session_affinity_config (known after apply)
+        }
+    }
+
+[1m  # module.load_balancers[0].kubernetes_service.console_load_balancer[0m must be [1m[31mreplaced[0m
+[0m[31m-[0m/[32m+[0m[0m resource "kubernetes_service" "console_load_balancer" {
+      [33m~[0m[0m id                     = "materialize-environment/mz0wexwzcs1z-console-lb" -> (known after apply)
+      [33m~[0m[0m status                 = [
+          [31m-[0m[0m {
+              [31m-[0m[0m load_balancer = [
+                  [31m-[0m[0m {
+                      [31m-[0m[0m ingress = [
+                          [31m-[0m[0m {
+                              [31m-[0m[0m ip       = "20.0.0.91"
+                                [90m# (1 unchanged attribute hidden)[0m[0m
+                            },
+                        ]
+                    },
+                ]
+            },
+        ] -> (known after apply)
+        [90m# (1 unchanged attribute hidden)[0m[0m
+
+      [33m~[0m[0m metadata {
+          [33m~[0m[0m generation       = 0 -> (known after apply)
+          [31m-[0m[0m labels           = {} [90m-> null[0m[0m
+          [33m~[0m[0m name             = "mz0wexwzcs1z-console-lb" -> (known after apply) [31m# forces replacement[0m[0m
+          [33m~[0m[0m resource_version = "21231" -> (known after apply)
+          [33m~[0m[0m uid              = "4c835937-0c56-4a86-896a-caf87b240d91" -> (known after apply)
+            [90m# (3 unchanged attributes hidden)[0m[0m
+        }
+
+      [33m~[0m[0m spec {
+          [33m~[0m[0m cluster_ip                        = "20.1.206.136" -> (known after apply)
+          [33m~[0m[0m cluster_ips                       = [
+              [31m-[0m[0m "20.1.206.136",
+            ] -> (known after apply)
+          [31m-[0m[0m external_ips                      = [] [90m-> null[0m[0m
+          [33m~[0m[0m health_check_node_port            = 32477 -> (known after apply)
+          [33m~[0m[0m internal_traffic_policy           = "Cluster" -> (known after apply)
+          [33m~[0m[0m ip_families                       = [
+              [31m-[0m[0m "IPv4",
+            ] -> (known after apply)
+          [33m~[0m[0m ip_family_policy                  = "SingleStack" -> (known after apply)
+          [31m-[0m[0m load_balancer_source_ranges       = [] [90m-> null[0m[0m
+          [33m~[0m[0m selector                          = {
+              [31m-[0m[0m "materialize.cloud/name" = "mz0wexwzcs1z-console"
+            } -> (known after apply)
+            [90m# (8 unchanged attributes hidden)[0m[0m
+
+          [33m~[0m[0m port {
+                name         = "http"
+              [33m~[0m[0m node_port    = 31492 -> (known after apply)
+                [90m# (4 unchanged attributes hidden)[0m[0m
+            }
+
+          [33m~[0m[0m session_affinity_config (known after apply)
+        }
+    }
+
+[1m  # module.materialize_instance[0].data.kubernetes_resource.materialize_instance[0m will be read during apply
+  # (depends on a resource or a module with changes pending)
+[0m [36m<=[0m[0m data "kubernetes_resource" "materialize_instance" {
+      [32m+[0m[0m api_version = "materialize.cloud/v1alpha1"
+      [32m+[0m[0m kind        = "Materialize"
+      [32m+[0m[0m object      = (known after apply)
+
+      [32m+[0m[0m metadata {
+          [32m+[0m[0m name      = "main"
+          [32m+[0m[0m namespace = "materialize-environment"
+        }
+    }
+
+[1m  # module.materialize_instance[0].kubernetes_manifest.materialize_instance[0m will be updated in-place
+[0m  [33m~[0m[0m resource "kubernetes_manifest" "materialize_instance" {
+      [33m~[0m[0m object   = {
+          [33m~[0m[0m spec       = {
+              [32m+[0m[0m environmentdExtraArgs                       = (known after apply)
+              [32m+[0m[0m environmentdExtraEnv                        = (known after apply)
+                [90m# (23 unchanged attributes hidden)[0m[0m
+            }
+            [90m# (3 unchanged attributes hidden)[0m[0m
+        }
+        [90m# (1 unchanged attribute hidden)[0m[0m
+
+        [90m# (1 unchanged block hidden)[0m[0m
+    }
+
+[1m  # module.operator.helm_release.materialize_operator[0m will be updated in-place
+[0m  [33m~[0m[0m resource "helm_release" "materialize_operator" {
+        id                         = "sj-manual"
+      [33m~[0m[0m metadata                   = [
+          [31m-[0m[0m {
+              [31m-[0m[0m app_version    = "v0.147.7"
+              [31m-[0m[0m chart          = "materialize-operator"
+              [31m-[0m[0m first_deployed = 1758011448
+              [31m-[0m[0m last_deployed  = 1758014278
+              [31m-[0m[0m name           = "sj-manual"
+              [31m-[0m[0m namespace      = "materialize"
+              [31m-[0m[0m notes          = <<-EOT
+                    # Copyright Materialize, Inc. and contributors. All rights reserved.
+                    #
+                    # Use of this software is governed by the Business Source License
+                    # included in the LICENSE file at the root of this repository.
+                    #
+                    # As of the Change Date specified in that file, in accordance with
+                    # the Business Source License, use of this software will be governed
+                    # by the Apache License, Version 2.0.
+                    
+                    Thank you for installing materialize-operator.
+                    
+                    Your release is named sj-manual.
+                    
+                    To learn more about the release, try:
+                    
+                      $ helm status sj-manual
+                      $ helm get all sj-manual
+                    
+                    The Materialize operator is now deployed in your cluster. It will manage Materialize environments as defined by custom resources.
+                    
+                    For more information on how to use the operator, please refer to the Materialize documentation.
+                EOT
+              [31m-[0m[0m revision       = 3
+              [31m-[0m[0m values         = jsonencode(
+                    {
+                      [31m-[0m[0m observability = {
+                          [31m-[0m[0m podMetrics = {
+                              [31m-[0m[0m enabled = true
+                            }
+                        }
+                      [31m-[0m[0m operator      = {
+                          [31m-[0m[0m cloudProvider = {
+                              [31m-[0m[0m region = "West Europe"
+                              [31m-[0m[0m type   = "azure"
+                            }
+                          [31m-[0m[0m image         = {}
+                        }
+                      [31m-[0m[0m storage       = {
+                          [31m-[0m[0m storageClass = {
+                              [31m-[0m[0m create      = true
+                              [31m-[0m[0m name        = "openebs-lvm-instance-store-ext4"
+                              [31m-[0m[0m parameters  = {
+                                  [31m-[0m[0m fsType   = "ext4"
+                                  [31m-[0m[0m storage  = "lvm"
+                                  [31m-[0m[0m volgroup = "instance-store-vg"
+                                }
+                              [31m-[0m[0m provisioner = "local.csi.openebs.io"
+                            }
+                        }
+                      [31m-[0m[0m tls           = {
+                          [31m-[0m[0m defaultCertificateSpecs = {
+                              [31m-[0m[0m balancerdExternal = {
+                                  [31m-[0m[0m dnsNames  = [
+                                      [31m-[0m[0m "balancerd",
+                                    ]
+                                  [31m-[0m[0m issuerRef = {
+                                      [31m-[0m[0m kind = "ClusterIssuer"
+                                      [31m-[0m[0m name = "sj-manual-root-ca"
+                                    }
+                                }
+                              [31m-[0m[0m consoleExternal   = {
+                                  [31m-[0m[0m dnsNames  = [
+                                      [31m-[0m[0m "console",
+                                    ]
+                                  [31m-[0m[0m issuerRef = {
+                                      [31m-[0m[0m kind = "ClusterIssuer"
+                                      [31m-[0m[0m name = "sj-manual-root-ca"
+                                    }
+                                }
+                              [31m-[0m[0m internal          = {
+                                  [31m-[0m[0m issuerRef = {
+                                      [31m-[0m[0m kind = "ClusterIssuer"
+                                      [31m-[0m[0m name = "sj-manual-root-ca"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                )
+              [31m-[0m[0m version        = "v25.2.6"
+            },
+        ] -> (known after apply)
+        name                       = "sj-manual"
+      [33m~[0m[0m values                     = [
+          [33m~[0m[0m <<-EOT
+                "observability":
+                  "podMetrics":
+                    "enabled": true
+                "operator":
+                  "cloudProvider":
+              [31m-[0m[0m     "region": "West Europe"
+              [32m+[0m[0m     "region": "westeurope"
+                    "type": "azure"
+                  "image": {}
+                "storage":
+                  "storageClass":
+                    "create": true
+                    "name": "openebs-lvm-instance-store-ext4"
+                    "parameters":
+                      "fsType": "ext4"
+                      "storage": "lvm"
+                      "volgroup": "instance-store-vg"
+                    "provisioner": "local.csi.openebs.io"
+                "tls":
+                  "defaultCertificateSpecs":
+                    "balancerdExternal":
+                      "dnsNames":
+                      - "balancerd"
+                      "issuerRef":
+                        "kind": "ClusterIssuer"
+                        "name": "sj-manual-root-ca"
+                    "consoleExternal":
+                      "dnsNames":
+                      - "console"
+                      "issuerRef":
+                        "kind": "ClusterIssuer"
+                        "name": "sj-manual-root-ca"
+                    "internal":
+                      "issuerRef":
+                        "kind": "ClusterIssuer"
+                        "name": "sj-manual-root-ca"
+            EOT,
+        ]
+        [90m# (26 unchanged attributes hidden)[0m[0m
+    }
+
+[1m  # module.networking.module.virtual_network.modtm_telemetry.telemetry[0][0m will be updated in-place
+[0m  [33m~[0m[0m resource "modtm_telemetry" "telemetry" {
+      [32m+[0m[0m ephemeral_number = (known after apply)
+        id               = "356b4b93-1ad5-4e6e-8dd6-67391a87b0ad"
+      [32m+[0m[0m nonce            = (known after apply)
+      [33m~[0m[0m tags             = {
+          [33m~[0m[0m "location"        = "West Europe" [33m->[0m[0m "westeurope"
+            "module_source"   = "registry.terraform.io/Azure/avm-res-network-virtualnetwork/azurerm"
+            "module_version"  = "0.10.0"
+            "random_id"       = "74c4ca67-b714-f2cd-5024-fc1595d417b1"
+            "subscription_id" = "9bc1ad3f-3401-42a3-99cd-7faeeb51e059"
+            "tenant_id"       = "04df7959-df25-4be3-be31-17691c2fc419"
+        }
+    }
+
+[1mPlan:[0m 2 to add, 3 to change, 2 to destroy.
+[0m[33m╷[0m[0m
+[33m│[0m [0m[1m[33mWarning: [0m[0m[1mAttribute Deprecated[0m
+[33m│[0m [0m
+[33m│[0m [0m[0m  with module.networking.module.virtual_network.azapi_resource.vnet,
+[33m│[0m [0m  on .terraform/modules/networking.virtual_network/main.virtual.network.tf line 1, in resource "azapi_resource" "vnet":
+[33m│[0m [0m   1: resource "azapi_resource" "vnet" [4m{[0m[0m
+[33m│[0m [0m
+[33m│[0m [0mThe `multiplier` attribute is deprecated and will be removed in a
+[33m│[0m [0mfuture version.
+[33m│[0m [0m
+[33m│[0m [0m(and 5 more similar warnings elsewhere)
+[33m╵[0m[0m
+[90m
+─────────────────────────────────────────────────────────────────────────────[0m
+
+Note: You didn't use the -out option to save this plan, so Terraform can't
+guarantee to take exactly these actions if you run "terraform apply" now.

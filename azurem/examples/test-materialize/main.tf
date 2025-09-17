@@ -37,10 +37,9 @@ locals {
   )
 
   persist_backend_url = format(
-    "%s%s?%s",
+    "%s%s",
     module.storage.primary_blob_endpoint,
-    module.storage.container_name,
-    module.storage.primary_blob_sas_token
+    module.storage.container_name
   )
 }
 
@@ -53,13 +52,19 @@ resource "random_password" "external_login_password_mz_system" {
 module "storage" {
   source = "../../modules/storage"
 
-  resource_group_name   = var.resource_group_name
-  location              = var.location
-  prefix                = var.prefix
-  identity_principal_id = var.cluster_identity_principal_id
-  subnets               = var.subnets
-  container_name        = var.storage_config.container_name
-  container_access_type = var.storage_config.container_access_type
+  resource_group_name            = var.resource_group_name
+  location                       = var.location
+  prefix                         = var.prefix
+  workload_identity_principal_id = var.workload_identity_principal_id
+  subnets                        = var.subnets
+  container_name                 = var.storage_config.container_name
+  container_access_type          = var.storage_config.container_access_type
+
+  # Workload identity federation configuration
+  workload_identity_id      = var.workload_identity_id
+  oidc_issuer_url           = var.cluster_oidc_issuer_url
+  service_account_namespace = var.instance_namespace
+  service_account_name      = var.instance_name
 
   tags = var.tags
 }
@@ -113,7 +118,9 @@ module "materialize_instance" {
   # Azure workload identity annotations for service account
   service_account_annotations = {
     "azure.workload.identity/client-id" = var.workload_identity_client_id
-    "azure.workload.identity/use"       = "true"
+  }
+  pod_labels = {
+    "azure.workload.identity/use" = "true"
   }
 
   depends_on = [

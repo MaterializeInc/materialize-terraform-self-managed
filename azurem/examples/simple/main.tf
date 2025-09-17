@@ -89,11 +89,13 @@ locals {
   )
 
   persist_backend_url = format(
-    "%s%s?%s",
+    "%s%s",
     module.storage.primary_blob_endpoint,
     module.storage.container_name,
-    module.storage.primary_blob_sas_token
   )
+
+  materialize_instance_namespace = "materialize-environment"
+  materialize_instance_name      = "main"
 }
 
 
@@ -200,12 +202,18 @@ module "database" {
 module "storage" {
   source = "../../modules/storage"
 
-  resource_group_name   = azurerm_resource_group.materialize.name
-  location              = var.location
-  prefix                = var.name_prefix
-  identity_principal_id = module.aks.cluster_identity_principal_id
-  subnets               = [module.networking.aks_subnet_id]
-  container_name        = local.storage_container_name
+  resource_group_name            = azurerm_resource_group.materialize.name
+  location                       = var.location
+  prefix                         = var.name_prefix
+  workload_identity_principal_id = module.aks.workload_identity_principal_id
+  subnets                        = [module.networking.aks_subnet_id]
+  container_name                 = local.storage_container_name
+
+  # Workload identity federation configuration
+  workload_identity_id      = module.aks.workload_identity_id
+  oidc_issuer_url           = module.aks.cluster_oidc_issuer_url
+  service_account_namespace = local.materialize_instance_namespace
+  service_account_name      = local.materialize_instance_name
 
   tags = local.tags
 }
@@ -262,8 +270,8 @@ module "materialize_instance" {
   count = var.install_materialize_instance ? 1 : 0
 
   source               = "../../../kubernetes/modules/materialize-instance"
-  instance_name        = "main"
-  instance_namespace   = "materialize-environment"
+  instance_name        = local.materialize_instance_name
+  instance_namespace   = local.materialize_instance_namespace
   metadata_backend_url = local.metadata_backend_url
   persist_backend_url  = local.persist_backend_url
 
@@ -273,9 +281,10 @@ module "materialize_instance" {
   # Azure workload identity annotations for service account
   service_account_annotations = {
     "azure.workload.identity/client-id" = module.aks.workload_identity_client_id
-    "azure.workload.identity/use"       = "true"
   }
-
+  pod_labels = {
+    "azure.workload.identity/use" = "true"
+  }
 
   depends_on = [
     module.aks,
@@ -294,8 +303,8 @@ module "load_balancers" {
 
   source = "../../modules/load_balancers"
 
-  instance_name = "main"
-  namespace     = "materialize-environment"
+  instance_name = local.materialize_instance_name
+  namespace     = local.materialize_instance_namespace
   resource_id   = module.materialize_instance[0].instance_resource_id
   internal      = true
 

@@ -23,14 +23,14 @@ resource "kubernetes_manifest" "materialize_instance" {
       namespace = var.instance_namespace
     }
     spec = {
-      environmentdImageRef = "materialize/environmentd:${var.environmentd_version}"
-      backendSecretName    = "${var.instance_name}-materialize-backend"
-      authenticatorKind    = var.authenticator_kind
-      # service_account_annotations
+      environmentdImageRef      = "materialize/environmentd:${var.environmentd_version}"
+      backendSecretName         = "${var.instance_name}-materialize-backend"
+      authenticatorKind         = var.authenticator_kind
       serviceAccountAnnotations = var.service_account_annotations
-      inPlaceRollout       = var.in_place_rollout
-      requestRollout       = var.request_rollout
-      forceRollout         = var.force_rollout
+      podLabels                 = var.pod_labels
+      inPlaceRollout            = var.in_place_rollout
+      requestRollout            = var.request_rollout
+      forceRollout              = var.force_rollout
 
       environmentdExtraEnv = length(var.environmentd_extra_env) > 0 ? [{
         name = "MZ_SYSTEM_PARAMETER_DEFAULT"
