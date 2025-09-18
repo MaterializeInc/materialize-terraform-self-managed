@@ -66,17 +66,6 @@ variable "cert_manager_namespace" {
   type        = string
 }
 
-# OpenEBS configuration
-variable "openebs_namespace" {
-  description = "OpenEBS namespace"
-  type        = string
-}
-
-variable "openebs_chart_version" {
-  description = "OpenEBS chart version"
-  type        = string
-}
-
 variable "operator_namespace" {
   description = "Materialize operator namespace"
   type        = string
@@ -125,7 +114,7 @@ variable "external_login_password" {
   sensitive   = true
 }
 
-variable "disk_setup_enabled" {
-  description = "Enable disk setup or not"
+variable "swap_enabled" {
+  description = "Enable swap"
   type        = bool
 }

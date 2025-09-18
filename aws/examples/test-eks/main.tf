@@ -55,7 +55,7 @@ module "eks_node_group" {
   desired_size                      = var.desired_nodes
   instance_types                    = var.instance_types
   capacity_type                     = var.capacity_type
-  enable_disk_setup                 = var.disk_setup_enabled
+  swap_enabled                      = var.swap_enabled
   labels                            = var.node_labels
   iam_role_use_name_prefix          = var.iam_role_use_name_prefix
 

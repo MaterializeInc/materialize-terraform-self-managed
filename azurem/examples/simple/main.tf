@@ -32,8 +32,6 @@ provider "helm" {
 
 
 locals {
-  resource_group_name = "materialize"
-
   vnet_config = {
     address_space        = "20.0.0.0/16"
     aks_subnet_cidr      = "20.0.0.0/20"
@@ -54,6 +52,7 @@ locals {
     max_nodes            = 5
     node_count           = null
     disk_size_gb         = 100
+    swap_enabled         = true
   }
 
   database_config = {
@@ -68,18 +67,6 @@ locals {
   }
 
   storage_container_name = "materialize"
-
-  tags = {
-    Environment = "development"
-    Project     = "materialize"
-  }
-
-  # Disk support configuration
-  disk_config = {
-    enable_disk_support = true
-    openebs_namespace   = "openebs"
-  }
-
 
   metadata_backend_url = format(
     "postgres://%s@%s/%s?sslmode=require",
@@ -100,7 +87,7 @@ locals {
 
 
 resource "azurerm_resource_group" "materialize" {
-  name     = local.resource_group_name
+  name     = var.resource_group_name
   location = var.location
 }
 
@@ -114,6 +101,8 @@ module "networking" {
   vnet_address_space   = local.vnet_config.address_space
   aks_subnet_cidr      = local.vnet_config.aks_subnet_cidr
   postgres_subnet_cidr = local.vnet_config.postgres_subnet_cidr
+
+  depends_on = [azurerm_resource_group.materialize]
 }
 
 # Pattern A: Minimal system-only default node pool + separate workload node pools
@@ -138,7 +127,9 @@ module "aks" {
   enable_azure_monitor       = local.aks_config.enable_azure_monitor
   log_analytics_workspace_id = local.aks_config.log_analytics_workspace_id
 
-  tags = local.tags
+  tags = var.tags
+
+  depends_on = [azurerm_resource_group.materialize]
 }
 
 # Separate workload node pool for Materialize
@@ -156,11 +147,14 @@ module "nodepool" {
     max_nodes  = local.node_pool_config.max_nodes
     node_count = local.node_pool_config.node_count
   }
-  vm_size           = local.node_pool_config.vm_size
-  disk_size_gb      = local.node_pool_config.disk_size_gb
-  enable_disk_setup = local.disk_config.enable_disk_support
 
-  tags = local.tags
+  vm_size      = local.node_pool_config.vm_size
+  disk_size_gb = local.node_pool_config.disk_size_gb
+  swap_enabled = local.node_pool_config.swap_enabled
+
+  tags = var.tags
+
+  depends_on = [azurerm_resource_group.materialize]
 }
 
 
@@ -196,7 +190,7 @@ module "database" {
   backup_retention_days         = local.database_config.backup_retention_days
   public_network_access_enabled = local.database_config.public_network_access_enabled
 
-  tags = local.tags
+  tags = var.tags
 }
 
 module "storage" {
@@ -215,19 +209,9 @@ module "storage" {
   service_account_namespace = local.materialize_instance_namespace
   service_account_name      = local.materialize_instance_name
 
-  tags = local.tags
-}
+  tags = var.tags
 
-module "openebs" {
-  source = "../../../kubernetes/modules/openebs"
-  depends_on = [
-    module.aks,
-    module.nodepool
-  ]
-
-  install_openebs          = local.disk_config.enable_disk_support
-  create_openebs_namespace = true
-  openebs_namespace        = local.disk_config.openebs_namespace
+  depends_on = [azurerm_resource_group.materialize]
 }
 
 resource "random_password" "external_login_password_mz_system" {
@@ -286,6 +270,8 @@ module "materialize_instance" {
     "azure.workload.identity/use" = "true"
   }
 
+  license_key = var.license_key
+
   depends_on = [
     module.aks,
     module.database,
@@ -294,7 +280,6 @@ module "materialize_instance" {
     module.certificates,
     module.operator,
     module.nodepool,
-    module.openebs,
   ]
 }
 

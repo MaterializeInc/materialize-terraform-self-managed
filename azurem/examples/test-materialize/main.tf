@@ -69,15 +69,6 @@ module "storage" {
   tags = var.tags
 }
 
-module "openebs" {
-  source = "../../../kubernetes/modules/openebs"
-
-  install_openebs          = var.enable_disk_support
-  create_openebs_namespace = true
-  openebs_namespace        = var.openebs_namespace
-  openebs_version          = var.openebs_version
-}
-
 module "certificates" {
   source = "../../../kubernetes/modules/certificates"
 
@@ -95,7 +86,7 @@ module "operator" {
   name_prefix                    = var.prefix
   use_self_signed_cluster_issuer = var.install_materialize_instance
   location                       = var.location
-  enable_disk_support            = var.enable_disk_support
+  swap_enabled                   = var.swap_enabled
   operator_namespace             = var.operator_namespace
 
   depends_on = [
@@ -126,7 +117,6 @@ module "materialize_instance" {
   depends_on = [
     module.certificates,
     module.operator,
-    module.openebs,
     module.storage,
   ]
 }

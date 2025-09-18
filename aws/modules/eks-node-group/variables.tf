@@ -64,7 +64,7 @@ variable "capacity_type" {
 variable "ami_type" {
   description = "AMI type for the node group."
   type        = string
-  default     = "AL2023_ARM_64_STANDARD"
+  default     = "BOTTLEROCKET_ARM_64"
   nullable    = false
 }
 
@@ -74,10 +74,17 @@ variable "labels" {
   default     = {}
 }
 
-variable "enable_disk_setup" {
-  description = "Whether to enable disk setup using the bootstrap script"
+variable "swap_enabled" {
+  description = "Whether to enable swap on the local NVMe disks."
   type        = bool
   default     = true
+  nullable    = false
+}
+
+variable "disk_setup_image" {
+  description = "Docker image for the disk setup script"
+  type        = string
+  default     = "docker.io/materialize/ephemeral-storage-setup-image:v0.4.0"
   nullable    = false
 }
 

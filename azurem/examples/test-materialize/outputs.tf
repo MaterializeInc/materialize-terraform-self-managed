@@ -25,17 +25,6 @@ output "instance_installed" {
   value       = var.install_materialize_instance
 }
 
-# OpenEBS outputs
-output "openebs_installed" {
-  description = "Whether OpenEBS was installed"
-  value       = var.enable_disk_support ? module.openebs.openebs_installed : false
-}
-
-output "openebs_namespace" {
-  description = "The namespace where OpenEBS is installed"
-  value       = var.enable_disk_support ? module.openebs.openebs_namespace : ""
-}
-
 # Storage outputs
 output "storage_account_name" {
   description = "The name of the storage account"

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -232,13 +233,13 @@ func (suite *StagedDeploymentSuite) testDiskEnabledSetup(projectID string) {
 	// Stage 2: GKE Setup (Disk Enabled)
 	test_structure.RunTestStage(t, "setup_gke_disk_enabled", func() {
 		suite.setupGKEStage("setup_gke_disk_enabled", utils.GKEDiskEnabledDir, projectID,
-			utils.DiskEnabledShortSuffix, "true")
+			utils.DiskEnabledShortSuffix, true)
 	})
 
 	// Stage 3: Materialize Setup (Disk Enabled)
 	test_structure.RunTestStage(t, "setup_materialize_disk_enabled", func() {
 		suite.setupMaterializeStage("setup_materialize_disk_enabled", utils.MaterializeDiskEnabledDir, projectID,
-			utils.DiskEnabledShortSuffix, "true")
+			utils.DiskEnabledShortSuffix, true)
 	})
 	t.Logf("✅ Disk Enabled Setup completed successfully")
 }
@@ -249,12 +250,12 @@ func (suite *StagedDeploymentSuite) testDiskDisabledSetup(projectID string) {
 
 	test_structure.RunTestStage(t, "setup_gke_disk_disabled", func() {
 		suite.setupGKEStage("setup_gke_disk_disabled", utils.GKEDiskDisabledDir, projectID,
-			utils.DiskDisabledShortSuffix, "false")
+			utils.DiskDisabledShortSuffix, false)
 	})
 
 	test_structure.RunTestStage(t, "setup_materialize_disk_disabled", func() {
 		suite.setupMaterializeStage("setup_materialize_disk_disabled", utils.MaterializeDiskDisabledDir, projectID,
-			utils.DiskDisabledShortSuffix, "false")
+			utils.DiskDisabledShortSuffix, false)
 	})
 	t.Logf("✅ Disk Disabled Setup completed successfully")
 }
@@ -344,7 +345,7 @@ func (suite *StagedDeploymentSuite) setupDatabaseStage(stage, stageDir, projectI
 	t.Logf("  🔗 Private IP: %s", privateIP)
 }
 
-func (suite *StagedDeploymentSuite) setupGKEStage(stage, stageDir, projectID, nameSuffix, diskEnabled string) {
+func (suite *StagedDeploymentSuite) setupGKEStage(stage, stageDir, projectID, nameSuffix string, diskEnabled bool) {
 	t := suite.T()
 	t.Logf("🔧 Setting up GKE stage: %s", stage)
 
@@ -365,7 +366,7 @@ func (suite *StagedDeploymentSuite) setupGKEStage(stage, stageDir, projectID, na
 	}
 	subnetName := subnetNames[0]
 
-	t.Logf("🔗 Using infrastructure family: %s for GKE (disk-enabled: %s)", resourceId, diskEnabled)
+	t.Logf("🔗 Using infrastructure family: %s for GKE (disk-enabled: %t)", resourceId, diskEnabled)
 	// Short ID will used as resource name prefix so that we don't exceed the length limit
 	shortId := strings.Split(resourceId, "-")[1]
 
@@ -376,7 +377,7 @@ func (suite *StagedDeploymentSuite) setupGKEStage(stage, stageDir, projectID, na
 	diskSize := TestGKEDiskDisabledDiskSize
 	localSSDCount := TestGKEDiskDisabledLocalSSDCount
 	machineType := TestGKEDiskDisabledMachineType
-	if diskEnabled == "true" {
+	if diskEnabled {
 		diskSize = TestGKEDiskEnabledDiskSize
 		localSSDCount = TestGKEDiskEnabledLocalSSDCount
 		machineType = TestGKEDiskEnabledMachineType
@@ -399,7 +400,7 @@ func (suite *StagedDeploymentSuite) setupGKEStage(stage, stageDir, projectID, na
 			"min_nodes":              TestGKEMinNodes,
 			"max_nodes":              TestGKEMaxNodes,
 			"enable_private_nodes":   true,
-			"disk_setup_enabled":     diskEnabled == "true",
+			"swap_enabled":           diskEnabled,
 			"disk_size":              diskSize,
 			"local_ssd_count":        localSSDCount,
 		},
@@ -436,14 +437,14 @@ func (suite *StagedDeploymentSuite) setupGKEStage(stage, stageDir, projectID, na
 	test_structure.SaveString(t, stageDirPath, "cluster_ca_certificate", clusterCA)
 	test_structure.SaveString(t, stageDirPath, "workload_identity_sa_email", workloadIdentitySA)
 
-	t.Logf("✅ GKE cluster (disk-enabled: %s) created successfully:", diskEnabled)
+	t.Logf("✅ GKE cluster (disk-enabled: %t) created successfully:", diskEnabled)
 	t.Logf("  📛 Cluster Name: %s", clusterName)
 	t.Logf("  🔗 Endpoint: %s", clusterEndpoint)
 	t.Logf("  🆔 Workload Identity SA: %s", workloadIdentitySA)
-	t.Logf("  💾 Disk Enabled: %s", diskEnabled)
+	t.Logf("  💾 Disk Enabled: %t", diskEnabled)
 }
 
-func (suite *StagedDeploymentSuite) setupMaterializeStage(stage, stageDir, projectID, nameSuffix, diskEnabled string) {
+func (suite *StagedDeploymentSuite) setupMaterializeStage(stage, stageDir, projectID, nameSuffix string, diskEnabled bool) {
 	t := suite.T()
 	t.Logf("🔧 Setting up Materialize stage: %s", stage)
 
@@ -453,7 +454,7 @@ func (suite *StagedDeploymentSuite) setupMaterializeStage(stage, stageDir, proje
 	}
 
 	gkeStageDir := utils.GKEDiskDisabledDir
-	if diskEnabled == "true" {
+	if diskEnabled {
 		gkeStageDir = utils.GKEDiskEnabledDir
 	}
 	gkeStageDirFullPath := filepath.Join(suite.workingDir, gkeStageDir)
@@ -476,7 +477,7 @@ func (suite *StagedDeploymentSuite) setupMaterializeStage(stage, stageDir, proje
 		t.Fatal("❌ Cannot create Materialize: Missing database details. Run database setup stage first.")
 	}
 
-	t.Logf("🔗 Using GKE cluster where disk-enabled: %s", diskEnabled)
+	t.Logf("🔗 Using GKE cluster where disk-enabled: %t", diskEnabled)
 	// Short ID will used as resource name prefix so that we don't exceed the length limit
 	shortId := strings.Split(resourceId, "-")[1]
 
@@ -485,18 +486,14 @@ func (suite *StagedDeploymentSuite) setupMaterializeStage(stage, stageDir, proje
 
 	databaseName := TestDBNameNoDisk
 	username := TestDBUsername2
-	if diskEnabled == "true" {
+	if diskEnabled {
 		databaseName = TestDBNameDisk
 		username = TestDBUsername1
 	}
 
-	// Configure OpenEBS and disk setup based on disk enabled/disabled
-	diskSetupEnabled := diskEnabled == "true"
-
 	// Create namespaces using the same pattern as Azure
 	expectedInstanceNamespace := fmt.Sprintf("mz-instance-%s", nameSuffix)
 	expectedOperatorNamespace := fmt.Sprintf("mz-operator-%s", nameSuffix)
-	expectedOpenEbsNamespace := fmt.Sprintf("openebs-%s", nameSuffix)
 	expectedCertManagerNamespace := fmt.Sprintf("cert-manager-%s", nameSuffix)
 
 	materializeOptions := &terraform.Options{
@@ -510,7 +507,7 @@ func (suite *StagedDeploymentSuite) setupMaterializeStage(stage, stageDir, proje
 				"environment":  "test",
 				"project":      "materialize",
 				"test-run":     resourceId,
-				"disk-enabled": diskEnabled,
+				"disk-enabled": strconv.FormatBool(diskEnabled),
 			},
 
 			// Cluster configuration
@@ -529,11 +526,7 @@ func (suite *StagedDeploymentSuite) setupMaterializeStage(stage, stageDir, proje
 			"cert_manager_namespace":       expectedCertManagerNamespace,
 
 			// Disk setup configuration
-			"disk_setup_enabled": diskSetupEnabled,
-
-			// OpenEBS configuration (disk-enabled specific)
-			"openebs_namespace":     expectedOpenEbsNamespace,
-			"openebs_chart_version": TestOpenEBSVersion,
+			"swap_enabled": diskEnabled,
 
 			// Materialize operator configuration
 			"operator_namespace": expectedOperatorNamespace,
@@ -569,7 +562,7 @@ func (suite *StagedDeploymentSuite) setupMaterializeStage(stage, stageDir, proje
 	// Apply
 	terraform.InitAndApply(t, materializeOptions)
 
-	t.Logf("✅ Phase 1: Materialize operator installed on cluster where disk-enabled: %s", diskEnabled)
+	t.Logf("✅ Phase 1: Materialize operator installed on cluster where disk-enabled: %t", diskEnabled)
 
 	// Phase 2: Update variables for instance deployment
 	materializeOptions.Vars["install_materialize_instance"] = true
@@ -586,14 +579,10 @@ func (suite *StagedDeploymentSuite) setupMaterializeStage(stage, stageDir, proje
 
 	t.Logf("✅ Phase 2: Materialize instance created successfully:")
 	t.Logf("  🗄️ Instance Resource ID: %s", instanceResourceId)
-	t.Logf("  💾 Disk Enabled: %s", diskEnabled)
-	t.Logf("  🔧 OpenEBS Installed: %s", diskEnabled)
+	t.Logf("  💾 Disk Enabled: %t", diskEnabled)
 	t.Logf("  📜 Cert Manager Namespace: %s", expectedCertManagerNamespace)
 	t.Logf("  🎛️ Operator Namespace: %s", expectedOperatorNamespace)
 	t.Logf("  🏠 Instance Namespace: %s", expectedInstanceNamespace)
-	if diskSetupEnabled {
-		t.Logf("  💿 OpenEBS Namespace: %s", expectedOpenEbsNamespace)
-	}
 }
 
 func (suite *StagedDeploymentSuite) useExistingNetwork() {

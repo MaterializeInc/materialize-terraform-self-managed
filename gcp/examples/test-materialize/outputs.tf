@@ -27,17 +27,6 @@ output "cluster_issuer_name" {
   value       = module.certificates.cluster_issuer_name
 }
 
-# OpenEBS outputs
-output "openebs_installed" {
-  description = "Whether OpenEBS was installed"
-  value       = module.openebs.openebs_installed
-}
-
-output "openebs_namespace" {
-  description = "The namespace where OpenEBS is installed"
-  value       = module.openebs.openebs_namespace
-}
-
 # Operator outputs
 output "operator_namespace" {
   description = "Materialize operator namespace"

@@ -1,15 +1,27 @@
 locals {
-  disk_setup_script = file("${path.module}/bootstrap.sh")
   node_labels = merge(
     var.labels,
     {
-      "materialize.cloud/disk" = var.enable_disk_setup ? "true" : "false"
+      "materialize.cloud/swap" = var.swap_enabled ? "true" : "false"
       "workload"               = "materialize-instance"
     },
-    var.enable_disk_setup ? {
+    var.swap_enabled ? {
       "materialize.cloud/disk-config-required" = "true"
     } : {}
   )
+
+  swap_bootstrap_args = <<-EOF
+    [settings.bootstrap-containers.diskstrap]
+    source = "${var.disk_setup_image}"
+    mode = "always"
+    essential = true
+    user-data = "${base64encode(jsonencode(["swap", "--cloud-provider", "aws", "--bottlerocket-enable-swap"]))}"
+
+    [settings.kernel.sysctl]
+    "vm.swappiness" = "100"
+    "vm.min_free_kbytes" = "1048576"
+    "vm.watermark_scale_factor" = "100"
+  EOF
 }
 
 module "node_group" {
@@ -31,12 +43,7 @@ module "node_group" {
   # expected length of name_prefix to be in the range (1 - 38)
   iam_role_use_name_prefix = var.iam_role_use_name_prefix
 
-  cloudinit_pre_nodeadm = var.enable_disk_setup ? [
-    {
-      content_type = "text/x-shellscript"
-      content      = local.disk_setup_script
-    }
-  ] : []
+  bootstrap_extra_args = var.swap_enabled ? local.swap_bootstrap_args : ""
 
   cluster_service_cidr              = var.cluster_service_cidr
   cluster_primary_security_group_id = var.cluster_primary_security_group_id

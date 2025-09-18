@@ -42,7 +42,7 @@ module "nodepool" {
   max_nodes             = var.max_nodes
 
 
-  enable_disk_setup = var.disk_setup_enabled
-  disk_size_gb      = var.disk_size
-  local_ssd_count   = var.local_ssd_count
+  swap_enabled    = var.swap_enabled
+  disk_size_gb    = var.disk_size
+  local_ssd_count = var.local_ssd_count
 }

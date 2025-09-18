@@ -24,13 +24,13 @@ No resources.
 
 | Name | Description | Type | Default | Required |
 |------|-------------|------|---------|:--------:|
-| <a name="input_ami_type"></a> [ami\_type](#input\_ami\_type) | AMI type for the node group. | `string` | `"AL2023_ARM_64_STANDARD"` | no |
+| <a name="input_ami_type"></a> [ami\_type](#input\_ami\_type) | AMI type for the node group. | `string` | `"BOTTLEROCKET_ARM_64"` | no |
 | <a name="input_capacity_type"></a> [capacity\_type](#input\_capacity\_type) | Capacity type for worker nodes (ON\_DEMAND or SPOT). | `string` | `"ON_DEMAND"` | no |
 | <a name="input_cluster_name"></a> [cluster\_name](#input\_cluster\_name) | Name of the EKS cluster to attach the node group to. | `string` | n/a | yes |
 | <a name="input_cluster_primary_security_group_id"></a> [cluster\_primary\_security\_group\_id](#input\_cluster\_primary\_security\_group\_id) | The ID of the primary security group for the cluster | `string` | n/a | yes |
 | <a name="input_cluster_service_cidr"></a> [cluster\_service\_cidr](#input\_cluster\_service\_cidr) | The CIDR block for the cluster service | `string` | n/a | yes |
 | <a name="input_desired_size"></a> [desired\_size](#input\_desired\_size) | Desired number of worker nodes. | `number` | `1` | no |
-| <a name="input_enable_disk_setup"></a> [enable\_disk\_setup](#input\_enable\_disk\_setup) | Whether to enable disk setup using the bootstrap script | `bool` | `true` | no |
+| <a name="input_disk_setup_image"></a> [disk\_setup\_image](#input\_disk\_setup\_image) | Docker image for the disk setup script | `string` | `"docker.io/materialize/ephemeral-storage-setup-image:v0.4.0"` | no |
 | <a name="input_iam_role_use_name_prefix"></a> [iam\_role\_use\_name\_prefix](#input\_iam\_role\_use\_name\_prefix) | Use name prefix for IAM roles | `bool` | `true` | no |
 | <a name="input_instance_types"></a> [instance\_types](#input\_instance\_types) | Instance types for worker nodes.<br/><br/>Recommended Configuration for Running Materialize with disk:<br/>- Tested instance types: `r6gd`, `r7gd` families (ARM-based Graviton instances)<br/>- Enable disk setup when using `r7gd`<br/>- Note: Ensure instance store volumes are available and attached to the nodes for optimal performance with disk-based workloads. | `list(string)` | <pre>[<br/>  "r7gd.2xlarge"<br/>]</pre> | no |
 | <a name="input_labels"></a> [labels](#input\_labels) | Labels to apply to the node group. | `map(string)` | `{}` | no |
@@ -38,6 +38,7 @@ No resources.
 | <a name="input_min_size"></a> [min\_size](#input\_min\_size) | Minimum number of worker nodes. | `number` | `1` | no |
 | <a name="input_node_group_name"></a> [node\_group\_name](#input\_node\_group\_name) | Name of the node group. | `string` | n/a | yes |
 | <a name="input_subnet_ids"></a> [subnet\_ids](#input\_subnet\_ids) | List of subnet IDs for the node group. | `list(string)` | n/a | yes |
+| <a name="input_swap_enabled"></a> [swap\_enabled](#input\_swap\_enabled) | Whether to enable swap on the local NVMe disks. | `bool` | `true` | no |
 
 ## Outputs
 

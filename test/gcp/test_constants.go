@@ -85,7 +85,6 @@ const (
 
 	// Chart versions
 	TestCertManagerVersion = "v1.18.0"
-	TestOpenEBSVersion     = "4.2.0"
 
 	// Timeouts
 	TestCertManagerInstallTimeout = 600

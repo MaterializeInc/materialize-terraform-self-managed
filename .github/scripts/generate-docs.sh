@@ -45,7 +45,11 @@ for MODULE_BASE_DIR in "${MODULE_DIRS[@]}"; do
     echo "📄 Updating docs for module: ${MODULE_DIR#$REPO_ROOT/}"
     MODULES_FOUND=true
 
-    terraform-docs --config "$TFDOCS_CONFIG" "$MODULE_DIR" > "$MODULE_DIR/README.md"
+    config="$TFDOCS_CONFIG"
+    if [ -f "${MODULE_DIR}/.terraform-docs.yml" ]; then
+        config="${MODULE_DIR}/.terraform-docs.yml"
+    fi
+    terraform-docs --config "$config" "$MODULE_DIR" > "$MODULE_DIR/README.md"
   done
 
   # Check if any modules were found in this directory

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -220,18 +221,18 @@ func (suite *StagedDeploymentSuite) testDiskEnabledSetup(subscriptionID, testReg
 	// Stage 2: AKS Setup (Disk Enabled)
 	test_structure.RunTestStage(t, "setup_aks_disk_enabled", func() {
 		suite.setupAKSStage("setup_aks_disk_enabled", utils.AKSDiskEnabledDir, subscriptionID, testRegion,
-			utils.DiskEnabledShortSuffix, "true", TestAKSDiskEnabledVMSize)
+			utils.DiskEnabledShortSuffix, true, TestAKSDiskEnabledVMSize)
 	})
 
 	test_structure.RunTestStage(t, "setup_database_disk_enabled", func() {
 		suite.setupDatabaseStage("setup_database_disk_enabled", utils.DatabaseDiskEnabledDir, subscriptionID, testRegion,
-			utils.DiskEnabledShortSuffix, "true")
+			utils.DiskEnabledShortSuffix, true)
 	})
 
 	// Stage 5: Materialize Setup (Disk Enabled)
 	test_structure.RunTestStage(t, "setup_materialize_disk_enabled", func() {
 		suite.setupMaterializeStage("setup_materialize_disk_enabled", utils.MaterializeDiskEnabledDir, subscriptionID, testRegion,
-			utils.DiskEnabledShortSuffix, "true")
+			utils.DiskEnabledShortSuffix, true)
 	})
 	t.Logf("✅ Disk Enabled Setup completed successfully")
 }
@@ -243,23 +244,23 @@ func (suite *StagedDeploymentSuite) testDiskDisabledSetup(subscriptionID, testRe
 	// Stage 2: AKS Setup (Disk Disabled)
 	test_structure.RunTestStage(t, "setup_aks_disk_disabled", func() {
 		suite.setupAKSStage("setup_aks_disk_disabled", utils.AKSDiskDisabledDir, subscriptionID, testRegion,
-			utils.DiskDisabledShortSuffix, "false", TestAKSDiskDisabledVMSize)
+			utils.DiskDisabledShortSuffix, false, TestAKSDiskDisabledVMSize)
 	})
 
 	test_structure.RunTestStage(t, "setup_database_disk_disabled", func() {
 		suite.setupDatabaseStage("setup_database_disk_disabled", utils.DatabaseDiskDisabledDir, subscriptionID, testRegion,
-			utils.DiskDisabledShortSuffix, "false")
+			utils.DiskDisabledShortSuffix, false)
 	})
 
 	// Stage 5: Materialize Setup (Disk Disabled)
 	test_structure.RunTestStage(t, "setup_materialize_disk_disabled", func() {
 		suite.setupMaterializeStage("setup_materialize_disk_disabled", utils.MaterializeDiskDisabledDir, subscriptionID, testRegion,
-			utils.DiskDisabledShortSuffix, "false")
+			utils.DiskDisabledShortSuffix, false)
 	})
 	t.Logf("✅ Disk Disabled Setup completed successfully")
 }
 
-func (suite *StagedDeploymentSuite) setupAKSStage(stage, stageDir, subscriptionID, region, nameSuffix, diskEnabled, vmSize string) {
+func (suite *StagedDeploymentSuite) setupAKSStage(stage, stageDir, subscriptionID, region, nameSuffix string, diskEnabled bool, vmSize string) {
 	t := suite.T()
 	t.Logf("🔧 Setting up AKS stage: %s", stage)
 
@@ -281,7 +282,7 @@ func (suite *StagedDeploymentSuite) setupAKSStage(stage, stageDir, subscriptionI
 		t.Fatal("❌ Cannot create AKS: Missing network data. Run network setup stage first.")
 	}
 
-	t.Logf("🔗 Using infrastructure family: %s for AKS (disk-enabled: %s)", resourceId, diskEnabled)
+	t.Logf("🔗 Using infrastructure family: %s for AKS (disk-enabled: %t)", resourceId, diskEnabled)
 
 	// Set up AKS example
 	aksPath := helpers.SetupTestWorkspace(t, utils.Azure, resourceId, utils.AKSDir, stageDir)
@@ -306,15 +307,14 @@ func (suite *StagedDeploymentSuite) setupAKSStage(stage, stageDir, subscriptionI
 			"max_nodes":                    TestNodePoolMaxNodes,
 			"node_count":                   TestNodePoolNodeCount,
 			"disk_size_gb":                 TestDiskSizeMedium,
-			"enable_disk_setup":            diskEnabled == "true",
-			"disk_setup_image":             "materialize/ephemeral-storage-setup-image:v0.1.1",
+			"swap_enabled":            		diskEnabled,
 			"enable_azure_monitor":         false,
 			"log_analytics_workspace_id":   "",
 			"tags": map[string]string{
 				"Environment": "test",
 				"Project":     "materialize",
 				"TestRun":     resourceId,
-				"DiskEnabled": diskEnabled,
+				"DiskEnabled": strconv.FormatBool(diskEnabled),
 			},
 		},
 		RetryableTerraformErrors: map[string]string{
@@ -370,7 +370,7 @@ func (suite *StagedDeploymentSuite) setupAKSStage(stage, stageDir, subscriptionI
 	t.Logf("  🆔 Workload Identity Client ID: %s", workloadIdentityClientId)
 }
 
-func (suite *StagedDeploymentSuite) setupDatabaseStage(stage, stageDir, subscriptionID, region, nameSuffix, diskEnabled string) {
+func (suite *StagedDeploymentSuite) setupDatabaseStage(stage, stageDir, subscriptionID, region, nameSuffix string, diskEnabled bool) {
 	t := suite.T()
 	t.Logf("🔧 Setting up Database stage: %s", stage)
 
@@ -391,7 +391,7 @@ func (suite *StagedDeploymentSuite) setupDatabaseStage(stage, stageDir, subscrip
 		t.Fatal("❌ Cannot create database: Missing network data. Run network setup stage first.")
 	}
 
-	t.Logf("🔗 Using infrastructure family: %s for Database (disk-enabled: %s)", resourceId, diskEnabled)
+	t.Logf("🔗 Using infrastructure family: %s for Database (disk-enabled: %t)", resourceId, diskEnabled)
 
 	// Set up database example
 	databasePath := helpers.SetupTestWorkspace(t, utils.Azure, resourceId, utils.DataBaseDir, stageDir)
@@ -423,7 +423,7 @@ func (suite *StagedDeploymentSuite) setupDatabaseStage(stage, stageDir, subscrip
 				"Environment": "test",
 				"Project":     "materialize",
 				"TestRun":     resourceId,
-				"DiskEnabled": diskEnabled,
+				"DiskEnabled": strconv.FormatBool(diskEnabled),
 			},
 		},
 		RetryableTerraformErrors: map[string]string{
@@ -489,7 +489,7 @@ func (suite *StagedDeploymentSuite) setupDatabaseStage(stage, stageDir, subscrip
 
 }
 
-func (suite *StagedDeploymentSuite) setupMaterializeStage(stage, stageDir, subscriptionID, region, nameSuffix, diskEnabled string) {
+func (suite *StagedDeploymentSuite) setupMaterializeStage(stage, stageDir, subscriptionID, region, nameSuffix string, diskEnabled bool) {
 	t := suite.T()
 	t.Logf("🔧 Setting up Materialize stage: %s", stage)
 
@@ -506,7 +506,7 @@ func (suite *StagedDeploymentSuite) setupMaterializeStage(stage, stageDir, subsc
 
 	// Load AKS data
 	aksStageDir := utils.AKSDiskDisabledDir
-	if diskEnabled == "true" {
+	if diskEnabled {
 		aksStageDir = utils.AKSDiskEnabledDir
 	}
 	aksStageDirFullPath := filepath.Join(suite.workingDir, aksStageDir)
@@ -518,7 +518,7 @@ func (suite *StagedDeploymentSuite) setupMaterializeStage(stage, stageDir, subsc
 
 	// Load database data
 	databaseStageDir := utils.DatabaseDiskDisabledDir
-	if diskEnabled == "true" {
+	if diskEnabled {
 		databaseStageDir = utils.DatabaseDiskEnabledDir
 	}
 	dbStageDirFullPath := filepath.Join(suite.workingDir, databaseStageDir)
@@ -550,16 +550,15 @@ func (suite *StagedDeploymentSuite) setupMaterializeStage(stage, stageDir, subsc
 		"cluster_ca_certificate": kubeConfigClusterCA,
 	}
 
-	t.Logf("🔗 Using infrastructure family: %s for Materialize (disk-enabled: %s)", resourceId, diskEnabled)
+	t.Logf("🔗 Using infrastructure family: %s for Materialize (disk-enabled: %t)", resourceId, diskEnabled)
 
 	// Set up Materialize example
 	materializePath := helpers.SetupTestWorkspace(t, utils.Azure, resourceId, utils.MaterializeDir, stageDir)
 
 	expectedInstanceNamespace := fmt.Sprintf("mz-instance-%s", nameSuffix)
 	expectedOperatorNamespace := fmt.Sprintf("mz-operator-%s", nameSuffix)
-	expectedOpenEbsNamespace := fmt.Sprintf("openebs-%s", nameSuffix)
 	expectedCertManagerNamespace := fmt.Sprintf("cert-manager-%s", nameSuffix)
-	enableDiskSupport := diskEnabled == "true"
+	enableDiskSupport := diskEnabled
 
 	materializeOptions := &terraform.Options{
 		TerraformDir: materializePath,
@@ -596,7 +595,7 @@ func (suite *StagedDeploymentSuite) setupMaterializeStage(stage, stageDir, subsc
 				"Environment": "test",
 				"Project":     "materialize",
 				"TestRun":     resourceId,
-				"DiskEnabled": diskEnabled,
+				"DiskEnabled": strconv.FormatBool(diskEnabled),
 			},
 
 			// Cert Manager details
@@ -605,10 +604,8 @@ func (suite *StagedDeploymentSuite) setupMaterializeStage(stage, stageDir, subsc
 			"cert_manager_install_timeout": 300,
 			"cert_manager_chart_version":   TestCertManagerVersion,
 
-			// OpenEBS details
-			"enable_disk_support": enableDiskSupport,
-			"openebs_namespace":   expectedOpenEbsNamespace,
-			"openebs_version":     TestOpenEbsVersion,
+			// Disk details
+			"swap_enabled": enableDiskSupport,
 
 			// Operator details
 			"operator_namespace": expectedOperatorNamespace,
@@ -633,7 +630,7 @@ func (suite *StagedDeploymentSuite) setupMaterializeStage(stage, stageDir, subsc
 	// Apply
 	terraform.InitAndApply(t, materializeOptions)
 
-	t.Logf("✅ Phase 1: Materialize operator installed on cluster where disk-enabled: %s", diskEnabled)
+	t.Logf("✅ Phase 1: Materialize operator installed on cluster where disk-enabled: %t", diskEnabled)
 
 	// Phase 2: Update variables for instance deployment
 	materializeOptions.Vars["install_materialize_instance"] = true
@@ -651,7 +648,6 @@ func (suite *StagedDeploymentSuite) setupMaterializeStage(stage, stageDir, subsc
 	instanceResourceId := terraform.Output(t, materializeOptions, "instance_resource_id")
 	externalLoginPassword := terraform.Output(t, materializeOptions, "external_login_password")
 	clusterIssuerName := terraform.Output(t, materializeOptions, "cluster_issuer_name")
-	openebsInstalled := terraform.Output(t, materializeOptions, "openebs_installed")
 	operatorNamespace := terraform.Output(t, materializeOptions, "operator_namespace")
 	loadBalancerInstalled := terraform.Output(t, materializeOptions, "load_balancer_installed")
 	consoleLoadBalancerIP := terraform.Output(t, materializeOptions, "console_load_balancer_ip")
@@ -682,20 +678,15 @@ func (suite *StagedDeploymentSuite) setupMaterializeStage(stage, stageDir, subsc
 	suite.Equal("true", loadBalancerInstalled, "Load balancer should be installed")
 	suite.NotEmpty(consoleLoadBalancerIP, "Console load balancer IP should not be empty")
 	suite.NotEmpty(balancerdLoadBalancerIP, "Balancerd load balancer IP should not be empty")
-	if enableDiskSupport {
-		suite.Equal("true", openebsInstalled, "OpenEBS should be installed if disk support is enabled")
-	} else {
-		suite.Equal("false", openebsInstalled, "OpenEBS should not be installed if disk support is disabled")
-	}
+	//if enableDiskSupport {
+	//	// TODO check the daemonset configured swap
+	//} else {
+	//}
 
 	t.Logf("✅ Phase 2: Materialize instance created successfully:")
-	if enableDiskSupport {
-		openebsNamespace := terraform.Output(t, materializeOptions, "openebs_namespace")
-		suite.NotEmpty(openebsNamespace, "OpenEBS namespace should not be empty when disk support is enabled")
-		suite.Equal(expectedOpenEbsNamespace, openebsNamespace, "OpenEBS namespace should match expected value")
-		test_structure.SaveString(t, stageDirFullPath, "openebs_namespace", openebsNamespace)
-		t.Logf("  🗄️ OpenEBS Namespace: %s", openebsNamespace)
-	}
+	//if enableDiskSupport {
+	//	// TODO check the pods have swap in their cgroup
+	//}
 
 	t.Logf("  🗄️ Instance Resource ID: %s", instanceResourceId)
 	t.Logf("  🗄️ Instance Installed: %s", instanceInstalled)
@@ -708,7 +699,6 @@ func (suite *StagedDeploymentSuite) setupMaterializeStage(stage, stageDir, subsc
 	t.Logf("  🗄️ Metadata Backend URL: %s", metadataBackendURL)
 	t.Logf("  🗄️ Persist Backend URL: %s", persistBackendURL)
 	t.Logf("  🗄️ Cluster Issuer Name: %s", clusterIssuerName)
-	t.Logf("  🗄️ OpenEBS Installed: %s", openebsInstalled)
 	t.Logf("  🗄️ Operator Namespace: %s", operatorNamespace)
 	t.Logf("  🗄️ Load Balancer Installed: %s", loadBalancerInstalled)
 	t.Logf("  🗄️ Console Load Balancer IP: %s", consoleLoadBalancerIP)
@@ -723,7 +713,6 @@ func (suite *StagedDeploymentSuite) setupMaterializeStage(stage, stageDir, subsc
 	test_structure.SaveString(t, stageDirFullPath, "metadata_backend_url", metadataBackendURL)
 	test_structure.SaveString(t, stageDirFullPath, "persist_backend_url", persistBackendURL)
 	test_structure.SaveString(t, stageDirFullPath, "cluster_issuer_name", clusterIssuerName)
-	test_structure.SaveString(t, stageDirFullPath, "openebs_installed", openebsInstalled)
 	test_structure.SaveString(t, stageDirFullPath, "operator_namespace", operatorNamespace)
 	test_structure.SaveString(t, stageDirFullPath, "load_balancer_installed", loadBalancerInstalled)
 	test_structure.SaveString(t, stageDirFullPath, "console_load_balancer_ip", consoleLoadBalancerIP)

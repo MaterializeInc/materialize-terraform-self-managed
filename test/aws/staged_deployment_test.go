@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -216,18 +217,18 @@ func (suite *StagedDeploymentTestSuite) testDiskEnabledSetup(awsProfile, awsRegi
 	// Stage 2: EKS Setup (Disk Enabled)
 	test_structure.RunTestStage(t, "setup_eks_disk_enabled", func() {
 		suite.setupEKSStage("setup_eks_disk_enabled", utils.EKSDiskEnabledDir, awsProfile, awsRegion,
-			utils.DiskEnabledShortSuffix, "true", TestEKSDiskEnabledInstanceType)
+			utils.DiskEnabledShortSuffix, true, TestEKSDiskEnabledInstanceType)
 	})
 
 	test_structure.RunTestStage(t, "setup_database_disk_enabled", func() {
 		suite.setupDatabaseStage("setup_database_disk_enabled", utils.DatabaseDiskEnabledDir, awsProfile, awsRegion,
-			utils.DiskEnabledShortSuffix, "true")
+			utils.DiskEnabledShortSuffix, true)
 	})
 
 	// Stage 5: Materialize Setup (Disk Enabled)
 	test_structure.RunTestStage(t, "setup_materialize_disk_enabled", func() {
 		suite.setupMaterializeStage("setup_materialize_disk_enabled", utils.MaterializeDiskEnabledDir, awsProfile, awsRegion,
-			utils.DiskEnabledShortSuffix, "true")
+			utils.DiskEnabledShortSuffix, true)
 	})
 	t.Logf("✅ Disk Enabled Setup completed successfully")
 }
@@ -237,21 +238,21 @@ func (suite *StagedDeploymentTestSuite) testDiskDisabledSetup(awsProfile, awsReg
 	t.Log("Running Disk Disabled Setup Tests")
 	test_structure.RunTestStage(t, "setup_eks_disk_disabled", func() {
 		suite.setupEKSStage("setup_eks_disk_disabled", utils.EKSDiskDisabledDir, awsProfile, awsRegion,
-			utils.DiskDisabledShortSuffix, "false", TestEKSDiskDisabledInstanceType)
+			utils.DiskDisabledShortSuffix, false, TestEKSDiskDisabledInstanceType)
 	})
 
 	test_structure.RunTestStage(t, "setup_database_disk_disabled", func() {
 		suite.setupDatabaseStage("setup_database_disk_disabled", utils.DatabaseDiskDisabledDir, awsProfile, awsRegion,
-			utils.DiskDisabledShortSuffix, "false")
+			utils.DiskDisabledShortSuffix, false)
 	})
 	test_structure.RunTestStage(t, "setup_materialize_disk_disabled", func() {
 		suite.setupMaterializeStage("setup_materialize_disk_disabled", utils.MaterializeDiskDisabledDir, awsProfile, awsRegion,
-			utils.DiskDisabledShortSuffix, "false")
+			utils.DiskDisabledShortSuffix, false)
 	})
 	t.Logf("✅ Disk Disabled Setup completed successfully")
 }
 
-func (suite *StagedDeploymentTestSuite) setupEKSStage(stage, stageDir, profile, region, nameSuffix, diskEnabled, instanceType string) {
+func (suite *StagedDeploymentTestSuite) setupEKSStage(stage, stageDir, profile, region, nameSuffix string, diskEnabled bool, instanceType string) {
 	t := suite.T()
 	t.Logf("🔧 Setting up EKS stage: %s", stage)
 
@@ -296,18 +297,18 @@ func (suite *StagedDeploymentTestSuite) setupEKSStage(stage, stageDir, profile, 
 			"desired_nodes":                            2,
 			"instance_types":                           []string{instanceType},
 			"capacity_type":                            "ON_DEMAND",
-			"disk_setup_enabled":                       true,
+			"swap_enabled":                             diskEnabled,
 			"iam_role_use_name_prefix":                 false,
 			"node_labels": map[string]string{
 				"Environment":            "test",
 				"Project":                "materialize",
-				"materialize.cloud/disk": diskEnabled,
+				"materialize.cloud/disk": strconv.FormatBool(diskEnabled),
 			},
 			"tags": map[string]string{
 				"Environment": "test",
 				"Project":     "materialize",
 				"TestRun":     resourceId,
-				"DiskEnabled": diskEnabled,
+				"DiskEnabled": strconv.FormatBool(diskEnabled),
 			},
 		},
 		RetryableTerraformErrors: map[string]string{
@@ -364,20 +365,20 @@ func (suite *StagedDeploymentTestSuite) setupEKSStage(stage, stageDir, profile, 
 	// TODO add checks to ensure disk setup is enabled/disabled
 	// use vgs/ pvs commands and verify the output
 
-	t.Logf("✅ EKS cluster (disk-enabled: %s) created successfully:", diskEnabled)
+	t.Logf("✅ EKS cluster (disk-enabled: %t) created successfully:", diskEnabled)
 	t.Logf("  📛 Cluster Name: %s", clusterName)
 	t.Logf("  🔗 Endpoint: %s", clusterEndpoint)
 	t.Logf("  🔒 Cluster Security Group: %s", clusterSecurityGroupId)
 	t.Logf("  🔒 Node Security Group: %s", nodeSecurityGroupId)
 	t.Logf("  🆔 OIDC Provider: %s", oidcProviderArn)
-	t.Logf("  💾 Disk Enabled: %s", diskEnabled)
+	t.Logf("  💾 Disk Enabled: %t", diskEnabled)
 	t.Logf("  🌐 Cluster Service CIDR: %s", clusterServiceCIDR)
 	t.Logf("  🌐 Cluster OIDC Issuer URL: %s", clusterOidcIssuerUrl)
 	t.Logf("  📜 Cluster Certificate Authority Data: %s", clusterCertificateAuthorityData)
 
 }
 
-func (suite *StagedDeploymentTestSuite) setupDatabaseStage(stage, stageDir, profile, region, nameSuffix, diskEnabled string) {
+func (suite *StagedDeploymentTestSuite) setupDatabaseStage(stage, stageDir, profile, region, nameSuffix string, diskEnabled bool) {
 	t := suite.T()
 
 	t.Logf("Running Database Setup Stage: %s", stage)
@@ -401,7 +402,7 @@ func (suite *StagedDeploymentTestSuite) setupDatabaseStage(stage, stageDir, prof
 
 	// create a list of EKS clusters with their security group IDs
 	eksStageDir := utils.EKSDiskDisabledDir
-	if diskEnabled == "true" {
+	if diskEnabled {
 		eksStageDir = utils.EKSDiskEnabledDir
 	}
 
@@ -422,7 +423,7 @@ func (suite *StagedDeploymentTestSuite) setupDatabaseStage(stage, stageDir, prof
 	if eksSecurityGroupId == "" || nodeSecurityGroupId == "" {
 		t.Fatal("❌ Cannot create database: Missing EKS cluster security group IDs. Ensure EKS cluster is created before the database stage.")
 	}
-	t.Logf("🔗 EKS cluster (disk-enabled: %s) security group IDs loaded for database access", diskEnabled)
+	t.Logf("🔗 EKS cluster (disk-enabled: %t) security group IDs loaded for database access", diskEnabled)
 
 	t.Logf("🔗 Using infrastructure family: %s", resourceId)
 
@@ -456,7 +457,7 @@ func (suite *StagedDeploymentTestSuite) setupDatabaseStage(stage, stageDir, prof
 				"Environment": "test",
 				"Project":     "materialize",
 				"TestRun":     resourceId,
-				"DiskEnabled": diskEnabled,
+				"DiskEnabled": strconv.FormatBool(diskEnabled),
 			},
 		},
 		RetryableTerraformErrors: map[string]string{
@@ -506,7 +507,7 @@ func (suite *StagedDeploymentTestSuite) setupDatabaseStage(stage, stageDir, prof
 
 }
 
-func (suite *StagedDeploymentTestSuite) setupMaterializeStage(stage, stageDir, profile, region, nameSuffix, diskEnabled string) {
+func (suite *StagedDeploymentTestSuite) setupMaterializeStage(stage, stageDir, profile, region, nameSuffix string, diskEnabled bool) {
 	t := suite.T()
 	t.Logf("🔧 Setting up Materialize stage: %s", stage)
 
@@ -516,7 +517,7 @@ func (suite *StagedDeploymentTestSuite) setupMaterializeStage(stage, stageDir, p
 	}
 
 	eksStageDir := utils.EKSDiskDisabledDir
-	if diskEnabled == "true" {
+	if diskEnabled {
 		eksStageDir = utils.EKSDiskEnabledDir
 	}
 	eksStageDirFullPath := filepath.Join(suite.workingDir, eksStageDir)
@@ -541,7 +542,7 @@ func (suite *StagedDeploymentTestSuite) setupMaterializeStage(stage, stageDir, p
 	}
 
 	databaseStageDir := utils.DatabaseDiskDisabledDir
-	if diskEnabled == "true" {
+	if diskEnabled {
 		databaseStageDir = utils.DatabaseDiskEnabledDir
 	}
 	databaseStageDirFullPath := filepath.Join(suite.workingDir, databaseStageDir)
@@ -554,15 +555,14 @@ func (suite *StagedDeploymentTestSuite) setupMaterializeStage(stage, stageDir, p
 		t.Fatal("❌ Cannot create Materialize: Missing database details. Run database setup stage first.")
 	}
 
-	t.Logf("🔗 Using EKS cluster %s where disk-enabled : %s", clusterName, diskEnabled)
+	t.Logf("🔗 Using EKS cluster %s where disk-enabled : %t", clusterName, diskEnabled)
 
 	// Set up Materialize example with disk enabled
 	materializePath := helpers.SetupTestWorkspace(t, utils.AWS, resourceId, utils.MaterializeDir, stageDir)
 	expectedInstanceNamespace := fmt.Sprintf("mz-instance-%s", nameSuffix)
 	expectedOperatorNamespace := fmt.Sprintf("mz-operator-%s", nameSuffix)
-	expectedOpenEbsNamespace := fmt.Sprintf("openebs-%s", nameSuffix)
 	expectedCertManagerNamespace := fmt.Sprintf("cert-manager-%s", nameSuffix)
-	enableDiskSupport := diskEnabled == "true"
+	enableDiskSupport := diskEnabled
 	materializeOptions := &terraform.Options{
 		TerraformDir: materializePath,
 		Vars: map[string]interface{}{
@@ -599,11 +599,7 @@ func (suite *StagedDeploymentTestSuite) setupMaterializeStage(stage, stageDir, p
 			"database_name":     databaseName,
 
 			// Disk setup details
-			"enable_disk_support": enableDiskSupport,
-			// Open ebs details (will not get applied if enableDiskSupport is false)
-			"openebs_namespace":     expectedOpenEbsNamespace,
-			"openebs_chart_version": TestOpenEbsVersion,
-			"install_openebs_crds":  true,
+			"swap_enabled": enableDiskSupport,
 
 			// Operator details
 			"operator_namespace": expectedOperatorNamespace,
@@ -623,7 +619,7 @@ func (suite *StagedDeploymentTestSuite) setupMaterializeStage(stage, stageDir, p
 				"Environment": "test",
 				"Project":     "materialize",
 				"TestRun":     resourceId,
-				"DiskEnabled": diskEnabled,
+				"DiskEnabled": strconv.FormatBool(diskEnabled),
 			},
 		},
 		RetryableTerraformErrors: map[string]string{
@@ -641,7 +637,7 @@ func (suite *StagedDeploymentTestSuite) setupMaterializeStage(stage, stageDir, p
 	// Apply
 	terraform.InitAndApply(t, materializeOptions)
 
-	t.Logf("✅ Phase 1: Materialize operator installed on cluster where disk-enabled: %s ", diskEnabled)
+	t.Logf("✅ Phase 1: Materialize operator installed on cluster where disk-enabled: %t ", diskEnabled)
 
 	// Phase 2: Update variables for instance deployment
 	materializeOptions.Vars["install_materialize_instance"] = true
@@ -660,7 +656,6 @@ func (suite *StagedDeploymentTestSuite) setupMaterializeStage(stage, stageDir, p
 	instanceInstalled := terraform.Output(t, materializeOptions, "instance_installed")
 	instanceResourceId := terraform.Output(t, materializeOptions, "instance_resource_id")
 	clusterIssuerName := terraform.Output(t, materializeOptions, "cluster_issuer_name")
-	openebsInstalled := terraform.Output(t, materializeOptions, "openebs_installed")
 	operatorNamespace := terraform.Output(t, materializeOptions, "operator_namespace")
 
 	suite.Equal("true", instanceInstalled, "Materialize instance should be installed")
@@ -672,17 +667,12 @@ func (suite *StagedDeploymentTestSuite) setupMaterializeStage(stage, stageDir, p
 	suite.NotEmpty(nlbArn, "NLB ARN should not be empty")
 	suite.NotEmpty(nlbDNSName, "NLB DNS name should not	 be empty")
 	suite.NotEmpty(clusterIssuerName, "Cluster issuer name should not be empty")
-	suite.Equal(diskEnabled, openebsInstalled, "OpenEBS should be installed if disk support is enabled")
 	suite.Equalf(expectedOperatorNamespace, operatorNamespace, "Operator namespace equal %s", expectedOperatorNamespace)
 
 	t.Logf("✅ Phase 2: Materialize instance created successfully:")
-	if enableDiskSupport {
-		openebsNamespace := terraform.Output(t, materializeOptions, "openebs_namespace")
-		suite.Equalf(expectedOpenEbsNamespace, openebsNamespace, "OpenEBS namespace should be %s", expectedOpenEbsNamespace)
-		test_structure.SaveString(t, stageDirFullPath, "openebs_namespace", openebsNamespace)
-		t.Logf("  🗄️ OpenEBS Namespace: %s", openebsNamespace)
-
-	}
+	//if enableDiskSupport {
+	//	// TODO verify the instance has swap allowed in its cgroup
+	//}
 
 	test_structure.SaveString(t, stageDirFullPath, "s3_bucket_name", s3BucketName)
 	test_structure.SaveString(t, stageDirFullPath, "metadata_backend_url", metadataBackendURL)
@@ -692,7 +682,6 @@ func (suite *StagedDeploymentTestSuite) setupMaterializeStage(stage, stageDir, p
 	test_structure.SaveString(t, stageDirFullPath, "nlb_dns_name", nlbDNSName)
 	test_structure.SaveString(t, stageDirFullPath, "instance_resource_id", instanceResourceId)
 	test_structure.SaveString(t, stageDirFullPath, "cluster_issuer_name", clusterIssuerName)
-	test_structure.SaveString(t, stageDirFullPath, "openebs_installed", openebsInstalled)
 	test_structure.SaveString(t, stageDirFullPath, "operator_namespace", operatorNamespace)
 
 	t.Logf("  🗄️ S3 Bucket: %s", s3BucketName)
@@ -703,7 +692,6 @@ func (suite *StagedDeploymentTestSuite) setupMaterializeStage(stage, stageDir, p
 	t.Logf("  🗄️ NLB DNS Name: %s", nlbDNSName)
 	t.Logf("  🗄️ Instance Resource ID: %s", instanceResourceId)
 	t.Logf("  🗄️ Cluster Issuer Name: %s", clusterIssuerName)
-	t.Logf("  🗄️ OpenEBS Installed: %s", openebsInstalled)
 	t.Logf("  🗄️ Operator Namespace: %s", operatorNamespace)
 	t.Logf("  🗄️ Instance Installed: %s", instanceInstalled)
 }

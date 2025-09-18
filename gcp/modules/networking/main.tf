@@ -25,6 +25,7 @@ module "vpc" {
   network_name = "${var.prefix}-network"
   mtu          = var.mtu
 
+  auto_create_subnetworks = false
   subnets = [
     for subnet in var.subnets : {
       subnet_name           = subnet.name

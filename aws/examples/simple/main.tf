@@ -1,6 +1,10 @@
 provider "aws" {
   region  = var.aws_region
   profile = var.aws_profile
+
+  default_tags {
+    tags = var.tags
+  }
 }
 
 provider "kubernetes" {
@@ -57,7 +61,7 @@ module "eks_node_group" {
   cluster_name                      = module.eks.cluster_name
   subnet_ids                        = module.networking.private_subnet_ids
   node_group_name                   = "${var.name_prefix}-mz"
-  enable_disk_setup                 = true
+  swap_enabled                      = true
   cluster_service_cidr              = module.eks.cluster_service_cidr
   cluster_primary_security_group_id = module.eks.node_security_group_id
 }
@@ -76,27 +80,6 @@ module "aws_lbc" {
   depends_on = [
     module.eks,
     module.eks_node_group,
-  ]
-}
-
-# 4. Install OpenEBS for storage
-module "openebs" {
-  source = "../../../kubernetes/modules/openebs"
-
-  openebs_namespace = "openebs"
-  install_openebs   = true
-
-  # Set install_openebs_crds=false if you face the following error:
-  # Unable to continue with install: CustomResourceDefinition "volumesnapshotclasses.snapshot.storage.k8s.io"
-  # in namespace "" exists and cannot be imported into the current release
-  # https://github.com/openebs/website/pull/506
-  install_openebs_crds = true
-
-  depends_on = [
-    module.networking,
-    module.eks,
-    module.eks_node_group,
-    module.aws_lbc,
   ]
 }
 
@@ -205,6 +188,8 @@ module "materialize_instance" {
     "eks.amazonaws.com/role-arn" = module.storage.materialize_s3_role_arn
   }
 
+  license_key = var.license_key
+
   depends_on = [
     module.eks,
     module.database,
@@ -214,7 +199,6 @@ module "materialize_instance" {
     module.operator,
     module.aws_lbc,
     module.eks_node_group,
-    module.openebs,
   ]
 }
 
@@ -238,7 +222,6 @@ module "materialize_nlb" {
 }
 
 locals {
-
   materialize_instance_namespace = "materialize-environment"
   materialize_instance_name      = "main"
 
