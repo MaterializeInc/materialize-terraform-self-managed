@@ -90,3 +90,46 @@ variable "gce_persistent_disk_csi_driver_enabled" {
   default     = true
   nullable    = false
 }
+
+# System nodepool variables
+variable "system_nodepool_machine_type" {
+  description = "Machine type for the system nodepool"
+  type        = string
+  default     = "e2-medium"
+  nullable    = false
+}
+
+variable "system_nodepool_node_count" {
+  description = "Number of nodes in the system nodepool"
+  type        = number
+  default     = 2
+  nullable    = false
+}
+
+variable "system_nodepool_min_nodes" {
+  description = "Minimum number of nodes in the system nodepool autoscaling group"
+  type        = number
+  default     = 1
+  nullable    = false
+}
+
+variable "system_nodepool_max_nodes" {
+  description = "Maximum number of nodes in the system nodepool autoscaling group"
+  type        = number
+  default     = 3
+  nullable    = false
+}
+
+variable "system_nodepool_disk_size_gb" {
+  description = "Disk size in GB for system nodepool nodes"
+  type        = number
+  default     = 50
+  nullable    = false
+}
+
+variable "system_nodepool_enable_private_nodes" {
+  description = "Whether to enable private nodes for system nodepool"
+  type        = bool
+  default     = true
+  nullable    = false
+}

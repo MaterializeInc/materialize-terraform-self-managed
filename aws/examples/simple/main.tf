@@ -43,7 +43,7 @@ module "networking" {
   public_subnet_cidrs  = ["10.0.101.0/24", "10.0.102.0/24", "10.0.103.0/24"]
 }
 
-# 2. Create EKS cluster
+# 2. Create EKS cluster (includes system nodepool for critical system pods)
 module "eks" {
   source                                   = "../../modules/eks"
   name_prefix                              = var.name_prefix
@@ -55,7 +55,7 @@ module "eks" {
   tags                                     = {}
 }
 
-# 2.1. Create EKS node group
+# 2.1. Create workload node group for Materialize instances
 module "eks_node_group" {
   source                            = "../../modules/eks-node-group"
   cluster_name                      = module.eks.cluster_name

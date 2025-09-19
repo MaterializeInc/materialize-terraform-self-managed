@@ -101,7 +101,7 @@ module "networking" {
   subnets    = local.subnets
 }
 
-# Set up Google Kubernetes Engine (GKE) cluster with basic configuration
+# Set up Google Kubernetes Engine (GKE) cluster (includes system nodepool for critical system pods)
 module "gke" {
   source = "../../modules/gke"
 
@@ -117,7 +117,7 @@ module "gke" {
   namespace   = local.materialize_operator_namespace
 }
 
-# Create and configure node pool for the GKE cluster with compute resources
+# Create and configure workload node pool for Materialize instances
 module "nodepool" {
   source     = "../../modules/nodepool"
   depends_on = [module.gke]
