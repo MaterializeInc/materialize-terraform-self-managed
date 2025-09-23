@@ -3,7 +3,6 @@ locals {
     var.labels,
     {
       "materialize.cloud/swap" = var.swap_enabled ? "true" : "false"
-      "workload"               = "materialize-instance"
     },
     var.swap_enabled ? {
       "materialize.cloud/disk-config-required" = "true"
@@ -38,6 +37,8 @@ module "node_group" {
   capacity_type  = var.capacity_type
   ami_type       = var.ami_type
   labels         = local.node_labels
+
+  taints = var.node_taints
 
   # useful to disable this when prefix might be too long and hit following char limit
   # expected length of name_prefix to be in the range (1 - 38)

@@ -43,7 +43,7 @@ module "networking" {
   public_subnet_cidrs  = ["10.0.101.0/24", "10.0.102.0/24", "10.0.103.0/24"]
 }
 
-# 2. Create EKS cluster (includes system nodepool for critical system pods)
+# 2. Create EKS cluster
 module "eks" {
   source                                   = "../../modules/eks"
   name_prefix                              = var.name_prefix
@@ -55,13 +55,36 @@ module "eks" {
   tags                                     = {}
 }
 
-# 2.1. Create workload node group for Materialize instances
-module "eks_node_group" {
-  source                            = "../../modules/eks-node-group"
-  cluster_name                      = module.eks.cluster_name
-  subnet_ids                        = module.networking.private_subnet_ids
-  node_group_name                   = "${var.name_prefix}-mz"
-  swap_enabled                      = true
+# 2.1. Create generic node group for all workloads except Materialize
+module "generic_node_group" {
+  source          = "../../modules/eks-node-group"
+  cluster_name    = module.eks.cluster_name
+  subnet_ids      = module.networking.private_subnet_ids
+  node_group_name = "${var.name_prefix}-generic"
+  desired_size    = 2
+  min_size        = 1
+  max_size        = 5
+  instance_types  = ["t4g.medium"]
+  capacity_type   = "ON_DEMAND"
+  ami_type        = "AL2_ARM_64"
+  swap_enabled    = false
+  labels = {
+    "workload" = "generic"
+  }
+  cluster_service_cidr              = module.eks.cluster_service_cidr
+  cluster_primary_security_group_id = module.eks.node_security_group_id
+}
+
+# 2.2. Create Materialize-dedicated node group with taints
+module "materialize_node_group" {
+  source          = "../../modules/eks-node-group"
+  cluster_name    = module.eks.cluster_name
+  subnet_ids      = module.networking.private_subnet_ids
+  node_group_name = "${var.name_prefix}-mz"
+  swap_enabled    = true
+  labels          = local.materialize_node_labels
+  # Materialize-specific taint to isolate workloads
+  node_taints                       = local.materialize_node_taints
   cluster_service_cidr              = module.eks.cluster_service_cidr
   cluster_primary_security_group_id = module.eks.node_security_group_id
 }
@@ -79,7 +102,8 @@ module "aws_lbc" {
 
   depends_on = [
     module.eks,
-    module.eks_node_group,
+    module.generic_node_group,
+    module.materialize_node_group,
   ]
 }
 
@@ -95,7 +119,8 @@ module "certificates" {
   depends_on = [
     module.networking,
     module.eks,
-    module.eks_node_group,
+    module.generic_node_group,
+    module.materialize_node_group,
     module.aws_lbc,
   ]
 }
@@ -112,7 +137,8 @@ module "operator" {
   depends_on = [
     module.eks,
     module.networking,
-    module.eks_node_group,
+    module.generic_node_group,
+    module.materialize_node_group,
   ]
 }
 
@@ -190,6 +216,10 @@ module "materialize_instance" {
 
   license_key = var.license_key
 
+  # Node scheduling configuration
+  node_selector = local.materialize_node_labels
+  tolerations   = local.materialize_tolerations
+
   depends_on = [
     module.eks,
     module.database,
@@ -198,7 +228,8 @@ module "materialize_instance" {
     module.certificates,
     module.operator,
     module.aws_lbc,
-    module.eks_node_group,
+    module.generic_node_group,
+    module.materialize_node_group,
   ]
 }
 
@@ -224,6 +255,28 @@ module "materialize_nlb" {
 locals {
   materialize_instance_namespace = "materialize-environment"
   materialize_instance_name      = "main"
+
+  # Common node scheduling configuration
+  materialize_node_labels = {
+    "workload" = "materialize-instance"
+  }
+
+  materialize_node_taints = [
+    {
+      key    = "materialize.cloud/workload"
+      value  = "materialize-instance"
+      effect = "NoSchedule"
+    }
+  ]
+
+  materialize_tolerations = [
+    {
+      key      = "materialize.cloud/workload"
+      value    = "materialize-instance"
+      operator = "Equal"
+      effect   = "NoSchedule"
+    }
+  ]
 
   metadata_backend_url = format(
     "postgres://%s:%s@%s/%s?sslmode=require",

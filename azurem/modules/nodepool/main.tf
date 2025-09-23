@@ -2,9 +2,18 @@ locals {
   # Azure has 12-character limit for node pool names
   nodepool_name = substr(replace(var.prefix, "-", ""), 0, 12)
 
-  # Azure doesn't support node taints via Terraform (AKS limitation)
-  # Reference: https://github.com/Azure/AKS/issues/2934
-  # node_taints = []
+  # Swap-specific taints that are automatically added when swap is enabled
+  swap_taints = var.swap_enabled ? [
+    {
+      key    = "startup-taint.cluster-autoscaler.kubernetes.io/disk-unconfigured"
+      value  = "true"
+      effect = "NoSchedule"
+    }
+  ] : []
+
+
+  # Combine user-specified taints with swap-related taints
+  node_taints = concat(var.node_taints, local.swap_taints)
 
   # Auto-scaling configuration - prioritize autoscaling_config object over individual variables
   auto_scaling_enabled = var.autoscaling_config.enabled
@@ -16,8 +25,7 @@ locals {
     var.labels,
     {
       "materialize.cloud/swap" = var.swap_enabled ? "true" : "false"
-      "workload"               = "materialize-instance"
-    },
+    }
   )
 
   disk_setup_name = "disk-setup"
@@ -47,9 +55,17 @@ resource "azurerm_kubernetes_cluster_node_pool" "primary_nodes" {
 
   node_labels = local.node_labels
 
-  # Azure limitation: Taints cannot be managed via Terraform
+  # Apply taints if specified
+  # Note: Once applied, these taints cannot be manually removed by users due to AKS webhook restrictions
   # Reference: https://github.com/Azure/AKS/issues/2934
-  # node_taints would go here if supported
+  dynamic "node_taints" {
+    for_each = local.node_taints
+    content {
+      key    = node_taints.value.key
+      value  = node_taints.value.value
+      effect = node_taints.value.effect
+    }
+  }
 
   upgrade_settings {
     max_surge                     = "10%"
@@ -123,10 +139,14 @@ resource "kubernetes_daemonset" "disk_setup" {
           }
         }
 
-        toleration {
-          key      = "startup-taint.cluster-autoscaler.kubernetes.io/disk-unconfigured"
-          operator = "Exists"
-          effect   = "NoSchedule"
+        # Tolerate all taints (includes both user-provided and swap taints)
+        dynamic "toleration" {
+          for_each = local.node_taints
+          content {
+            key      = toleration.value.key
+            operator = "Exists"
+            effect   = toleration.value.effect
+          }
         }
 
         # Use host network and PID namespace

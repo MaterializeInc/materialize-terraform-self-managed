@@ -32,6 +32,28 @@ locals {
   materialize_instance_namespace = "materialize-environment"
   materialize_instance_name      = "main"
 
+  # Common node scheduling configuration
+  materialize_node_labels = {
+    "workload" = "materialize-instance"
+  }
+
+  materialize_node_taints = [
+    {
+      key    = "materialize.cloud/workload"
+      value  = "materialize-instance"
+      effect = "NoSchedule"
+    }
+  ]
+
+  materialize_tolerations = [
+    {
+      key      = "materialize.cloud/workload"
+      value    = "materialize-instance"
+      operator = "Equal"
+      effect   = "NoSchedule"
+    }
+  ]
+
 
   subnets = [
     {
@@ -54,7 +76,7 @@ locals {
 
   gke_config = {
     node_count   = 1
-    machine_type = "n2-highmem-8"
+    machine_type = "t2a-highmem-8"
     disk_size_gb = 100
     min_nodes    = 1
     max_nodes    = 5
@@ -101,7 +123,7 @@ module "networking" {
   subnets    = local.subnets
 }
 
-# Set up Google Kubernetes Engine (GKE) cluster (includes system nodepool for critical system pods)
+# Set up Google Kubernetes Engine (GKE) cluster
 module "gke" {
   source = "../../modules/gke"
 
@@ -117,8 +139,31 @@ module "gke" {
   namespace   = local.materialize_operator_namespace
 }
 
-# Create and configure workload node pool for Materialize instances
-module "nodepool" {
+# Create and configure generic node pool for all workloads except Materialize
+module "generic_nodepool" {
+  source     = "../../modules/nodepool"
+  depends_on = [module.gke]
+
+  prefix                = var.name_prefix
+  region                = var.region
+  enable_private_nodes  = true
+  cluster_name          = module.gke.cluster_name
+  project_id            = var.project_id
+  node_count            = 2
+  min_nodes             = 1
+  max_nodes             = 5
+  machine_type          = "t2a-medium"
+  disk_size_gb          = 50
+  service_account_email = module.gke.service_account_email
+  labels = {
+    "workload" = "generic"
+  }
+  swap_enabled    = false
+  local_ssd_count = 0
+}
+
+# Create and configure Materialize-dedicated node pool with taints
+module "materialize_nodepool" {
   source     = "../../modules/nodepool"
   depends_on = [module.gke]
 
@@ -133,7 +178,9 @@ module "nodepool" {
   machine_type          = local.gke_config.machine_type
   disk_size_gb          = local.gke_config.disk_size_gb
   service_account_email = module.gke.service_account_email
-  labels                = local.common_labels
+  labels                = merge(local.common_labels, local.materialize_node_labels)
+  # Materialize-specific taint to isolate workloads
+  node_taints = local.materialize_node_taints
 
   swap_enabled    = local.swap_enabled
   local_ssd_count = local.local_ssd_count
@@ -189,7 +236,8 @@ module "certificates" {
 
   depends_on = [
     module.gke,
-    module.nodepool,
+    module.generic_nodepool,
+    module.materialize_nodepool,
   ]
 }
 
@@ -203,7 +251,8 @@ module "operator" {
 
   depends_on = [
     module.gke,
-    module.nodepool,
+    module.generic_nodepool,
+    module.materialize_nodepool,
     module.database,
     module.storage,
     module.certificates,
@@ -231,6 +280,10 @@ module "materialize_instance" {
 
   license_key = var.license_key
 
+  # Node scheduling configuration
+  node_selector = local.materialize_node_labels
+  tolerations   = local.materialize_tolerations
+
   depends_on = [
     module.gke,
     module.database,
@@ -238,7 +291,8 @@ module "materialize_instance" {
     module.networking,
     module.certificates,
     module.operator,
-    module.nodepool,
+    module.generic_nodepool,
+    module.materialize_nodepool,
   ]
 }
 

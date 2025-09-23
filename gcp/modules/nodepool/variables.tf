@@ -63,6 +63,16 @@ variable "labels" {
   default     = {}
 }
 
+variable "node_taints" {
+  description = "Taints to apply to the node pool."
+  type = list(object({
+    key    = string
+    value  = string
+    effect = string
+  }))
+  default = []
+}
+
 variable "service_account_email" {
   description = "The email of the service account to use for the nodes"
   type        = string

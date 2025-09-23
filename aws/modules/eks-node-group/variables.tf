@@ -41,13 +41,13 @@ variable "instance_types" {
   description = <<EOF
 Instance types for worker nodes.
 
-Recommended Configuration for Running Materialize with disk:
-- Tested instance types: `r6gd`, `r7gd` families (ARM-based Graviton instances)
-- Enable disk setup when using `r7gd`
-- Note: Ensure instance store volumes are available and attached to the nodes for optimal performance with disk-based workloads.
+Recommended Configuration:
+- For cost-effective workloads: `r7g`, `r6g` families (ARM-based Graviton, without local disks)
+- For disk-intensive workloads: `r6gd`, `r7gd` families (ARM-based Graviton, with local NVMe disks)
+- Enable disk setup when using instance types with local storage
 EOF
   type        = list(string)
-  default     = ["r7gd.2xlarge"]
+  default     = ["r7g.2xlarge"]
   nullable    = false
 }
 
@@ -72,6 +72,16 @@ variable "labels" {
   description = "Labels to apply to the node group."
   type        = map(string)
   default     = {}
+}
+
+variable "node_taints" {
+  description = "Taints to apply to the node group."
+  type = list(object({
+    key    = string
+    value  = string
+    effect = string
+  }))
+  default = []
 }
 
 variable "swap_enabled" {

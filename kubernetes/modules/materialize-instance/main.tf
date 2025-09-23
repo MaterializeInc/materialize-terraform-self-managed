@@ -60,6 +60,17 @@ resource "kubernetes_manifest" "materialize_instance" {
           memory = var.balancer_memory_request
         }
       }
+
+      nodeSelector = var.node_selector
+
+      tolerations = [
+        for toleration in var.tolerations : {
+          key      = toleration.key
+          value    = toleration.value
+          operator = toleration.operator
+          effect   = toleration.effect
+        }
+      ]
     }
   }
 

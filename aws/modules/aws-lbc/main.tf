@@ -319,6 +319,38 @@ resource "helm_release" "aws_load_balancer_controller" {
     value = var.vpc_id
   }
 
+  # Configure node affinity to prefer system nodes
+  set {
+    name  = "affinity.nodeAffinity.preferredDuringSchedulingIgnoredDuringExecution[0].weight"
+    value = "100"
+  }
+
+  set {
+    name  = "affinity.nodeAffinity.preferredDuringSchedulingIgnoredDuringExecution[0].preference.matchExpressions[0].key"
+    value = "workload"
+  }
+
+  set {
+    name  = "affinity.nodeAffinity.preferredDuringSchedulingIgnoredDuringExecution[0].preference.matchExpressions[0].operator"
+    value = "In"
+  }
+
+  set {
+    name  = "affinity.nodeAffinity.preferredDuringSchedulingIgnoredDuringExecution[0].preference.matchExpressions[0].values[0]"
+    value = "system"
+  }
+
+  # Ensure it tolerates the system node taint
+  set {
+    name  = "tolerations[0].key"
+    value = "CriticalAddonsOnly"
+  }
+
+  set {
+    name  = "tolerations[0].operator"
+    value = "Exists"
+  }
+
   depends_on = [
     kubernetes_service_account.aws_load_balancer_controller,
     aws_iam_role_policy_attachment.aws_load_balancer_controller,
