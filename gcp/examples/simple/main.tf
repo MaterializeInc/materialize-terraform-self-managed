@@ -37,6 +37,14 @@ locals {
     "workload" = "materialize-instance"
   }
 
+  # Common ARM toleration for GCP ARM nodes - used across all workloads
+  arm_toleration = {
+    key      = "kubernetes.io/arch"
+    value    = "arm64"
+    operator = "Equal"
+    effect   = "NoSchedule"
+  }
+
   materialize_node_taints = [
     {
       key    = "materialize.cloud/workload"
@@ -51,7 +59,9 @@ locals {
       value    = "materialize-instance"
       operator = "Equal"
       effect   = "NoSchedule"
-    }
+    },
+    # ARM toleration for GCP ARM nodes
+    local.arm_toleration
   ]
 
 
@@ -234,6 +244,9 @@ module "certificates" {
   cert_manager_namespace         = "cert-manager"
   name_prefix                    = var.name_prefix
 
+  # ARM tolerations for cert-manager pods on GCP
+  cert_manager_tolerations = [local.arm_toleration]
+
   depends_on = [
     module.gke,
     module.generic_nodepool,
@@ -248,6 +261,9 @@ module "operator" {
   name_prefix                    = var.name_prefix
   use_self_signed_cluster_issuer = var.install_materialize_instance
   region                         = var.region
+
+  # ARM tolerations for all operator workloads on GCP
+  tolerations = [local.arm_toleration]
 
   depends_on = [
     module.gke,

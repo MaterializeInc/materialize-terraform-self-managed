@@ -164,9 +164,10 @@ resource "kubernetes_daemonset" "disk_setup" {
         # GKE adds a silly taint to prevent things from going to arm nodes.
         # Our image is multi-arch, so we can tolerate that taint.
         toleration {
-          key    = "kubernetes.io/arch"
-          value  = "arm64"
-          effect = "NoSchedule"
+          key      = "kubernetes.io/arch"
+          operator = "Equal"
+          value    = "arm64"
+          effect   = "NoSchedule"
         }
 
         # Use host network and PID namespace

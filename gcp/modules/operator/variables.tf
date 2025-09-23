@@ -110,3 +110,15 @@ variable "swap_enabled" {
   type        = bool
   default     = true
 }
+
+variable "tolerations" {
+  description = "Tolerations for all operator workloads (operator, metrics-server, etc.)."
+  type = list(object({
+    key      = string
+    value    = optional(string)
+    operator = optional(string, "Equal")
+    effect   = string
+  }))
+  default  = []
+  nullable = false
+}
