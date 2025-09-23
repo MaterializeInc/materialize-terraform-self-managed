@@ -1,10 +1,17 @@
 locals {
+  # Map GCP taint effects to Kubernetes toleration effects
+  taint_effect_map = {
+    "NO_SCHEDULE"        = "NoSchedule"
+    "NO_EXECUTE"         = "NoExecute"
+    "PREFER_NO_SCHEDULE" = "PreferNoSchedule"
+  }
+
   # Swap-specific taints that are automatically added when swap is enabled
   swap_taints = var.swap_enabled ? [
     {
       key    = "startup-taint.cluster-autoscaler.kubernetes.io/disk-unconfigured"
       value  = "true"
-      effect = "NoSchedule"
+      effect = "NO_SCHEDULE"
     }
   ] : []
 
@@ -157,7 +164,7 @@ resource "kubernetes_daemonset" "disk_setup" {
           content {
             key      = toleration.value.key
             operator = "Exists"
-            effect   = toleration.value.effect
+            effect   = lookup(local.taint_effect_map, toleration.value.effect, toleration.value.effect)
           }
         }
 

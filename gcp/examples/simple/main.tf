@@ -49,7 +49,7 @@ locals {
     {
       key    = "materialize.cloud/workload"
       value  = "materialize-instance"
-      effect = "NoSchedule"
+      effect = "NO_SCHEDULE"
     }
   ]
 

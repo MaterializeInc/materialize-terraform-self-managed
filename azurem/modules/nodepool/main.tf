@@ -58,14 +58,9 @@ resource "azurerm_kubernetes_cluster_node_pool" "primary_nodes" {
   # Apply taints if specified
   # Note: Once applied, these taints cannot be manually removed by users due to AKS webhook restrictions
   # Reference: https://github.com/Azure/AKS/issues/2934
-  dynamic "node_taints" {
-    for_each = local.node_taints
-    content {
-      key    = node_taints.value.key
-      value  = node_taints.value.value
-      effect = node_taints.value.effect
-    }
-  }
+  node_taints = [
+    for taint in local.node_taints : "${taint.key}=${taint.value}:${taint.effect}"
+  ]
 
   upgrade_settings {
     max_surge                     = "10%"
