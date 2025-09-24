@@ -255,7 +255,6 @@ module "operator" {
   depends_on = [
     module.gke,
     module.generic_nodepool,
-    module.materialize_nodepool,
     module.database,
     module.storage,
     module.certificates,
@@ -290,7 +289,6 @@ module "materialize_instance" {
     module.networking,
     module.certificates,
     module.operator,
-    module.generic_nodepool,
     module.materialize_nodepool,
   ]
 }

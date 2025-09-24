@@ -144,7 +144,6 @@ module "operator" {
     module.eks,
     module.networking,
     module.generic_node_group,
-    module.materialize_node_group,
   ]
 }
 
@@ -230,7 +229,6 @@ module "materialize_instance" {
     module.certificates,
     module.operator,
     module.aws_lbc,
-    module.generic_node_group,
     module.materialize_node_group,
   ]
 }

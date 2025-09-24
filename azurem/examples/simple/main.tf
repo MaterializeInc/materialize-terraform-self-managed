@@ -276,7 +276,6 @@ module "operator" {
 
   depends_on = [
     module.aks,
-    module.nodepool,
     module.database,
     module.storage,
     module.certificates,
