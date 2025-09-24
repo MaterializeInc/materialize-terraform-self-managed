@@ -48,7 +48,7 @@ locals {
   node_pool_config = {
     vm_size              = "Standard_E4pds_v6"
     auto_scaling_enabled = true
-    min_nodes            = 1
+    min_nodes            = 2
     max_nodes            = 5
     node_count           = null
     disk_size_gb         = 100
@@ -141,9 +141,9 @@ module "aks" {
   subnet_id           = module.networking.aks_subnet_id
 
   # Default node pool with autoscaling (runs all workloads except Materialize)
-  default_node_pool_vm_size             = "Standard_D2ps_v5"
+  default_node_pool_vm_size             = "Standard_D4pds_v6"
   default_node_pool_enable_auto_scaling = true
-  default_node_pool_min_count           = 1
+  default_node_pool_min_count           = 2
   default_node_pool_max_count           = 5
 
   # Optional: Enable monitoring
@@ -271,6 +271,9 @@ module "operator" {
   use_self_signed_cluster_issuer = var.install_materialize_instance
   location                       = var.location
 
+  instance_pod_tolerations = local.materialize_tolerations
+  instance_node_selector   = local.materialize_node_labels
+
   depends_on = [
     module.aks,
     module.nodepool,
@@ -301,10 +304,6 @@ module "materialize_instance" {
   }
 
   license_key = var.license_key
-
-  # Node scheduling configuration
-  node_selector = local.materialize_node_labels
-  tolerations   = local.materialize_tolerations
 
   depends_on = [
     module.aks,

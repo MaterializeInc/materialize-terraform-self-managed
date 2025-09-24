@@ -112,7 +112,7 @@ variable "swap_enabled" {
 }
 
 variable "tolerations" {
-  description = "Tolerations for all operator workloads (operator, metrics-server, etc.)."
+  description = "Tolerations for operator pods and metrics-server."
   type = list(object({
     key      = string
     value    = optional(string)
@@ -121,4 +121,23 @@ variable "tolerations" {
   }))
   default  = []
   nullable = false
+}
+
+variable "instance_pod_tolerations" {
+  description = "Tolerations for Materialize instance workloads (environmentd, clusterd, balancerd, console)."
+  type = list(object({
+    key      = string
+    value    = optional(string)
+    operator = optional(string, "Equal")
+    effect   = string
+  }))
+  default  = []
+  nullable = false
+}
+
+variable "instance_node_selector" {
+  description = "Node selector for Materialize workloads (environmentd, clusterd, balancerd, console)."
+  type        = map(string)
+  default     = {}
+  nullable    = false
 }

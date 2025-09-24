@@ -61,16 +61,6 @@ resource "kubernetes_manifest" "materialize_instance" {
         }
       }
 
-      nodeSelector = var.node_selector
-
-      tolerations = [
-        for toleration in var.tolerations : {
-          key      = toleration.key
-          value    = toleration.value
-          operator = toleration.operator
-          effect   = toleration.effect
-        }
-      ]
     }
   }
 

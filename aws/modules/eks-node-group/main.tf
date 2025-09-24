@@ -1,10 +1,8 @@
 locals {
   node_labels = merge(
     var.labels,
-    {
-      "materialize.cloud/swap" = var.swap_enabled ? "true" : "false"
-    },
     var.swap_enabled ? {
+      "materialize.cloud/swap"                 = "true"
       "materialize.cloud/disk-config-required" = "true"
     } : {}
   )

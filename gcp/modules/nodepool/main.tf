@@ -20,9 +20,9 @@ locals {
 
   node_labels = merge(
     var.labels,
-    {
-      "materialize.cloud/swap" = var.swap_enabled ? "true" : "false"
-    }
+    var.swap_enabled ? {
+      "materialize.cloud/swap" = "true"
+    } : {}
   )
 
   disk_setup_name = "disk-setup"
@@ -42,8 +42,6 @@ resource "google_container_node_pool" "primary_nodes" {
   location = var.region
   cluster  = var.cluster_name
   project  = var.project_id
-
-  node_count = var.node_count
 
   autoscaling {
     min_node_count = var.min_nodes

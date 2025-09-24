@@ -167,20 +167,3 @@ variable "pod_labels" {
   default     = {}
   nullable    = false
 }
-
-variable "node_selector" {
-  description = "Node selector for the materialize instance pods"
-  type        = map(string)
-  nullable    = false
-}
-
-variable "tolerations" {
-  description = "Tolerations for the materialize instance pods"
-  type = list(object({
-    key      = string
-    value    = optional(string)
-    operator = optional(string, "Equal")
-    effect   = string
-  }))
-  nullable = false
-}

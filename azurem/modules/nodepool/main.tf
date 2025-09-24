@@ -2,19 +2,6 @@ locals {
   # Azure has 12-character limit for node pool names
   nodepool_name = substr(replace(var.prefix, "-", ""), 0, 12)
 
-  # Swap-specific taints that are automatically added when swap is enabled
-  swap_taints = var.swap_enabled ? [
-    {
-      key    = "startup-taint.cluster-autoscaler.kubernetes.io/disk-unconfigured"
-      value  = "true"
-      effect = "NoSchedule"
-    }
-  ] : []
-
-
-  # Combine user-specified taints with swap-related taints
-  node_taints = concat(var.node_taints, local.swap_taints)
-
   # Auto-scaling configuration - prioritize autoscaling_config object over individual variables
   auto_scaling_enabled = var.autoscaling_config.enabled
   min_nodes            = var.autoscaling_config.enabled ? var.autoscaling_config.min_nodes : null
@@ -23,9 +10,9 @@ locals {
 
   node_labels = merge(
     var.labels,
-    {
-      "materialize.cloud/swap" = var.swap_enabled ? "true" : "false"
-    }
+    var.swap_enabled ? {
+      "materialize.cloud/swap" = "true"
+    } : {}
   )
 
   disk_setup_name = "disk-setup"
@@ -59,7 +46,7 @@ resource "azurerm_kubernetes_cluster_node_pool" "primary_nodes" {
   # Note: Once applied, these taints cannot be manually removed by users due to AKS webhook restrictions
   # Reference: https://github.com/Azure/AKS/issues/2934
   node_taints = [
-    for taint in local.node_taints : "${taint.key}=${taint.value}:${taint.effect}"
+    for taint in var.node_taints : "${taint.key}=${taint.value}:${taint.effect}"
   ]
 
   upgrade_settings {
@@ -136,7 +123,7 @@ resource "kubernetes_daemonset" "disk_setup" {
 
         # Tolerate all taints (includes both user-provided and swap taints)
         dynamic "toleration" {
-          for_each = local.node_taints
+          for_each = var.node_taints
           content {
             key      = toleration.value.key
             operator = "Exists"

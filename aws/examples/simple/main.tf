@@ -61,13 +61,11 @@ module "generic_node_group" {
   cluster_name    = module.eks.cluster_name
   subnet_ids      = module.networking.private_subnet_ids
   node_group_name = "${var.name_prefix}-generic"
-  desired_size    = 2
-  min_size        = 1
-  max_size        = 5
-  instance_types  = ["t4g.medium"]
-  capacity_type   = "ON_DEMAND"
-  ami_type        = "AL2_ARM_64"
+  instance_types  = ["t4g.xlarge"]
   swap_enabled    = false
+  min_size        = 2
+  max_size        = 5
+  desired_size    = 2
   labels = {
     "workload" = "generic"
   }
@@ -82,7 +80,11 @@ module "materialize_node_group" {
   subnet_ids      = module.networking.private_subnet_ids
   node_group_name = "${var.name_prefix}-mz"
   swap_enabled    = true
+  min_size        = 2
+  max_size        = 5
+  desired_size    = 2
   labels          = local.materialize_node_labels
+  instance_types  = ["r7gd.2xlarge"]
   # Materialize-specific taint to isolate workloads
   node_taints                       = local.materialize_node_taints
   cluster_service_cidr              = module.eks.cluster_service_cidr
@@ -132,7 +134,11 @@ module "operator" {
   name_prefix                    = var.name_prefix
   aws_region                     = var.aws_region
   aws_account_id                 = data.aws_caller_identity.current.account_id
-  use_self_signed_cluster_issuer = true
+  use_self_signed_cluster_issuer = var.install_materialize_instance
+
+  # tolerations and node selector for all mz instance workloads on AWS
+  instance_pod_tolerations = local.materialize_tolerations
+  instance_node_selector   = local.materialize_node_labels
 
   depends_on = [
     module.eks,
@@ -215,10 +221,6 @@ module "materialize_instance" {
   }
 
   license_key = var.license_key
-
-  # Node scheduling configuration
-  node_selector = local.materialize_node_labels
-  tolerations   = local.materialize_tolerations
 
   depends_on = [
     module.eks,

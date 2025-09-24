@@ -21,14 +21,6 @@ variable "project_id" {
   type        = string
   nullable    = false
 }
-
-variable "node_count" {
-  description = "The number of nodes in the node pool"
-  type        = number
-  default     = 3
-  nullable    = false
-}
-
 variable "min_nodes" {
   description = "The minimum number of nodes in the autoscaling group"
   type        = number

@@ -57,6 +57,24 @@ locals {
         }
       }
     } : {}
+
+    # Materialize workload configurations
+    environmentd = {
+      nodeSelector = var.instance_node_selector
+      tolerations  = var.instance_pod_tolerations
+    }
+    clusterd = {
+      nodeSelector = var.instance_node_selector
+      tolerations  = var.instance_pod_tolerations
+    }
+    balancerd = {
+      nodeSelector = var.instance_node_selector
+      tolerations  = var.instance_pod_tolerations
+    }
+    console = {
+      nodeSelector = var.instance_node_selector
+      tolerations  = var.instance_pod_tolerations
+    }
   }
 }
 

@@ -47,7 +47,6 @@ Recommended Configuration:
 - Enable disk setup when using instance types with local storage
 EOF
   type        = list(string)
-  default     = ["r7g.2xlarge"]
   nullable    = false
 }
 

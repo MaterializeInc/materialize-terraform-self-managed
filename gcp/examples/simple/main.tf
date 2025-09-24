@@ -37,14 +37,6 @@ locals {
     "workload" = "materialize-instance"
   }
 
-  # Common ARM toleration for GCP ARM nodes - used across all workloads
-  arm_toleration = {
-    key      = "kubernetes.io/arch"
-    value    = "arm64"
-    operator = "Equal"
-    effect   = "NoSchedule"
-  }
-
   materialize_node_taints = [
     {
       key    = "materialize.cloud/workload"
@@ -59,9 +51,7 @@ locals {
       value    = "materialize-instance"
       operator = "Equal"
       effect   = "NoSchedule"
-    },
-    # ARM toleration for GCP ARM nodes
-    local.arm_toleration
+    }
   ]
 
 
@@ -85,10 +75,9 @@ locals {
   ]
 
   gke_config = {
-    node_count   = 1
-    machine_type = "t2a-highmem-8"
+    machine_type = "n2-highmem-8"
     disk_size_gb = 100
-    min_nodes    = 1
+    min_nodes    = 2
     max_nodes    = 5
   }
 
@@ -154,15 +143,14 @@ module "generic_nodepool" {
   source     = "../../modules/nodepool"
   depends_on = [module.gke]
 
-  prefix                = var.name_prefix
+  prefix                = "${var.name_prefix}-generic"
   region                = var.region
   enable_private_nodes  = true
   cluster_name          = module.gke.cluster_name
   project_id            = var.project_id
-  node_count            = 2
-  min_nodes             = 1
+  min_nodes             = 2
   max_nodes             = 5
-  machine_type          = "t2a-medium"
+  machine_type          = "e2-standard-8"
   disk_size_gb          = 50
   service_account_email = module.gke.service_account_email
   labels = {
@@ -177,12 +165,11 @@ module "materialize_nodepool" {
   source     = "../../modules/nodepool"
   depends_on = [module.gke]
 
-  prefix                = var.name_prefix
+  prefix                = "${var.name_prefix}-mz"
   region                = var.region
   enable_private_nodes  = true
   cluster_name          = module.gke.cluster_name
   project_id            = var.project_id
-  node_count            = local.gke_config.node_count
   min_nodes             = local.gke_config.min_nodes
   max_nodes             = local.gke_config.max_nodes
   machine_type          = local.gke_config.machine_type
@@ -244,8 +231,7 @@ module "certificates" {
   cert_manager_namespace         = "cert-manager"
   name_prefix                    = var.name_prefix
 
-  # ARM tolerations for cert-manager pods on GCP
-  cert_manager_tolerations = [local.arm_toleration]
+
 
   depends_on = [
     module.gke,
@@ -262,8 +248,9 @@ module "operator" {
   use_self_signed_cluster_issuer = var.install_materialize_instance
   region                         = var.region
 
-  # ARM tolerations for all operator workloads on GCP
-  tolerations = [local.arm_toleration]
+  # ARM tolerations and node selector for all operator workloads on GCP
+  instance_pod_tolerations = local.materialize_tolerations
+  instance_node_selector   = local.materialize_node_labels
 
   depends_on = [
     module.gke,
@@ -295,10 +282,6 @@ module "materialize_instance" {
   }
 
   license_key = var.license_key
-
-  # Node scheduling configuration
-  node_selector = local.materialize_node_labels
-  tolerations   = local.materialize_tolerations
 
   depends_on = [
     module.gke,
