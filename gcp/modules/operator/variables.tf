@@ -91,13 +91,6 @@ variable "region" {
   nullable    = false
 }
 
-variable "use_self_signed_cluster_issuer" {
-  description = "Whether to use a self-signed cluster issuer for cert-manager."
-  type        = bool
-  default     = false
-  nullable    = false
-}
-
 variable "enable_license_key_checks" {
   description = "Enable license key checks."
   type        = bool

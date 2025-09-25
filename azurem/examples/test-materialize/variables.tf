@@ -90,11 +90,6 @@ variable "tags" {
   type        = map(string)
 }
 
-variable "install_cert_manager" {
-  description = "Whether to install cert-manager"
-  type        = bool
-}
-
 variable "cert_manager_namespace" {
   description = "The namespace for cert-manager"
   type        = string

@@ -167,3 +167,13 @@ variable "pod_labels" {
   default     = {}
   nullable    = false
 }
+
+
+variable "issuer_ref" {
+  description = "Reference to a cert-manager Issuer or ClusterIssuer."
+  type = object({
+    name = string
+    kind = string
+  })
+  default = null
+}

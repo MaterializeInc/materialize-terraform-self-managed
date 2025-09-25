@@ -65,30 +65,38 @@ module "storage" {
 }
 
 # Install cert-manager for SSL certificate management
-module "certificates" {
-  source = "../../../kubernetes/modules/certificates"
+module "cert_manager" {
+  source = "../../../kubernetes/modules/cert-manager"
 
-  install_cert_manager           = var.install_cert_manager
-  cert_manager_install_timeout   = var.cert_manager_install_timeout
-  cert_manager_chart_version     = var.cert_manager_chart_version
-  use_self_signed_cluster_issuer = var.install_materialize_instance
-  cert_manager_namespace         = var.cert_manager_namespace
-  name_prefix                    = var.prefix
+  install_timeout = var.cert_manager_install_timeout
+  chart_version   = var.cert_manager_chart_version
+  namespace       = var.cert_manager_namespace
+}
+
+module "self_signed_cluster_issuer" {
+  count = var.install_materialize_instance ? 1 : 0
+
+  source = "../../../kubernetes/modules/self-signed-cluster-issuer"
+
+  name_prefix = var.prefix
+  namespace   = var.cert_manager_namespace
+
+  depends_on = [
+    module.cert_manager,
+  ]
 }
 
 # Install Materialize Kubernetes operator
 module "operator" {
   source = "../../modules/operator"
 
-  name_prefix                    = var.prefix
-  use_self_signed_cluster_issuer = var.install_materialize_instance
-  swap_enabled                   = var.swap_enabled
-  region                         = var.region
-  operator_namespace             = var.operator_namespace
+  name_prefix        = var.prefix
+  swap_enabled       = var.swap_enabled
+  region             = var.region
+  operator_namespace = var.operator_namespace
 
   depends_on = [
     module.storage,
-    module.certificates,
   ]
 }
 
@@ -113,8 +121,13 @@ module "materialize_instance" {
     "iam.gke.io/gcp-service-account" = var.workload_identity_sa_email
   }
 
+  issuer_ref = {
+    name = module.self_signed_cluster_issuer[0].issuer_name
+    kind = "ClusterIssuer"
+  }
+
   depends_on = [
-    module.certificates,
+    module.self_signed_cluster_issuer,
     module.operator,
   ]
 }

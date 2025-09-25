@@ -587,7 +587,6 @@ func (suite *StagedDeploymentTestSuite) setupMaterializeStage(stage, stageDir, p
 			"enable_bucket_encryption": false,
 
 			// Cert Manager details
-			"install_cert_manager":         true,
 			"cert_manager_install_timeout": 600,
 			"cert_manager_chart_version":   TestCertManagerVersion,
 			"cert_manager_namespace":       expectedCertManagerNamespace,

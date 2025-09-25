@@ -60,7 +60,7 @@ output "balancerd_load_balancer_ip" {
 # Certificate outputs
 output "cluster_issuer_name" {
   description = "Name of the cluster issuer"
-  value       = module.certificates.cluster_issuer_name
+  value       = var.install_materialize_instance ? module.self_signed_cluster_issuer[0].issuer_name : null
 }
 
 # Operator outputs

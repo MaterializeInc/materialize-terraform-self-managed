@@ -114,14 +114,10 @@ module "aws_lbc" {
 }
 
 # 5. Install Certificate Manager for TLS
-module "certificates" {
-  source = "../../../kubernetes/modules/certificates"
+module "cert_manager" {
+  source = "../../../kubernetes/modules/cert-manager"
 
-  install_cert_manager           = true
-  use_self_signed_cluster_issuer = var.install_materialize_instance
-  cert_manager_namespace         = "cert-manager"
-  name_prefix                    = var.name_prefix
-  node_selector                  = local.generic_node_labels
+  node_selector = local.generic_node_labels
 
   depends_on = [
     module.networking,
@@ -131,14 +127,25 @@ module "certificates" {
   ]
 }
 
+module "self_signed_cluster_issuer" {
+  count = var.install_materialize_instance ? 1 : 0
+
+  source = "../../../kubernetes/modules/self-signed-cluster-issuer"
+
+  name_prefix = var.name_prefix
+
+  depends_on = [
+    module.cert_manager,
+  ]
+}
+
 # 6. Install Materialize Operator
 module "operator" {
   source = "../../modules/operator"
 
-  name_prefix                    = var.name_prefix
-  aws_region                     = var.aws_region
-  aws_account_id                 = data.aws_caller_identity.current.account_id
-  use_self_signed_cluster_issuer = var.install_materialize_instance
+  name_prefix    = var.name_prefix
+  aws_region     = var.aws_region
+  aws_account_id = data.aws_caller_identity.current.account_id
 
   # tolerations and node selector for all mz instance workloads on AWS
   instance_pod_tolerations = local.materialize_tolerations
@@ -229,12 +236,17 @@ module "materialize_instance" {
 
   license_key = var.license_key
 
+  issuer_ref = {
+    name = module.self_signed_cluster_issuer[0].issuer_name
+    kind = "ClusterIssuer"
+  }
+
   depends_on = [
     module.eks,
     module.database,
     module.storage,
     module.networking,
-    module.certificates,
+    module.self_signed_cluster_issuer,
     module.operator,
     module.aws_lbc,
     module.materialize_node_group,

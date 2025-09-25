@@ -30,6 +30,7 @@
 | Name | Description | Type | Default | Required |
 |------|-------------|------|---------|:--------:|
 | <a name="input_create_router"></a> [create\_router](#input\_create\_router) | Whether to create a router | `bool` | `true` | no |
+| <a name="input_labels"></a> [labels](#input\_labels) | Labels to apply to all resources | `map(string)` | `{}` | no |
 | <a name="input_log_config_enable"></a> [log\_config\_enable](#input\_log\_config\_enable) | Enable logging for the network | `bool` | `true` | no |
 | <a name="input_log_config_filter"></a> [log\_config\_filter](#input\_log\_config\_filter) | Filter for logging | `string` | `"ERRORS_ONLY"` | no |
 | <a name="input_mtu"></a> [mtu](#input\_mtu) | MTU for the network | `number` | `1460` | no |

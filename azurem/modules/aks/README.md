@@ -31,9 +31,12 @@ No modules.
 | Name | Description | Type | Default | Required |
 |------|-------------|------|---------|:--------:|
 | <a name="input_azure_ad_admin_group_object_ids"></a> [azure\_ad\_admin\_group\_object\_ids](#input\_azure\_ad\_admin\_group\_object\_ids) | List of Azure AD group object IDs that will have admin access to the cluster, applied only if enable\_azure\_ad\_rbac is true | `list(string)` | `[]` | no |
-| <a name="input_default_node_pool_node_count"></a> [default\_node\_pool\_node\_count](#input\_default\_node\_pool\_node\_count) | Number of nodes in the system node pool | `number` | `1` | no |
+| <a name="input_default_node_pool_enable_auto_scaling"></a> [default\_node\_pool\_enable\_auto\_scaling](#input\_default\_node\_pool\_enable\_auto\_scaling) | Enable auto scaling for the default node pool | `bool` | `true` | no |
+| <a name="input_default_node_pool_max_count"></a> [default\_node\_pool\_max\_count](#input\_default\_node\_pool\_max\_count) | Maximum number of nodes in the default node pool (used only when auto scaling is enabled) | `number` | `5` | no |
+| <a name="input_default_node_pool_min_count"></a> [default\_node\_pool\_min\_count](#input\_default\_node\_pool\_min\_count) | Minimum number of nodes in the default node pool (used only when auto scaling is enabled) | `number` | `1` | no |
+| <a name="input_default_node_pool_node_count"></a> [default\_node\_pool\_node\_count](#input\_default\_node\_pool\_node\_count) | Number of nodes in the default node pool (used only when auto scaling is disabled) | `number` | `1` | no |
+| <a name="input_default_node_pool_node_labels"></a> [default\_node\_pool\_node\_labels](#input\_default\_node\_pool\_node\_labels) | Node labels for the default node pool | `map(string)` | `{}` | no |
 | <a name="input_default_node_pool_os_disk_size_gb"></a> [default\_node\_pool\_os\_disk\_size\_gb](#input\_default\_node\_pool\_os\_disk\_size\_gb) | OS disk size in GB for the default node pool | `number` | `100` | no |
-| <a name="input_default_node_pool_system_only"></a> [default\_node\_pool\_system\_only](#input\_default\_node\_pool\_system\_only) | Whether the default node pool should only run system pods (critical addons) | `bool` | `true` | no |
 | <a name="input_default_node_pool_vm_size"></a> [default\_node\_pool\_vm\_size](#input\_default\_node\_pool\_vm\_size) | VM size for the default node pool (system node pool) | `string` | `"Standard_D2s_v3"` | no |
 | <a name="input_dns_service_ip"></a> [dns\_service\_ip](#input\_dns\_service\_ip) | IP address within the service CIDR that will be used by cluster service discovery (kube-dns). If not specified, will be calculated automatically. | `string` | `null` | no |
 | <a name="input_enable_azure_ad_rbac"></a> [enable\_azure\_ad\_rbac](#input\_enable\_azure\_ad\_rbac) | Enable Azure Active Directory integration for RBAC | `bool` | `false` | no |

@@ -613,7 +613,6 @@ func (suite *StagedDeploymentSuite) setupMaterializeStage(stage, stageDir, subsc
 			},
 
 			// Cert Manager details
-			"install_cert_manager":         true,
 			"cert_manager_namespace":       expectedCertManagerNamespace,
 			"cert_manager_install_timeout": 300,
 			"cert_manager_chart_version":   TestCertManagerVersion,

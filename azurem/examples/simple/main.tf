@@ -258,26 +258,33 @@ resource "random_password" "external_login_password_mz_system" {
   override_special = "!#$%&*()-_=+[]{}<>:?"
 }
 
-module "certificates" {
-  source = "../../../kubernetes/modules/certificates"
+module "cert_manager" {
+  source = "../../../kubernetes/modules/cert-manager"
 
-  install_cert_manager           = true
-  use_self_signed_cluster_issuer = var.install_materialize_instance
-  cert_manager_namespace         = "cert-manager"
-  name_prefix                    = var.name_prefix
-  node_selector                  = local.generic_node_labels
+  node_selector = local.generic_node_labels
 
   depends_on = [
     module.aks,
   ]
 }
 
+module "self_signed_cluster_issuer" {
+  count = var.install_materialize_instance ? 1 : 0
+
+  source = "../../../kubernetes/modules/self-signed-cluster-issuer"
+
+  name_prefix = var.name_prefix
+
+  depends_on = [
+    module.cert_manager,
+  ]
+}
+
 module "operator" {
   source = "../../modules/operator"
 
-  name_prefix                    = var.name_prefix
-  use_self_signed_cluster_issuer = var.install_materialize_instance
-  location                       = var.location
+  name_prefix = var.name_prefix
+  location    = var.location
 
   instance_pod_tolerations = local.materialize_tolerations
   instance_node_selector   = local.materialize_node_labels
@@ -289,7 +296,6 @@ module "operator" {
     module.aks,
     module.database,
     module.storage,
-    module.certificates,
   ]
 }
 
@@ -315,12 +321,17 @@ module "materialize_instance" {
 
   license_key = var.license_key
 
+  issuer_ref = {
+    name = module.self_signed_cluster_issuer[0].issuer_name
+    kind = "ClusterIssuer"
+  }
+
   depends_on = [
     module.aks,
     module.database,
     module.storage,
     module.networking,
-    module.certificates,
+    module.self_signed_cluster_issuer,
     module.operator,
     module.materialize_nodepool,
   ]

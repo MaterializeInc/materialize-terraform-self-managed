@@ -32,13 +32,15 @@ No resources.
 | <a name="input_desired_size"></a> [desired\_size](#input\_desired\_size) | Desired number of worker nodes. | `number` | `1` | no |
 | <a name="input_disk_setup_image"></a> [disk\_setup\_image](#input\_disk\_setup\_image) | Docker image for the disk setup script | `string` | `"docker.io/materialize/ephemeral-storage-setup-image:v0.4.0"` | no |
 | <a name="input_iam_role_use_name_prefix"></a> [iam\_role\_use\_name\_prefix](#input\_iam\_role\_use\_name\_prefix) | Use name prefix for IAM roles | `bool` | `true` | no |
-| <a name="input_instance_types"></a> [instance\_types](#input\_instance\_types) | Instance types for worker nodes.<br/><br/>Recommended Configuration for Running Materialize with disk:<br/>- Tested instance types: `r6gd`, `r7gd` families (ARM-based Graviton instances)<br/>- Enable disk setup when using `r7gd`<br/>- Note: Ensure instance store volumes are available and attached to the nodes for optimal performance with disk-based workloads. | `list(string)` | <pre>[<br/>  "r7gd.2xlarge"<br/>]</pre> | no |
+| <a name="input_instance_types"></a> [instance\_types](#input\_instance\_types) | Instance types for worker nodes.<br/><br/>Recommended Configuration:<br/>- For other workloads: `r7g`, `r6g` families (ARM-based Graviton, without local disks)<br/>- For materialize instance workloads: `r6gd`, `r7gd` families (ARM-based Graviton, with local NVMe disks)<br/>- Enable disk setup when using instance types with local storage | `list(string)` | n/a | yes |
 | <a name="input_labels"></a> [labels](#input\_labels) | Labels to apply to the node group. | `map(string)` | `{}` | no |
 | <a name="input_max_size"></a> [max\_size](#input\_max\_size) | Maximum number of worker nodes. | `number` | `4` | no |
 | <a name="input_min_size"></a> [min\_size](#input\_min\_size) | Minimum number of worker nodes. | `number` | `1` | no |
 | <a name="input_node_group_name"></a> [node\_group\_name](#input\_node\_group\_name) | Name of the node group. | `string` | n/a | yes |
+| <a name="input_node_taints"></a> [node\_taints](#input\_node\_taints) | Taints to apply to the node group. | <pre>list(object({<br/>    key    = string<br/>    value  = string<br/>    effect = string<br/>  }))</pre> | `[]` | no |
 | <a name="input_subnet_ids"></a> [subnet\_ids](#input\_subnet\_ids) | List of subnet IDs for the node group. | `list(string)` | n/a | yes |
 | <a name="input_swap_enabled"></a> [swap\_enabled](#input\_swap\_enabled) | Whether to enable swap on the local NVMe disks. | `bool` | `true` | no |
+| <a name="input_tags"></a> [tags](#input\_tags) | Tags to apply to all resources | `map(string)` | `{}` | no |
 
 ## Outputs
 

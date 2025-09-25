@@ -40,8 +40,8 @@ No modules.
 | <a name="input_resource_group_name"></a> [resource\_group\_name](#input\_resource\_group\_name) | The name of the resource group | `string` | n/a | yes |
 | <a name="input_service_account_name"></a> [service\_account\_name](#input\_service\_account\_name) | Kubernetes service account name that will use workload identity | `string` | n/a | yes |
 | <a name="input_service_account_namespace"></a> [service\_account\_namespace](#input\_service\_account\_namespace) | Kubernetes namespace for the service account that will use workload identity | `string` | n/a | yes |
+| <a name="input_storage_account_tags"></a> [storage\_account\_tags](#input\_storage\_account\_tags) | Tags to apply to storage account | `map(string)` | `{}` | no |
 | <a name="input_subnets"></a> [subnets](#input\_subnets) | The subnet of the vnet that should be able to access this storage account | `list(string)` | `[]` | no |
-| <a name="input_tags"></a> [tags](#input\_tags) | Tags to apply to resources | `map(string)` | `{}` | no |
 | <a name="input_workload_identity_id"></a> [workload\_identity\_id](#input\_workload\_identity\_id) | The ID of the workload identity for federated credential | `string` | n/a | yes |
 | <a name="input_workload_identity_principal_id"></a> [workload\_identity\_principal\_id](#input\_workload\_identity\_principal\_id) | The principal ID of the workload identity | `string` | n/a | yes |
 

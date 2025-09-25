@@ -535,7 +535,6 @@ func (suite *StagedDeploymentSuite) setupMaterializeStage(stage, stageDir, proje
 			"storage_bucket_version_ttl": TestStorageBucketVersionTTL,
 
 			// Certificate manager configuration
-			"install_cert_manager":         true,
 			"cert_manager_install_timeout": TestCertManagerInstallTimeout,
 			"cert_manager_chart_version":   TestCertManagerVersion,
 			"cert_manager_namespace":       expectedCertManagerNamespace,

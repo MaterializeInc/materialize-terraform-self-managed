@@ -42,7 +42,7 @@ No modules.
 | <a name="input_machine_type"></a> [machine\_type](#input\_machine\_type) | The machine type for the nodes | `string` | `"e2-medium"` | no |
 | <a name="input_max_nodes"></a> [max\_nodes](#input\_max\_nodes) | The maximum number of nodes in the autoscaling group | `number` | `10` | no |
 | <a name="input_min_nodes"></a> [min\_nodes](#input\_min\_nodes) | The minimum number of nodes in the autoscaling group | `number` | `1` | no |
-| <a name="input_node_count"></a> [node\_count](#input\_node\_count) | The number of nodes in the node pool | `number` | `3` | no |
+| <a name="input_node_taints"></a> [node\_taints](#input\_node\_taints) | Taints to apply to the node pool. | <pre>list(object({<br/>    key    = string<br/>    value  = string<br/>    effect = string<br/>  }))</pre> | `[]` | no |
 | <a name="input_oauth_scopes"></a> [oauth\_scopes](#input\_oauth\_scopes) | OAuth scopes to assign to the node pool service account | `list(string)` | <pre>[<br/>  "https://www.googleapis.com/auth/cloud-platform"<br/>]</pre> | no |
 | <a name="input_pause_container_resource_config"></a> [pause\_container\_resource\_config](#input\_pause\_container\_resource\_config) | Resource configuration for pause container | <pre>object({<br/>    memory_limit   = string<br/>    memory_request = string<br/>    cpu_request    = string<br/>  })</pre> | <pre>{<br/>  "cpu_request": "1m",<br/>  "memory_limit": "8Mi",<br/>  "memory_request": "8Mi"<br/>}</pre> | no |
 | <a name="input_prefix"></a> [prefix](#input\_prefix) | Prefix to be used for resource names | `string` | n/a | yes |

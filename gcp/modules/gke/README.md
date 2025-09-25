@@ -32,6 +32,7 @@ No modules.
 | <a name="input_gce_persistent_disk_csi_driver_enabled"></a> [gce\_persistent\_disk\_csi\_driver\_enabled](#input\_gce\_persistent\_disk\_csi\_driver\_enabled) | Whether to enable the GCE persistent disk CSI driver | `bool` | `true` | no |
 | <a name="input_horizontal_pod_autoscaling_disabled"></a> [horizontal\_pod\_autoscaling\_disabled](#input\_horizontal\_pod\_autoscaling\_disabled) | Whether to disable horizontal pod autoscaling | `bool` | `false` | no |
 | <a name="input_http_load_balancing_disabled"></a> [http\_load\_balancing\_disabled](#input\_http\_load\_balancing\_disabled) | Whether to disable HTTP load balancing | `bool` | `false` | no |
+| <a name="input_labels"></a> [labels](#input\_labels) | Labels to apply to all resources | `map(string)` | `{}` | no |
 | <a name="input_namespace"></a> [namespace](#input\_namespace) | The namespace where the Materialize Operator will be installed | `string` | n/a | yes |
 | <a name="input_network_name"></a> [network\_name](#input\_network\_name) | The name of the VPC network | `string` | n/a | yes |
 | <a name="input_networking_mode"></a> [networking\_mode](#input\_networking\_mode) | The networking mode for the GKE cluster | `string` | `"VPC_NATIVE"` | no |

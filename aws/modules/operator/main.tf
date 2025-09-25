@@ -59,35 +59,6 @@ locals {
       nodeSelector = var.instance_node_selector
       tolerations  = var.instance_pod_tolerations
     }
-
-    tls = var.use_self_signed_cluster_issuer ? {
-      defaultCertificateSpecs = {
-        balancerdExternal = {
-          dnsNames = [
-            "balancerd",
-          ]
-          issuerRef = {
-            name = "${var.name_prefix}-root-ca"
-            kind = "ClusterIssuer"
-          }
-        }
-        consoleExternal = {
-          dnsNames = [
-            "console",
-          ]
-          issuerRef = {
-            name = "${var.name_prefix}-root-ca"
-            kind = "ClusterIssuer"
-          }
-        }
-        internal = {
-          issuerRef = {
-            name = "${var.name_prefix}-root-ca"
-            kind = "ClusterIssuer"
-          }
-        }
-      }
-    } : {}
   }
 }
 
