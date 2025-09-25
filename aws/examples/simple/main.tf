@@ -105,7 +105,6 @@ module "aws_lbc" {
   depends_on = [
     module.eks,
     module.generic_node_group,
-    module.materialize_node_group,
   ]
 }
 
@@ -122,7 +121,6 @@ module "certificates" {
     module.networking,
     module.eks,
     module.generic_node_group,
-    module.materialize_node_group,
     module.aws_lbc,
   ]
 }
