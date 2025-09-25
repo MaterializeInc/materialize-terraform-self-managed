@@ -156,7 +156,7 @@ module "aks" {
 }
 
 # Materialize-dedicated node pool with taints (via labels on Azure)
-module "nodepool" {
+module "materialize_nodepool" {
   source = "../../modules/nodepool"
 
   prefix     = var.name_prefix
@@ -260,7 +260,6 @@ module "certificates" {
 
   depends_on = [
     module.aks,
-    module.nodepool,
   ]
 }
 
@@ -311,7 +310,7 @@ module "materialize_instance" {
     module.networking,
     module.certificates,
     module.operator,
-    module.nodepool,
+    module.materialize_nodepool,
   ]
 }
 

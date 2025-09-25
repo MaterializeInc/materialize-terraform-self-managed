@@ -236,7 +236,6 @@ module "certificates" {
   depends_on = [
     module.gke,
     module.generic_nodepool,
-    module.materialize_nodepool,
   ]
 }
 

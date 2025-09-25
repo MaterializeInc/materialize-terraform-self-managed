@@ -42,8 +42,8 @@ variable "instance_types" {
 Instance types for worker nodes.
 
 Recommended Configuration:
-- For cost-effective workloads: `r7g`, `r6g` families (ARM-based Graviton, without local disks)
-- For disk-intensive workloads: `r6gd`, `r7gd` families (ARM-based Graviton, with local NVMe disks)
+- For other workloads: `r7g`, `r6g` families (ARM-based Graviton, without local disks)
+- For materialize instance workloads: `r6gd`, `r7gd` families (ARM-based Graviton, with local NVMe disks)
 - Enable disk setup when using instance types with local storage
 EOF
   type        = list(string)
