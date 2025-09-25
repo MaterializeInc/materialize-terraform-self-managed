@@ -124,6 +124,8 @@ module "networking" {
   aks_subnet_cidr      = local.vnet_config.aks_subnet_cidr
   postgres_subnet_cidr = local.vnet_config.postgres_subnet_cidr
 
+  tags = var.tags
+
   depends_on = [azurerm_resource_group.materialize]
 }
 

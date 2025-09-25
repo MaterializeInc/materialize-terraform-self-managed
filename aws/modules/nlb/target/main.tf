@@ -5,6 +5,7 @@ resource "aws_lb_target_group" "target_group" {
   protocol           = "TCP"
   target_type        = "ip"
   vpc_id             = var.vpc_id
+  tags               = var.tags
 
   health_check {
     enabled             = true
@@ -28,7 +29,7 @@ resource "aws_lb_listener" "listener" {
   load_balancer_arn = var.nlb_arn
   port              = var.port
   protocol          = "TCP"
-
+  tags              = var.tags
   default_action {
     type             = "forward"
     target_group_arn = aws_lb_target_group.target_group.arn

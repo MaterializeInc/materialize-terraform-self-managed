@@ -46,4 +46,6 @@ module "node_group" {
 
   cluster_service_cidr              = var.cluster_service_cidr
   cluster_primary_security_group_id = var.cluster_primary_security_group_id
+
+  tags = var.tags
 }
