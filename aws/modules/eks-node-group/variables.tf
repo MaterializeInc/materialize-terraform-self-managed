@@ -83,6 +83,12 @@ variable "node_taints" {
   default = []
 }
 
+variable "tags" {
+  description = "Tags to apply to all resources"
+  type        = map(string)
+  default     = {}
+}
+
 variable "swap_enabled" {
   description = "Whether to enable swap on the local NVMe disks."
   type        = bool

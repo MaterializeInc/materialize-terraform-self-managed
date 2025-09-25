@@ -4,6 +4,7 @@ resource "aws_lb" "nlb" {
   load_balancer_type               = "network"
   subnets                          = var.subnet_ids
   enable_cross_zone_load_balancing = var.enable_cross_zone_load_balancing
+  tags                             = var.tags
 }
 
 module "target_pgwire" {
@@ -16,6 +17,7 @@ module "target_pgwire" {
   port              = 6875
   service_name      = "mz${var.mz_resource_id}-balancerd"
   health_check_path = "/api/readyz"
+  tags              = var.tags
 }
 
 module "target_http" {
@@ -28,6 +30,7 @@ module "target_http" {
   port              = 6876
   service_name      = "mz${var.mz_resource_id}-balancerd"
   health_check_path = "/api/readyz"
+  tags              = var.tags
 }
 
 module "target_console" {
@@ -40,4 +43,5 @@ module "target_console" {
   port              = 8080
   service_name      = "mz${var.mz_resource_id}-console"
   health_check_path = "/"
+  tags              = var.tags
 }

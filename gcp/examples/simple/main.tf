@@ -120,6 +120,7 @@ module "networking" {
   region     = var.region
   prefix     = var.name_prefix
   subnets    = local.subnets
+  labels     = var.labels
 }
 
 # Set up Google Kubernetes Engine (GKE) cluster
@@ -136,6 +137,7 @@ module "gke" {
   # if multiple subnets are created, we need to use the specific subnet name here
   subnet_name = module.networking.subnets_names[0]
   namespace   = local.materialize_operator_namespace
+  labels      = var.labels
 }
 
 # Create and configure generic node pool for all workloads except Materialize

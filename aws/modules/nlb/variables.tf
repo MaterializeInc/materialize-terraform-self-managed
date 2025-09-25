@@ -47,3 +47,9 @@ variable "enable_cross_zone_load_balancing" {
   default     = true
   nullable    = false
 }
+
+variable "tags" {
+  description = "Tags to apply to all resources"
+  type        = map(string)
+  default     = {}
+}
