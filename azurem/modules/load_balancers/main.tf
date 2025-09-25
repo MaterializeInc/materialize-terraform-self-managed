@@ -22,6 +22,16 @@ resource "kubernetes_service" "console_load_balancer" {
   }
 
   wait_for_load_balancer = true
+
+  lifecycle {
+    ignore_changes = [
+      # The resource_id is known only after apply,
+      # so terraform wants to destroy the resource
+      # on any changes to the Materialize CR.
+      metadata[0].name,
+      spec[0].selector["materialize.cloud/name"],
+    ]
+  }
 }
 
 resource "kubernetes_service" "balancerd_load_balancer" {
@@ -54,4 +64,14 @@ resource "kubernetes_service" "balancerd_load_balancer" {
   }
 
   wait_for_load_balancer = true
+
+  lifecycle {
+    ignore_changes = [
+      # The resource_id is known only after apply,
+      # so terraform wants to destroy the resource
+      # on any changes to the Materialize CR.
+      metadata[0].name,
+      spec[0].selector["materialize.cloud/name"],
+    ]
+  }
 }
