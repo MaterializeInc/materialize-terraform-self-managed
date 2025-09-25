@@ -19,7 +19,7 @@ provider "kubernetes" {
   cluster_ca_certificate = base64decode(module.aks.kube_config[0].cluster_ca_certificate)
 }
 
-# AKS cluster with system-only default node pool
+# AKS cluster with default node pool for all workloads
 module "aks" {
   source = "../../modules/aks"
 
@@ -32,10 +32,12 @@ module "aks" {
   subnet_name         = var.subnet_name
   subnet_id           = var.subnet_id
 
-  # System-only node pool (minimal)
-  default_node_pool_vm_size     = var.default_node_pool_vm_size
-  default_node_pool_node_count  = var.default_node_pool_node_count
-  default_node_pool_system_only = true
+  # Default node pool with autoscaling (runs all workloads for tests)
+  default_node_pool_vm_size             = var.default_node_pool_vm_size
+  default_node_pool_enable_auto_scaling = var.default_node_pool_enable_auto_scaling
+  default_node_pool_node_count          = var.default_node_pool_node_count
+  default_node_pool_min_count           = var.default_node_pool_min_count
+  default_node_pool_max_count           = var.default_node_pool_max_count
 
   # Optional: Enable monitoring
   enable_azure_monitor       = var.enable_azure_monitor

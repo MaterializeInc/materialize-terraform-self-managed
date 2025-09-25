@@ -142,6 +142,13 @@ variable "external_login_password_mz_system" {
   sensitive   = true
 }
 
+variable "license_key" {
+  description = "Materialize license key"
+  type        = string
+  default     = null
+  sensitive   = true
+}
+
 variable "subnet_ids" {
   description = "List of subnet IDs for the NLB"
   type        = list(string)

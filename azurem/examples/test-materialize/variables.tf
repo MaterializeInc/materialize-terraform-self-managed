@@ -134,3 +134,10 @@ variable "instance_namespace" {
   description = "The namespace of the Materialize instance"
   type        = string
 }
+
+variable "license_key" {
+  description = "Materialize license key"
+  type        = string
+  default     = null
+  sensitive   = true
+}

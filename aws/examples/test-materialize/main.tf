@@ -80,6 +80,9 @@ module "materialize_instance" {
   # The password for the external login to the Materialize instance
   external_login_password_mz_system = var.external_login_password_mz_system
 
+  # Materialize license key
+  license_key = var.license_key
+
   # AWS IAM role annotation for service account
   service_account_annotations = {
     "eks.amazonaws.com/role-arn" = module.storage.materialize_s3_role_arn

@@ -118,3 +118,10 @@ variable "swap_enabled" {
   description = "Enable swap"
   type        = bool
 }
+
+variable "license_key" {
+  description = "Materialize license key"
+  type        = string
+  default     = null
+  sensitive   = true
+}

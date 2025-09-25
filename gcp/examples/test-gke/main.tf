@@ -36,10 +36,9 @@ module "nodepool" {
   enable_private_nodes  = var.enable_private_nodes
   cluster_name          = module.gke.cluster_name
   service_account_email = module.gke.service_account_email
-  node_count            = var.materialize_node_count
-  machine_type          = var.materialize_node_type
   min_nodes             = var.min_nodes
   max_nodes             = var.max_nodes
+  machine_type          = var.materialize_node_type
 
 
   swap_enabled    = var.swap_enabled

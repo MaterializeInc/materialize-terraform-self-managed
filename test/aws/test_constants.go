@@ -20,7 +20,7 @@ const (
 
 	// EKS-specific instance types
 	TestEKSDiskEnabledInstanceType  = "r7gd.2xlarge"
-	TestEKSDiskDisabledInstanceType = "r6gd.2xlarge"
+	TestEKSDiskDisabledInstanceType = "r7g.2xlarge"
 
 	// Kubernetes version
 	TestKubernetesVersion = "1.32"
