@@ -60,6 +60,7 @@ resource "kubernetes_manifest" "materialize_instance" {
           memory = var.balancer_memory_request
         }
       }
+
     }
   }
 

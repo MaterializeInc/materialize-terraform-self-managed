@@ -45,6 +45,9 @@ func getRequiredAWSConfigurations() []config.Configuration {
 			Type: config.Critical,
 		},
 		{
+			Key: "MATERIALIZE_LICENSE_KEY",
+		},
+		{
 			Key: "USE_EXISING_NETWORK",
 		},
 		{

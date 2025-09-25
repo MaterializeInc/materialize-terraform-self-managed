@@ -319,6 +319,7 @@ resource "helm_release" "aws_load_balancer_controller" {
     value = var.vpc_id
   }
 
+
   depends_on = [
     kubernetes_service_account.aws_load_balancer_controller,
     aws_iam_role_policy_attachment.aws_load_balancer_controller,

@@ -33,11 +33,6 @@ variable "skip_nodepool" {
   type        = bool
 }
 
-variable "materialize_node_count" {
-  description = "Number of nodes for Materialize"
-  type        = number
-}
-
 variable "materialize_node_type" {
   description = "Node type for Materialize"
   type        = string

@@ -37,3 +37,15 @@ variable "cert_manager_chart_version" {
   nullable    = false
   default     = "v1.18.0"
 }
+
+variable "cert_manager_tolerations" {
+  description = "Tolerations for cert-manager pods."
+  type = list(object({
+    key      = string
+    value    = optional(string)
+    operator = optional(string, "Equal")
+    effect   = string
+  }))
+  default  = []
+  nullable = false
+}

@@ -28,11 +28,14 @@ resource "azurerm_kubernetes_cluster" "aks" {
   kubernetes_version  = var.kubernetes_version
 
   default_node_pool {
-    temporary_name_for_rotation  = "system2"
-    name                         = "system"
+    temporary_name_for_rotation  = "default2"
+    name                         = "default"
     vm_size                      = var.default_node_pool_vm_size
-    node_count                   = var.default_node_pool_node_count
-    only_critical_addons_enabled = var.default_node_pool_system_only
+    auto_scaling_enabled         = var.default_node_pool_enable_auto_scaling
+    node_count                   = var.default_node_pool_enable_auto_scaling ? null : var.default_node_pool_node_count
+    min_count                    = var.default_node_pool_enable_auto_scaling ? var.default_node_pool_min_count : null
+    max_count                    = var.default_node_pool_enable_auto_scaling ? var.default_node_pool_max_count : null
+    only_critical_addons_enabled = false # Default pool runs all workloads except Materialize
     vnet_subnet_id               = var.subnet_id
     os_disk_size_gb              = var.default_node_pool_os_disk_size_gb
 

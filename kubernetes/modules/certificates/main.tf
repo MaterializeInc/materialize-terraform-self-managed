@@ -23,6 +23,42 @@ resource "helm_release" "cert_manager" {
     value = "true"
   }
 
+  # Add tolerations for cert-manager pods if provided
+  dynamic "set" {
+    for_each = length(var.cert_manager_tolerations) > 0 ? range(length(var.cert_manager_tolerations)) : []
+    content {
+      name  = "tolerations[${set.value}].key"
+      value = var.cert_manager_tolerations[set.value].key
+    }
+  }
+
+  dynamic "set" {
+    for_each = length(var.cert_manager_tolerations) > 0 ? range(length(var.cert_manager_tolerations)) : []
+    content {
+      name  = "tolerations[${set.value}].operator"
+      value = var.cert_manager_tolerations[set.value].operator
+    }
+  }
+
+  dynamic "set" {
+    for_each = length(var.cert_manager_tolerations) > 0 ? [
+      for i, toleration in var.cert_manager_tolerations : i
+      if toleration.value != null
+    ] : []
+    content {
+      name  = "tolerations[${set.value}].value"
+      value = var.cert_manager_tolerations[set.value].value
+    }
+  }
+
+  dynamic "set" {
+    for_each = length(var.cert_manager_tolerations) > 0 ? range(length(var.cert_manager_tolerations)) : []
+    content {
+      name  = "tolerations[${set.value}].effect"
+      value = var.cert_manager_tolerations[set.value].effect
+    }
+  }
+
   depends_on = [
     kubernetes_namespace.cert_manager,
   ]

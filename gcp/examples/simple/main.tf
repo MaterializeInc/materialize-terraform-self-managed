@@ -32,6 +32,28 @@ locals {
   materialize_instance_namespace = "materialize-environment"
   materialize_instance_name      = "main"
 
+  # Common node scheduling configuration
+  materialize_node_labels = {
+    "workload" = "materialize-instance"
+  }
+
+  materialize_node_taints = [
+    {
+      key    = "materialize.cloud/workload"
+      value  = "materialize-instance"
+      effect = "NO_SCHEDULE"
+    }
+  ]
+
+  materialize_tolerations = [
+    {
+      key      = "materialize.cloud/workload"
+      value    = "materialize-instance"
+      operator = "Equal"
+      effect   = "NoSchedule"
+    }
+  ]
+
 
   subnets = [
     {
@@ -53,10 +75,9 @@ locals {
   ]
 
   gke_config = {
-    node_count   = 1
     machine_type = "n2-highmem-8"
     disk_size_gb = 100
-    min_nodes    = 1
+    min_nodes    = 2
     max_nodes    = 5
   }
 
@@ -101,7 +122,7 @@ module "networking" {
   subnets    = local.subnets
 }
 
-# Set up Google Kubernetes Engine (GKE) cluster with basic configuration
+# Set up Google Kubernetes Engine (GKE) cluster
 module "gke" {
   source = "../../modules/gke"
 
@@ -117,23 +138,46 @@ module "gke" {
   namespace   = local.materialize_operator_namespace
 }
 
-# Create and configure node pool for the GKE cluster with compute resources
-module "nodepool" {
+# Create and configure generic node pool for all workloads except Materialize
+module "generic_nodepool" {
   source     = "../../modules/nodepool"
   depends_on = [module.gke]
 
-  prefix                = var.name_prefix
+  prefix                = "${var.name_prefix}-generic"
   region                = var.region
   enable_private_nodes  = true
   cluster_name          = module.gke.cluster_name
   project_id            = var.project_id
-  node_count            = local.gke_config.node_count
+  min_nodes             = 2
+  max_nodes             = 5
+  machine_type          = "e2-standard-8"
+  disk_size_gb          = 50
+  service_account_email = module.gke.service_account_email
+  labels = {
+    "workload" = "generic"
+  }
+  swap_enabled    = false
+  local_ssd_count = 0
+}
+
+# Create and configure Materialize-dedicated node pool with taints
+module "materialize_nodepool" {
+  source     = "../../modules/nodepool"
+  depends_on = [module.gke]
+
+  prefix                = "${var.name_prefix}-mz"
+  region                = var.region
+  enable_private_nodes  = true
+  cluster_name          = module.gke.cluster_name
+  project_id            = var.project_id
   min_nodes             = local.gke_config.min_nodes
   max_nodes             = local.gke_config.max_nodes
   machine_type          = local.gke_config.machine_type
   disk_size_gb          = local.gke_config.disk_size_gb
   service_account_email = module.gke.service_account_email
-  labels                = local.common_labels
+  labels                = merge(local.common_labels, local.materialize_node_labels)
+  # Materialize-specific taint to isolate workloads
+  node_taints = local.materialize_node_taints
 
   swap_enabled    = local.swap_enabled
   local_ssd_count = local.local_ssd_count
@@ -187,9 +231,11 @@ module "certificates" {
   cert_manager_namespace         = "cert-manager"
   name_prefix                    = var.name_prefix
 
+
+
   depends_on = [
     module.gke,
-    module.nodepool,
+    module.generic_nodepool,
   ]
 }
 
@@ -201,9 +247,13 @@ module "operator" {
   use_self_signed_cluster_issuer = var.install_materialize_instance
   region                         = var.region
 
+  # ARM tolerations and node selector for all operator workloads on GCP
+  instance_pod_tolerations = local.materialize_tolerations
+  instance_node_selector   = local.materialize_node_labels
+
   depends_on = [
     module.gke,
-    module.nodepool,
+    module.generic_nodepool,
     module.database,
     module.storage,
     module.certificates,
@@ -238,7 +288,7 @@ module "materialize_instance" {
     module.networking,
     module.certificates,
     module.operator,
-    module.nodepool,
+    module.materialize_nodepool,
   ]
 }
 

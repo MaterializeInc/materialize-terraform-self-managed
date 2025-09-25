@@ -48,7 +48,7 @@ locals {
   node_pool_config = {
     vm_size              = "Standard_E4pds_v6"
     auto_scaling_enabled = true
-    min_nodes            = 1
+    min_nodes            = 2
     max_nodes            = 5
     node_count           = null
     disk_size_gb         = 100
@@ -83,6 +83,28 @@ locals {
 
   materialize_instance_namespace = "materialize-environment"
   materialize_instance_name      = "main"
+
+  # Common node scheduling configuration
+  materialize_node_labels = {
+    "workload" = "materialize-instance"
+  }
+
+  materialize_node_taints = [
+    {
+      key    = "materialize.cloud/workload"
+      value  = "materialize-instance"
+      effect = "NoSchedule"
+    }
+  ]
+
+  materialize_tolerations = [
+    {
+      key      = "materialize.cloud/workload"
+      value    = "materialize-instance"
+      operator = "Equal"
+      effect   = "NoSchedule"
+    }
+  ]
 }
 
 
@@ -105,7 +127,7 @@ module "networking" {
   depends_on = [azurerm_resource_group.materialize]
 }
 
-# Pattern A: Minimal system-only default node pool + separate workload node pools
+# AKS Cluster with Default Node Pool
 module "aks" {
   source = "../../modules/aks"
 
@@ -118,10 +140,11 @@ module "aks" {
   subnet_name         = module.networking.aks_subnet_name
   subnet_id           = module.networking.aks_subnet_id
 
-  # System-only node pool (minimal)
-  default_node_pool_vm_size     = "Standard_D2s_v3"
-  default_node_pool_node_count  = 2
-  default_node_pool_system_only = true
+  # Default node pool with autoscaling (runs all workloads except Materialize)
+  default_node_pool_vm_size             = "Standard_D4pds_v6"
+  default_node_pool_enable_auto_scaling = true
+  default_node_pool_min_count           = 2
+  default_node_pool_max_count           = 5
 
   # Optional: Enable monitoring
   enable_azure_monitor       = local.aks_config.enable_azure_monitor
@@ -132,8 +155,8 @@ module "aks" {
   depends_on = [azurerm_resource_group.materialize]
 }
 
-# Separate workload node pool for Materialize
-module "nodepool" {
+# Materialize-dedicated node pool with taints (via labels on Azure)
+module "materialize_nodepool" {
   source = "../../modules/nodepool"
 
   prefix     = var.name_prefix
@@ -151,6 +174,13 @@ module "nodepool" {
   vm_size      = local.node_pool_config.vm_size
   disk_size_gb = local.node_pool_config.disk_size_gb
   swap_enabled = local.node_pool_config.swap_enabled
+
+  labels = local.materialize_node_labels
+
+  # Materialize-specific taint to isolate workloads
+  # https://github.com/Azure/AKS/issues/2934
+  # Note: Once applied, these cannot be manually removed due to AKS webhook restrictions
+  node_taints = local.materialize_node_taints
 
   tags = var.tags
 
@@ -230,7 +260,6 @@ module "certificates" {
 
   depends_on = [
     module.aks,
-    module.nodepool,
   ]
 }
 
@@ -241,9 +270,11 @@ module "operator" {
   use_self_signed_cluster_issuer = var.install_materialize_instance
   location                       = var.location
 
+  instance_pod_tolerations = local.materialize_tolerations
+  instance_node_selector   = local.materialize_node_labels
+
   depends_on = [
     module.aks,
-    module.nodepool,
     module.database,
     module.storage,
     module.certificates,
@@ -279,7 +310,7 @@ module "materialize_instance" {
     module.networking,
     module.certificates,
     module.operator,
-    module.nodepool,
+    module.materialize_nodepool,
   ]
 }
 

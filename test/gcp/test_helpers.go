@@ -45,6 +45,9 @@ func getRequiredGCPConfigurations() []config.Configuration {
 			Type: config.Critical,
 		},
 		{
+			Key: "MATERIALIZE_LICENSE_KEY",
+		},
+		{
 			Key: "USE_EXISTING_NETWORK",
 		},
 		{

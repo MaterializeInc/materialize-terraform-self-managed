@@ -26,6 +26,8 @@ locals {
       clusters = {
         swap_enabled = var.swap_enabled
       }
+      # Tolerations for operator pods
+      tolerations = var.tolerations
     }
     tls = var.use_self_signed_cluster_issuer ? {
       defaultCertificateSpecs = {
@@ -55,6 +57,24 @@ locals {
         }
       }
     } : {}
+
+    # Materialize workload configurations
+    environmentd = {
+      nodeSelector = var.instance_node_selector
+      tolerations  = var.instance_pod_tolerations
+    }
+    clusterd = {
+      nodeSelector = var.instance_node_selector
+      tolerations  = var.instance_pod_tolerations
+    }
+    balancerd = {
+      nodeSelector = var.instance_node_selector
+      tolerations  = var.instance_pod_tolerations
+    }
+    console = {
+      nodeSelector = var.instance_node_selector
+      tolerations  = var.instance_pod_tolerations
+    }
   }
 }
 
@@ -112,6 +132,42 @@ resource "helm_release" "metrics_server" {
   set {
     name  = "metrics.enabled"
     value = var.metrics_server_values.metrics_enabled
+  }
+
+  # Add tolerations for metrics-server pods if provided
+  dynamic "set" {
+    for_each = length(var.tolerations) > 0 ? range(length(var.tolerations)) : []
+    content {
+      name  = "tolerations[${set.value}].key"
+      value = var.tolerations[set.value].key
+    }
+  }
+
+  dynamic "set" {
+    for_each = length(var.tolerations) > 0 ? range(length(var.tolerations)) : []
+    content {
+      name  = "tolerations[${set.value}].operator"
+      value = var.tolerations[set.value].operator
+    }
+  }
+
+  dynamic "set" {
+    for_each = length(var.tolerations) > 0 ? [
+      for i, toleration in var.tolerations : i
+      if toleration.value != null
+    ] : []
+    content {
+      name  = "tolerations[${set.value}].value"
+      value = var.tolerations[set.value].value
+    }
+  }
+
+  dynamic "set" {
+    for_each = length(var.tolerations) > 0 ? range(length(var.tolerations)) : []
+    content {
+      name  = "tolerations[${set.value}].effect"
+      value = var.tolerations[set.value].effect
+    }
   }
 
   depends_on = [

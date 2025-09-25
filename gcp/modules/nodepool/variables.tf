@@ -21,14 +21,6 @@ variable "project_id" {
   type        = string
   nullable    = false
 }
-
-variable "node_count" {
-  description = "The number of nodes in the node pool"
-  type        = number
-  default     = 3
-  nullable    = false
-}
-
 variable "min_nodes" {
   description = "The minimum number of nodes in the autoscaling group"
   type        = number
@@ -61,6 +53,16 @@ variable "labels" {
   description = "Labels to apply to the nodes"
   type        = map(string)
   default     = {}
+}
+
+variable "node_taints" {
+  description = "Taints to apply to the node pool."
+  type = list(object({
+    key    = string
+    value  = string
+    effect = string
+  }))
+  default = []
 }
 
 variable "service_account_email" {

@@ -64,14 +64,60 @@ variable "default_node_pool_vm_size" {
   nullable    = false
 }
 
+variable "default_node_pool_enable_auto_scaling" {
+  description = "Enable auto scaling for the default node pool"
+  type        = bool
+  default     = true
+  nullable    = false
+}
+
 variable "default_node_pool_node_count" {
-  description = "Number of nodes in the system node pool"
+  description = "Number of nodes in the default node pool (used only when auto scaling is disabled)"
   type        = number
   default     = 1
 
   validation {
-    condition     = var.default_node_pool_node_count > 0
-    error_message = "default_node_pool_node_count must be greater than 0."
+    condition = (
+      var.default_node_pool_enable_auto_scaling ||
+      var.default_node_pool_node_count > 0
+    )
+    error_message = "default_node_pool_node_count must be greater than 0 when auto scaling is disabled."
+  }
+}
+
+variable "default_node_pool_min_count" {
+  description = "Minimum number of nodes in the default node pool (used only when auto scaling is enabled)"
+  type        = number
+  default     = 1
+
+  validation {
+    condition = (
+      !var.default_node_pool_enable_auto_scaling ||
+      var.default_node_pool_min_count > 0
+    )
+    error_message = "default_node_pool_min_count must be greater than 0 when auto scaling is enabled."
+  }
+}
+
+variable "default_node_pool_max_count" {
+  description = "Maximum number of nodes in the default node pool (used only when auto scaling is enabled)"
+  type        = number
+  default     = 5
+
+  validation {
+    condition = (
+      !var.default_node_pool_enable_auto_scaling ||
+      var.default_node_pool_max_count > 0
+    )
+    error_message = "default_node_pool_max_count must be greater than 0 when auto scaling is enabled."
+  }
+
+  validation {
+    condition = (
+      !var.default_node_pool_enable_auto_scaling ||
+      var.default_node_pool_max_count >= var.default_node_pool_min_count
+    )
+    error_message = "default_node_pool_max_count must be greater than or equal to default_node_pool_min_count when auto scaling is enabled."
   }
 }
 
@@ -82,12 +128,6 @@ variable "default_node_pool_os_disk_size_gb" {
   nullable    = false
 }
 
-variable "default_node_pool_system_only" {
-  description = "Whether the default node pool should only run system pods (critical addons)"
-  type        = bool
-  default     = true
-  nullable    = false
-}
 
 variable "enable_azure_monitor" {
   description = "Enable Azure Monitor for the AKS cluster"

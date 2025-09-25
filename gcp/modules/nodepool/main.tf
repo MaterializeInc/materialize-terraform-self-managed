@@ -1,5 +1,13 @@
 locals {
-  node_taints = var.swap_enabled ? [
+  # Map GCP taint effects to Kubernetes toleration effects
+  taint_effect_map = {
+    "NO_SCHEDULE"        = "NoSchedule"
+    "NO_EXECUTE"         = "NoExecute"
+    "PREFER_NO_SCHEDULE" = "PreferNoSchedule"
+  }
+
+  # Swap-specific taints that are automatically added when swap is enabled
+  swap_taints = var.swap_enabled ? [
     {
       key    = "startup-taint.cluster-autoscaler.kubernetes.io/disk-unconfigured"
       value  = "true"
@@ -7,12 +15,14 @@ locals {
     }
   ] : []
 
+  # Combine user-specified taints with swap-related taints
+  node_taints = concat(var.node_taints, local.swap_taints)
+
   node_labels = merge(
     var.labels,
-    {
-      "materialize.cloud/swap" = var.swap_enabled ? "true" : "false"
-      "workload"               = "materialize-instance"
-    },
+    var.swap_enabled ? {
+      "materialize.cloud/swap" = "true"
+    } : {}
   )
 
   disk_setup_name = "disk-setup"
@@ -32,8 +42,6 @@ resource "google_container_node_pool" "primary_nodes" {
   location = var.region
   cluster  = var.cluster_name
   project  = var.project_id
-
-  node_count = var.node_count
 
   autoscaling {
     min_node_count = var.min_nodes
@@ -148,17 +156,23 @@ resource "kubernetes_daemonset" "disk_setup" {
           }
         }
 
-        toleration {
-          key      = local.node_taints[0].key
-          operator = "Exists"
-          effect   = "NoSchedule"
+        # Tolerate all taints (includes both user-provided and swap taints)
+        dynamic "toleration" {
+          for_each = local.node_taints
+          content {
+            key      = toleration.value.key
+            operator = "Exists"
+            effect   = lookup(local.taint_effect_map, toleration.value.effect, toleration.value.effect)
+          }
         }
+
         # GKE adds a silly taint to prevent things from going to arm nodes.
         # Our image is multi-arch, so we can tolerate that taint.
         toleration {
-          key    = "kubernetes.io/arch"
-          value  = "arm64"
-          effect = "NoSchedule"
+          key      = "kubernetes.io/arch"
+          operator = "Equal"
+          value    = "arm64"
+          effect   = "NoSchedule"
         }
 
         # Use host network and PID namespace
@@ -174,7 +188,7 @@ resource "kubernetes_daemonset" "disk_setup" {
             "--cloud-provider",
             "gcp",
             "--taint-key",
-            local.node_taints[0].key,
+            local.swap_taints[0].key,
             "--remove-taint",
             "--hack-restart-kubelet-enable-swap",
             "--apply-sysctls",

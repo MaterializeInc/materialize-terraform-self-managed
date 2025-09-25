@@ -2,10 +2,6 @@ locals {
   # Azure has 12-character limit for node pool names
   nodepool_name = substr(replace(var.prefix, "-", ""), 0, 12)
 
-  # Azure doesn't support node taints via Terraform (AKS limitation)
-  # Reference: https://github.com/Azure/AKS/issues/2934
-  # node_taints = []
-
   # Auto-scaling configuration - prioritize autoscaling_config object over individual variables
   auto_scaling_enabled = var.autoscaling_config.enabled
   min_nodes            = var.autoscaling_config.enabled ? var.autoscaling_config.min_nodes : null
@@ -14,10 +10,9 @@ locals {
 
   node_labels = merge(
     var.labels,
-    {
-      "materialize.cloud/swap" = var.swap_enabled ? "true" : "false"
-      "workload"               = "materialize-instance"
-    },
+    var.swap_enabled ? {
+      "materialize.cloud/swap" = "true"
+    } : {}
   )
 
   disk_setup_name = "disk-setup"
@@ -47,9 +42,12 @@ resource "azurerm_kubernetes_cluster_node_pool" "primary_nodes" {
 
   node_labels = local.node_labels
 
-  # Azure limitation: Taints cannot be managed via Terraform
+  # Apply taints if specified
+  # Note: Once applied, these taints cannot be manually removed by users due to AKS webhook restrictions
   # Reference: https://github.com/Azure/AKS/issues/2934
-  # node_taints would go here if supported
+  node_taints = [
+    for taint in var.node_taints : "${taint.key}=${taint.value}:${taint.effect}"
+  ]
 
   upgrade_settings {
     max_surge                     = "10%"
@@ -123,10 +121,14 @@ resource "kubernetes_daemonset" "disk_setup" {
           }
         }
 
-        toleration {
-          key      = "startup-taint.cluster-autoscaler.kubernetes.io/disk-unconfigured"
-          operator = "Exists"
-          effect   = "NoSchedule"
+        # Tolerate all taints (includes both user-provided and swap taints)
+        dynamic "toleration" {
+          for_each = var.node_taints
+          content {
+            key      = toleration.value.key
+            operator = "Exists"
+            effect   = toleration.value.effect
+          }
         }
 
         # Use host network and PID namespace

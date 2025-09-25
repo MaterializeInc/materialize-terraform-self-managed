@@ -80,6 +80,17 @@ variable "labels" {
   default     = {}
 }
 
+# https://github.com/Azure/AKS/issues/2934
+variable "node_taints" {
+  description = "Taints to apply to the node pool. Note: Once applied via Terraform, these taints cannot be manually removed by users due to AKS webhook restrictions."
+  type = list(object({
+    key    = string
+    value  = string
+    effect = string
+  }))
+  default = []
+}
+
 # Disk setup variables
 variable "swap_enabled" {
   description = "Whether to enable swap on the local NVMe disks."

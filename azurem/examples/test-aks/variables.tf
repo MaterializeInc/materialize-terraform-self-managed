@@ -48,8 +48,23 @@ variable "default_node_pool_vm_size" {
   type        = string
 }
 
+variable "default_node_pool_enable_auto_scaling" {
+  description = "Enable auto scaling for the default node pool"
+  type        = bool
+}
+
 variable "default_node_pool_node_count" {
-  description = "The node count for the default node pool"
+  description = "The node count for the default node pool (used only when auto scaling is disabled)"
+  type        = number
+}
+
+variable "default_node_pool_min_count" {
+  description = "Minimum number of nodes in the default node pool (used only when auto scaling is enabled)"
+  type        = number
+}
+
+variable "default_node_pool_max_count" {
+  description = "Maximum number of nodes in the default node pool (used only when auto scaling is enabled)"
   type        = number
 }
 
@@ -102,4 +117,3 @@ variable "tags" {
   description = "Tags to apply to resources"
   type        = map(string)
 }
-

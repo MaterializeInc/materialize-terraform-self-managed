@@ -610,6 +610,7 @@ func (suite *StagedDeploymentTestSuite) setupMaterializeStage(stage, stageDir, p
 			"name_prefix":                       fmt.Sprintf("%s-%s", resourceId, nameSuffix),
 			"instance_namespace":                expectedInstanceNamespace,
 			"external_login_password_mz_system": TestPassword,
+			"license_key":                       os.Getenv("MATERIALIZE_LICENSE_KEY"),
 
 			// NLB details
 			"enable_cross_zone_load_balancing": true,

@@ -393,16 +393,15 @@ func (suite *StagedDeploymentSuite) setupGKEStage(stage, stageDir, projectID, na
 			"subnet_name":  subnetName,
 			// the namespace where orchestord will run. i.e where operator is installed.
 			// change this later.
-			"namespace":              TestGKENamespace,
-			"skip_nodepool":          false,
-			"materialize_node_count": TestGKENodeCount,
-			"materialize_node_type":  machineType,
-			"min_nodes":              TestGKEMinNodes,
-			"max_nodes":              TestGKEMaxNodes,
-			"enable_private_nodes":   true,
-			"swap_enabled":           diskEnabled,
-			"disk_size":              diskSize,
-			"local_ssd_count":        localSSDCount,
+			"namespace":             TestGKENamespace,
+			"skip_nodepool":         false,
+			"materialize_node_type": machineType,
+			"min_nodes":             TestGKEMinNodes,
+			"max_nodes":             TestGKEMaxNodes,
+			"enable_private_nodes":  true,
+			"swap_enabled":          diskEnabled,
+			"disk_size":             diskSize,
+			"local_ssd_count":       localSSDCount,
 		},
 		RetryableTerraformErrors: map[string]string{
 			"RequestError": "Request failed",
@@ -546,6 +545,7 @@ func (suite *StagedDeploymentSuite) setupMaterializeStage(stage, stageDir, proje
 
 			// Authentication
 			"external_login_password": TestPassword,
+			"license_key":             os.Getenv("MATERIALIZE_LICENSE_KEY"),
 		},
 		RetryableTerraformErrors: map[string]string{
 			"RequestError": "Request failed",
