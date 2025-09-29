@@ -21,6 +21,7 @@ module "gke" {
   network_name = var.network_name
   subnet_name  = var.subnet_name
   namespace    = var.namespace
+  labels       = var.labels
 }
 
 # Conditional nodepool creation
@@ -40,7 +41,7 @@ module "nodepool" {
   max_nodes             = var.max_nodes
   machine_type          = var.materialize_node_type
 
-
+  labels          = var.labels
   swap_enabled    = var.swap_enabled
   disk_size_gb    = var.disk_size
   local_ssd_count = var.local_ssd_count

@@ -53,6 +53,7 @@ module "nodepool" {
   prefix     = var.prefix
   cluster_id = module.aks.cluster_id
   subnet_id  = var.subnet_id
+  labels     = var.node_labels
 
   # Workload-specific configuration
   autoscaling_config = {

@@ -11,4 +11,5 @@ module "networking" {
   region     = var.region
   prefix     = var.prefix
   subnets    = var.subnets
+  labels     = var.labels
 }

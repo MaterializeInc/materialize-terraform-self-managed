@@ -67,3 +67,8 @@ variable "max_nodes" {
   description = "Max no of nodes in nodepool"
   type        = number
 }
+
+variable "labels" {
+  description = "Labels to apply to resources created."
+  type        = map(string)
+}

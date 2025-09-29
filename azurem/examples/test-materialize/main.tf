@@ -88,6 +88,7 @@ module "operator" {
   location                       = var.location
   swap_enabled                   = var.swap_enabled
   operator_namespace             = var.operator_namespace
+  tags                           = var.tags
 
   depends_on = [
     module.certificates,

@@ -2,11 +2,6 @@
 # This follows the same pattern as the simple example with two-phase deployment
 
 locals {
-  common_labels = merge(var.labels, {
-    managed_by = "terraform"
-    module     = "materialize-test"
-  })
-
   metadata_backend_url = format(
     "postgres://%s:%s@%s:5432/%s?sslmode=disable",
     var.user.name,
@@ -66,7 +61,7 @@ module "storage" {
   versioning      = var.storage_bucket_versioning
   version_ttl     = var.storage_bucket_version_ttl
 
-  labels = local.common_labels
+  labels = var.labels
 }
 
 # Install cert-manager for SSL certificate management

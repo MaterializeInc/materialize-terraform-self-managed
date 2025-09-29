@@ -16,5 +16,6 @@ module "database" {
   prefix     = var.prefix
   tier       = var.database_tier
   db_version = var.db_version
+  labels     = var.labels
 }
 
