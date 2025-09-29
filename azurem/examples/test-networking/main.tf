@@ -15,6 +15,7 @@ provider "azurerm" {
 resource "azurerm_resource_group" "test" {
   name     = var.resource_group_name
   location = var.location
+  tags     = var.tags
 }
 
 module "networking" {
@@ -26,5 +27,6 @@ module "networking" {
   vnet_address_space   = var.vnet_address_space
   aks_subnet_cidr      = var.aks_subnet_cidr
   postgres_subnet_cidr = var.postgres_subnet_cidr
+  tags                 = var.tags
 }
 

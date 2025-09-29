@@ -48,3 +48,8 @@ variable "users" {
     error_message = "At least one user is required"
   }
 }
+
+variable "labels" {
+  description = "Labels to apply to resources created."
+  type        = map(string)
+}

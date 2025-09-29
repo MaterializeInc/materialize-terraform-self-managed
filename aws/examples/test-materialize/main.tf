@@ -49,6 +49,7 @@ module "operator" {
   swap_enabled       = var.swap_enabled
 
   use_self_signed_cluster_issuer = var.install_materialize_instance
+  tags                           = var.tags
 }
 
 module "storage" {
@@ -107,6 +108,8 @@ module "materialize_nlb" {
   enable_cross_zone_load_balancing = var.enable_cross_zone_load_balancing
   vpc_id                           = var.vpc_id
   mz_resource_id                   = module.materialize_instance[0].instance_resource_id
+
+  tags = var.tags
 
   depends_on = [
     module.materialize_instance

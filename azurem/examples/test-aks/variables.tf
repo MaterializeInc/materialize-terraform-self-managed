@@ -73,6 +73,11 @@ variable "nodepool_vm_size" {
   type        = string
 }
 
+variable "node_labels" {
+  description = "The labels for the node pool"
+  type        = map(string)
+}
+
 variable "auto_scaling_enabled" {
   description = "Whether auto scaling is enabled for the node pool"
   type        = bool

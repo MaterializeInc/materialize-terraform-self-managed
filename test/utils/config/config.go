@@ -20,5 +20,8 @@ func GetCommonConfigurations() []Configuration {
 		{
 			Key: "TF_LOG_PATH",
 		},
+		{
+			Key: "ENVIRONMENT",
+		},
 	}
 }

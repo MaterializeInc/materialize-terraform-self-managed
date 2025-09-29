@@ -20,7 +20,6 @@ func SetupTestWorkspace(t *testing.T, cloudDir, uniqueID, sourceName, destinatio
 	srcDir := filepath.Join(cloudDirFullPath, utils.ExamplesDir, sourceName)
 	dstDir := filepath.Join(cloudDirFullPath, fmt.Sprintf("%s-%s", uniqueID, utils.ExamplesDir), destinationName)
 
-
 	t.Logf("📁 Setting up test example: %s -> %s", sourceName, dstDir)
 
 	err := dir.CopyDir(srcDir, dstDir)
@@ -49,4 +48,13 @@ func CleanupTestWorkspace(t *testing.T, cloudDir, uniqueID, exampleName string) 
 	} else {
 		t.Logf("✅ Test workspace cleaned up")
 	}
+}
+
+// GetEnvironment returns the environment from env var or default
+func GetEnvironment() string {
+	environment := os.Getenv("ENVIRONMENT")
+	if environment == "" {
+		environment = "terratest" // default value
+	}
+	return environment
 }

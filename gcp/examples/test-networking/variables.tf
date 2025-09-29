@@ -26,3 +26,8 @@ variable "subnets" {
     })), [])
   }))
 }
+
+variable "labels" {
+  description = "Labels to apply to resources created."
+  type        = map(string)
+}
