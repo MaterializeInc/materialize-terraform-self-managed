@@ -17,14 +17,13 @@ resource "azurerm_storage_account" "materialize" {
     }
   }
 
-  tags = var.tags
+  tags = var.storage_account_tags
 }
 
 resource "azurerm_storage_container" "materialize" {
   name                  = var.container_name
   storage_account_id    = azurerm_storage_account.materialize.id
   container_access_type = var.container_access_type
-  tags                  = var.tags
 }
 
 resource "random_string" "unique" {

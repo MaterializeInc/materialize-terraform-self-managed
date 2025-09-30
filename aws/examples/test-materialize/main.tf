@@ -49,7 +49,6 @@ module "operator" {
   swap_enabled       = var.swap_enabled
 
   use_self_signed_cluster_issuer = var.install_materialize_instance
-  tags                           = var.tags
 }
 
 module "storage" {

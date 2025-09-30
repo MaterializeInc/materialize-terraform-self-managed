@@ -22,8 +22,8 @@ variable "workload_identity_principal_id" {
   nullable    = false
 }
 
-variable "tags" {
-  description = "Tags to apply to resources"
+variable "storage_account_tags" {
+  description = "Tags to apply to storage account"
   type        = map(string)
   default     = {}
 }

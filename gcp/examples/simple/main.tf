@@ -33,6 +33,10 @@ locals {
   materialize_instance_name      = "main"
 
   # Common node scheduling configuration
+  generic_node_labels = {
+    "workload" = "generic"
+  }
+
   materialize_node_labels = {
     "workload" = "materialize-instance"
   }
@@ -155,11 +159,9 @@ module "generic_nodepool" {
   machine_type          = "e2-standard-8"
   disk_size_gb          = 50
   service_account_email = module.gke.service_account_email
-  labels = {
-    "workload" = "generic"
-  }
-  swap_enabled    = false
-  local_ssd_count = 0
+  labels                = local.generic_node_labels
+  swap_enabled          = false
+  local_ssd_count       = 0
 }
 
 # Create and configure Materialize-dedicated node pool with taints
@@ -232,6 +234,7 @@ module "certificates" {
   use_self_signed_cluster_issuer = var.install_materialize_instance
   cert_manager_namespace         = "cert-manager"
   name_prefix                    = var.name_prefix
+  node_selector                  = local.generic_node_labels
 
 
 
@@ -252,6 +255,9 @@ module "operator" {
   # ARM tolerations and node selector for all operator workloads on GCP
   instance_pod_tolerations = local.materialize_tolerations
   instance_node_selector   = local.materialize_node_labels
+
+  # node selector for operator and metrics-server workloads
+  operator_node_selector = local.generic_node_labels
 
   depends_on = [
     module.gke,

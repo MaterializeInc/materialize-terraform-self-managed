@@ -66,7 +66,7 @@ module "storage" {
   service_account_namespace = var.instance_namespace
   service_account_name      = var.instance_name
 
-  tags = var.tags
+  storage_account_tags = var.tags
 }
 
 module "certificates" {
@@ -88,7 +88,6 @@ module "operator" {
   location                       = var.location
   swap_enabled                   = var.swap_enabled
   operator_namespace             = var.operator_namespace
-  tags                           = var.tags
 
   depends_on = [
     module.certificates,

@@ -59,18 +59,16 @@ module "eks" {
 
 # 2.1. Create generic node group for all workloads except Materialize
 module "generic_node_group" {
-  source          = "../../modules/eks-node-group"
-  cluster_name    = module.eks.cluster_name
-  subnet_ids      = module.networking.private_subnet_ids
-  node_group_name = "${var.name_prefix}-generic"
-  instance_types  = ["t4g.xlarge"]
-  swap_enabled    = false
-  min_size        = 2
-  max_size        = 5
-  desired_size    = 2
-  labels = {
-    "workload" = "generic"
-  }
+  source                            = "../../modules/eks-node-group"
+  cluster_name                      = module.eks.cluster_name
+  subnet_ids                        = module.networking.private_subnet_ids
+  node_group_name                   = "${var.name_prefix}-generic"
+  instance_types                    = ["t4g.xlarge"]
+  swap_enabled                      = false
+  min_size                          = 2
+  max_size                          = 5
+  desired_size                      = 2
+  labels                            = local.generic_node_labels
   cluster_service_cidr              = module.eks.cluster_service_cidr
   cluster_primary_security_group_id = module.eks.node_security_group_id
   tags                              = var.tags
@@ -105,6 +103,7 @@ module "aws_lbc" {
   oidc_issuer_url   = module.eks.cluster_oidc_issuer_url
   vpc_id            = module.networking.vpc_id
   region            = var.aws_region
+  node_selector     = local.generic_node_labels
 
   tags = var.tags
 
@@ -122,6 +121,7 @@ module "certificates" {
   use_self_signed_cluster_issuer = var.install_materialize_instance
   cert_manager_namespace         = "cert-manager"
   name_prefix                    = var.name_prefix
+  node_selector                  = local.generic_node_labels
 
   depends_on = [
     module.networking,
@@ -144,7 +144,9 @@ module "operator" {
   instance_pod_tolerations = local.materialize_tolerations
   instance_node_selector   = local.materialize_node_labels
 
-  tags = var.tags
+  # node selector for operator and metrics-server workloads
+  operator_node_selector = local.generic_node_labels
+
 
   depends_on = [
     module.eks,
@@ -265,6 +267,10 @@ locals {
   materialize_instance_name      = "main"
 
   # Common node scheduling configuration
+  generic_node_labels = {
+    "workload" = "generic"
+  }
+
   materialize_node_labels = {
     "workload" = "materialize-instance"
   }

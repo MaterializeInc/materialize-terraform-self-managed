@@ -321,6 +321,14 @@ resource "helm_release" "aws_load_balancer_controller" {
     value = var.vpc_id
   }
 
+  # Add node selectors for AWS Load Balancer Controller pods if provided
+  dynamic "set" {
+    for_each = var.node_selector
+    content {
+      name  = "nodeSelector.${set.key}"
+      value = set.value
+    }
+  }
 
   depends_on = [
     kubernetes_service_account.aws_load_balancer_controller,
