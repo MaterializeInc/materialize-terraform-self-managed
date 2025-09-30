@@ -23,6 +23,15 @@ resource "helm_release" "cert_manager" {
     value = "true"
   }
 
+  # Add node selectors for cert-manager pods if provided
+  dynamic "set" {
+    for_each = var.node_selector
+    content {
+      name  = "nodeSelector.${set.key}"
+      value = set.value
+    }
+  }
+
   # Add tolerations for cert-manager pods if provided
   dynamic "set" {
     for_each = length(var.cert_manager_tolerations) > 0 ? range(length(var.cert_manager_tolerations)) : []

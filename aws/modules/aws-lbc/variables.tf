@@ -55,6 +55,13 @@ variable "region" {
   nullable    = false
 }
 
+variable "node_selector" {
+  description = "Node selector for AWS Load Balancer Controller pods."
+  type        = map(string)
+  default     = {}
+  nullable    = false
+}
+
 variable "tags" {
   description = "Tags to apply to all resources"
   type        = map(string)

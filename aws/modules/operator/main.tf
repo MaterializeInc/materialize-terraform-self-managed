@@ -37,8 +37,9 @@ locals {
       clusters = {
         swap_enabled = var.swap_enabled
       }
-      # Tolerations for operator pods
-      tolerations = var.tolerations
+      # Node selector and tolerations for operator pods
+      nodeSelector = var.operator_node_selector
+      tolerations  = var.tolerations
     }
 
     # Materialize workload configurations
@@ -128,6 +129,15 @@ resource "helm_release" "metrics_server" {
   set {
     name  = "metrics.enabled"
     value = var.metrics_server_values.metrics_enabled
+  }
+
+  # Add node selectors for metrics-server pods if provided
+  dynamic "set" {
+    for_each = var.operator_node_selector
+    content {
+      name  = "nodeSelector.${set.key}"
+      value = set.value
+    }
   }
 
   # Add tolerations for metrics-server pods if provided

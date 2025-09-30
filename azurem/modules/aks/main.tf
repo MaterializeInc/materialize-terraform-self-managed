@@ -38,6 +38,7 @@ resource "azurerm_kubernetes_cluster" "aks" {
     only_critical_addons_enabled = false # Default pool runs all workloads except Materialize
     vnet_subnet_id               = var.subnet_id
     os_disk_size_gb              = var.default_node_pool_os_disk_size_gb
+    node_labels                  = var.default_node_pool_node_labels
 
     upgrade_settings {
       max_surge                     = "10%"

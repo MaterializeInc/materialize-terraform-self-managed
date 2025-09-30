@@ -128,6 +128,13 @@ variable "default_node_pool_os_disk_size_gb" {
   nullable    = false
 }
 
+variable "default_node_pool_node_labels" {
+  description = "Node labels for the default node pool"
+  type        = map(string)
+  default     = {}
+  nullable    = false
+}
+
 
 variable "enable_azure_monitor" {
   description = "Enable Azure Monitor for the AKS cluster"
