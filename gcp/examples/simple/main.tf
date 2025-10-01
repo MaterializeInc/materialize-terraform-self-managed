@@ -23,10 +23,6 @@ provider "helm" {
 
 
 locals {
-  common_labels = {
-    managed_by = "terraform"
-    module     = "materialize"
-  }
 
   materialize_operator_namespace = "materialize"
   materialize_instance_namespace = "materialize-environment"
@@ -179,7 +175,7 @@ module "materialize_nodepool" {
   machine_type          = local.gke_config.machine_type
   disk_size_gb          = local.gke_config.disk_size_gb
   service_account_email = module.gke.service_account_email
-  labels                = merge(local.common_labels, local.materialize_node_labels)
+  labels                = merge(var.labels, local.materialize_node_labels)
   # Materialize-specific taint to isolate workloads
   node_taints = local.materialize_node_taints
 
@@ -209,7 +205,7 @@ module "database" {
 
   tier = local.database_config.tier
 
-  labels = local.common_labels
+  labels = var.labels
 }
 
 # Create Google Cloud Storage bucket for Materialize persistent data storage
@@ -223,7 +219,7 @@ module "storage" {
   versioning      = false
   version_ttl     = 7
 
-  labels = local.common_labels
+  labels = var.labels
 }
 
 # Install cert-manager for SSL certificate management and create cluster issuer
