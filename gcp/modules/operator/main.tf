@@ -100,7 +100,7 @@ resource "helm_release" "materialize_operator" {
   version    = var.use_local_chart ? null : var.operator_version
 
   values = [
-    yamlencode(merge(local.default_helm_values, var.helm_values))
+    yamlencode(provider::deepmerge::mergo(local.default_helm_values, var.helm_values))
   ]
 
   depends_on = [kubernetes_namespace.materialize]

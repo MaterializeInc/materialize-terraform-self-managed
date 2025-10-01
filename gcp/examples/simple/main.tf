@@ -255,6 +255,20 @@ module "operator" {
   # node selector for operator and metrics-server workloads
   operator_node_selector = local.generic_node_labels
 
+
+  helm_values = {
+    observability = {
+      podMetrics = {
+        enabled = false
+      }
+      prometheus = {
+        scrapeAnnotations = {
+          enable = false
+        }
+      }
+    }
+  }
+
   depends_on = [
     module.gke,
     module.generic_nodepool,
