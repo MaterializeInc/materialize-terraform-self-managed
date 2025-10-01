@@ -13,14 +13,14 @@ jobs:
 
       - uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: "1.7.0"
+          terraform_version: "1.8.0"
 
       - name: Terraform Format Check
         run: terraform fmt -check -recursive
 
       - uses: terraform-linters/setup-tflint@v4
         with:
-          tflint_version: v0.50.0
+          tflint_version: v0.58.0
 
       - name: TFLint
         run: |
@@ -41,7 +41,7 @@ jobs:
 
       - uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: "1.7.0"
+          terraform_version: "1.8.0"
 
       - name: Check if example exists
         run: |
