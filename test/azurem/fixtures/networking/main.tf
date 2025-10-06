@@ -19,7 +19,7 @@ resource "azurerm_resource_group" "test" {
 }
 
 module "networking" {
-  source = "../../modules/networking"
+  source = "../../../../azurem/modules/networking"
 
   resource_group_name  = azurerm_resource_group.test.name
   location             = var.location

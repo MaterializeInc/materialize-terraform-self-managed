@@ -50,7 +50,7 @@ resource "random_password" "external_login_password_mz_system" {
 }
 
 module "storage" {
-  source = "../../modules/storage"
+  source = "../../../../azurem/modules/storage"
 
   resource_group_name            = var.resource_group_name
   location                       = var.location
@@ -70,7 +70,7 @@ module "storage" {
 }
 
 module "certificates" {
-  source = "../../../kubernetes/modules/certificates"
+  source = "../../../../kubernetes/modules/certificates"
 
   install_cert_manager           = var.install_cert_manager
   cert_manager_install_timeout   = var.cert_manager_install_timeout
@@ -81,7 +81,7 @@ module "certificates" {
 }
 
 module "operator" {
-  source = "../../modules/operator"
+  source = "../../../../azurem/modules/operator"
 
   name_prefix                    = var.prefix
   use_self_signed_cluster_issuer = var.install_materialize_instance
@@ -97,7 +97,7 @@ module "operator" {
 module "materialize_instance" {
   count = var.install_materialize_instance ? 1 : 0
 
-  source               = "../../../kubernetes/modules/materialize-instance"
+  source               = "../../../../kubernetes/modules/materialize-instance"
   instance_name        = var.instance_name
   instance_namespace   = var.instance_namespace
   metadata_backend_url = local.metadata_backend_url
@@ -127,7 +127,7 @@ module "materialize_instance" {
 module "load_balancers" {
   count = var.install_materialize_instance ? 1 : 0
 
-  source = "../../modules/load_balancers"
+  source = "../../../../azurem/modules/load_balancers"
 
   instance_name = var.instance_name
   namespace     = var.instance_namespace

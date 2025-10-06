@@ -13,7 +13,7 @@ provider "kubernetes" {
 }
 
 module "gke" {
-  source = "../../modules/gke"
+  source = "../../../../gcp/modules/gke"
 
   project_id   = var.project_id
   region       = var.region
@@ -27,7 +27,7 @@ module "gke" {
 # Conditional nodepool creation
 module "nodepool" {
   count      = var.skip_nodepool ? 0 : 1
-  source     = "../../modules/nodepool"
+  source     = "../../../../gcp/modules/nodepool"
   depends_on = [module.gke]
 
   project_id = var.project_id

@@ -12,30 +12,42 @@ const (
 	GCP   = "gcp"
 	Azure = "azurem"
 
+	// Test infrastructure directories
+	MainTestDir = "test"
+	FixturesDir = "fixtures"
+
+	// Disk configuration suffixes
 	DiskEnabledSuffix  = "-disk-enabled"
 	DiskDisabledSuffix = "-disk-disabled"
 
 	DiskEnabledShortSuffix  = "de"
 	DiskDisabledShortSuffix = "dd"
 
-	ExamplesDir                = "examples"
-	NetworkingDir              = "test-networking"
-	DataBaseDir                = "test-database"
+	// Fixture names (source directories in test/{cloud}/fixtures/)
+	NetworkingFixture  = "networking"
+	DatabaseFixture    = "database"
+	EKSFixture         = "eks"
+	AKSFixture         = "aks"
+	GKEFixture         = "gke"
+	MaterializeFixture = "materialize"
+
+	// Runtime directory names (destinations in test/{cloud}/{uniqueId}/)
+	NetworkingDir              = "networking"
+	DataBaseDir                = "database"
 	DatabaseDiskEnabledDir     = DataBaseDir + DiskEnabledSuffix
 	DatabaseDiskDisabledDir    = DataBaseDir + DiskDisabledSuffix
-	EKSDir                     = "test-eks"
+	EKSDir                     = "eks"
 	EKSDiskEnabledDir          = EKSDir + DiskEnabledSuffix
 	EKSDiskDisabledDir         = EKSDir + DiskDisabledSuffix
-	MaterializeDir             = "test-materialize"
+	MaterializeDir             = "materialize"
 	MaterializeDiskEnabledDir  = MaterializeDir + DiskEnabledSuffix
 	MaterializeDiskDisabledDir = MaterializeDir + DiskDisabledSuffix
-	MainTestDir                = "test"
 
-	AKSDir             = "test-aks"
+	AKSDir             = "aks"
 	AKSDiskEnabledDir  = AKSDir + DiskEnabledSuffix
 	AKSDiskDisabledDir = AKSDir + DiskDisabledSuffix
 
-	GKEDir             = "test-gke"
+	GKEDir             = "gke"
 	GKEDiskEnabledDir  = GKEDir + DiskEnabledSuffix
 	GKEDiskDisabledDir = GKEDir + DiskDisabledSuffix
 )

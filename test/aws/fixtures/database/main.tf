@@ -4,7 +4,7 @@ provider "aws" {
 }
 
 module "database" {
-  source = "../../modules/database"
+  source = "../../../../aws/modules/database"
 
   name_prefix         = var.name_prefix
   vpc_id              = var.vpc_id

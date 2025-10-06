@@ -146,8 +146,8 @@ func (suite *StagedDeploymentTestSuite) TestFullDeployment() {
 			// Save unique ID for subsequent stages
 			test_structure.SaveString(t, suite.workingDir, "resource_unique_id", uniqueId)
 		}
-		// Set up networking example
-		networkingPath := helpers.SetupTestWorkspace(t, utils.AWS, uniqueId, utils.NetworkingDir, utils.NetworkingDir)
+		// Set up networking fixture
+		networkingPath := helpers.SetupTestWorkspace(t, utils.AWS, uniqueId, utils.NetworkingFixture, utils.NetworkingDir)
 
 		networkOptions := &terraform.Options{
 			TerraformDir: networkingPath,
@@ -276,8 +276,8 @@ func (suite *StagedDeploymentTestSuite) setupEKSStage(stage, stageDir, profile, 
 
 	t.Logf("🔗 Using infrastructure family: %s", resourceId)
 
-	// Set up EKS example with disk enabled
-	eksPath := helpers.SetupTestWorkspace(t, utils.AWS, resourceId, utils.EKSDir, stageDir)
+	// Set up EKS fixture
+	eksPath := helpers.SetupTestWorkspace(t, utils.AWS, resourceId, utils.EKSFixture, stageDir)
 
 	eksOptions := &terraform.Options{
 		TerraformDir: eksPath,
@@ -427,8 +427,8 @@ func (suite *StagedDeploymentTestSuite) setupDatabaseStage(stage, stageDir, prof
 
 	t.Logf("🔗 Using infrastructure family: %s", resourceId)
 
-	// Set up database example
-	databasePath := helpers.SetupTestWorkspace(t, utils.AWS, resourceId, utils.DataBaseDir, stageDir)
+	// Set up database fixture
+	databasePath := helpers.SetupTestWorkspace(t, utils.AWS, resourceId, utils.DatabaseFixture, stageDir)
 
 	dbOptions := &terraform.Options{
 		TerraformDir: databasePath,
@@ -557,8 +557,8 @@ func (suite *StagedDeploymentTestSuite) setupMaterializeStage(stage, stageDir, p
 
 	t.Logf("🔗 Using EKS cluster %s where disk-enabled : %t", clusterName, diskEnabled)
 
-	// Set up Materialize example with disk enabled
-	materializePath := helpers.SetupTestWorkspace(t, utils.AWS, resourceId, utils.MaterializeDir, stageDir)
+	// Set up Materialize fixture
+	materializePath := helpers.SetupTestWorkspace(t, utils.AWS, resourceId, utils.MaterializeFixture, stageDir)
 	expectedInstanceNamespace := fmt.Sprintf("mz-instance-%s", nameSuffix)
 	expectedOperatorNamespace := fmt.Sprintf("mz-operator-%s", nameSuffix)
 	expectedCertManagerNamespace := fmt.Sprintf("cert-manager-%s", nameSuffix)

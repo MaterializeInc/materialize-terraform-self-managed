@@ -4,7 +4,7 @@ provider "aws" {
 }
 
 module "networking" {
-  source = "../../modules/networking"
+  source = "../../../../aws/modules/networking"
 
   name_prefix = var.name_prefix
   vpc_cidr    = var.vpc_cidr

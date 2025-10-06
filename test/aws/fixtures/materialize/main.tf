@@ -29,7 +29,7 @@ provider "helm" {
 }
 
 module "certificates" {
-  source = "../../../kubernetes/modules/certificates"
+  source = "../../../../kubernetes/modules/certificates"
 
   install_cert_manager           = var.install_cert_manager
   cert_manager_install_timeout   = var.cert_manager_install_timeout
@@ -40,7 +40,7 @@ module "certificates" {
 }
 
 module "operator" {
-  source = "../../modules/operator"
+  source = "../../../../aws/modules/operator"
 
   name_prefix        = var.name_prefix
   aws_region         = var.region
@@ -52,7 +52,7 @@ module "operator" {
 }
 
 module "storage" {
-  source                   = "../../modules/storage"
+  source                   = "../../../../aws/modules/storage"
   name_prefix              = var.name_prefix
   bucket_lifecycle_rules   = var.bucket_lifecycle_rules
   bucket_force_destroy     = var.bucket_force_destroy
@@ -71,7 +71,7 @@ module "storage" {
 module "materialize_instance" {
   count = var.install_materialize_instance ? 1 : 0
 
-  source               = "../../../kubernetes/modules/materialize-instance"
+  source               = "../../../../kubernetes/modules/materialize-instance"
   instance_name        = var.instance_name
   instance_namespace   = var.instance_namespace
   metadata_backend_url = local.metadata_backend_url
@@ -98,7 +98,7 @@ module "materialize_instance" {
 module "materialize_nlb" {
   count = var.install_materialize_instance ? 1 : 0
 
-  source = "../../modules/nlb"
+  source = "../../../../aws/modules/nlb"
 
   instance_name                    = var.instance_name
   name_prefix                      = var.name_prefix

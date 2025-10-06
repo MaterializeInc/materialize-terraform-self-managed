@@ -149,8 +149,8 @@ func (suite *StagedDeploymentSuite) TestFullDeployment() {
 		}
 		// Short ID will used as resource name prefix so that we don't exceed the length limit
 		shortId := strings.Split(uniqueId, "-")[1]
-		// Set up networking example
-		networkingPath := helpers.SetupTestWorkspace(t, utils.Azure, uniqueId, utils.NetworkingDir, utils.NetworkingDir)
+		// Set up networking fixture
+		networkingPath := helpers.SetupTestWorkspace(t, utils.Azure, uniqueId, utils.NetworkingFixture, utils.NetworkingDir)
 
 		networkOptions := &terraform.Options{
 			TerraformDir: networkingPath,
@@ -289,8 +289,8 @@ func (suite *StagedDeploymentSuite) setupAKSStage(stage, stageDir, subscriptionI
 
 	t.Logf("🔗 Using infrastructure family: %s for AKS (disk-enabled: %t)", resourceId, diskEnabled)
 
-	// Set up AKS example
-	aksPath := helpers.SetupTestWorkspace(t, utils.Azure, resourceId, utils.AKSDir, stageDir)
+	// Set up AKS fixture
+	aksPath := helpers.SetupTestWorkspace(t, utils.Azure, resourceId, utils.AKSFixture, stageDir)
 
 	aksOptions := &terraform.Options{
 		TerraformDir: aksPath,
@@ -407,8 +407,8 @@ func (suite *StagedDeploymentSuite) setupDatabaseStage(stage, stageDir, subscrip
 
 	t.Logf("🔗 Using infrastructure family: %s for Database (disk-enabled: %t)", resourceId, diskEnabled)
 
-	// Set up database example
-	databasePath := helpers.SetupTestWorkspace(t, utils.Azure, resourceId, utils.DataBaseDir, stageDir)
+	// Set up database fixture
+	databasePath := helpers.SetupTestWorkspace(t, utils.Azure, resourceId, utils.DatabaseFixture, stageDir)
 
 	dbOptions := &terraform.Options{
 		TerraformDir: databasePath,
@@ -566,8 +566,8 @@ func (suite *StagedDeploymentSuite) setupMaterializeStage(stage, stageDir, subsc
 
 	t.Logf("🔗 Using infrastructure family: %s for Materialize (disk-enabled: %t)", resourceId, diskEnabled)
 
-	// Set up Materialize example
-	materializePath := helpers.SetupTestWorkspace(t, utils.Azure, resourceId, utils.MaterializeDir, stageDir)
+	// Set up Materialize fixture
+	materializePath := helpers.SetupTestWorkspace(t, utils.Azure, resourceId, utils.MaterializeFixture, stageDir)
 
 	expectedInstanceNamespace := fmt.Sprintf("mz-instance-%s", nameSuffix)
 	expectedOperatorNamespace := fmt.Sprintf("mz-operator-%s", nameSuffix)
