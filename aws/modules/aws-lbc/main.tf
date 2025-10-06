@@ -1,6 +1,7 @@
 resource "aws_iam_policy" "aws_load_balancer_controller" {
   name        = "${var.name_prefix}-${var.iam_name}"
   description = "AWS Load balancer controller"
+  tags        = var.tags
   # From https://raw.githubusercontent.com/kubernetes-sigs/aws-load-balancer-controller/v2.11.0/docs/install/iam_policy.json
   policy = <<EOF
 {
@@ -255,6 +256,7 @@ EOF
 
 resource "aws_iam_role" "aws_load_balancer_controller" {
   name = "${var.name_prefix}-${var.iam_name}"
+  tags = var.tags
   assume_role_policy = jsonencode(
     {
       Version : "2012-10-17",
@@ -319,6 +321,14 @@ resource "helm_release" "aws_load_balancer_controller" {
     value = var.vpc_id
   }
 
+  # Add node selectors for AWS Load Balancer Controller pods if provided
+  dynamic "set" {
+    for_each = var.node_selector
+    content {
+      name  = "nodeSelector.${set.key}"
+      value = set.value
+    }
+  }
 
   depends_on = [
     kubernetes_service_account.aws_load_balancer_controller,

@@ -135,6 +135,13 @@ variable "instance_pod_tolerations" {
   nullable = false
 }
 
+variable "operator_node_selector" {
+  description = "Node selector for operator pods and metrics-server."
+  type        = map(string)
+  default     = {}
+  nullable    = false
+}
+
 variable "instance_node_selector" {
   description = "Node selector for Materialize workloads (environmentd, clusterd, balancerd, console)."
   type        = map(string)

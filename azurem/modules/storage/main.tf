@@ -17,7 +17,7 @@ resource "azurerm_storage_account" "materialize" {
     }
   }
 
-  tags = var.tags
+  tags = var.storage_account_tags
 }
 
 resource "azurerm_storage_container" "materialize" {

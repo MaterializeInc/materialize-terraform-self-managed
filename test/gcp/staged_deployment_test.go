@@ -151,6 +151,11 @@ func (suite *StagedDeploymentSuite) TestFullDeployment() {
 				"project_id": projectID,
 				"region":     TestRegion,
 				"prefix":     shortId,
+				"labels": map[string]string{
+					"environment": helpers.GetEnvironment(),
+					"project":     utils.ProjectName,
+					"test-run":    uniqueId,
+				},
 				"subnets": []map[string]interface{}{
 					{
 						"name":           fmt.Sprintf("%s-subnet", shortId),
@@ -294,6 +299,11 @@ func (suite *StagedDeploymentSuite) setupDatabaseStage(stage, stageDir, projectI
 			"network_id":    networkId,
 			"database_tier": TestDatabaseTier,
 			"db_version":    TestDatabaseVersion,
+			"labels": map[string]string{
+				"environment": helpers.GetEnvironment(),
+				"project":     utils.ProjectName,
+				"test-run":    resourceId,
+			},
 			"databases": []map[string]interface{}{
 				{
 					"name": TestDBNameDisk,
@@ -396,12 +406,18 @@ func (suite *StagedDeploymentSuite) setupGKEStage(stage, stageDir, projectID, na
 			"namespace":             TestGKENamespace,
 			"skip_nodepool":         false,
 			"materialize_node_type": machineType,
-			"min_nodes":             TestGKEMinNodes,
-			"max_nodes":             TestGKEMaxNodes,
-			"enable_private_nodes":  true,
-			"swap_enabled":          diskEnabled,
-			"disk_size":             diskSize,
-			"local_ssd_count":       localSSDCount,
+			"labels": map[string]string{
+				"environment":  helpers.GetEnvironment(),
+				"project":      utils.ProjectName,
+				"test-run":     resourceId,
+				"disk-enabled": strconv.FormatBool(diskEnabled),
+			},
+			"min_nodes":            TestGKEMinNodes,
+			"max_nodes":            TestGKEMaxNodes,
+			"enable_private_nodes": true,
+			"swap_enabled":         diskEnabled,
+			"disk_size":            diskSize,
+			"local_ssd_count":      localSSDCount,
 		},
 		RetryableTerraformErrors: map[string]string{
 			"RequestError": "Request failed",
@@ -503,8 +519,8 @@ func (suite *StagedDeploymentSuite) setupMaterializeStage(stage, stageDir, proje
 			"region":     TestRegion,
 			"prefix":     fmt.Sprintf("%s%s", shortId, nameSuffix),
 			"labels": map[string]string{
-				"environment":  "test",
-				"project":      "materialize",
+				"environment":  helpers.GetEnvironment(),
+				"project":      utils.ProjectName,
 				"test-run":     resourceId,
 				"disk-enabled": strconv.FormatBool(diskEnabled),
 			},

@@ -1,6 +1,9 @@
 package utils
 
 const (
+	// Project name used in tags/labels across all cloud providers
+	ProjectName = "materialize"
+
 	// Dirs Containing Example terraforms for different cloud
 	// TODO: i don't feel right about hardcoding dir names in code,
 	// this shouldn't be bad, since it's just tests, but renaming dirs would need a change

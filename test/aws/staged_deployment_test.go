@@ -162,9 +162,9 @@ func (suite *StagedDeploymentTestSuite) TestFullDeployment() {
 				"single_nat_gateway":   true,
 				"create_vpc":           true,
 				"tags": map[string]string{
-					"Environment": "test",
-					"Project":     "materialize",
-					"TestRun":     uniqueId,
+					"environment": helpers.GetEnvironment(),
+					"project":     utils.ProjectName,
+					"test-run":    uniqueId,
 				},
 			},
 			RetryableTerraformErrors: map[string]string{
@@ -300,15 +300,15 @@ func (suite *StagedDeploymentTestSuite) setupEKSStage(stage, stageDir, profile, 
 			"swap_enabled":                             diskEnabled,
 			"iam_role_use_name_prefix":                 false,
 			"node_labels": map[string]string{
-				"Environment":            "test",
-				"Project":                "materialize",
+				"environment":            helpers.GetEnvironment(),
+				"project":                utils.ProjectName,
 				"materialize.cloud/disk": strconv.FormatBool(diskEnabled),
 			},
 			"tags": map[string]string{
-				"Environment": "test",
-				"Project":     "materialize",
-				"TestRun":     resourceId,
-				"DiskEnabled": strconv.FormatBool(diskEnabled),
+				"environment":  helpers.GetEnvironment(),
+				"project":      utils.ProjectName,
+				"test-run":     resourceId,
+				"disk-enabled": strconv.FormatBool(diskEnabled),
 			},
 		},
 		RetryableTerraformErrors: map[string]string{
@@ -454,10 +454,10 @@ func (suite *StagedDeploymentTestSuite) setupDatabaseStage(stage, stageDir, prof
 			"cluster_security_group_id": eksSecurityGroupId,
 			"node_security_group_id":    nodeSecurityGroupId,
 			"tags": map[string]string{
-				"Environment": "test",
-				"Project":     "materialize",
-				"TestRun":     resourceId,
-				"DiskEnabled": strconv.FormatBool(diskEnabled),
+				"environment":  helpers.GetEnvironment(),
+				"project":      utils.ProjectName,
+				"test-run":     resourceId,
+				"disk-enabled": strconv.FormatBool(diskEnabled),
 			},
 		},
 		RetryableTerraformErrors: map[string]string{
@@ -617,10 +617,10 @@ func (suite *StagedDeploymentTestSuite) setupMaterializeStage(stage, stageDir, p
 
 			// Tags
 			"tags": map[string]string{
-				"Environment": "test",
-				"Project":     "materialize",
-				"TestRun":     resourceId,
-				"DiskEnabled": strconv.FormatBool(diskEnabled),
+				"environment":  helpers.GetEnvironment(),
+				"project":      utils.ProjectName,
+				"test-run":     resourceId,
+				"disk-enabled": strconv.FormatBool(diskEnabled),
 			},
 		},
 		RetryableTerraformErrors: map[string]string{

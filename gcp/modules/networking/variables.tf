@@ -86,3 +86,9 @@ variable "router_asn" {
   default     = "64514"
   nullable    = false
 }
+
+variable "labels" {
+  description = "Labels to apply to all resources"
+  type        = map(string)
+  default     = {}
+}

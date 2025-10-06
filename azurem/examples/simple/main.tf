@@ -69,8 +69,9 @@ locals {
   storage_container_name = "materialize"
 
   metadata_backend_url = format(
-    "postgres://%s@%s/%s?sslmode=require",
-    "${module.database.administrator_login}:${module.database.administrator_password}",
+    "postgres://%s:%s@%s/%s?sslmode=require",
+    module.database.administrator_login,
+    urlencode(module.database.administrator_password),
     module.database.server_fqdn,
     local.database_config.database_name
   )
@@ -85,6 +86,10 @@ locals {
   materialize_instance_name      = "main"
 
   # Common node scheduling configuration
+  generic_node_labels = {
+    "workload" = "generic"
+  }
+
   materialize_node_labels = {
     "workload" = "materialize-instance"
   }
@@ -124,6 +129,8 @@ module "networking" {
   aks_subnet_cidr      = local.vnet_config.aks_subnet_cidr
   postgres_subnet_cidr = local.vnet_config.postgres_subnet_cidr
 
+  tags = var.tags
+
   depends_on = [azurerm_resource_group.materialize]
 }
 
@@ -145,6 +152,7 @@ module "aks" {
   default_node_pool_enable_auto_scaling = true
   default_node_pool_min_count           = 2
   default_node_pool_max_count           = 5
+  default_node_pool_node_labels         = local.generic_node_labels
 
   # Optional: Enable monitoring
   enable_azure_monitor       = local.aks_config.enable_azure_monitor
@@ -239,7 +247,7 @@ module "storage" {
   service_account_namespace = local.materialize_instance_namespace
   service_account_name      = local.materialize_instance_name
 
-  tags = var.tags
+  storage_account_tags = var.tags
 
   depends_on = [azurerm_resource_group.materialize]
 }
@@ -257,6 +265,7 @@ module "certificates" {
   use_self_signed_cluster_issuer = var.install_materialize_instance
   cert_manager_namespace         = "cert-manager"
   name_prefix                    = var.name_prefix
+  node_selector                  = local.generic_node_labels
 
   depends_on = [
     module.aks,
@@ -272,6 +281,9 @@ module "operator" {
 
   instance_pod_tolerations = local.materialize_tolerations
   instance_node_selector   = local.materialize_node_labels
+
+  # node selector for operator and metrics-server workloads
+  operator_node_selector = local.generic_node_labels
 
   depends_on = [
     module.aks,

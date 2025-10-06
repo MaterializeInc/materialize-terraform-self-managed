@@ -23,16 +23,16 @@ provider "helm" {
 
 
 locals {
-  common_labels = {
-    managed_by = "terraform"
-    module     = "materialize"
-  }
 
   materialize_operator_namespace = "materialize"
   materialize_instance_namespace = "materialize-environment"
   materialize_instance_name      = "main"
 
   # Common node scheduling configuration
+  generic_node_labels = {
+    "workload" = "generic"
+  }
+
   materialize_node_labels = {
     "workload" = "materialize-instance"
   }
@@ -120,6 +120,7 @@ module "networking" {
   region     = var.region
   prefix     = var.name_prefix
   subnets    = local.subnets
+  labels     = var.labels
 }
 
 # Set up Google Kubernetes Engine (GKE) cluster
@@ -136,6 +137,7 @@ module "gke" {
   # if multiple subnets are created, we need to use the specific subnet name here
   subnet_name = module.networking.subnets_names[0]
   namespace   = local.materialize_operator_namespace
+  labels      = var.labels
 }
 
 # Create and configure generic node pool for all workloads except Materialize
@@ -153,11 +155,9 @@ module "generic_nodepool" {
   machine_type          = "e2-standard-8"
   disk_size_gb          = 50
   service_account_email = module.gke.service_account_email
-  labels = {
-    "workload" = "generic"
-  }
-  swap_enabled    = false
-  local_ssd_count = 0
+  labels                = local.generic_node_labels
+  swap_enabled          = false
+  local_ssd_count       = 0
 }
 
 # Create and configure Materialize-dedicated node pool with taints
@@ -175,7 +175,7 @@ module "materialize_nodepool" {
   machine_type          = local.gke_config.machine_type
   disk_size_gb          = local.gke_config.disk_size_gb
   service_account_email = module.gke.service_account_email
-  labels                = merge(local.common_labels, local.materialize_node_labels)
+  labels                = merge(var.labels, local.materialize_node_labels)
   # Materialize-specific taint to isolate workloads
   node_taints = local.materialize_node_taints
 
@@ -205,7 +205,7 @@ module "database" {
 
   tier = local.database_config.tier
 
-  labels = local.common_labels
+  labels = var.labels
 }
 
 # Create Google Cloud Storage bucket for Materialize persistent data storage
@@ -219,7 +219,7 @@ module "storage" {
   versioning      = false
   version_ttl     = 7
 
-  labels = local.common_labels
+  labels = var.labels
 }
 
 # Install cert-manager for SSL certificate management and create cluster issuer
@@ -230,6 +230,7 @@ module "certificates" {
   use_self_signed_cluster_issuer = var.install_materialize_instance
   cert_manager_namespace         = "cert-manager"
   name_prefix                    = var.name_prefix
+  node_selector                  = local.generic_node_labels
 
 
 
@@ -250,6 +251,9 @@ module "operator" {
   # ARM tolerations and node selector for all operator workloads on GCP
   instance_pod_tolerations = local.materialize_tolerations
   instance_node_selector   = local.materialize_node_labels
+
+  # node selector for operator and metrics-server workloads
+  operator_node_selector = local.generic_node_labels
 
   depends_on = [
     module.gke,

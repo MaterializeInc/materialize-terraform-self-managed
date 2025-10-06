@@ -58,6 +58,7 @@ module "eks_node_group" {
   swap_enabled                      = var.swap_enabled
   labels                            = var.node_labels
   iam_role_use_name_prefix          = var.iam_role_use_name_prefix
+  tags                              = var.tags
 
   depends_on = [module.eks]
 }
@@ -72,6 +73,7 @@ module "aws_lbc" {
   oidc_issuer_url   = module.eks.cluster_oidc_issuer_url
   vpc_id            = var.vpc_id
   region            = var.region
+  tags              = var.tags
 
   depends_on = [
     module.eks,

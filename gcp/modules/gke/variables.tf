@@ -90,3 +90,9 @@ variable "gce_persistent_disk_csi_driver_enabled" {
   default     = true
   nullable    = false
 }
+
+variable "labels" {
+  description = "Labels to apply to all resources"
+  type        = map(string)
+  default     = {}
+}

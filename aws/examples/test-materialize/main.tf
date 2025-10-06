@@ -108,6 +108,8 @@ module "materialize_nlb" {
   vpc_id                           = var.vpc_id
   mz_resource_id                   = module.materialize_instance[0].instance_resource_id
 
+  tags = var.tags
+
   depends_on = [
     module.materialize_instance
   ]

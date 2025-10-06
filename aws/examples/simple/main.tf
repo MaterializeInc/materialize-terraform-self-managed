@@ -41,6 +41,8 @@ module "networking" {
   availability_zones   = ["us-east-1a", "us-east-1b", "us-east-1c"]
   private_subnet_cidrs = ["10.0.1.0/24", "10.0.2.0/24", "10.0.3.0/24"]
   public_subnet_cidrs  = ["10.0.101.0/24", "10.0.102.0/24", "10.0.103.0/24"]
+
+  tags = var.tags
 }
 
 # 2. Create EKS cluster
@@ -52,25 +54,24 @@ module "eks" {
   private_subnet_ids                       = module.networking.private_subnet_ids
   cluster_enabled_log_types                = ["api", "audit"]
   enable_cluster_creator_admin_permissions = true
-  tags                                     = {}
+  tags                                     = var.tags
 }
 
 # 2.1. Create generic node group for all workloads except Materialize
 module "generic_node_group" {
-  source          = "../../modules/eks-node-group"
-  cluster_name    = module.eks.cluster_name
-  subnet_ids      = module.networking.private_subnet_ids
-  node_group_name = "${var.name_prefix}-generic"
-  instance_types  = ["t4g.xlarge"]
-  swap_enabled    = false
-  min_size        = 2
-  max_size        = 5
-  desired_size    = 2
-  labels = {
-    "workload" = "generic"
-  }
+  source                            = "../../modules/eks-node-group"
+  cluster_name                      = module.eks.cluster_name
+  subnet_ids                        = module.networking.private_subnet_ids
+  node_group_name                   = "${var.name_prefix}-generic"
+  instance_types                    = ["t4g.xlarge"]
+  swap_enabled                      = false
+  min_size                          = 2
+  max_size                          = 5
+  desired_size                      = 2
+  labels                            = local.generic_node_labels
   cluster_service_cidr              = module.eks.cluster_service_cidr
   cluster_primary_security_group_id = module.eks.node_security_group_id
+  tags                              = var.tags
 }
 
 # 2.2. Create Materialize-dedicated node group with taints
@@ -89,6 +90,7 @@ module "materialize_node_group" {
   node_taints                       = local.materialize_node_taints
   cluster_service_cidr              = module.eks.cluster_service_cidr
   cluster_primary_security_group_id = module.eks.node_security_group_id
+  tags                              = var.tags
 }
 
 # 3. Install AWS Load Balancer Controller
@@ -101,6 +103,9 @@ module "aws_lbc" {
   oidc_issuer_url   = module.eks.cluster_oidc_issuer_url
   vpc_id            = module.networking.vpc_id
   region            = var.aws_region
+  node_selector     = local.generic_node_labels
+
+  tags = var.tags
 
   depends_on = [
     module.eks,
@@ -116,6 +121,7 @@ module "certificates" {
   use_self_signed_cluster_issuer = var.install_materialize_instance
   cert_manager_namespace         = "cert-manager"
   name_prefix                    = var.name_prefix
+  node_selector                  = local.generic_node_labels
 
   depends_on = [
     module.networking,
@@ -137,6 +143,10 @@ module "operator" {
   # tolerations and node selector for all mz instance workloads on AWS
   instance_pod_tolerations = local.materialize_tolerations
   instance_node_selector   = local.materialize_node_labels
+
+  # node selector for operator and metrics-server workloads
+  operator_node_selector = local.generic_node_labels
+
 
   depends_on = [
     module.eks,
@@ -175,7 +185,7 @@ module "database" {
   cluster_security_group_id = module.eks.cluster_security_group_id
   node_security_group_id    = module.eks.node_security_group_id
 
-  tags = {}
+  tags = var.tags
 }
 
 # 8. Setup S3 bucket for Materialize
@@ -196,7 +206,7 @@ module "storage" {
   service_account_namespace = local.materialize_instance_namespace
   service_account_name      = local.materialize_instance_name
 
-  tags = {}
+  tags = var.tags
 }
 
 # 9. Setup Materialize instance
@@ -245,6 +255,8 @@ module "materialize_nlb" {
   vpc_id                           = module.networking.vpc_id
   mz_resource_id                   = module.materialize_instance[0].instance_resource_id
 
+  tags = var.tags
+
   depends_on = [
     module.materialize_instance
   ]
@@ -255,6 +267,10 @@ locals {
   materialize_instance_name      = "main"
 
   # Common node scheduling configuration
+  generic_node_labels = {
+    "workload" = "generic"
+  }
+
   materialize_node_labels = {
     "workload" = "materialize-instance"
   }

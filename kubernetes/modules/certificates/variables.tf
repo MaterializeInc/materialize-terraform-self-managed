@@ -38,6 +38,13 @@ variable "cert_manager_chart_version" {
   default     = "v1.18.0"
 }
 
+variable "node_selector" {
+  description = "Node selector for cert-manager pods."
+  type        = map(string)
+  default     = {}
+  nullable    = false
+}
+
 variable "cert_manager_tolerations" {
   description = "Tolerations for cert-manager pods."
   type = list(object({
