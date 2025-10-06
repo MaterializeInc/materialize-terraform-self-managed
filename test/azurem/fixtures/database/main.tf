@@ -13,7 +13,7 @@ provider "azurerm" {
 }
 
 module "database" {
-  source = "../../modules/database"
+  source = "../../../../azurem/modules/database"
 
   # Database configuration
   databases = var.databases

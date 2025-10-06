@@ -5,7 +5,7 @@ provider "google" {
 
 # Basic networking module test
 module "networking" {
-  source = "../../modules/networking"
+  source = "../../../../gcp/modules/networking"
 
   project_id = var.project_id
   region     = var.region

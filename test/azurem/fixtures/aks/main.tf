@@ -21,7 +21,7 @@ provider "kubernetes" {
 
 # AKS cluster with default node pool for all workloads
 module "aks" {
-  source = "../../modules/aks"
+  source = "../../../../azurem/modules/aks"
 
   resource_group_name = var.resource_group_name
   kubernetes_version  = var.kubernetes_version
@@ -48,7 +48,7 @@ module "aks" {
 
 # Separate workload node pool for Materialize
 module "nodepool" {
-  source = "../../modules/nodepool"
+  source = "../../../../azurem/modules/nodepool"
 
   prefix     = var.prefix
   cluster_id = module.aks.cluster_id

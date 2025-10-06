@@ -29,7 +29,7 @@ provider "helm" {
 }
 
 module "eks" {
-  source = "../../modules/eks"
+  source = "../../../../aws/modules/eks"
 
   name_prefix                              = var.cluster_name
   cluster_version                          = var.cluster_version
@@ -43,7 +43,7 @@ module "eks" {
 
 module "eks_node_group" {
   count  = var.skip_node_group ? 0 : 1
-  source = "../../modules/eks-node-group"
+  source = "../../../../aws/modules/eks-node-group"
 
   cluster_name                      = module.eks.cluster_name
   subnet_ids                        = var.subnet_ids
@@ -65,7 +65,7 @@ module "eks_node_group" {
 
 module "aws_lbc" {
   count  = var.skip_aws_lbc ? 0 : 1
-  source = "../../modules/aws-lbc"
+  source = "../../../../aws/modules/aws-lbc"
 
   name_prefix       = var.cluster_name
   eks_cluster_name  = module.eks.cluster_name

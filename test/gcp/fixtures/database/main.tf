@@ -5,7 +5,7 @@ provider "google" {
 
 # Database test example - receives network info from test
 module "database" {
-  source = "../../modules/database"
+  source = "../../../../gcp/modules/database"
 
   databases = var.databases
   users     = var.users

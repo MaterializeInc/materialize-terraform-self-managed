@@ -142,8 +142,8 @@ func (suite *StagedDeploymentSuite) TestFullDeployment() {
 		// Short ID will used as resource name prefix so that we don't exceed the length limit
 		shortId := strings.Split(uniqueId, "-")[1]
 
-		// Set up networking example
-		networkingPath := helpers.SetupTestWorkspace(t, utils.GCP, uniqueId, utils.NetworkingDir, utils.NetworkingDir)
+		// Set up networking fixture
+		networkingPath := helpers.SetupTestWorkspace(t, utils.GCP, uniqueId, utils.NetworkingFixture, utils.NetworkingDir)
 
 		networkOptions := &terraform.Options{
 			TerraformDir: networkingPath,
@@ -287,8 +287,8 @@ func (suite *StagedDeploymentSuite) setupDatabaseStage(stage, stageDir, projectI
 	// Short ID will used as resource name prefix so that we don't exceed the length limit
 	shortId := strings.Split(resourceId, "-")[1]
 
-	// Set up database example
-	databasePath := helpers.SetupTestWorkspace(t, utils.GCP, resourceId, utils.DataBaseDir, stageDir)
+	// Set up database fixture
+	databasePath := helpers.SetupTestWorkspace(t, utils.GCP, resourceId, utils.DatabaseFixture, stageDir)
 
 	dbOptions := &terraform.Options{
 		TerraformDir: databasePath,
@@ -380,8 +380,8 @@ func (suite *StagedDeploymentSuite) setupGKEStage(stage, stageDir, projectID, na
 	// Short ID will used as resource name prefix so that we don't exceed the length limit
 	shortId := strings.Split(resourceId, "-")[1]
 
-	// Set up GKE example
-	gkePath := helpers.SetupTestWorkspace(t, utils.GCP, resourceId, utils.GKEDir, stageDir)
+	// Set up GKE fixture
+	gkePath := helpers.SetupTestWorkspace(t, utils.GCP, resourceId, utils.GKEFixture, stageDir)
 
 	// Configure disk settings and machine type based on disk enabled/disabled
 	diskSize := TestGKEDiskDisabledDiskSize
@@ -496,8 +496,8 @@ func (suite *StagedDeploymentSuite) setupMaterializeStage(stage, stageDir, proje
 	// Short ID will used as resource name prefix so that we don't exceed the length limit
 	shortId := strings.Split(resourceId, "-")[1]
 
-	// Set up Materialize example
-	materializePath := helpers.SetupTestWorkspace(t, utils.GCP, resourceId, utils.MaterializeDir, stageDir)
+	// Set up Materialize fixture
+	materializePath := helpers.SetupTestWorkspace(t, utils.GCP, resourceId, utils.MaterializeFixture, stageDir)
 
 	databaseName := TestDBNameNoDisk
 	username := TestDBUsername2

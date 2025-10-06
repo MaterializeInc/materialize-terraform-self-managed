@@ -29,7 +29,7 @@ provider "helm" {
 }
 
 module "cert_manager" {
-  source = "../../../kubernetes/modules/cert-manager"
+  source = "../../../../kubernetes/modules/cert-manager"
 
   install_timeout = var.cert_manager_install_timeout
   chart_version   = var.cert_manager_chart_version
@@ -39,7 +39,7 @@ module "cert_manager" {
 module "self_signed_cluster_issuer" {
   count = var.install_materialize_instance ? 1 : 0
 
-  source = "../../../kubernetes/modules/self-signed-cluster-issuer"
+  source = "../../../../kubernetes/modules/self-signed-cluster-issuer"
 
   name_prefix = var.name_prefix
   namespace   = var.cert_manager_namespace
@@ -50,7 +50,7 @@ module "self_signed_cluster_issuer" {
 }
 
 module "operator" {
-  source = "../../modules/operator"
+  source = "../../../../aws/modules/operator"
 
   name_prefix        = var.name_prefix
   aws_region         = var.region
@@ -60,7 +60,7 @@ module "operator" {
 }
 
 module "storage" {
-  source                   = "../../modules/storage"
+  source                   = "../../../../aws/modules/storage"
   name_prefix              = var.name_prefix
   bucket_lifecycle_rules   = var.bucket_lifecycle_rules
   bucket_force_destroy     = var.bucket_force_destroy
@@ -79,7 +79,7 @@ module "storage" {
 module "materialize_instance" {
   count = var.install_materialize_instance ? 1 : 0
 
-  source               = "../../../kubernetes/modules/materialize-instance"
+  source               = "../../../../kubernetes/modules/materialize-instance"
   instance_name        = var.instance_name
   instance_namespace   = var.instance_namespace
   metadata_backend_url = local.metadata_backend_url
@@ -111,7 +111,7 @@ module "materialize_instance" {
 module "materialize_nlb" {
   count = var.install_materialize_instance ? 1 : 0
 
-  source = "../../modules/nlb"
+  source = "../../../../aws/modules/nlb"
 
   instance_name                    = var.instance_name
   name_prefix                      = var.name_prefix

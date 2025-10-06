@@ -52,7 +52,7 @@ provider "helm" {
 
 # Create Google Cloud Storage bucket for Materialize persistent data storage
 module "storage" {
-  source = "../../modules/storage"
+  source = "../../../../gcp/modules/storage"
 
   project_id      = var.project_id
   region          = var.region
@@ -66,7 +66,7 @@ module "storage" {
 
 # Install cert-manager for SSL certificate management
 module "cert_manager" {
-  source = "../../../kubernetes/modules/cert-manager"
+  source = "../../../../kubernetes/modules/cert-manager"
 
   install_timeout = var.cert_manager_install_timeout
   chart_version   = var.cert_manager_chart_version
@@ -76,7 +76,7 @@ module "cert_manager" {
 module "self_signed_cluster_issuer" {
   count = var.install_materialize_instance ? 1 : 0
 
-  source = "../../../kubernetes/modules/self-signed-cluster-issuer"
+  source = "../../../../kubernetes/modules/self-signed-cluster-issuer"
 
   name_prefix = var.prefix
   namespace   = var.cert_manager_namespace
@@ -88,7 +88,7 @@ module "self_signed_cluster_issuer" {
 
 # Install Materialize Kubernetes operator
 module "operator" {
-  source = "../../modules/operator"
+  source = "../../../../gcp/modules/operator"
 
   name_prefix        = var.prefix
   swap_enabled       = var.swap_enabled
@@ -104,7 +104,7 @@ module "operator" {
 module "materialize_instance" {
   count = var.install_materialize_instance ? 1 : 0
 
-  source               = "../../../kubernetes/modules/materialize-instance"
+  source               = "../../../../kubernetes/modules/materialize-instance"
   instance_name        = var.instance_name
   instance_namespace   = var.instance_namespace
   metadata_backend_url = local.metadata_backend_url
@@ -136,7 +136,7 @@ module "materialize_instance" {
 module "load_balancers" {
   count = var.install_materialize_instance ? 1 : 0
 
-  source = "../../modules/load_balancers"
+  source = "../../../../gcp/modules/load_balancers"
 
   instance_name = var.instance_name
   namespace     = var.instance_namespace
