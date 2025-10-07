@@ -1,5 +1,5 @@
 terraform {
-  required_version = ">= 1.0"
+  required_version = ">= 1.8"
 
   required_providers {
     google = {
@@ -17,6 +17,10 @@ terraform {
     random = {
       source  = "hashicorp/random"
       version = "~> 3.1"
+    }
+    deepmerge = {
+      source  = "isometry/deepmerge"
+      version = "~> 1.0"
     }
   }
 }
