@@ -65,7 +65,6 @@ const (
 	TestParallelism = 10
 
 	// TestRuns directory, this will be created in the directory where the tests are run
-	TestRunsDir = "./testRuns"
 
 	// Test environment variables
 	TestPassword   = "test-password-123!"

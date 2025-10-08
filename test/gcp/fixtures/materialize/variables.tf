@@ -1,40 +1,84 @@
+# Common variables
 variable "project_id" {
-  description = "The GCP project ID"
+  description = "GCP Project ID"
   type        = string
 }
 
 variable "region" {
-  description = "The GCP region"
+  description = "GCP region"
   type        = string
 }
 
 variable "prefix" {
-  description = "Prefix for all resources"
+  description = "Prefix for resource names"
   type        = string
 }
 
 variable "labels" {
-  description = "Labels to apply to all resources"
+  description = "Labels to apply to resources created."
   type        = map(string)
 }
 
-variable "cluster_ca_certificate" {
-  description = "GKE cluster CA certificate"
+# Network variables
+variable "network_name" {
+  description = "Network name from network stage"
   type        = string
 }
 
-variable "cluster_endpoint" {
-  description = "GKE cluster endpoint"
+variable "subnet_name" {
+  description = "Subnet name from network stage"
   type        = string
 }
 
-# Storage configuration
-variable "workload_identity_sa_email" {
-  description = "Workload identity service account email"
+variable "network_id" {
+  description = "Network ID from network stage"
+  type        = string
+}
+
+# GKE variables
+variable "namespace" {
+  description = "Kubernetes namespace"
   type        = string
 }
 
 
+variable "materialize_node_type" {
+  description = "Node type for Materialize"
+  type        = string
+}
+
+variable "local_ssd_count" {
+  description = "Number of local SSDs to attach"
+  type        = number
+}
+
+variable "enable_private_nodes" {
+  description = "Enable private nodes or not"
+  type        = bool
+}
+
+variable "swap_enabled" {
+  description = "Enable swap"
+  type        = bool
+}
+
+variable "disk_size" {
+  description = "Disk size in GB for nodepool"
+  type        = number
+}
+
+variable "min_nodes" {
+  description = "Min no of nodes in nodepool"
+  type        = number
+}
+
+variable "max_nodes" {
+  description = "Max no of nodes in nodepool"
+  type        = number
+}
+
+
+# Storage variables
 variable "storage_bucket_versioning" {
   description = "Enable versioning for storage bucket"
   type        = bool
@@ -45,7 +89,12 @@ variable "storage_bucket_version_ttl" {
   type        = number
 }
 
-# Certificate configuration
+variable "enable_bucket_encryption" {
+  description = "Enable bucket encryption"
+  type        = bool
+}
+
+# Cert Manager variables
 variable "cert_manager_install_timeout" {
   description = "Cert-manager install timeout in seconds"
   type        = number
@@ -61,12 +110,13 @@ variable "cert_manager_namespace" {
   type        = string
 }
 
+# Operator variables
 variable "operator_namespace" {
   description = "Materialize operator namespace"
   type        = string
 }
 
-# Materialize instance configuration
+# Materialize Instance variables
 variable "install_materialize_instance" {
   description = "Whether to install the Materialize instance"
   type        = bool
@@ -83,14 +133,13 @@ variable "instance_namespace" {
   default     = "materialize-environment"
 }
 
-# Database configuration
-variable "database_host" {
-  description = "Database host for metadata storage"
+variable "database_name" {
+  description = "Database name for metadata storage"
   type        = string
 }
 
-variable "database_name" {
-  description = "Database name for metadata storage"
+variable "database_private_ip" {
+  description = "Private IP of the database from database stage"
   type        = string
 }
 
@@ -102,16 +151,10 @@ variable "user" {
   })
 }
 
-# Materialize instance authentication
-variable "external_login_password" {
+variable "external_login_password_mz_system" {
   description = "Password for external login to Materialize instance"
   type        = string
   sensitive   = true
-}
-
-variable "swap_enabled" {
-  description = "Enable swap"
-  type        = bool
 }
 
 variable "license_key" {
