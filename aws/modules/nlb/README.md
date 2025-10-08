@@ -39,6 +39,7 @@
 | <a name="input_name_prefix"></a> [name\_prefix](#input\_name\_prefix) | Prefix to use for NLB, Target Groups, Listeners, and TargetGroupBindings | `string` | n/a | yes |
 | <a name="input_namespace"></a> [namespace](#input\_namespace) | Kubernetes namespace in which to install TargetGroupBindings | `string` | n/a | yes |
 | <a name="input_subnet_ids"></a> [subnet\_ids](#input\_subnet\_ids) | A list of subnet IDs in which to install the NLB. Must be in the VPC. | `list(string)` | n/a | yes |
+| <a name="input_tags"></a> [tags](#input\_tags) | Tags to apply to all resources | `map(string)` | `{}` | no |
 | <a name="input_vpc_id"></a> [vpc\_id](#input\_vpc\_id) | ID of the VPC | `string` | n/a | yes |
 
 ## Outputs

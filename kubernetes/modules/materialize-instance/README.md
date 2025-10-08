@@ -42,6 +42,7 @@ No modules.
 | <a name="input_in_place_rollout"></a> [in\_place\_rollout](#input\_in\_place\_rollout) | Whether to perform in-place rollouts | `bool` | `true` | no |
 | <a name="input_instance_name"></a> [instance\_name](#input\_instance\_name) | Name of the Materialize instance | `string` | n/a | yes |
 | <a name="input_instance_namespace"></a> [instance\_namespace](#input\_instance\_namespace) | Kubernetes namespace for the instance. | `string` | n/a | yes |
+| <a name="input_issuer_ref"></a> [issuer\_ref](#input\_issuer\_ref) | Reference to a cert-manager Issuer or ClusterIssuer. | <pre>object({<br/>    name = string<br/>    kind = string<br/>  })</pre> | `null` | no |
 | <a name="input_license_key"></a> [license\_key](#input\_license\_key) | Materialize license key | `string` | `null` | no |
 | <a name="input_memory_limit"></a> [memory\_limit](#input\_memory\_limit) | Memory limit for environmentd | `string` | `"1Gi"` | no |
 | <a name="input_memory_request"></a> [memory\_request](#input\_memory\_request) | Memory request for environmentd | `string` | `"1Gi"` | no |

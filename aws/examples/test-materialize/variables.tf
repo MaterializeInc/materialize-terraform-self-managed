@@ -61,11 +61,6 @@ variable "tags" {
   type        = map(string)
 }
 
-variable "install_cert_manager" {
-  description = "Install cert-manager"
-  type        = bool
-}
-
 variable "cert_manager_install_timeout" {
   description = "Cert-manager install timeout in seconds"
   type        = number

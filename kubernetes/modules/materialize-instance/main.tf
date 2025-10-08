@@ -61,6 +61,21 @@ resource "kubernetes_manifest" "materialize_instance" {
         }
       }
 
+      balancerdExternalCertificateSpec = var.issuer_ref == null ? null : {
+        dnsNames = [
+          "balancerd",
+        ]
+        issuerRef = var.issuer_ref
+      }
+      consoleExternalCertificateSpec = var.issuer_ref == null ? null : {
+        dnsNames = [
+          "console",
+        ]
+        issuerRef = var.issuer_ref
+      }
+      internalCertificateSpec = var.issuer_ref == null ? null : {
+        issuerRef = var.issuer_ref
+      }
     }
   }
 

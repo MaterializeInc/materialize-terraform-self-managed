@@ -38,6 +38,7 @@ No modules.
 | <a name="input_disk_setup_image"></a> [disk\_setup\_image](#input\_disk\_setup\_image) | Docker image for the disk setup script | `string` | `"materialize/ephemeral-storage-setup-image:v0.4.0"` | no |
 | <a name="input_disk_size_gb"></a> [disk\_size\_gb](#input\_disk\_size\_gb) | Size of the disk attached to each node | `number` | n/a | yes |
 | <a name="input_labels"></a> [labels](#input\_labels) | Additional labels to apply to Kubernetes resources | `map(string)` | `{}` | no |
+| <a name="input_node_taints"></a> [node\_taints](#input\_node\_taints) | Taints to apply to the node pool. Note: Once applied via Terraform, these taints cannot be manually removed by users due to AKS webhook restrictions. | <pre>list(object({<br/>    key    = string<br/>    value  = string<br/>    effect = string<br/>  }))</pre> | `[]` | no |
 | <a name="input_pause_container_resource_config"></a> [pause\_container\_resource\_config](#input\_pause\_container\_resource\_config) | Resource configuration for pause container | <pre>object({<br/>    memory_limit   = string<br/>    memory_request = string<br/>    cpu_request    = string<br/>  })</pre> | <pre>{<br/>  "cpu_request": "1m",<br/>  "memory_limit": "8Mi",<br/>  "memory_request": "8Mi"<br/>}</pre> | no |
 | <a name="input_prefix"></a> [prefix](#input\_prefix) | Prefix to be used for resource names | `string` | n/a | yes |
 | <a name="input_subnet_id"></a> [subnet\_id](#input\_subnet\_id) | The ID of the subnet | `string` | n/a | yes |
