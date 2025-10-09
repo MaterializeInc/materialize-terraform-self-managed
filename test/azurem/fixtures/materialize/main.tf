@@ -184,6 +184,9 @@ module "materialize_instance" {
   service_account_annotations = {
     "azure.workload.identity/client-id" = module.aks.workload_identity_client_id
   }
+  pod_labels = {
+    "azure.workload.identity/use" = "true"
+  }
 
   issuer_ref = {
     name = module.self_signed_cluster_issuer[0].issuer_name

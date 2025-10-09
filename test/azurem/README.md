@@ -29,16 +29,16 @@ cd test && go mod tidy
 
 # Full test (network + materialize + cleanup)
 cd test/azurem
-go test -timeout 90m -run TestStagedDeploymentSuite -v
+go test -timeout 135m -run TestStagedDeploymentSuite -v
 
 # Network only
-SKIP_setup_materialize_disk_enabled=true SKIP_setup_materialize_disk_disabled=true SKIP_cleanup_network=true go test -timeout 15m -run TestStagedDeploymentSuite -v
+SKIP_setup_materialize_disk_enabled=true SKIP_setup_materialize_disk_disabled=true SKIP_cleanup_network=true go test -timeout 30m -run TestStagedDeploymentSuite -v
 
 # Materialize on existing network
-SKIP_setup_network=true SKIP_cleanup_network=true go test -timeout 60m -run TestStagedDeploymentSuite -v
+SKIP_setup_network=true SKIP_cleanup_network=true go test -timeout 90m -run TestStagedDeploymentSuite -v
 
 # Cleanup only
-SKIP_setup_network=true SKIP_setup_materialize_disk_enabled=true SKIP_setup_materialize_disk_disabled=true go test -timeout 60m -run TestStagedDeploymentSuite -v
+SKIP_setup_network=true SKIP_setup_materialize_disk_enabled=true SKIP_setup_materialize_disk_disabled=true go test -timeout 90m -run TestStagedDeploymentSuite -v
 ```
 
 ## Stage Control

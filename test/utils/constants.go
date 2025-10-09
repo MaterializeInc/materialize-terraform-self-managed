@@ -33,21 +33,7 @@ const (
 
 	// Runtime directory names (destinations in test/{cloud}/{uniqueId}/)
 	NetworkingDir              = "networking"
-	DataBaseDir                = "database"
-	DatabaseDiskEnabledDir     = DataBaseDir + DiskEnabledSuffix
-	DatabaseDiskDisabledDir    = DataBaseDir + DiskDisabledSuffix
-	EKSDir                     = "eks"
-	EKSDiskEnabledDir          = EKSDir + DiskEnabledSuffix
-	EKSDiskDisabledDir         = EKSDir + DiskDisabledSuffix
 	MaterializeDir             = "materialize"
 	MaterializeDiskEnabledDir  = MaterializeDir + DiskEnabledSuffix
 	MaterializeDiskDisabledDir = MaterializeDir + DiskDisabledSuffix
-
-	AKSDir             = "aks"
-	AKSDiskEnabledDir  = AKSDir + DiskEnabledSuffix
-	AKSDiskDisabledDir = AKSDir + DiskDisabledSuffix
-
-	GKEDir             = "gke"
-	GKEDiskEnabledDir  = GKEDir + DiskEnabledSuffix
-	GKEDiskDisabledDir = GKEDir + DiskDisabledSuffix
 )
