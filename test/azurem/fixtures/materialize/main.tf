@@ -142,7 +142,12 @@ module "operator" {
   operator_namespace = var.operator_namespace
   swap_enabled       = var.swap_enabled
 
-  depends_on = [module.aks]
+  depends_on = [
+    module.aks,
+    module.nodepool,
+    module.database,
+    module.storage,
+  ]
 }
 
 # Storage (Azure Blob)
@@ -160,8 +165,6 @@ module "storage" {
   oidc_issuer_url                = module.aks.cluster_oidc_issuer_url
   service_account_namespace      = var.instance_namespace
   service_account_name           = var.instance_name
-
-  depends_on = [module.aks]
 }
 
 # Materialize Instance
@@ -196,6 +199,7 @@ module "materialize_instance" {
   depends_on = [
     module.operator,
     module.storage,
+    module.database,
     module.self_signed_cluster_issuer,
   ]
 }

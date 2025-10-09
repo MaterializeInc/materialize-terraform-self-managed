@@ -78,7 +78,10 @@ module "cert_manager" {
   chart_version   = var.cert_manager_chart_version
   namespace       = var.cert_manager_namespace
 
-  depends_on = [module.gke]
+  depends_on = [
+    module.gke,
+    module.nodepool,
+  ]
 }
 
 # Self-signed Cluster Issuer
@@ -104,7 +107,10 @@ module "operator" {
   operator_namespace = var.operator_namespace
   swap_enabled       = var.swap_enabled
 
-  depends_on = [module.gke]
+  depends_on = [
+    module.gke,
+    module.nodepool,
+  ]
 }
 
 # Storage (GCS)
@@ -118,8 +124,6 @@ module "storage" {
 
   versioning  = var.storage_bucket_versioning
   version_ttl = var.storage_bucket_version_ttl
-
-  depends_on = [module.gke]
 }
 
 # Materialize Instance
@@ -151,6 +155,7 @@ module "materialize_instance" {
   depends_on = [
     module.operator,
     module.storage,
+    module.database,
     module.self_signed_cluster_issuer,
   ]
 }

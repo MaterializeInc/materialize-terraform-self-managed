@@ -123,7 +123,10 @@ module "cert_manager" {
   chart_version   = var.cert_manager_chart_version
   namespace       = var.cert_manager_namespace
 
-  depends_on = [module.eks_node_group]
+  depends_on = [
+    module.eks_node_group,
+    module.eks,
+  ]
 }
 
 # Self-signed Cluster Issuer
@@ -150,7 +153,10 @@ module "operator" {
   aws_account_id     = data.aws_caller_identity.current.account_id
   swap_enabled       = var.swap_enabled
 
-  depends_on = [module.eks_node_group]
+  depends_on = [
+    module.eks_node_group,
+    module.eks,
+  ]
 }
 
 # Storage (S3)
@@ -169,8 +175,6 @@ module "storage" {
   service_account_name      = var.instance_name
 
   tags = var.tags
-
-  depends_on = [module.eks]
 }
 
 # Materialize Instance
