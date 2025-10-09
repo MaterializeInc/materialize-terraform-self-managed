@@ -40,7 +40,5 @@ tests/.terraform.lock.hcl
 
 *testRuns/
 
-# AWS test run directories
-aws/*-examples/
-azurem/*-examples/
-gcp/*-examples/
+# Test run directories (timestamped directories in test/{cloud}/)
+test/*/t[0-9]*-*/

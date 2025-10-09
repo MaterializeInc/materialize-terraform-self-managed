@@ -1,25 +1,25 @@
-# GCP Tests
+# AWS Tests
 
-Terratest tests for GCP Materialize Terraform modules using staged deployment.
+Terratest tests for AWS Materialize Terraform modules using staged deployment.
 
 ## Test Architecture
 
 **Staged Deployment Pattern:**
 - **Network Stage**: VPC, subnets, NAT gateway
-- **Materialize Stage**: GKE, CloudSQL, GCS, Materialize instance
+- **Materialize Stage**: EKS, RDS, S3, Materialize instance
 - **State Management**: Each test run creates `{uniqueId}/` directory with persistent state
 - **Dependency Management**: Materialize stage requires network to exist
 
 **Resource Naming Convention:**
 - Pattern: `{shortUniqueId}-{resource}`
-- Examples: `abc123-vpc`, `abc123-gke`, `abc123-db`
+- Examples: `abc123-vpc`, `abc123-eks`, `abc123-db`
 
 ## Prerequisites
 
 - Go 1.23+, Terraform 1.0+
-- GCP project with required APIs enabled
-- Service account with roles: `compute.admin`, `container.admin`, `cloudsql.admin`, `storage.admin`, `iam.serviceAccountAdmin`
-- Set `GOOGLE_PROJECT=your-project-id`
+- AWS account with required services
+- AWS credentials configured (CLI, environment variables, or IAM roles)
+- Set `AWS_REGION=your-preferred-region`
 
 ## Running Tests
 
@@ -28,7 +28,7 @@ Terratest tests for GCP Materialize Terraform modules using staged deployment.
 cd test && go mod tidy
 
 # Full test (network + materialize + cleanup)
-cd test/gcp
+cd test/aws
 go test -timeout 135m -run TestStagedDeploymentSuite -v
 
 # Network only
@@ -59,25 +59,25 @@ Tests create `terraform.tfvars.json` files in each fixture directory (`{uniqueId
 **Manual Cleanup:**
 ```bash
 # Check existing infrastructure
-ls -la test/gcp/
+ls -la test/aws/
 
 # Manual terraform operations
-cd test/gcp/{uniqueId}/{fixtureDirectory}
+cd test/aws/{uniqueId}/{fixtureDirectory}
 terraform plan    # Review changes
 terraform apply   # Apply changes
 terraform destroy # Cleanup resources
 
 # Remove state directory
-rm -rf test/gcp/{uniqueId}
+rm -rf test/aws/{uniqueId}
 ```
 
 **Environment Variables:**
 - Loaded from `local.env` (if exists) or `.env`
-- Can be set manually: `export GOOGLE_PROJECT=your-project-id`
+- Can be set manually: `export AWS_REGION=us-west-2`
 
 ## Troubleshooting
 
-- **Timeouts**: Network (15m), Materialize (60m), Full (90m)
+- **Timeouts**: Network (15m), Materialize (60m), Full (120m)
 - **Missing network**: Run without `SKIP_setup_network` first
 - **State issues**: Check `{uniqueId}/` directories
 - **Cleanup**: Network cleanup removes entire state directory and all resources
