@@ -42,8 +42,3 @@ tests/.terraform.lock.hcl
 
 # Test run directories (timestamped directories in test/{cloud}/)
 test/*/t[0-9]*-*/
-
-# Legacy test run directories (to be cleaned up manually)
-aws/*-examples/
-azurem/*-examples/
-gcp/*-examples/
