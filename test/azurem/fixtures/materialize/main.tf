@@ -182,7 +182,7 @@ module "materialize_instance" {
 
   # Azure storage account annotation for service account
   service_account_annotations = {
-    "azure.workload.identity/client-id" = module.storage.workload_identity_client_id
+    "azure.workload.identity/client-id" = module.aks.workload_identity_client_id
   }
 
   issuer_ref = {
@@ -214,10 +214,10 @@ module "load_balancer" {
 locals {
   metadata_backend_url = format(
     "postgres://%s:%s@%s/%s?sslmode=require",
-    var.administrator_login,
-    urlencode(var.administrator_password),
+    module.database.administrator_login,
+    urlencode(module.database.administrator_password),
     module.database.server_fqdn,
-    var.database_name
+    module.database.database_names[0]
   )
 
   persist_backend_url = format(

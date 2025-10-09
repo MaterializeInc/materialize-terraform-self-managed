@@ -146,10 +146,7 @@ variable "databases" {
   }))
 }
 
-variable "database_name" {
-  description = "The name of the database for Materialize metadata"
-  type        = string
-}
+
 
 variable "administrator_login" {
   description = "The administrator login for the database server"

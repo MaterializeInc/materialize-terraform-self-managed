@@ -77,6 +77,37 @@ variable "max_nodes" {
   type        = number
 }
 
+# Database variables
+variable "database_tier" {
+  description = "CloudSQL tier"
+  type        = string
+}
+
+variable "db_version" {
+  description = "PostgreSQL version"
+  type        = string
+}
+
+variable "databases" {
+  description = "List of databases to create"
+  type = list(object({
+    name      = string
+    charset   = optional(string, "UTF8")
+    collation = optional(string, "en_US.UTF8")
+  }))
+}
+
+variable "users" {
+  description = "List of users to create"
+  type = list(object({
+    name     = string
+    password = optional(string, null)
+  }))
+  validation {
+    condition     = length(var.users) > 0
+    error_message = "At least one user is required"
+  }
+}
 
 # Storage variables
 variable "storage_bucket_versioning" {
@@ -89,10 +120,6 @@ variable "storage_bucket_version_ttl" {
   type        = number
 }
 
-variable "enable_bucket_encryption" {
-  description = "Enable bucket encryption"
-  type        = bool
-}
 
 # Cert Manager variables
 variable "cert_manager_install_timeout" {
@@ -133,15 +160,6 @@ variable "instance_namespace" {
   default     = "materialize-environment"
 }
 
-variable "database_name" {
-  description = "Database name for metadata storage"
-  type        = string
-}
-
-variable "database_private_ip" {
-  description = "Private IP of the database from database stage"
-  type        = string
-}
 
 variable "user" {
   description = "User for metadata storage"

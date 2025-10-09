@@ -232,10 +232,10 @@ module "materialize_nlb" {
 locals {
   metadata_backend_url = format(
     "postgres://%s:%s@%s/%s?sslmode=require",
-    var.database_username,
+    module.database.db_instance_username,
     urlencode(var.database_password),
     module.database.db_instance_endpoint,
-    var.database_name
+    module.database.db_instance_name
   )
 
   persist_backend_url = format(

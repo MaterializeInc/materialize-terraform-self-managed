@@ -41,10 +41,6 @@ func (suite *StagedDeploymentSuite) TearDownSuite() {
 
 	suite.testDiskEnabledCleanup()
 
-	test_structure.RunTestStage(t, "cleanup_database", func() {
-		suite.cleanupStage("cleanup_database", utils.DataBaseDir)
-	})
-
 	test_structure.RunTestStage(t, "cleanup_network", func() {
 		// Cleanup network if it was created in this test run
 		networkStageDir := filepath.Join(suite.workingDir, utils.NetworkingDir)
@@ -110,7 +106,7 @@ func (suite *StagedDeploymentSuite) cleanupStage(stageName, stageDir string) {
 }
 
 // TestFullDeployment tests full infrastructure deployment
-// Stages: Network → Database → (disk-enabled-setup) → (disk-disabled-setup)
+// Stages: Network → (disk-enabled-setup) → (disk-disabled-setup)
 func (suite *StagedDeploymentSuite) TestFullDeployment() {
 	t := suite.T()
 	projectID := os.Getenv("GOOGLE_PROJECT")
@@ -220,15 +216,10 @@ func (suite *StagedDeploymentSuite) TestFullDeployment() {
 		suite.useExistingNetwork()
 	}
 
-	// Stage 2: Database Setup
-	test_structure.RunTestStage(t, "setup_database", func() {
-		suite.setupDatabaseStage("setup_database", utils.DataBaseDir, projectID)
-	})
-
-	// Stage 3: testDiskEnabled (GKE + Materialize)
+	// Stage 2: testDiskEnabled (GKE + Database + Materialize)
 	suite.testDiskEnabled(projectID)
 
-	// Stage 4: testDiskDisabled (GKE + Materialize)
+	// Stage 3: testDiskDisabled (GKE + Database + Materialize)
 	suite.testDiskDisabled(projectID)
 }
 
@@ -258,102 +249,6 @@ func (suite *StagedDeploymentSuite) testDiskDisabled(projectID string) {
 	t.Logf("✅ testDiskDisabled completed successfully")
 }
 
-func (suite *StagedDeploymentSuite) setupDatabaseStage(stage, stageDir, projectID string) {
-	t := suite.T()
-	t.Logf("🔧 Setting up Database stage: %s", stage)
-
-	// Ensure workingDir is set (should be set by network stage)
-	if suite.workingDir == "" {
-		t.Fatal("❌ Cannot create database: Working directory not set. Run network setup stage first.")
-	}
-
-	// Load saved network data with validation
-	networkStageDir := filepath.Join(suite.workingDir, utils.NetworkingDir)
-	networkId := test_structure.LoadString(t, networkStageDir, "network_id")
-	resourceId := test_structure.LoadString(t, suite.workingDir, "resource_unique_id")
-
-	// Validate required network data exists
-	if networkId == "" || resourceId == "" {
-		t.Fatal("❌ Cannot create database: Missing network data. Run network setup stage first.")
-	}
-
-	t.Logf("🔗 Using infrastructure family: %s", resourceId)
-	// Short ID will used as resource name prefix so that we don't exceed the length limit
-	shortId := strings.Split(resourceId, "-")[1]
-
-	// Set up database fixture
-	databasePath := helpers.SetupTestWorkspace(t, utils.GCP, resourceId, utils.DatabaseFixture, stageDir)
-
-	// Create terraform.tfvars.json file for database stage
-	databaseTfvarsPath := filepath.Join(databasePath, "terraform.tfvars.json")
-	databaseVariables := map[string]interface{}{
-		"project_id":    projectID,
-		"region":        TestRegion,
-		"prefix":        shortId,
-		"network_id":    networkId,
-		"database_tier": TestDatabaseTier,
-		"db_version":    TestDatabaseVersion,
-		"labels": map[string]string{
-			"environment": helpers.GetEnvironment(),
-			"project":     utils.ProjectName,
-			"test-run":    resourceId,
-		},
-		"databases": []map[string]interface{}{
-			{
-				"name": TestDBNameDisk,
-			},
-			{
-				"name": TestDBNameNoDisk,
-			},
-		},
-		"users": []map[string]interface{}{
-			{
-				"name":     TestDBUsername1,
-				"password": TestPassword,
-			},
-			{
-				"name":     TestDBUsername2,
-				"password": TestPassword,
-			},
-		},
-	}
-	helpers.CreateTfvarsFile(t, databaseTfvarsPath, databaseVariables)
-
-	dbOptions := &terraform.Options{
-		TerraformDir: databasePath,
-		VarFiles:     []string{"terraform.tfvars.json"},
-		RetryableTerraformErrors: map[string]string{
-			"RequestError": "Request failed",
-		},
-		MaxRetries:         TestMaxRetries,
-		TimeBetweenRetries: TestRetryDelay,
-		NoColor:            true,
-	}
-
-	// Save terraform options for potential cleanup stage
-	stageDirPath := filepath.Join(suite.workingDir, stageDir)
-	test_structure.SaveTerraformOptions(t, stageDirPath, dbOptions)
-
-	// Apply
-	terraform.InitAndApply(t, dbOptions)
-
-	// Validate all database outputs
-	dbInstanceName := terraform.Output(t, dbOptions, "instance_name")
-	privateIP := terraform.Output(t, dbOptions, "private_ip")
-
-	// Comprehensive validation
-	suite.NotEmpty(dbInstanceName, "Database instance name should not be empty")
-	suite.NotEmpty(privateIP, "Database private IP should not be empty")
-
-	// Save database outputs for future stages
-	test_structure.SaveString(t, stageDirPath, "instance_name", dbInstanceName)
-	test_structure.SaveString(t, stageDirPath, "private_ip", privateIP)
-
-	t.Logf("✅ Database created successfully:")
-	t.Logf("  🔗 Instance Name: %s", dbInstanceName)
-	t.Logf("  🔗 Private IP: %s", privateIP)
-}
-
 // setupMaterializeConsolidatedStage deploys the complete Materialize stack (GKE + Materialize)
 func (suite *StagedDeploymentSuite) setupMaterializeConsolidatedStage(stage, stageDir, projectID, nameSuffix string, diskEnabled bool) {
 	t := suite.T()
@@ -372,18 +267,9 @@ func (suite *StagedDeploymentSuite) setupMaterializeConsolidatedStage(stage, sta
 	subnetNames := strings.Split(subnetNamesStr, ",")
 	resourceId := test_structure.LoadString(t, suite.workingDir, "resource_unique_id")
 
-	// Load database data from separate database stage
-	databaseStageDirFullPath := filepath.Join(suite.workingDir, utils.DataBaseDir)
-	databaseHost := test_structure.LoadString(t, databaseStageDirFullPath, "private_ip")
-
 	// Validate required network data exists
 	if networkName == "" || networkId == "" || len(subnetNames) == 0 || subnetNames[0] == "" || resourceId == "" {
 		t.Fatal("❌ Cannot create Materialize stack: Missing network data. Run network setup stage first.")
-	}
-
-	// Validate required database data exists
-	if databaseHost == "" {
-		t.Fatal("❌ Cannot create Materialize stack: Missing database data. Run database setup stage first.")
 	}
 
 	t.Logf("🔗 Using infrastructure family: %s", resourceId)
@@ -409,6 +295,11 @@ func (suite *StagedDeploymentSuite) setupMaterializeConsolidatedStage(stage, sta
 		diskSize = TestGKEDiskEnabledDiskSize
 		localSSDCount = TestGKEDiskEnabledLocalSSDCount
 		machineType = TestGKEDiskEnabledMachineType
+	}
+
+	dbName := TestDBNameDisk
+	if !diskEnabled {
+		dbName = TestDBNameNoDisk
 	}
 
 	// Build variables map for the generic tfvars creation function
@@ -442,24 +333,17 @@ func (suite *StagedDeploymentSuite) setupMaterializeConsolidatedStage(stage, sta
 			"disk-enabled": strconv.FormatBool(diskEnabled),
 		},
 
-		// Database Configuration (from separate database stage)
+		// Database Configuration
 		"database_tier": TestDatabaseTier,
 		"db_version":    TestDatabaseVersion,
 		"databases": []map[string]interface{}{
 			{
-				"name": TestDBNameDisk,
-			},
-			{
-				"name": TestDBNameNoDisk,
+				"name": dbName,
 			},
 		},
 		"users": []map[string]interface{}{
 			{
-				"name":     TestDBUsername1,
-				"password": TestPassword,
-			},
-			{
-				"name":     TestDBUsername2,
+				"name":     TestDBUsername,
 				"password": TestPassword,
 			},
 		},
@@ -481,9 +365,8 @@ func (suite *StagedDeploymentSuite) setupMaterializeConsolidatedStage(stage, sta
 		"install_materialize_instance": false,
 		"instance_name":                TestMaterializeInstanceName,
 		"instance_namespace":           expectedInstanceNamespace,
-		"database_name":                TestDBNameDisk, // Use disk-enabled database by default
 		"user": map[string]interface{}{
-			"name":     TestDBUsername1,
+			"name":     TestDBUsername,
 			"password": TestPassword,
 		},
 		"external_login_password_mz_system": TestPassword,

@@ -66,7 +66,7 @@ output "cluster_oidc_issuer_url" {
 
 output "nodepool_name" {
   description = "The name of the Materialize node pool"
-  value       = module.aks.nodepool_name
+  value       = module.nodepool.nodepool_name
 }
 
 # =============================================================================
@@ -125,7 +125,7 @@ output "storage_container_name" {
 
 output "storage_workload_identity_client_id" {
   description = "The client ID of the workload identity for storage"
-  value       = module.storage.workload_identity_client_id
+  value       = module.aks.workload_identity_client_id
 }
 
 # =============================================================================
@@ -169,7 +169,7 @@ output "instance_resource_id" {
 
 output "external_login_password" {
   description = "The external login password for the Materialize instance"
-  value       = var.install_materialize_instance ? module.materialize_instance[0].external_login_password_mz_system : null
+  value       = var.install_materialize_instance ? var.external_login_password_mz_system : null
   sensitive   = true
 }
 

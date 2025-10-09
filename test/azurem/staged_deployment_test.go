@@ -336,9 +336,8 @@ func (suite *StagedDeploymentSuite) setupMaterializeConsolidatedStage(stage, sta
 		"public_network_access_enabled": false,
 
 		// Storage Configuration
-		"container_name":              TestStorageContainerName,
-		"container_access_type":       TestStorageContainerAccessType,
-		"enable_container_versioning": true,
+		"container_name":        TestStorageContainerName,
+		"container_access_type": TestStorageContainerAccessType,
 
 		// Cert Manager Configuration
 		"cert_manager_namespace":       expectedCertManagerNamespace,

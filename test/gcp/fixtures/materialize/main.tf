@@ -38,6 +38,21 @@ module "nodepool" {
   local_ssd_count      = var.local_ssd_count
 }
 
+# Database
+module "database" {
+  source = "../../../../gcp/modules/database"
+
+  databases = var.databases
+  users     = var.users
+
+  project_id = var.project_id
+  network_id = var.network_id
+  region     = var.region
+  prefix     = var.prefix
+  tier       = var.database_tier
+  db_version = var.db_version
+  labels     = var.labels
+}
 
 # Kubernetes provider configuration
 provider "kubernetes" {
@@ -125,7 +140,7 @@ module "materialize_instance" {
 
   # GCP service account annotation for service account
   service_account_annotations = {
-    "iam.gke.io/gcp-service-account" = module.storage.workload_identity_sa_email
+    "iam.gke.io/gcp-service-account" = module.gke.workload_identity_sa_email
   }
 
   issuer_ref = {
@@ -159,8 +174,8 @@ locals {
     "postgres://%s:%s@%s:5432/%s?sslmode=disable",
     var.user.name,
     urlencode(var.user.password),
-    var.database_private_ip,
-    var.database_name
+    module.database.private_ip,
+    module.database.database_names[0]
   )
 
   encoded_endpoint = urlencode("https://storage.googleapis.com")

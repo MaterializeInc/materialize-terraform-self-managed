@@ -70,13 +70,11 @@ const (
 	TestRetryDelay  = 10 // seconds
 	TestParallelism = 10
 
-
 	// Test environment variables
 	TestPassword     = "test-password-123!"
 	TestDBNameDisk   = "materialize-test-disk"
 	TestDBNameNoDisk = "materialize-test-nodisk"
-	TestDBUsername1  = "materialize-test-user1"
-	TestDBUsername2  = "materialize-test-user2"
+	TestDBUsername   = "materialize-test-user"
 
 	// Materialize configuration constants
 	TestMaterializeInstanceName = "main"

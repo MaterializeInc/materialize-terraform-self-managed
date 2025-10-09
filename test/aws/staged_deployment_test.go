@@ -179,7 +179,6 @@ func (suite *StagedDeploymentTestSuite) TestFullDeployment() {
 		publicSubnetIds := terraform.OutputList(t, networkOptions, "public_subnet_ids")
 
 		// Save all outputs and resource IDs to networking directory
-		networkStageDir := filepath.Join(suite.workingDir, utils.NetworkingDir)
 		test_structure.SaveString(t, networkStageDir, "vpc_id", vpcId)
 		test_structure.SaveString(t, networkStageDir, "private_subnet_ids", strings.Join(privateSubnetIds, ","))
 		test_structure.SaveString(t, networkStageDir, "public_subnet_ids", strings.Join(publicSubnetIds, ","))
