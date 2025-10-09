@@ -110,6 +110,8 @@ module "operator" {
   depends_on = [
     module.gke,
     module.nodepool,
+    module.database,
+    module.storage,
   ]
 }
 
