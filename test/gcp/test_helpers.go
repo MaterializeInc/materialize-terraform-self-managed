@@ -57,34 +57,16 @@ func getRequiredGCPConfigurations() []config.Configuration {
 			Key: "SKIP_cleanup_network",
 		},
 		{
-			Key: "SKIP_setup_database",
+			Key: "SKIP_testDiskEnabled",
 		},
 		{
-			Key: "SKIP_cleanup_database",
+			Key: "SKIP_cleanup_testDiskEnabled",
 		},
 		{
-			Key: "SKIP_setup_gke_disk_enabled",
+			Key: "SKIP_testDiskDisabled",
 		},
 		{
-			Key: "SKIP_cleanup_gke_disk_enabled",
-		},
-		{
-			Key: "SKIP_setup_gke_disk_disabled",
-		},
-		{
-			Key: "SKIP_cleanup_gke_disk_disabled",
-		},
-		{
-			Key: "SKIP_setup_materialize_disk_enabled",
-		},
-		{
-			Key: "SKIP_cleanup_materialize_disk_enabled",
-		},
-		{
-			Key: "SKIP_setup_materialize_disk_disabled",
-		},
-		{
-			Key: "SKIP_cleanup_materialize_disk_disabled",
+			Key: "SKIP_cleanup_testDiskDisabled",
 		},
 	}
 }
