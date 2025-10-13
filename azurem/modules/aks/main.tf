@@ -71,11 +71,12 @@ resource "azurerm_kubernetes_cluster" "aks" {
   }
 
   network_profile {
-    network_plugin    = var.network_plugin
-    network_policy    = var.network_policy
-    service_cidr      = var.service_cidr
-    dns_service_ip    = var.dns_service_ip != null ? var.dns_service_ip : cidrhost(var.service_cidr, 10)
-    load_balancer_sku = var.load_balancer_sku
+    network_plugin     = var.network_plugin
+    network_policy     = var.network_policy
+    network_data_plane = var.network_data_plane
+    service_cidr       = var.service_cidr
+    dns_service_ip     = var.dns_service_ip != null ? var.dns_service_ip : cidrhost(var.service_cidr, 10)
+    load_balancer_sku  = var.load_balancer_sku
   }
 
   tags = var.tags
@@ -96,6 +97,14 @@ resource "azurerm_kubernetes_cluster" "aks" {
         length(var.azure_ad_admin_group_object_ids) > 0
       )
       error_message = "azure_ad_admin_group_object_ids must contain at least one group object ID when enable_azure_ad_rbac is true."
+    }
+
+    precondition {
+      condition = (
+        var.network_policy != "cilium" ||
+        var.network_data_plane == "cilium"
+      )
+      error_message = "When network_policy is 'cilium', network_data_plane must also be 'cilium'."
     }
   }
 }

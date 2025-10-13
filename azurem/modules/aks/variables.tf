@@ -190,6 +190,16 @@ variable "network_policy" {
   }
 }
 
+variable "network_data_plane" {
+  description = "Network data plane to use (azure or cilium). When using cilium network policy, this must be set to cilium."
+  type        = string
+  default     = "cilium"
+  validation {
+    condition     = contains(["azure", "cilium"], var.network_data_plane)
+    error_message = "Network data plane must be either 'azure' or 'cilium'."
+  }
+}
+
 variable "dns_service_ip" {
   description = "IP address within the service CIDR that will be used by cluster service discovery (kube-dns). If not specified, will be calculated automatically."
   type        = string
