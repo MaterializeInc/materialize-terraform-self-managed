@@ -170,6 +170,8 @@ variable "azure_ad_admin_group_object_ids" {
   }
 }
 
+# Limitations of using azure cni powered by cilium
+# https://learn.microsoft.com/en-us/azure/aks/azure-cni-powered-by-cilium#limitations
 variable "network_plugin" {
   description = "Network plugin to use (azure or kubenet)"
   type        = string
