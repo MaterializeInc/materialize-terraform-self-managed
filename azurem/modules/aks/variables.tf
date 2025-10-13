@@ -181,12 +181,12 @@ variable "network_plugin" {
 }
 
 variable "network_policy" {
-  description = "Network policy to use (azure, calico, or null)"
+  description = "Network policy to use (azure, calico, cilium, or null). Note: Azure Network Policy Manager is deprecated; migrate to cilium by 2028."
   type        = string
-  default     = "azure"
+  default     = "cilium"
   validation {
-    condition     = var.network_policy == null || contains(["azure", "calico"], var.network_policy)
-    error_message = "Network policy must be either 'azure', 'calico', or null."
+    condition     = var.network_policy == null || contains(["azure", "calico", "cilium"], var.network_policy)
+    error_message = "Network policy must be either 'azure', 'calico', 'cilium', or null."
   }
 }
 
