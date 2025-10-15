@@ -1,0 +1,7 @@
+# This file is auto-generated when TF_TEST_REMOTE_BACKEND is disabled
+# It overrides the S3 backend configuration to use local state files
+
+terraform {
+  backend "local" {}
+}
+
