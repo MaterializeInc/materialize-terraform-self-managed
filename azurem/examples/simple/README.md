@@ -27,7 +27,7 @@ location = "westus2"
 
 ---
 
-### Step 2: Deploy the Infrastructure
+### Step 2: Deploy Materialize
 
 Run the usual Terraform workflow:
 
