@@ -1,5 +1,5 @@
 terraform {
-  required_version = ">= 1.0"
+  required_version = ">= 1.8"
 
   required_providers {
     azurerm = {
@@ -12,6 +12,18 @@ terraform {
     }
     helm = {
       source  = "hashicorp/helm"
+      version = "~> 2.0"
+    }
+    random = {
+      source  = "hashicorp/random"
+      version = "~> 3.5"
+    }
+    deepmerge = {
+      source  = "isometry/deepmerge"
+      version = "~> 1.0"
+    }
+    kubectl = {
+      source  = "alekc/kubectl"
       version = "~> 2.0"
     }
   }

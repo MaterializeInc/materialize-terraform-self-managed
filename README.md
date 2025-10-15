@@ -1,4 +1,11 @@
-# Materialize Infrastructure Modules
+Materialize Infrastructure Modules
+===================================
+
+### 🚧 Under Construction 🚧
+
+*This project is under active development. It works and can be used to deploy materialize but may have some minor breaking changes.*
+
+---
 
 Terraform modules for deploying Materialize across different cloud providers. You can use these modules individually or combine them to build your infrastructure stack.
 

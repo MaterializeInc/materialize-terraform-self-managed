@@ -170,6 +170,8 @@ variable "azure_ad_admin_group_object_ids" {
   }
 }
 
+# Limitations of using azure cni powered by cilium
+# https://learn.microsoft.com/en-us/azure/aks/azure-cni-powered-by-cilium#limitations
 variable "network_plugin" {
   description = "Network plugin to use (azure or kubenet)"
   type        = string
@@ -181,12 +183,22 @@ variable "network_plugin" {
 }
 
 variable "network_policy" {
-  description = "Network policy to use (azure, calico, or null)"
+  description = "Network policy to use (azure, calico, cilium, or null). Note: Azure Network Policy Manager is deprecated; migrate to cilium by 2028."
   type        = string
-  default     = "azure"
+  default     = "cilium"
   validation {
-    condition     = var.network_policy == null || contains(["azure", "calico"], var.network_policy)
-    error_message = "Network policy must be either 'azure', 'calico', or null."
+    condition     = var.network_policy == null || contains(["azure", "calico", "cilium"], var.network_policy)
+    error_message = "Network policy must be either 'azure', 'calico', 'cilium', or null."
+  }
+}
+
+variable "network_data_plane" {
+  description = "Network data plane to use (azure or cilium). When using cilium network policy, this must be set to cilium."
+  type        = string
+  default     = "cilium"
+  validation {
+    condition     = contains(["azure", "cilium"], var.network_data_plane)
+    error_message = "Network data plane must be either 'azure' or 'cilium'."
   }
 }
 

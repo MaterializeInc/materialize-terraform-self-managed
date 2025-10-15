@@ -149,14 +149,9 @@ output "operator_release_status" {
 # MATERIALIZE INSTANCE OUTPUTS
 # =============================================================================
 
-output "instance_installed" {
-  description = "Whether Materialize instance was installed"
-  value       = var.install_materialize_instance
-}
-
 output "instance_resource_id" {
   description = "Materialize instance resource ID"
-  value       = var.install_materialize_instance ? module.materialize_instance[0].instance_resource_id : null
+  value       = module.materialize_instance.instance_resource_id
 }
 
 # =============================================================================
@@ -166,8 +161,8 @@ output "instance_resource_id" {
 output "nlb_details" {
   description = "Details of the Materialize instance NLBs."
   value = {
-    arn      = try(module.materialize_nlb[0].nlb_arn, null)
-    dns_name = try(module.materialize_nlb[0].nlb_dns_name, null)
+    arn      = try(module.materialize_nlb.nlb_arn, null)
+    dns_name = try(module.materialize_nlb.nlb_dns_name, null)
   }
 }
 
@@ -177,5 +172,5 @@ output "nlb_details" {
 
 output "cluster_issuer_name" {
   description = "Name of the cluster issuer"
-  value       = var.install_materialize_instance ? module.self_signed_cluster_issuer[0].issuer_name : null
+  value       = module.self_signed_cluster_issuer.issuer_name
 }

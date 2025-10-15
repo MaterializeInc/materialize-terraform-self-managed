@@ -123,14 +123,9 @@ output "operator_namespace" {
 # MATERIALIZE INSTANCE OUTPUTS
 # =============================================================================
 
-output "instance_installed" {
-  description = "Whether Materialize instance was installed"
-  value       = var.install_materialize_instance
-}
-
 output "instance_resource_id" {
   description = "Materialize instance resource ID"
-  value       = var.install_materialize_instance ? module.materialize_instance[0].instance_resource_id : null
+  value       = module.materialize_instance.instance_resource_id
 }
 
 # =============================================================================
@@ -139,12 +134,12 @@ output "instance_resource_id" {
 
 output "console_load_balancer_ip" {
   description = "Console load balancer IP for external access"
-  value       = var.install_materialize_instance ? module.load_balancer[0].console_load_balancer_ip : null
+  value       = module.load_balancer.console_load_balancer_ip
 }
 
 output "balancerd_load_balancer_ip" {
   description = "Balancerd load balancer IP for external access"
-  value       = var.install_materialize_instance ? module.load_balancer[0].balancerd_load_balancer_ip : null
+  value       = module.load_balancer.balancerd_load_balancer_ip
 }
 
 # =============================================================================
@@ -153,5 +148,5 @@ output "balancerd_load_balancer_ip" {
 
 output "cluster_issuer_name" {
   description = "Name of the cluster issuer"
-  value       = var.install_materialize_instance ? module.self_signed_cluster_issuer[0].issuer_name : null
+  value       = module.self_signed_cluster_issuer.issuer_name
 }

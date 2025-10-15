@@ -378,7 +378,6 @@ func (suite *StagedDeploymentSuite) setupMaterializeConsolidatedStage(stage, sta
 		"operator_namespace": expectedOperatorNamespace,
 
 		// Materialize Instance Configuration
-		"install_materialize_instance": false,
 		"instance_name":                TestMaterializeInstanceName,
 		"instance_namespace":           expectedInstanceNamespace,
 		"user": map[string]interface{}{
@@ -411,15 +410,6 @@ func (suite *StagedDeploymentSuite) setupMaterializeConsolidatedStage(stage, sta
 	// Apply
 	terraform.InitAndApply(t, materializeOptions)
 
-	t.Logf("✅ Phase 1: Materialize operator installed on cluster where disk-enabled: %t", diskEnabled)
-
-	// Phase 2: Update terraform.tfvars.json file for instance deployment
-	variables["install_materialize_instance"] = true
-	helpers.CreateTfvarsFile(t, tfvarsPath, variables)
-
-	// Phase 2: Apply with instance enabled
-	terraform.Apply(t, materializeOptions)
-
 	// Validate all outputs from the consolidated fixture
 	t.Log("🔍 Validating all consolidated fixture outputs...")
 
@@ -450,7 +440,7 @@ func (suite *StagedDeploymentSuite) setupMaterializeConsolidatedStage(stage, sta
 	t.Log("✅ Validating Materialize Instance Outputs...")
 	suite.NotEmpty(instanceResourceId, "Materialize instance resource ID should not be empty")
 
-	t.Logf("✅ Phase 2: Complete Materialize stack created successfully:")
+	t.Logf("✅ Complete Materialize stack created successfully:")
 	t.Logf("  💾 Disk Enabled: %t", diskEnabled)
 
 	// GKE Cluster Outputs

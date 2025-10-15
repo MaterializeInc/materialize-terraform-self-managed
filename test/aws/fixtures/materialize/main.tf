@@ -115,6 +115,19 @@ provider "helm" {
   }
 }
 
+provider "kubectl" {
+  host                   = module.eks.cluster_endpoint
+  cluster_ca_certificate = base64decode(module.eks.cluster_certificate_authority_data)
+
+  exec {
+    api_version = "client.authentication.k8s.io/v1beta1"
+    command     = "aws"
+    args        = ["eks", "get-token", "--cluster-name", module.eks.cluster_name]
+  }
+
+  load_config_file = false
+}
+
 # Cert Manager
 module "cert_manager" {
   source = "../../../../kubernetes/modules/cert-manager"
@@ -131,8 +144,6 @@ module "cert_manager" {
 
 # Self-signed Cluster Issuer
 module "self_signed_cluster_issuer" {
-  count = var.install_materialize_instance ? 1 : 0
-
   source = "../../../../kubernetes/modules/self-signed-cluster-issuer"
 
   name_prefix = var.name_prefix
@@ -179,8 +190,6 @@ module "storage" {
 
 # Materialize Instance
 module "materialize_instance" {
-  count = var.install_materialize_instance ? 1 : 0
-
   source               = "../../../../kubernetes/modules/materialize-instance"
   instance_name        = var.instance_name
   instance_namespace   = var.instance_namespace
@@ -199,7 +208,7 @@ module "materialize_instance" {
   }
 
   issuer_ref = {
-    name = module.self_signed_cluster_issuer[0].issuer_name
+    name = module.self_signed_cluster_issuer.issuer_name
     kind = "ClusterIssuer"
   }
 
@@ -213,8 +222,6 @@ module "materialize_instance" {
 
 # Materialize NLB
 module "materialize_nlb" {
-  count = var.install_materialize_instance ? 1 : 0
-
   source = "../../../../aws/modules/nlb"
 
   instance_name                    = var.instance_name
@@ -223,7 +230,7 @@ module "materialize_nlb" {
   subnet_ids                       = var.subnet_ids
   enable_cross_zone_load_balancing = var.enable_cross_zone_load_balancing
   vpc_id                           = var.vpc_id
-  mz_resource_id                   = module.materialize_instance[0].instance_resource_id
+  mz_resource_id                   = module.materialize_instance.instance_resource_id
 
   tags = var.tags
 

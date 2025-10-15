@@ -46,7 +46,8 @@ No modules.
 | <a name="input_location"></a> [location](#input\_location) | The location where resources will be created | `string` | n/a | yes |
 | <a name="input_log_analytics_workspace_id"></a> [log\_analytics\_workspace\_id](#input\_log\_analytics\_workspace\_id) | Log Analytics workspace ID for Azure Monitor (required if enable\_azure\_monitor is true) | `string` | `null` | no |
 | <a name="input_network_plugin"></a> [network\_plugin](#input\_network\_plugin) | Network plugin to use (azure or kubenet) | `string` | `"azure"` | no |
-| <a name="input_network_policy"></a> [network\_policy](#input\_network\_policy) | Network policy to use (azure, calico, or null) | `string` | `"azure"` | no |
+| <a name="input_network_policy"></a> [network\_policy](#input\_network\_policy) | Network policy to use (azure, calico, cilium, or null). Note: Azure Network Policy Manager is deprecated; migrate to cilium by 2028. | `string` | `"cilium"` | no |
+| <a name="input_network_data_plane"></a> [network\_data\_plane](#input\_network\_data\_plane) | Network data plane to use (azure or cilium). When using cilium network policy, this must be set to cilium. | `string` | `"cilium"` | no |
 | <a name="input_prefix"></a> [prefix](#input\_prefix) | Prefix to be used for resource names | `string` | n/a | yes |
 | <a name="input_resource_group_name"></a> [resource\_group\_name](#input\_resource\_group\_name) | The name of the resource group | `string` | n/a | yes |
 | <a name="input_service_cidr"></a> [service\_cidr](#input\_service\_cidr) | CIDR range for Kubernetes services | `string` | n/a | yes |
