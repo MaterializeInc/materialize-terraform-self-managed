@@ -10,9 +10,6 @@ It provisions the full infrastructure stack, including:
 - Load Balancer Controller and cert-manager
 - Materialize operator
 
-> **Important:**
-> Due to a limitation with the `kubernetes_manifest` resource in Terraform, the Materialize instance **cannot be installed on the first run**. The Kubernetes cluster must be fully provisioned before applying the instance configuration.
-
 ---
 
 ## Getting Started
@@ -23,14 +20,13 @@ Before running Terraform, create a `terraform.tfvars` file or pass the following
 
 ```hcl
 name_prefix = "simple-demo"
-install_materialize_instance = false
 aws_region = "us-east-1"
 aws_profile = "test-profile"
 ````
 
 ---
 
-### Step 2: Deploy the Infrastructure
+### Step 2: Deploy Materialize
 
 Run the usual Terraform workflow:
 
@@ -38,22 +34,6 @@ Run the usual Terraform workflow:
 terraform init
 terraform apply
 ```
-
-This will provision all infrastructure components except the Materialize instance.
-
----
-
-### Step 3: Deploy the Materialize Instance
-
-Once the initial deployment completes successfully:
-
-1. Update your variable:
-
-   ```hcl
-   install_materialize_instance = true
-   ```
-
-2. Run `terraform apply` again to deploy the instance.
 
 ---
 
