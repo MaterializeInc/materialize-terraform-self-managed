@@ -9,9 +9,20 @@ func (c *Config) BackendConfig(provider, testName, runID string) map[string]stri
 
 	stateKey := c.GetStateKey(provider, testName, runID)
 
-	return map[string]string{
-		"bucket": c.Bucket,
-		"key":    stateKey,
-		"region": c.Region,
+	backendConfig := map[string]string{
+		"bucket":                      c.Bucket,
+		"key":                         stateKey,
+		"region":                      c.Region,
+		"access_key":                  c.AccessKeyID,
+		"secret_key":                  c.SecretAccessKey,
+		"skip_credentials_validation": "false",
+		"skip_metadata_api_check":     "false",
 	}
+
+	// Add session token if provided (for temporary credentials)
+	if c.SessionToken != "" {
+		backendConfig["token"] = c.SessionToken
+	}
+
+	return backendConfig
 }

@@ -16,8 +16,10 @@ type Config struct {
 	Region string
 	// Optional prefix for all S3 keys
 	Prefix string
-	// Cleanup remote files on test cleanup
-	CleanupRemote bool
+	// AWS credentials for S3 access
+	AccessKeyID     string
+	SecretAccessKey string
+	SessionToken    string // Optional
 }
 
 // LoadConfig loads S3 backend configuration from environment variables
@@ -44,7 +46,7 @@ func LoadConfig() (*Config, error) {
 
 	region := os.Getenv("TF_TEST_S3_REGION")
 	if region == "" {
-		region = "us-east-1" // default region
+		return nil, fmt.Errorf("TF_TEST_S3_REGION is required when TF_TEST_REMOTE_BACKEND is enabled")
 	}
 
 	prefix := os.Getenv("TF_TEST_S3_PREFIX")
@@ -52,22 +54,28 @@ func LoadConfig() (*Config, error) {
 		prefix = "test-runs" // default prefix
 	}
 
-	cleanup := os.Getenv("TF_TEST_CLEANUP_REMOTE")
-	if cleanup == "" {
-		cleanup = "true" // default to cleanup
-	}
+	// Load AWS credentials from environment variables
+	// These are required for S3 backend access in CI/CD environments
+	accessKeyID := os.Getenv("AWS_ACCESS_KEY_ID")
+	secretAccessKey := os.Getenv("AWS_SECRET_ACCESS_KEY")
+	sessionToken := os.Getenv("AWS_SESSION_TOKEN") // Optional
 
-	cleanupRemote, err := strconv.ParseBool(cleanup)
-	if err != nil {
-		return nil, fmt.Errorf("invalid TF_TEST_CLEANUP_REMOTE value: %s", cleanup)
+	// Validate required credentials
+	if accessKeyID == "" {
+		return nil, fmt.Errorf("AWS_ACCESS_KEY_ID is required when TF_TEST_REMOTE_BACKEND is enabled")
+	}
+	if secretAccessKey == "" {
+		return nil, fmt.Errorf("AWS_SECRET_ACCESS_KEY is required when TF_TEST_REMOTE_BACKEND is enabled")
 	}
 
 	return &Config{
-		Enabled:       true,
-		Bucket:        bucket,
-		Region:        region,
-		Prefix:        prefix,
-		CleanupRemote: cleanupRemote,
+		Enabled:         true,
+		Bucket:          bucket,
+		Region:          region,
+		Prefix:          prefix,
+		AccessKeyID:     accessKeyID,
+		SecretAccessKey: secretAccessKey,
+		SessionToken:    sessionToken,
 	}, nil
 }
 
