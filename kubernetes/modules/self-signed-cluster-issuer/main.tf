@@ -1,5 +1,5 @@
-resource "kubernetes_manifest" "self_signed_cluster_issuer" {
-  manifest = {
+resource "kubectl_manifest" "self_signed_cluster_issuer" {
+  yaml_body = jsonencode({
     "apiVersion" = "cert-manager.io/v1"
     "kind"       = "ClusterIssuer"
     "metadata" = {
@@ -8,11 +8,11 @@ resource "kubernetes_manifest" "self_signed_cluster_issuer" {
     "spec" = {
       "selfSigned" = {}
     }
-  }
+  })
 }
 
-resource "kubernetes_manifest" "self_signed_root_ca_certificate" {
-  manifest = {
+resource "kubectl_manifest" "self_signed_root_ca_certificate" {
+  yaml_body = jsonencode({
     "apiVersion" = "cert-manager.io/v1"
     "kind"       = "Certificate"
     "metadata" = {
@@ -35,15 +35,15 @@ resource "kubernetes_manifest" "self_signed_root_ca_certificate" {
         "group" = "cert-manager.io"
       }
     }
-  }
+  })
 
   depends_on = [
-    kubernetes_manifest.self_signed_cluster_issuer,
+    kubectl_manifest.self_signed_cluster_issuer,
   ]
 }
 
-resource "kubernetes_manifest" "root_ca_cluster_issuer" {
-  manifest = {
+resource "kubectl_manifest" "root_ca_cluster_issuer" {
+  yaml_body = jsonencode({
     "apiVersion" = "cert-manager.io/v1"
     "kind"       = "ClusterIssuer"
     "metadata" = {
@@ -54,9 +54,9 @@ resource "kubernetes_manifest" "root_ca_cluster_issuer" {
         "secretName" = "${var.name_prefix}-root-ca"
       }
     }
-  }
+  })
 
   depends_on = [
-    kubernetes_manifest.self_signed_root_ca_certificate,
+    kubectl_manifest.self_signed_root_ca_certificate,
   ]
 }

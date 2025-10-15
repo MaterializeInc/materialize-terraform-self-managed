@@ -325,7 +325,6 @@ func (suite *StagedDeploymentTestSuite) setupMaterializeConsolidatedStage(stage,
 		"operator_namespace": expectedOperatorNamespace,
 
 		// Materialize Instance Configuration
-		"install_materialize_instance":      false,
 		"instance_name":                     fmt.Sprintf("%s-%s", resourceId, nameSuffix),
 		"instance_namespace":                expectedInstanceNamespace,
 		"external_login_password_mz_system": TestPassword,
@@ -362,15 +361,6 @@ func (suite *StagedDeploymentTestSuite) setupMaterializeConsolidatedStage(stage,
 
 	// Apply
 	terraform.InitAndApply(t, materializeOptions)
-
-	t.Logf("✅ Phase 1: Materialize operator installed on cluster where disk-enabled: %t", diskEnabled)
-
-	// Phase 2: Update terraform.tfvars.json file for instance deployment
-	variables["install_materialize_instance"] = true
-	helpers.CreateTfvarsFile(t, tfvarsPath, variables)
-
-	// Phase 2: Apply with instance enabled
-	terraform.Apply(t, materializeOptions)
 
 	// Validate all outputs from the consolidated fixture
 	t.Log("🔍 Validating all consolidated fixture outputs...")
@@ -412,7 +402,6 @@ func (suite *StagedDeploymentTestSuite) setupMaterializeConsolidatedStage(stage,
 	operatorReleaseStatus := terraform.Output(t, materializeOptions, "operator_release_status")
 
 	// Materialize Instance Outputs
-	instanceInstalled := terraform.Output(t, materializeOptions, "instance_installed")
 	instanceResourceId := terraform.Output(t, materializeOptions, "instance_resource_id")
 
 	// Network Load Balancer Outputs
@@ -462,7 +451,6 @@ func (suite *StagedDeploymentTestSuite) setupMaterializeConsolidatedStage(stage,
 	suite.NotEmpty(operatorReleaseStatus, "Operator release status should not be empty")
 
 	t.Log("✅ Validating Materialize Instance Outputs...")
-	suite.Equal("true", instanceInstalled, "Materialize instance should be installed")
 	suite.NotEmpty(instanceResourceId, "Materialize instance resource ID should not be empty")
 
 	t.Log("✅ Validating Network Load Balancer Outputs...")
@@ -472,7 +460,7 @@ func (suite *StagedDeploymentTestSuite) setupMaterializeConsolidatedStage(stage,
 	t.Log("✅ Validating Certificate Outputs...")
 	suite.NotEmpty(clusterIssuerName, "Cluster issuer name should not be empty")
 
-	t.Logf("✅ Phase 2: Complete Materialize stack created successfully:")
+	t.Logf("✅ Complete Materialize stack created successfully:")
 	t.Logf("  💾 Disk Enabled: %t", diskEnabled)
 
 	// EKS Cluster Outputs
@@ -519,7 +507,6 @@ func (suite *StagedDeploymentTestSuite) setupMaterializeConsolidatedStage(stage,
 
 	// Materialize Instance Outputs
 	t.Logf("🚀 MATERIALIZE INSTANCE OUTPUTS:")
-	t.Logf("  ✅ Instance Installed: %s", instanceInstalled)
 	t.Logf("  🆔 Instance Resource ID: %s", instanceResourceId)
 
 	// Network Load Balancer Outputs

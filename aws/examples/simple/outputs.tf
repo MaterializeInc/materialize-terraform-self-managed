@@ -95,36 +95,38 @@ output "operator" {
 
 output "materialize_instance_name" {
   description = "Materialize instance name"
-  value       = var.install_materialize_instance ? module.materialize_instance[0].instance_name : null
+  value       = module.materialize_instance.instance_name
 }
 
 output "materialize_instance_namespace" {
   description = "Materialize instance namespace"
-  value       = var.install_materialize_instance ? module.materialize_instance[0].instance_namespace : null
+  value       = module.materialize_instance.instance_namespace
 }
 
 output "materialize_instance_resource_id" {
   description = "Materialize instance resource ID"
-  value       = var.install_materialize_instance ? module.materialize_instance[0].instance_resource_id : null
+  value       = module.materialize_instance.instance_resource_id
 }
 
 output "materialize_instance_metadata_backend_url" {
   description = "Materialize instance metadata backend URL"
-  value       = var.install_materialize_instance ? module.materialize_instance[0].metadata_backend_url : null
+  value       = module.materialize_instance.metadata_backend_url
   sensitive   = true
 }
 
 output "materialize_instance_persist_backend_url" {
   description = "Materialize instance persist backend URL"
-  value       = var.install_materialize_instance ? module.materialize_instance[0].persist_backend_url : null
+  value       = module.materialize_instance.persist_backend_url
   sensitive   = true
 }
 
 # Load balancer outputs
-output "nlb_details" {
-  description = "Details of the Materialize instance NLBs."
-  value = {
-    arn      = try(module.materialize_nlb[0].nlb_arn, null)
-    dns_name = try(module.materialize_nlb[0].nlb_dns_name, null)
-  }
+output "nlb_arn" {
+  description = "ARN of the Materialize NLB."
+  value       = module.materialize_nlb.nlb_arn
+}
+
+output "nlb_dns_name" {
+  description = "DNS name of the Materialize NLB."
+  value       = module.materialize_nlb.nlb_dns_name
 }

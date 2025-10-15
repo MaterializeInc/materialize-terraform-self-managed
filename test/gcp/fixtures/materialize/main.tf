@@ -70,6 +70,14 @@ provider "helm" {
   }
 }
 
+provider "kubectl" {
+  host                   = "https://${module.gke.cluster_endpoint}"
+  token                  = data.google_client_config.default.access_token
+  cluster_ca_certificate = base64decode(module.gke.cluster_ca_certificate)
+
+  load_config_file = false
+}
+
 # Cert Manager
 module "cert_manager" {
   source = "../../../../kubernetes/modules/cert-manager"
@@ -86,8 +94,6 @@ module "cert_manager" {
 
 # Self-signed Cluster Issuer
 module "self_signed_cluster_issuer" {
-  count = var.install_materialize_instance ? 1 : 0
-
   source = "../../../../kubernetes/modules/self-signed-cluster-issuer"
 
   name_prefix = var.prefix
@@ -130,8 +136,6 @@ module "storage" {
 
 # Materialize Instance
 module "materialize_instance" {
-  count = var.install_materialize_instance ? 1 : 0
-
   source               = "../../../../kubernetes/modules/materialize-instance"
   instance_name        = var.instance_name
   instance_namespace   = var.instance_namespace
@@ -150,7 +154,7 @@ module "materialize_instance" {
   }
 
   issuer_ref = {
-    name = module.self_signed_cluster_issuer[0].issuer_name
+    name = module.self_signed_cluster_issuer.issuer_name
     kind = "ClusterIssuer"
   }
 
@@ -164,13 +168,11 @@ module "materialize_instance" {
 
 # Load Balancer
 module "load_balancer" {
-  count = var.install_materialize_instance ? 1 : 0
-
   source = "../../../../gcp/modules/load_balancers"
 
   instance_name = var.instance_name
   namespace     = var.instance_namespace
-  resource_id   = module.materialize_instance[0].instance_resource_id
+  resource_id   = module.materialize_instance.instance_resource_id
 
   depends_on = [module.materialize_instance]
 }

@@ -106,37 +106,39 @@ output "operator" {
 
 output "materialize_instance_name" {
   description = "Materialize instance name"
-  value       = var.install_materialize_instance ? module.materialize_instance[0].instance_name : null
+  value       = module.materialize_instance.instance_name
 }
 
 output "materialize_instance_namespace" {
   description = "Materialize instance namespace"
-  value       = var.install_materialize_instance ? module.materialize_instance[0].instance_namespace : null
+  value       = module.materialize_instance.instance_namespace
 }
 
 output "materialize_instance_resource_id" {
   description = "Materialize instance resource ID"
-  value       = var.install_materialize_instance ? module.materialize_instance[0].instance_resource_id : null
+  value       = module.materialize_instance.instance_resource_id
 }
 
 output "materialize_instance_metadata_backend_url" {
   description = "Materialize instance metadata backend URL"
-  value       = var.install_materialize_instance ? module.materialize_instance[0].metadata_backend_url : null
+  value       = module.materialize_instance.metadata_backend_url
   sensitive   = true
 }
 
 output "materialize_instance_persist_backend_url" {
   description = "Materialize instance persist backend URL"
-  value       = var.install_materialize_instance ? module.materialize_instance[0].persist_backend_url : null
+  value       = module.materialize_instance.persist_backend_url
 }
 
 # Load balancer outputs
-output "load_balancer_details" {
-  description = "Details of the Materialize instance load balancers."
-  value = {
-    console_load_balancer_ip   = try(module.load_balancers[0].console_load_balancer_ip, null)
-    balancerd_load_balancer_ip = try(module.load_balancers[0].balancerd_load_balancer_ip, null)
-  }
+output "console_load_balancer_ip" {
+  description = "IP address of the Materialize console's load balancer."
+  value       = module.load_balancers.console_load_balancer_ip
+}
+
+output "balancerd_load_balancer_ip" {
+  description = "IP address of the Materialize balancerd's load balancer."
+  value       = module.load_balancers.balancerd_load_balancer_ip
 }
 
 # Azure-specific outputs

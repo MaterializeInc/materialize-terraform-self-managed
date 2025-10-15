@@ -36,8 +36,8 @@ resource "aws_lb_listener" "listener" {
   }
 }
 
-resource "kubernetes_manifest" "target_group_binding" {
-  manifest = {
+resource "kubectl_manifest" "target_group_binding" {
+  yaml_body = jsonencode({
     "apiVersion" = "elbv2.k8s.aws/v1beta1"
     "kind"       = "TargetGroupBinding"
     "metadata" = {
@@ -51,13 +51,11 @@ resource "kubernetes_manifest" "target_group_binding" {
       }
       "targetGroupARN" = aws_lb_target_group.target_group.arn
     }
-  }
+  })
 
-  lifecycle {
-    ignore_changes = [
-      manifest.spec.serviceRef.name,
-    ]
-  }
+  ignore_fields = [
+    "spec.serviceRef.name",
+  ]
 
   depends_on = [
     aws_lb_listener.listener,

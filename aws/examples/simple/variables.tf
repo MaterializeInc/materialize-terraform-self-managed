@@ -19,12 +19,6 @@ variable "name_prefix" {
   type        = string
 }
 
-variable "install_materialize_instance" {
-  description = "Whether to install the Materialize instance. Default is false as it requires the Kubernetes cluster to be created first."
-  type        = bool
-  default     = false
-}
-
 variable "license_key" {
   description = "Materialize license key"
   type        = string

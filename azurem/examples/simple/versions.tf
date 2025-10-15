@@ -22,5 +22,9 @@ terraform {
       source  = "isometry/deepmerge"
       version = "~> 1.0"
     }
+    kubectl = {
+      source  = "alekc/kubectl"
+      version = "~> 2.0"
+    }
   }
 }
