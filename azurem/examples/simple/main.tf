@@ -29,6 +29,14 @@ provider "helm" {
   }
 }
 
+provider "kubectl" {
+  host                   = module.aks.cluster_endpoint
+  client_certificate     = base64decode(module.aks.kube_config[0].client_certificate)
+  client_key             = base64decode(module.aks.kube_config[0].client_key)
+  cluster_ca_certificate = base64decode(module.aks.kube_config[0].cluster_ca_certificate)
+
+  load_config_file = false
+}
 
 
 locals {
@@ -269,8 +277,6 @@ module "cert_manager" {
 }
 
 module "self_signed_cluster_issuer" {
-  count = var.install_materialize_instance ? 1 : 0
-
   source = "../../../kubernetes/modules/self-signed-cluster-issuer"
 
   name_prefix = var.name_prefix
@@ -300,8 +306,6 @@ module "operator" {
 }
 
 module "materialize_instance" {
-  count = var.install_materialize_instance ? 1 : 0
-
   source               = "../../../kubernetes/modules/materialize-instance"
   instance_name        = local.materialize_instance_name
   instance_namespace   = local.materialize_instance_namespace
@@ -322,7 +326,7 @@ module "materialize_instance" {
   license_key = var.license_key
 
   issuer_ref = {
-    name = module.self_signed_cluster_issuer[0].issuer_name
+    name = module.self_signed_cluster_issuer.issuer_name
     kind = "ClusterIssuer"
   }
 
@@ -338,13 +342,11 @@ module "materialize_instance" {
 }
 
 module "load_balancers" {
-  count = var.install_materialize_instance ? 1 : 0
-
   source = "../../modules/load_balancers"
 
   instance_name = local.materialize_instance_name
   namespace     = local.materialize_instance_namespace
-  resource_id   = module.materialize_instance[0].instance_resource_id
+  resource_id   = module.materialize_instance.instance_resource_id
   internal      = true
 
   depends_on = [

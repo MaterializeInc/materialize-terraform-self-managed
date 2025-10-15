@@ -31,6 +31,19 @@ provider "helm" {
   }
 }
 
+provider "kubectl" {
+  host                   = module.eks.cluster_endpoint
+  cluster_ca_certificate = base64decode(module.eks.cluster_certificate_authority_data)
+
+  exec {
+    api_version = "client.authentication.k8s.io/v1beta1"
+    command     = "aws"
+    args        = ["eks", "get-token", "--cluster-name", module.eks.cluster_name, "--region", var.aws_region, "--profile", var.aws_profile]
+  }
+
+  load_config_file = false
+}
+
 # 1. Create network infrastructure
 module "networking" {
   source = "../../modules/networking"
@@ -128,8 +141,6 @@ module "cert_manager" {
 }
 
 module "self_signed_cluster_issuer" {
-  count = var.install_materialize_instance ? 1 : 0
-
   source = "../../../kubernetes/modules/self-signed-cluster-issuer"
 
   name_prefix = var.name_prefix
@@ -218,8 +229,6 @@ module "storage" {
 
 # 9. Setup Materialize instance
 module "materialize_instance" {
-  count = var.install_materialize_instance ? 1 : 0
-
   source               = "../../../kubernetes/modules/materialize-instance"
   instance_name        = local.materialize_instance_name
   instance_namespace   = local.materialize_instance_namespace
@@ -237,7 +246,7 @@ module "materialize_instance" {
   license_key = var.license_key
 
   issuer_ref = {
-    name = module.self_signed_cluster_issuer[0].issuer_name
+    name = module.self_signed_cluster_issuer.issuer_name
     kind = "ClusterIssuer"
   }
 
@@ -255,8 +264,6 @@ module "materialize_instance" {
 
 # 10. Setup dedicated NLB for Materialize instance
 module "materialize_nlb" {
-  count = var.install_materialize_instance ? 1 : 0
-
   source = "../../modules/nlb"
 
   instance_name                    = local.materialize_instance_name
@@ -265,7 +272,7 @@ module "materialize_nlb" {
   subnet_ids                       = module.networking.private_subnet_ids
   enable_cross_zone_load_balancing = true
   vpc_id                           = module.networking.vpc_id
-  mz_resource_id                   = module.materialize_instance[0].instance_resource_id
+  mz_resource_id                   = module.materialize_instance.instance_resource_id
 
   tags = var.tags
 

@@ -186,11 +186,6 @@ variable "operator_namespace" {
   type        = string
 }
 
-variable "install_materialize_instance" {
-  description = "Flag to indicate if Materialize instance should be installed"
-  type        = bool
-}
-
 variable "instance_name" {
   description = "Name of the Materialize instance"
   type        = string

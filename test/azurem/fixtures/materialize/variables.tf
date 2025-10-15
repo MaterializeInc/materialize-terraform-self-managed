@@ -218,11 +218,6 @@ variable "operator_namespace" {
 }
 
 # Materialize Instance variables
-variable "install_materialize_instance" {
-  description = "Whether to install the Materialize instance"
-  type        = bool
-}
-
 variable "instance_name" {
   description = "The name of the Materialize instance"
   type        = string

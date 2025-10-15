@@ -8,14 +8,11 @@ resource "kubernetes_namespace" "instance" {
 }
 
 # Create the Materialize instance using the kubernetes_manifest resource
-resource "kubernetes_manifest" "materialize_instance" {
-  field_manager {
-    # force field manager conflicts to be overridden
-    name            = "terraform"
-    force_conflicts = true
-  }
+resource "kubectl_manifest" "materialize_instance" {
+  field_manager   = "terraform"
+  force_conflicts = true
 
-  manifest = {
+  yaml_body = jsonencode({
     apiVersion = "materialize.cloud/v1alpha1"
     kind       = "Materialize"
     metadata = {
@@ -77,11 +74,13 @@ resource "kubernetes_manifest" "materialize_instance" {
         issuerRef = var.issuer_ref
       }
     }
-  }
+  })
 
-  wait {
-    fields = {
-      "status.resourceId" = ".*"
+  wait_for {
+    field {
+      key        = "status.resourceId"
+      value      = ".*"
+      value_type = "regex"
     }
   }
 
@@ -124,6 +123,6 @@ data "kubernetes_resource" "materialize_instance" {
   }
 
   depends_on = [
-    kubernetes_manifest.materialize_instance
+    kubectl_manifest.materialize_instance
   ]
 }

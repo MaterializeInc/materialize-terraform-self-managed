@@ -21,6 +21,13 @@ provider "helm" {
   }
 }
 
+provider "kubectl" {
+  host                   = "https://${module.gke.cluster_endpoint}"
+  token                  = data.google_client_config.default.access_token
+  cluster_ca_certificate = base64decode(module.gke.cluster_ca_certificate)
+
+  load_config_file = false
+}
 
 locals {
 
@@ -235,8 +242,6 @@ module "cert_manager" {
 }
 
 module "self_signed_cluster_issuer" {
-  count = var.install_materialize_instance ? 1 : 0
-
   source = "../../../kubernetes/modules/self-signed-cluster-issuer"
 
   name_prefix = var.name_prefix
@@ -270,8 +275,6 @@ module "operator" {
 
 # Deploy Materialize instance with configured backend connections
 module "materialize_instance" {
-  count = var.install_materialize_instance ? 1 : 0
-
   source               = "../../../kubernetes/modules/materialize-instance"
   instance_name        = local.materialize_instance_name
   instance_namespace   = local.materialize_instance_namespace
@@ -290,7 +293,7 @@ module "materialize_instance" {
   license_key = var.license_key
 
   issuer_ref = {
-    name = module.self_signed_cluster_issuer[0].issuer_name
+    name = module.self_signed_cluster_issuer.issuer_name
     kind = "ClusterIssuer"
   }
 
@@ -307,13 +310,11 @@ module "materialize_instance" {
 
 # Configure load balancers for external access to Materialize services
 module "load_balancers" {
-  count = var.install_materialize_instance ? 1 : 0
-
   source = "../../modules/load_balancers"
 
   instance_name = local.materialize_instance_name
   namespace     = local.materialize_instance_namespace
-  resource_id   = module.materialize_instance[0].instance_resource_id
+  resource_id   = module.materialize_instance.instance_resource_id
 
   depends_on = [
     module.materialize_instance,

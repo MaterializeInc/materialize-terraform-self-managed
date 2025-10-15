@@ -157,19 +157,14 @@ output "operator_namespace" {
 # MATERIALIZE INSTANCE OUTPUTS
 # =============================================================================
 
-output "instance_installed" {
-  description = "Whether the Materialize instance is installed"
-  value       = var.install_materialize_instance
-}
-
 output "instance_resource_id" {
   description = "The resource ID of the Materialize instance"
-  value       = var.install_materialize_instance ? module.materialize_instance[0].instance_resource_id : null
+  value       = module.materialize_instance.instance_resource_id
 }
 
 output "external_login_password" {
   description = "The external login password for the Materialize instance"
-  value       = var.install_materialize_instance ? var.external_login_password_mz_system : null
+  value       = var.external_login_password_mz_system
   sensitive   = true
 }
 
@@ -177,19 +172,14 @@ output "external_login_password" {
 # LOAD BALANCER OUTPUTS
 # =============================================================================
 
-output "load_balancer_installed" {
-  description = "Whether the load balancer is installed"
-  value       = var.install_materialize_instance
-}
-
 output "console_load_balancer_ip" {
   description = "IP address of load balancer pointing at the web console"
-  value       = var.install_materialize_instance ? module.load_balancer[0].console_load_balancer_ip : null
+  value       = module.load_balancer.console_load_balancer_ip
 }
 
 output "balancerd_load_balancer_ip" {
   description = "IP address of load balancer pointing at balancerd"
-  value       = var.install_materialize_instance ? module.load_balancer[0].balancerd_load_balancer_ip : null
+  value       = module.load_balancer.balancerd_load_balancer_ip
 }
 
 # =============================================================================
@@ -198,5 +188,5 @@ output "balancerd_load_balancer_ip" {
 
 output "cluster_issuer_name" {
   description = "Name of the cluster issuer"
-  value       = var.install_materialize_instance ? module.self_signed_cluster_issuer[0].issuer_name : null
+  value       = module.self_signed_cluster_issuer.issuer_name
 }

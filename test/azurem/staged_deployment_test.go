@@ -348,7 +348,6 @@ func (suite *StagedDeploymentSuite) setupMaterializeConsolidatedStage(stage, sta
 		"operator_namespace": expectedOperatorNamespace,
 
 		// Materialize Instance Configuration
-		"install_materialize_instance":      false,
 		"instance_name":                     TestMaterializeInstanceName,
 		"instance_namespace":                expectedInstanceNamespace,
 		"license_key":                       os.Getenv("MATERIALIZE_LICENSE_KEY"),
@@ -382,15 +381,6 @@ func (suite *StagedDeploymentSuite) setupMaterializeConsolidatedStage(stage, sta
 	// Apply
 	terraform.InitAndApply(t, materializeOptions)
 
-	t.Logf("✅ Phase 1: Materialize operator installed on cluster where disk-enabled: %t", diskEnabled)
-
-	// Phase 2: Update terraform.tfvars.json file for instance deployment
-	variables["install_materialize_instance"] = true
-	helpers.CreateTfvarsFile(t, tfvarsPath, variables)
-
-	// Phase 2: Apply with instance enabled
-	terraform.Apply(t, materializeOptions)
-
 	// Validate all outputs from the consolidated fixture
 	t.Log("🔍 Validating all consolidated fixture outputs...")
 
@@ -421,12 +411,10 @@ func (suite *StagedDeploymentSuite) setupMaterializeConsolidatedStage(stage, sta
 	operatorNamespace := terraform.Output(t, materializeOptions, "operator_namespace")
 
 	// Materialize Instance Outputs
-	instanceInstalled := terraform.Output(t, materializeOptions, "instance_installed")
 	instanceResourceId := terraform.Output(t, materializeOptions, "instance_resource_id")
 	externalLoginPassword := terraform.Output(t, materializeOptions, "external_login_password")
 
 	// Load Balancer Outputs
-	loadBalancerInstalled := terraform.Output(t, materializeOptions, "load_balancer_installed")
 	consoleLoadBalancerIP := terraform.Output(t, materializeOptions, "console_load_balancer_ip")
 	balancerdLoadBalancerIP := terraform.Output(t, materializeOptions, "balancerd_load_balancer_ip")
 
@@ -463,19 +451,17 @@ func (suite *StagedDeploymentSuite) setupMaterializeConsolidatedStage(stage, sta
 	suite.Equal(expectedOperatorNamespace, operatorNamespace, "Operator namespace should match expected value")
 
 	t.Log("✅ Validating Materialize Instance Outputs...")
-	suite.Equal("true", instanceInstalled, "Materialize instance should be installed")
 	suite.NotEmpty(instanceResourceId, "Materialize instance resource ID should not be empty")
 	suite.NotEmpty(externalLoginPassword, "External login password should not be empty")
 
 	t.Log("✅ Validating Load Balancer Outputs...")
-	suite.Equal("true", loadBalancerInstalled, "Load balancer should be installed")
 	suite.NotEmpty(consoleLoadBalancerIP, "Console load balancer IP should not be empty")
 	suite.NotEmpty(balancerdLoadBalancerIP, "Balancerd load balancer IP should not be empty")
 
 	t.Log("✅ Validating Certificate Outputs...")
 	suite.NotEmpty(clusterIssuerName, "Cluster issuer name should not be empty")
 
-	t.Logf("✅ Phase 2: Complete Materialize stack created successfully:")
+	t.Logf("✅ Complete Materialize stack created successfully:")
 	t.Logf("  💾 Disk Enabled: %t", diskEnabled)
 
 	// AKS Cluster Outputs
@@ -511,13 +497,11 @@ func (suite *StagedDeploymentSuite) setupMaterializeConsolidatedStage(stage, sta
 
 	// Materialize Instance Outputs
 	t.Logf("🚀 MATERIALIZE INSTANCE OUTPUTS:")
-	t.Logf("  ✅ Instance Installed: %s", instanceInstalled)
 	t.Logf("  🆔 Instance Resource ID: %s", instanceResourceId)
 	t.Logf("  🔐 External Login Password: [REDACTED]")
 
 	// Load Balancer Outputs
 	t.Logf("🌐 LOAD BALANCER OUTPUTS:")
-	t.Logf("  ✅ Load Balancer Installed: %s", loadBalancerInstalled)
 	t.Logf("  🌐 Console Load Balancer IP: %s", consoleLoadBalancerIP)
 	t.Logf("  🌐 Balancerd Load Balancer IP: %s", balancerdLoadBalancerIP)
 
