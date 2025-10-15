@@ -23,5 +23,20 @@ func GetCommonConfigurations() []Configuration {
 		{
 			Key: "ENVIRONMENT",
 		},
+		{
+			Key: "TF_TEST_REMOTE_BACKEND",
+		},
+		{
+			Key: "TF_TEST_S3_BUCKET",
+		},
+		{
+			Key: "TF_TEST_S3_REGION",
+		},
+		{
+			Key: "TF_TEST_S3_PREFIX",
+		},
+		{
+			Key: "TF_TEST_CLEANUP_REMOTE",
+		},
 	}
 }

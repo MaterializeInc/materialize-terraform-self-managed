@@ -7,4 +7,7 @@ terraform {
       version = ">= 5.0"
     }
   }
+
+  # S3 backend configuration (configured dynamically via -backend-config flags)
+  backend "s3" {}
 }
