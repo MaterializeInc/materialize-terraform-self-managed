@@ -311,12 +311,15 @@ locals {
     }
   ]
 
+  database_statement_timeout = "15min"
+
   metadata_backend_url = format(
-    "postgres://%s:%s@%s/%s?sslmode=require",
+    "postgres://%s:%s@%s/%s?sslmode=require&options=-c%%20statement_timeout%%3D%s",
     module.database.db_instance_username,
     urlencode(random_password.database_password.result),
     module.database.db_instance_endpoint,
-    module.database.db_instance_name
+    module.database.db_instance_name,
+    local.database_statement_timeout
   )
 
   persist_backend_url = format(
