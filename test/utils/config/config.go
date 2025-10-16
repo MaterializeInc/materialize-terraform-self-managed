@@ -23,5 +23,8 @@ func GetCommonConfigurations() []Configuration {
 		{
 			Key: "ENVIRONMENT",
 		},
+		{
+			Key: "TF_TEST_REMOTE_BACKEND",
+		},
 	}
 }

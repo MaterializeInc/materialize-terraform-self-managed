@@ -12,6 +12,7 @@ import (
 	"github.com/MaterializeInc/materialize-terraform-self-managed/test/utils/config"
 	"github.com/MaterializeInc/materialize-terraform-self-managed/test/utils/dir"
 	"github.com/MaterializeInc/materialize-terraform-self-managed/test/utils/helpers"
+	"github.com/MaterializeInc/materialize-terraform-self-managed/test/utils/s3backend"
 	"github.com/gruntwork-io/terratest/modules/terraform"
 	test_structure "github.com/gruntwork-io/terratest/modules/test-structure"
 	"github.com/stretchr/testify/suite"
@@ -21,6 +22,8 @@ import (
 type StagedDeploymentTestSuite struct {
 	basesuite.BaseTestSuite
 	workingDir string
+	uniqueId   string
+	s3Manager  *s3backend.Manager
 }
 
 // SetupSuite initializes the test suite
@@ -49,8 +52,7 @@ func (suite *StagedDeploymentTestSuite) TearDownSuite() {
 			terraform.Destroy(t, networkOptions)
 			t.Logf("✅ Network cleanup completed")
 
-			uniqueId := test_structure.LoadString(t, suite.workingDir, "resource_unique_id")
-			helpers.CleanupTestWorkspace(t, utils.AWS, uniqueId, utils.NetworkingDir)
+			helpers.CleanupTestWorkspace(t, utils.AWS, suite.uniqueId, utils.NetworkingDir)
 
 			// Remove entire state directory since network is the foundation
 			t.Logf("🗂️ Removing state directory: %s", suite.workingDir)
@@ -60,6 +62,10 @@ func (suite *StagedDeploymentTestSuite) TearDownSuite() {
 			t.Logf("♻️ No network to cleanup (was not created in this test)")
 		}
 	})
+
+	// S3 backend state files are managed by Terraform and will persist in S3
+	// Use S3 lifecycle policies to manage retention if needed
+
 	suite.TearDownBaseSuite()
 }
 
@@ -101,8 +107,7 @@ func (suite *StagedDeploymentTestSuite) cleanupStage(stageName, stageDir string)
 	t.Logf("✅ %s stage cleanup completed", stageName)
 
 	// Cleanup workspace
-	uniqueId := test_structure.LoadString(t, suite.workingDir, "resource_unique_id")
-	helpers.CleanupTestWorkspace(t, utils.AWS, uniqueId, stageDir)
+	helpers.CleanupTestWorkspace(t, utils.AWS, suite.uniqueId, stageDir)
 }
 
 // TestFullDeployment tests full infrastructure deployment
@@ -114,23 +119,28 @@ func (suite *StagedDeploymentTestSuite) TestFullDeployment() {
 
 	// Stage 1: Network Setup
 	test_structure.RunTestStage(t, "setup_network", func() {
-		// Generate unique ID for this infrastructure family
 		var uniqueId string
 		if os.Getenv("USE_EXISTING_NETWORK") != "" {
-			suite.useExistingNetwork()
-			uniqueId = test_structure.LoadString(t, suite.workingDir, "resource_unique_id")
-			if uniqueId == "" {
-				t.Fatal("❌ Cannot use existing network: Unique ID not found. Run network setup stage first.")
-			}
+			// Use existing network and initialize S3 backend
+			uniqueId = suite.useExistingNetwork()
 		} else {
-			// Generate unique ID for this infrastructure family
+			// Generate unique ID for new infrastructure
 			uniqueId = generateAWSCompliantID()
 			suite.workingDir = filepath.Join(dir.GetProjectRootDir(), utils.MainTestDir, utils.AWS, uniqueId)
 			os.MkdirAll(suite.workingDir, 0755)
 			t.Logf("🏷️ Infrastructure ID: %s", uniqueId)
 			t.Logf("📁 Test Stage Output directory: %s", suite.workingDir)
+
 			// Save unique ID for subsequent stages
 			test_structure.SaveString(t, suite.workingDir, "resource_unique_id", uniqueId)
+			suite.uniqueId = uniqueId
+
+			// Initialize S3 backend manager for new network
+			s3Manager, err := initS3BackendManager(t, uniqueId)
+			if err != nil {
+				t.Fatalf("❌ Failed to initialize S3 backend manager: %v", err)
+			}
+			suite.s3Manager = s3Manager
 		}
 		// Set up networking fixture
 		networkingPath := helpers.SetupTestWorkspace(t, utils.AWS, uniqueId, utils.NetworkingFixture, utils.NetworkingDir)
@@ -166,6 +176,9 @@ func (suite *StagedDeploymentTestSuite) TestFullDeployment() {
 			NoColor:            true,
 		}
 
+		// Configure S3 backend if enabled - Terraform will handle state management
+		applyBackendConfigToTerraformOptions(networkOptions, suite.s3Manager, utils.NetworkingDir)
+
 		// Save terraform options for potential cleanup stage
 		networkStageDir := filepath.Join(suite.workingDir, utils.NetworkingDir)
 		test_structure.SaveTerraformOptions(t, networkStageDir, networkOptions)
@@ -190,6 +203,8 @@ func (suite *StagedDeploymentTestSuite) TestFullDeployment() {
 		t.Logf("  🏷️ Resource ID: %s", uniqueId)
 
 	})
+
+	// If network stage was skipped, use existing network
 	if os.Getenv("SKIP_setup_network") != "" {
 		suite.useExistingNetwork()
 	}
@@ -241,25 +256,24 @@ func (suite *StagedDeploymentTestSuite) setupMaterializeConsolidatedStage(stage,
 	networkStageDir := filepath.Join(suite.workingDir, utils.NetworkingDir)
 	vpcId := test_structure.LoadString(t, networkStageDir, "vpc_id")
 	privateSubnetIdsStr := test_structure.LoadString(t, networkStageDir, "private_subnet_ids")
-	resourceId := test_structure.LoadString(t, suite.workingDir, "resource_unique_id")
 
 	// Parse private subnet IDs from comma-separated string
 	privateSubnetIds := strings.Split(privateSubnetIdsStr, ",")
 
 	// Validate required network data exists
-	if vpcId == "" || len(privateSubnetIds) == 0 || privateSubnetIds[0] == "" || resourceId == "" {
+	if vpcId == "" || len(privateSubnetIds) == 0 || privateSubnetIds[0] == "" || suite.uniqueId == "" {
 		t.Fatal("❌ Cannot create Materialize stack: Missing network data. Run network setup stage first.")
 	}
 
-	t.Logf("🔗 Using infrastructure family: %s", resourceId)
+	t.Logf("🔗 Using infrastructure family: %s", suite.uniqueId)
 
 	// Set up consolidated Materialize fixture
-	materializePath := helpers.SetupTestWorkspace(t, utils.AWS, resourceId, utils.MaterializeFixture, stageDir)
+	materializePath := helpers.SetupTestWorkspace(t, utils.AWS, suite.uniqueId, utils.MaterializeFixture, stageDir)
 
 	expectedInstanceNamespace := fmt.Sprintf("mz-instance-%s", nameSuffix)
 	expectedOperatorNamespace := fmt.Sprintf("mz-operator-%s", nameSuffix)
 	expectedCertManagerNamespace := fmt.Sprintf("cert-manager-%s", nameSuffix)
-	resourceName := fmt.Sprintf("%s%s", resourceId, nameSuffix)
+	resourceName := fmt.Sprintf("%s%s", suite.uniqueId, nameSuffix)
 
 	// Create terraform.tfvars.json file instead of using Vars map
 	// This approach is cleaner and follows Terraform best practices
@@ -325,7 +339,7 @@ func (suite *StagedDeploymentTestSuite) setupMaterializeConsolidatedStage(stage,
 		"operator_namespace": expectedOperatorNamespace,
 
 		// Materialize Instance Configuration
-		"instance_name":                     fmt.Sprintf("%s-%s", resourceId, nameSuffix),
+		"instance_name":                     fmt.Sprintf("%s-%s", suite.uniqueId, nameSuffix),
 		"instance_namespace":                expectedInstanceNamespace,
 		"external_login_password_mz_system": TestPassword,
 		"license_key":                       os.Getenv("MATERIALIZE_LICENSE_KEY"),
@@ -337,7 +351,7 @@ func (suite *StagedDeploymentTestSuite) setupMaterializeConsolidatedStage(stage,
 		"tags": map[string]string{
 			"environment":  helpers.GetEnvironment(),
 			"project":      utils.ProjectName,
-			"test-run":     resourceId,
+			"test-run":     suite.uniqueId,
 			"disk-enabled": fmt.Sprintf("%t", diskEnabled),
 		},
 	}
@@ -354,6 +368,9 @@ func (suite *StagedDeploymentTestSuite) setupMaterializeConsolidatedStage(stage,
 		TimeBetweenRetries: TestRetryDelay,
 		NoColor:            true,
 	}
+
+	// Configure S3 backend if enabled - Terraform will handle state management
+	applyBackendConfigToTerraformOptions(materializeOptions, suite.s3Manager, stageDir)
 
 	// Save terraform options for cleanup
 	stageDirPath := filepath.Join(suite.workingDir, stageDir)
@@ -415,7 +432,7 @@ func (suite *StagedDeploymentTestSuite) setupMaterializeConsolidatedStage(stage,
 	// Comprehensive validation
 	t.Log("✅ Validating EKS Cluster Outputs...")
 	suite.NotEmpty(clusterName, "Cluster name should not be empty")
-	suite.Contains(clusterName, resourceId, "Cluster name should contain resource ID")
+	suite.Contains(clusterName, suite.uniqueId, "Cluster name should contain resource ID")
 	suite.Contains(clusterEndpoint, "eks.amazonaws.com", "Cluster endpoint should be valid EKS endpoint")
 	suite.NotEmpty(clusterCertificateAuthorityData, "Cluster certificate authority data should not be empty")
 	suite.NotEmpty(clusterOidcIssuerUrl, "Cluster OIDC issuer URL should not be empty")
@@ -520,7 +537,7 @@ func (suite *StagedDeploymentTestSuite) setupMaterializeConsolidatedStage(stage,
 
 }
 
-func (suite *StagedDeploymentTestSuite) useExistingNetwork() {
+func (suite *StagedDeploymentTestSuite) useExistingNetwork() string {
 	t := suite.T()
 	testCloudDir := filepath.Join(dir.GetProjectRootDir(), utils.MainTestDir, utils.AWS)
 	lastRunDir, err := dir.GetLastRunTestStageDir(testCloudDir)
@@ -529,16 +546,31 @@ func (suite *StagedDeploymentTestSuite) useExistingNetwork() {
 	}
 	// Use the full path returned by the helper
 	suite.workingDir = lastRunDir
-	latestDir := filepath.Base(lastRunDir)
 
-	// Load vpc id using test_structure (handles .test-data path internally)
+	// Load and return the unique ID
+	uniqueId := test_structure.LoadString(t, suite.workingDir, "resource_unique_id")
+	if uniqueId == "" {
+		t.Fatal("❌ Cannot use existing network: Unique ID not found. Run network setup stage first.")
+	}
+	suite.uniqueId = uniqueId
+
+	// Validate that network was created successfully by checking VPC ID
 	networkStageDir := filepath.Join(suite.workingDir, utils.NetworkingDir)
 	vpcID := test_structure.LoadString(t, networkStageDir, "vpc_id")
+	latestDir := filepath.Base(lastRunDir)
 	if vpcID == "" {
-		t.Fatalf("❌ Cannot skip network creation: VPC Id is empty in stage output directory %s", latestDir)
+		t.Fatalf("❌ Cannot skip network creation: VPC ID is empty in state directory %s", latestDir)
 	}
 
-	t.Logf("♻️ Skipping network creation, using existing: %s (ID: %s)", vpcID, latestDir)
+	// Initialize S3 backend manager for existing network
+	s3Manager, err := initS3BackendManager(t, uniqueId)
+	if err != nil {
+		t.Fatalf("❌ Failed to initialize S3 backend manager: %v", err)
+	}
+	suite.s3Manager = s3Manager
+
+	t.Logf("♻️ Using existing network from: %s (ID: %s, VPC: %s)", suite.workingDir, uniqueId, vpcID)
+	return uniqueId
 }
 
 // TestStagedDeploymentSuite runs the staged deployment test suite

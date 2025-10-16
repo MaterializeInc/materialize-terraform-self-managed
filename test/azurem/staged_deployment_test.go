@@ -13,6 +13,7 @@ import (
 	"github.com/MaterializeInc/materialize-terraform-self-managed/test/utils/config"
 	"github.com/MaterializeInc/materialize-terraform-self-managed/test/utils/dir"
 	"github.com/MaterializeInc/materialize-terraform-self-managed/test/utils/helpers"
+	"github.com/MaterializeInc/materialize-terraform-self-managed/test/utils/s3backend"
 	"github.com/gruntwork-io/terratest/modules/terraform"
 	test_structure "github.com/gruntwork-io/terratest/modules/test-structure"
 	"github.com/stretchr/testify/suite"
@@ -22,6 +23,8 @@ import (
 type StagedDeploymentSuite struct {
 	basesuite.BaseTestSuite
 	workingDir string
+	uniqueId   string
+	s3Manager  *s3backend.Manager
 }
 
 // SetupSuite initializes the test suite
@@ -49,8 +52,7 @@ func (suite *StagedDeploymentSuite) TearDownSuite() {
 			terraform.Destroy(t, networkOptions)
 			t.Logf("✅ Network cleanup completed")
 
-			uniqueId := test_structure.LoadString(t, suite.workingDir, "resource_unique_id")
-			helpers.CleanupTestWorkspace(t, utils.Azure, uniqueId, utils.NetworkingDir)
+			helpers.CleanupTestWorkspace(t, utils.Azure, suite.uniqueId, utils.NetworkingDir)
 
 			// Remove entire state directory since network is the foundation
 			t.Logf("🗂️ Removing state directory: %s", suite.workingDir)
@@ -60,6 +62,10 @@ func (suite *StagedDeploymentSuite) TearDownSuite() {
 			t.Logf("♻️ No network to cleanup (was not created in this test)")
 		}
 	})
+
+	// S3 backend state files are managed by Terraform and will persist in S3
+	// Use S3 lifecycle policies to manage retention if needed
+
 	suite.TearDownBaseSuite()
 }
 
@@ -101,8 +107,7 @@ func (suite *StagedDeploymentSuite) cleanupStage(stageName, stageDir string) {
 	t.Logf("✅ %s stage cleanup completed", stageName)
 
 	// Cleanup workspace
-	uniqueId := test_structure.LoadString(t, suite.workingDir, "resource_unique_id")
-	helpers.CleanupTestWorkspace(t, utils.Azure, uniqueId, stageDir)
+	helpers.CleanupTestWorkspace(t, utils.Azure, suite.uniqueId, stageDir)
 }
 
 // TestFullDeployment tests full infrastructure deployment
@@ -117,23 +122,30 @@ func (suite *StagedDeploymentSuite) TestFullDeployment() {
 
 	// Stage 1: Network Setup
 	test_structure.RunTestStage(t, "setup_network", func() {
-		// Generate unique ID for this infrastructure family
 		var uniqueId string
 		if os.Getenv("USE_EXISTING_NETWORK") != "" {
-			suite.useExistingNetwork()
-			uniqueId = test_structure.LoadString(t, suite.workingDir, "resource_unique_id")
-			if uniqueId == "" {
-				t.Fatal("❌ Cannot use existing network: Unique ID not found. Run network setup stage first.")
-			}
+			// Use existing network and initialize S3 backend
+			uniqueId = suite.useExistingNetwork()
 		} else {
+			// Generate unique ID for new infrastructure
 			uniqueId = generateAzureCompliantID()
 			suite.workingDir = filepath.Join(dir.GetProjectRootDir(), utils.MainTestDir, utils.Azure, uniqueId)
 			os.MkdirAll(suite.workingDir, 0755)
 			t.Logf("🏷️ Infrastructure ID: %s", uniqueId)
 			t.Logf("📁 Test Stage Output directory: %s", suite.workingDir)
+
 			// Save unique ID for subsequent stages
 			test_structure.SaveString(t, suite.workingDir, "resource_unique_id", uniqueId)
+			suite.uniqueId = uniqueId
+
+			// Initialize S3 backend manager for new network
+			s3Manager, err := initS3BackendManager(t, uniqueId)
+			if err != nil {
+				t.Fatalf("❌ Failed to initialize S3 backend manager: %v", err)
+			}
+			suite.s3Manager = s3Manager
 		}
+
 		// Short ID will used as resource name prefix so that we don't exceed the length limit
 		shortId := strings.Split(uniqueId, "-")[1]
 		// Set up networking fixture
@@ -168,6 +180,9 @@ func (suite *StagedDeploymentSuite) TestFullDeployment() {
 			NoColor:            true,
 		}
 
+		// Configure S3 backend if enabled - Terraform will handle state management
+		applyBackendConfigToTerraformOptions(networkOptions, suite.s3Manager, utils.NetworkingDir)
+
 		// Save terraform options for potential cleanup stage
 		networkStageDir := filepath.Join(suite.workingDir, utils.NetworkingDir)
 		test_structure.SaveTerraformOptions(t, networkStageDir, networkOptions)
@@ -201,6 +216,8 @@ func (suite *StagedDeploymentSuite) TestFullDeployment() {
 		t.Logf("  🏷️ Resource ID: %s", uniqueId)
 
 	})
+
+	// If network stage was skipped, use existing network
 	if os.Getenv("SKIP_setup_network") != "" {
 		suite.useExistingNetwork()
 	}
@@ -256,22 +273,21 @@ func (suite *StagedDeploymentSuite) setupMaterializeConsolidatedStage(stage, sta
 	aksSubnetName := test_structure.LoadString(t, networkStageDir, "aks_subnet_name")
 	postgresSubnetId := test_structure.LoadString(t, networkStageDir, "postgres_subnet_id")
 	privateDNSZoneId := test_structure.LoadString(t, networkStageDir, "private_dns_zone_id")
-	resourceId := test_structure.LoadString(t, suite.workingDir, "resource_unique_id")
 
 	// Validate required network data exists
-	if resourceGroupName == "" || vnetName == "" || aksSubnetId == "" || postgresSubnetId == "" || privateDNSZoneId == "" || resourceId == "" {
+	if resourceGroupName == "" || vnetName == "" || aksSubnetId == "" || postgresSubnetId == "" || privateDNSZoneId == "" || suite.uniqueId == "" {
 		t.Fatal("❌ Cannot create Materialize stack: Missing network data. Run network setup stage first.")
 	}
 
-	t.Logf("🔗 Using infrastructure family: %s", resourceId)
+	t.Logf("🔗 Using infrastructure family: %s", suite.uniqueId)
 
 	// Set up consolidated Materialize fixture
-	materializePath := helpers.SetupTestWorkspace(t, utils.Azure, resourceId, utils.MaterializeFixture, stageDir)
+	materializePath := helpers.SetupTestWorkspace(t, utils.Azure, suite.uniqueId, utils.MaterializeFixture, stageDir)
 
 	expectedInstanceNamespace := fmt.Sprintf("mz-instance-%s", nameSuffix)
 	expectedOperatorNamespace := fmt.Sprintf("mz-operator-%s", nameSuffix)
 	expectedCertManagerNamespace := fmt.Sprintf("cert-manager-%s", nameSuffix)
-	shortId := strings.Split(resourceId, "-")[1]
+	shortId := strings.Split(suite.uniqueId, "-")[1]
 	resourceName := fmt.Sprintf("%s%s", shortId, nameSuffix)
 
 	// Create terraform.tfvars.json file instead of using Vars map
@@ -315,7 +331,7 @@ func (suite *StagedDeploymentSuite) setupMaterializeConsolidatedStage(stage, sta
 		"node_labels": map[string]string{
 			"environment":  helpers.GetEnvironment(),
 			"project":      utils.ProjectName,
-			"test-run":     resourceId,
+			"test-run":     suite.uniqueId,
 			"disk-enabled": strconv.FormatBool(diskEnabled),
 		},
 
@@ -357,7 +373,7 @@ func (suite *StagedDeploymentSuite) setupMaterializeConsolidatedStage(stage, sta
 		"tags": map[string]string{
 			"environment":  helpers.GetEnvironment(),
 			"project":      utils.ProjectName,
-			"test-run":     resourceId,
+			"test-run":     suite.uniqueId,
 			"disk-enabled": strconv.FormatBool(diskEnabled),
 		},
 	}
@@ -373,6 +389,9 @@ func (suite *StagedDeploymentSuite) setupMaterializeConsolidatedStage(stage, sta
 		TimeBetweenRetries: TestRetryDelay,
 		NoColor:            true,
 	}
+
+	// Configure S3 backend if enabled - Terraform will handle state management
+	applyBackendConfigToTerraformOptions(materializeOptions, suite.s3Manager, stageDir)
 
 	// Save terraform options for cleanup
 	stageDirPath := filepath.Join(suite.workingDir, stageDir)
@@ -510,7 +529,7 @@ func (suite *StagedDeploymentSuite) setupMaterializeConsolidatedStage(stage, sta
 	t.Logf("  📜 Cluster Issuer Name: %s", clusterIssuerName)
 }
 
-func (suite *StagedDeploymentSuite) useExistingNetwork() {
+func (suite *StagedDeploymentSuite) useExistingNetwork() string {
 	t := suite.T()
 	// Get the most recent state directory
 	testCloudDir := filepath.Join(dir.GetProjectRootDir(), utils.MainTestDir, utils.Azure)
@@ -522,15 +541,29 @@ func (suite *StagedDeploymentSuite) useExistingNetwork() {
 	// Use the full path returned by the helper
 	suite.workingDir = latestDirPath
 	latestDir := filepath.Base(latestDirPath)
+	// Load and return the unique ID
+	uniqueId := test_structure.LoadString(t, suite.workingDir, "resource_unique_id")
+	if uniqueId == "" {
+		t.Fatal("❌ Cannot use existing network: Unique ID not found. Run network setup stage first.")
+	}
+	suite.uniqueId = uniqueId
 
-	// Load network name using test_structure (handles .test-data path internally)
+	// Validate that network was created successfully by checking VNet name
 	networkStageDir := filepath.Join(suite.workingDir, utils.NetworkingDir)
 	vnetName := test_structure.LoadString(t, networkStageDir, "vnet_name")
 	if vnetName == "" {
 		t.Fatalf("❌ Cannot skip network creation: VNet name is empty in state directory %s", latestDir)
 	}
 
-	t.Logf("♻️ Skipping network creation, using existing: %s (ID: %s)", vnetName, latestDir)
+	// Initialize S3 backend manager for existing network
+	s3Manager, err := initS3BackendManager(t, uniqueId)
+	if err != nil {
+		t.Fatalf("❌ Failed to initialize S3 backend manager: %v", err)
+	}
+	suite.s3Manager = s3Manager
+
+	t.Logf("♻️ Using existing network from: %s (ID: %s, VNet: %s)", suite.workingDir, uniqueId, vnetName)
+	return uniqueId
 }
 
 // TestStagedDeploymentSuite runs the test suite

@@ -27,4 +27,7 @@ terraform {
       version = "~> 2.0"
     }
   }
+
+  # S3 backend configuration (configured dynamically via -backend-config flags)
+  backend "s3" {}
 }
