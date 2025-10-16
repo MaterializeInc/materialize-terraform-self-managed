@@ -28,7 +28,7 @@ Terratest tests for Azure Materialize Terraform modules using staged deployment.
 cd test && go mod tidy
 
 # Full test (network + materialize + cleanup)
-cd test/azurem
+cd test/azure
 go test -timeout 135m -run TestStagedDeploymentSuite -v
 
 # Network only
@@ -59,16 +59,16 @@ Tests create `terraform.tfvars.json` files in each fixture directory (`{uniqueId
 **Manual Cleanup:**
 ```bash
 # Check existing infrastructure
-ls -la test/azurem/
+ls -la test/azure/
 
 # Manual terraform operations
-cd test/azurem/{uniqueId}/{fixtureDirectory}
+cd test/azure/{uniqueId}/{fixtureDirectory}
 terraform plan    # Review changes
 terraform apply   # Apply changes
 terraform destroy # Cleanup resources
 
 # Remove state directory
-rm -rf test/azurem/{uniqueId}
+rm -rf test/azure/{uniqueId}
 ```
 
 **Environment Variables:**

@@ -14,7 +14,7 @@ provider "azurerm" {
 
 # AKS cluster with default node pool for all workloads
 module "aks" {
-  source = "../../../../azurem/modules/aks"
+  source = "../../../../azure/modules/aks"
 
   resource_group_name = var.resource_group_name
   kubernetes_version  = var.kubernetes_version
@@ -41,7 +41,7 @@ module "aks" {
 
 # Additional node pool for Materialize workloads
 module "nodepool" {
-  source = "../../../../azurem/modules/nodepool"
+  source = "../../../../azure/modules/nodepool"
 
   prefix     = var.prefix
   cluster_id = module.aks.cluster_id
@@ -64,7 +64,7 @@ module "nodepool" {
 
 # Database
 module "database" {
-  source = "../../../../azurem/modules/database"
+  source = "../../../../azure/modules/database"
 
   # Database configuration
   databases = var.databases
@@ -142,7 +142,7 @@ module "self_signed_cluster_issuer" {
 
 # Materialize Operator
 module "operator" {
-  source = "../../../../azurem/modules/operator"
+  source = "../../../../azure/modules/operator"
 
   name_prefix        = var.prefix
   location           = var.location
@@ -159,7 +159,7 @@ module "operator" {
 
 # Storage (Azure Blob)
 module "storage" {
-  source = "../../../../azurem/modules/storage"
+  source = "../../../../azure/modules/storage"
 
   prefix                = var.prefix
   resource_group_name   = var.resource_group_name
@@ -211,7 +211,7 @@ module "materialize_instance" {
 
 # Load Balancer
 module "load_balancer" {
-  source = "../../../../azurem/modules/load_balancers"
+  source = "../../../../azure/modules/load_balancers"
 
   instance_name = var.instance_name
   namespace     = var.instance_namespace
