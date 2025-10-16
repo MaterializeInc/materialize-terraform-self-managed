@@ -35,26 +35,6 @@ output "cluster_oidc_issuer_url" {
   value       = module.eks.cluster_oidc_issuer_url
 }
 
-output "generic_node_group_id" {
-  description = "ID of the generic node group"
-  value       = module.generic_node_group.node_group_id
-}
-
-output "generic_node_group_arn" {
-  description = "ARN of the generic node group"
-  value       = module.generic_node_group.node_group_arn
-}
-
-output "materialize_node_group_id" {
-  description = "ID of the Materialize node group"
-  value       = module.materialize_node_group.node_group_id
-}
-
-output "materialize_node_group_arn" {
-  description = "ARN of the Materialize node group"
-  value       = module.materialize_node_group.node_group_arn
-}
-
 # Database outputs
 output "database_endpoint" {
   description = "RDS instance endpoint"

@@ -27,6 +27,20 @@ resource "helm_release" "cert_manager" {
       value = set.value
     }
   }
+  dynamic "set" {
+    for_each = var.node_selector
+    content {
+      name  = "webhook.nodeSelector.${set.key}"
+      value = set.value
+    }
+  }
+  dynamic "set" {
+    for_each = var.node_selector
+    content {
+      name  = "cainjector.nodeSelector.${set.key}"
+      value = set.value
+    }
+  }
 
   # Add tolerations for cert-manager pods if provided
   dynamic "set" {
