@@ -10,7 +10,7 @@ const (
 	// here as well. Could take these as env vars but might do it later if needed.
 	AWS   = "aws"
 	GCP   = "gcp"
-	Azure = "azurem"
+	Azure = "azure"
 
 	// Test infrastructure directories
 	MainTestDir = "test"
