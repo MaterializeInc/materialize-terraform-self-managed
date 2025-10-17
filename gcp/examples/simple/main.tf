@@ -97,15 +97,6 @@ locals {
   local_ssd_count = 1
   swap_enabled    = true
 
-  # metadata_backend_url = format(
-  #   "postgres://%s:%s@%s:5432/%s?sslmode=disable",
-  #   module.database.users[0].name,
-  #   urlencode(module.database.users[0].password),
-  #   module.database.private_ip,
-  #   local.database_config.database.name
-  # )
-
-
   database_statement_timeout = "15min"
 
   metadata_backend_url = format(

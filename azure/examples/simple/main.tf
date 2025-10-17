@@ -76,14 +76,6 @@ locals {
 
   storage_container_name = "materialize"
 
-  # metadata_backend_url = format(
-  #   "postgres://%s:%s@%s/%s?sslmode=require",
-  #   module.database.administrator_login,
-  #   urlencode(module.database.administrator_password),
-  #   module.database.server_fqdn,
-  #   local.database_config.database_name
-  # )
-
   database_statement_timeout = "15min"
 
   metadata_backend_url = format(
