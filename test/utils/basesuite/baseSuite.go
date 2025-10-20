@@ -31,7 +31,7 @@ func (suite *BaseTestSuite) SetupBaseSuite(suiteName string, cloud string, confi
 			suite.OriginalEnv[config.Key] = value
 		}
 	}
-	
+
 	suite.loadEnvironmentFiles(cloud)
 
 	// Log current configuration

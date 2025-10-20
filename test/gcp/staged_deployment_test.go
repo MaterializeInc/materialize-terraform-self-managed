@@ -378,8 +378,8 @@ func (suite *StagedDeploymentSuite) setupMaterializeConsolidatedStage(stage, sta
 		"operator_namespace": expectedOperatorNamespace,
 
 		// Materialize Instance Configuration
-		"instance_name":                TestMaterializeInstanceName,
-		"instance_namespace":           expectedInstanceNamespace,
+		"instance_name":      TestMaterializeInstanceName,
+		"instance_namespace": expectedInstanceNamespace,
 		"user": map[string]interface{}{
 			"name":     TestDBUsername,
 			"password": TestPassword,

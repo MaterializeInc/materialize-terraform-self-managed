@@ -55,7 +55,6 @@ const (
 	TestRetryDelay  = 10 // seconds
 	TestParallelism = 10
 
-
 	// Test environment variables
 	TestPassword   = "test-password-123!"
 	TestDBName     = "materialize_test"
