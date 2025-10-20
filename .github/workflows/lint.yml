@@ -6,7 +6,7 @@ on:
 
 jobs:
   lint:
-    name: Lint
+    name: Terraform Lint
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -75,7 +75,7 @@ jobs:
           terraform validate
 
   lint-go:
-    name: Lint Go Tests
+    name: Go Tests Lint
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
