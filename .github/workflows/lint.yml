@@ -1,7 +1,9 @@
-name: Lint and Test
+name: Lint and Validate
 
 on:
   pull_request:
+    branches: [ main ]
+  push:
     branches: [ main ]
 
 jobs:
@@ -9,53 +11,98 @@ jobs:
     name: Lint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-      - uses: hashicorp/setup-terraform@v3
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: "1.8.0"
 
       - name: Terraform Format Check
         run: terraform fmt -check -recursive
 
-      - uses: terraform-linters/setup-tflint@v4
+      - name: Setup TFLint
+        uses: terraform-linters/setup-tflint@v4
         with:
           tflint_version: v0.58.0
 
-      - name: TFLint
-        run: |
-          tflint --init
-          tflint --recursive --format compact
+      - name: Initialize TFLint
+        run: tflint --init
+
+      - name: Run TFLint
+        run: tflint --recursive --format compact
 
   validate:
-    name: Validate Examples
+    name: Validate Simple Examples
     runs-on: ubuntu-latest
     strategy:
       matrix:
         example:
           # Add new examples here as they are created
           - "aws/examples/simple"
+          - "azure/examples/simple"
+          - "gcp/examples/simple"
       fail-fast: false
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-      - uses: hashicorp/setup-terraform@v3
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: "1.8.0"
 
       - name: Check if example exists
+        id: check-dir
         run: |
           if [ ! -d "${{ matrix.example }}" ]; then
-            echo "Example directory ${{ matrix.example }} does not exist, skipping"
-            exit 0
+            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "⚠️ Example directory ${{ matrix.example }} does not exist, skipping"
+          else
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "✅ Example directory ${{ matrix.example }} exists"
           fi
 
       - name: Terraform Init
+        if: steps.check-dir.outputs.exists == 'true'
         run: |
           cd ${{ matrix.example }}
           terraform init -backend=false
 
       - name: Terraform Validate
+        if: steps.check-dir.outputs.exists == 'true'
         run: |
           cd ${{ matrix.example }}
           terraform validate
+
+  lint-go:
+    name: Lint Go Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23.5'
+          cache-dependency-path: test/go.sum
+
+      - name: Run go fmt
+        working-directory: test
+        run: |
+          if [ -n "$(gofmt -l .)" ]; then
+            echo "❌ Go files are not formatted. Run 'gofmt -w .' to fix:"
+            gofmt -l .
+            exit 1
+          fi
+          echo "✅ All Go files are properly formatted"
+
+      - name: Run go vet
+        working-directory: test
+        run: go vet ./...
+
+      - name: Run go mod verify
+        working-directory: test
+        run: go mod verify
