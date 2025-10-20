@@ -7,6 +7,17 @@ provider "aws" {
   }
 }
 
+# The ECR public authorization token endpoint isn't in all regions,
+# so lets get a new provider just for this purpose.
+provider "aws" {
+  region = "us-east-1"
+  alias  = "ecrpublic_token_provider"
+}
+
+data "aws_ecrpublic_authorization_token" "token" {
+  provider = aws.ecrpublic_token_provider
+}
+
 provider "kubernetes" {
   host                   = module.eks.cluster_endpoint
   cluster_ca_certificate = base64decode(module.eks.cluster_certificate_authority_data)
@@ -68,42 +79,120 @@ module "eks" {
   cluster_enabled_log_types                = ["api", "audit"]
   enable_cluster_creator_admin_permissions = true
   tags                                     = var.tags
+
+  depends_on = [
+    module.networking,
+  ]
 }
 
-# 2.1. Create generic node group for all workloads except Materialize
-module "generic_node_group" {
-  source                            = "../../modules/eks-node-group"
+# 2.1 Create base node group for Karpenter and coredns
+module "base_node_group" {
+  source = "../../modules/eks-node-group"
+
   cluster_name                      = module.eks.cluster_name
   subnet_ids                        = module.networking.private_subnet_ids
-  node_group_name                   = "${var.name_prefix}-generic"
-  instance_types                    = ["t4g.xlarge"]
+  node_group_name                   = "${var.name_prefix}-base"
+  instance_types                    = local.instance_types_base
   swap_enabled                      = false
   min_size                          = 2
-  max_size                          = 5
+  max_size                          = 3
   desired_size                      = 2
-  labels                            = local.generic_node_labels
+  labels                            = local.base_node_labels
   cluster_service_cidr              = module.eks.cluster_service_cidr
   cluster_primary_security_group_id = module.eks.node_security_group_id
   tags                              = var.tags
 }
 
-# 2.2. Create Materialize-dedicated node group with taints
-module "materialize_node_group" {
-  source          = "../../modules/eks-node-group"
-  cluster_name    = module.eks.cluster_name
-  subnet_ids      = module.networking.private_subnet_ids
-  node_group_name = "${var.name_prefix}-mz"
-  swap_enabled    = true
-  min_size        = 2
-  max_size        = 5
-  desired_size    = 2
-  labels          = local.materialize_node_labels
-  instance_types  = ["r7gd.2xlarge"]
-  # Materialize-specific taint to isolate workloads
-  node_taints                       = local.materialize_node_taints
-  cluster_service_cidr              = module.eks.cluster_service_cidr
-  cluster_primary_security_group_id = module.eks.node_security_group_id
-  tags                              = var.tags
+# 2.2 Install Karpenter to manage creation of additional nodes
+module "karpenter" {
+  source = "../../modules/karpenter"
+
+  name_prefix             = var.name_prefix
+  cluster_name            = module.eks.cluster_name
+  cluster_endpoint        = module.eks.cluster_endpoint
+  oidc_provider_arn       = module.eks.oidc_provider_arn
+  cluster_oidc_issuer_url = module.eks.cluster_oidc_issuer_url
+  node_selector           = local.base_node_labels
+
+  helm_repo_username = data.aws_ecrpublic_authorization_token.token.user_name
+  helm_repo_password = data.aws_ecrpublic_authorization_token.token.password
+
+  depends_on = [
+    module.eks,
+    module.base_node_group,
+    module.networking,
+  ]
+}
+
+# Create a generic nodeclass and nodepool for all workloads except Materialize.
+module "ec2nodeclass_generic" {
+  source = "../../modules/karpenter-ec2nodeclass"
+
+  name               = local.nodeclass_name_generic
+  ami_selector_terms = local.ami_selector_terms
+  instance_types     = local.instance_types_generic
+  instance_profile   = module.karpenter.node_instance_profile
+  security_group_ids = [module.eks.node_security_group_id]
+  subnet_ids         = module.networking.private_subnet_ids
+  swap_enabled       = false
+  tags               = var.tags
+
+  depends_on = [
+    module.karpenter,
+  ]
+}
+
+module "nodepool_generic" {
+  source = "../../modules/karpenter-nodepool"
+
+  name           = local.nodeclass_name_generic
+  nodeclass_name = local.nodeclass_name_generic
+  instance_types = local.instance_types_generic
+  node_labels    = local.generic_node_labels
+  expire_after   = "168h"
+
+  kubeconfig_data = local.kubeconfig_data
+
+  depends_on = [
+    module.karpenter,
+    module.ec2nodeclass_generic,
+  ]
+}
+
+# Create a dedicated nodeclass and nodepool for Materialize pods.
+module "ec2nodeclass_materialize" {
+  source = "../../modules/karpenter-ec2nodeclass"
+
+  name               = local.nodeclass_name_materialize
+  ami_selector_terms = local.ami_selector_terms
+  instance_types     = local.instance_types_materialize
+  instance_profile   = module.karpenter.node_instance_profile
+  security_group_ids = [module.eks.node_security_group_id]
+  subnet_ids         = module.networking.private_subnet_ids
+  swap_enabled       = true
+  tags               = var.tags
+
+  depends_on = [
+    module.karpenter,
+  ]
+}
+
+module "nodepool_materialize" {
+  source = "../../modules/karpenter-nodepool"
+
+  name           = local.nodeclass_name_materialize
+  nodeclass_name = local.nodeclass_name_materialize
+  instance_types = local.instance_types_materialize
+  node_labels    = local.materialize_node_labels
+  node_taints    = local.materialize_node_taints
+  expire_after   = "Never"
+
+  kubeconfig_data = local.kubeconfig_data
+
+  depends_on = [
+    module.karpenter,
+    module.ec2nodeclass_materialize,
+  ]
 }
 
 # 3. Install AWS Load Balancer Controller
@@ -122,7 +211,7 @@ module "aws_lbc" {
 
   depends_on = [
     module.eks,
-    module.generic_node_group,
+    module.nodepool_generic,
   ]
 }
 
@@ -135,7 +224,7 @@ module "cert_manager" {
   depends_on = [
     module.networking,
     module.eks,
-    module.generic_node_group,
+    module.nodepool_generic,
     module.aws_lbc,
   ]
 }
@@ -169,7 +258,7 @@ module "operator" {
   depends_on = [
     module.eks,
     module.networking,
-    module.generic_node_group,
+    module.nodepool_generic,
   ]
 }
 
@@ -258,7 +347,7 @@ module "materialize_instance" {
     module.self_signed_cluster_issuer,
     module.operator,
     module.aws_lbc,
-    module.materialize_node_group,
+    module.nodepool_materialize,
   ]
 }
 
@@ -286,19 +375,24 @@ locals {
   materialize_instance_name      = "main"
 
   # Common node scheduling configuration
+  base_node_labels = {
+    "workload" = "base"
+  }
+
   generic_node_labels = {
     "workload" = "generic"
   }
 
   materialize_node_labels = {
-    "workload" = "materialize-instance"
+    "materialize.cloud/swap" = "true"
+    "workload"               = "materialize-instance"
   }
 
   materialize_node_taints = [
     {
       key    = "materialize.cloud/workload"
       value  = "materialize-instance"
-      effect = "NO_SCHEDULE"
+      effect = "NoSchedule"
     }
   ]
 
@@ -328,6 +422,60 @@ locals {
     local.materialize_instance_namespace,
     local.materialize_instance_name
   )
+
+  ami_selector_terms = [{ "alias" : "bottlerocket@latest" }]
+
+  instance_types_base        = ["t4g.medium"]
+  instance_types_generic     = ["t4g.xlarge"]
+  instance_types_materialize = ["r7gd.2xlarge"]
+
+  nodeclass_name_generic     = "generic"
+  nodeclass_name_materialize = "materialize"
+
+  kubeconfig_data = jsonencode({
+    "apiVersion" : "v1",
+    "kind" : "Config",
+    "clusters" : [
+      {
+        "name" : module.eks.cluster_name,
+        "cluster" : {
+          "certificate-authority-data" : module.eks.cluster_certificate_authority_data,
+          "server" : module.eks.cluster_endpoint,
+        },
+      },
+    ],
+    "contexts" : [
+      {
+        "name" : module.eks.cluster_name,
+        "context" : {
+          "cluster" : module.eks.cluster_name,
+          "user" : module.eks.cluster_name,
+        },
+      },
+    ],
+    "current-context" : module.eks.cluster_name,
+    "users" : [
+      {
+        "name" : module.eks.cluster_name,
+        "user" : {
+          "exec" : {
+            "apiVersion" : "client.authentication.k8s.io/v1beta1",
+            "command" : "aws",
+            "args" : [
+              "eks",
+              "get-token",
+              "--cluster-name",
+              module.eks.cluster_name,
+              "--region",
+              var.aws_region,
+              "--profile",
+              var.aws_profile,
+            ]
+          }
+        },
+      },
+    ],
+  })
 }
 
 data "aws_caller_identity" "current" {}
