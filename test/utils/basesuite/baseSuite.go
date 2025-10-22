@@ -58,6 +58,13 @@ func (suite *BaseTestSuite) TearDownBaseSuite() {
 }
 
 func (suite *BaseTestSuite) loadEnvironmentFiles(cloudDir string) {
+	// Skip loading .env files in GitHub Actions - use repository variables instead
+	if os.Getenv("GITHUB_ACTIONS") == "true" {
+		suite.T().Logf("🤖 Running in GitHub Actions - skipping .env file loading")
+		suite.T().Logf("📋 Configuration will be loaded from repository variables and secrets")
+		return
+	}
+
 	// First load envs from local.env,
 	// if local env file exists the exit without loading other env files
 	envFiles := []string{"local.env", ".env"}

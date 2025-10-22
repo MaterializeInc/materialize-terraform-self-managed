@@ -115,7 +115,7 @@ func (suite *StagedDeploymentTestSuite) cleanupStage(stageName, stageDir string)
 func (suite *StagedDeploymentTestSuite) TestFullDeployment() {
 	t := suite.T()
 	awsRegion := os.Getenv("AWS_REGION")
-	awsProfile := os.Getenv("AWS_PROFILE")
+	awsProfile := getAWSProfileForTerraform() // Use helper function for OIDC compatibility
 
 	// Stage 1: Network Setup
 	test_structure.RunTestStage(t, "setup_network", func() {
@@ -148,7 +148,6 @@ func (suite *StagedDeploymentTestSuite) TestFullDeployment() {
 		// Create terraform.tfvars.json file for network stage
 		networkTfvarsPath := filepath.Join(networkingPath, "terraform.tfvars.json")
 		networkVariables := map[string]interface{}{
-			"profile":              awsProfile,
 			"region":               awsRegion,
 			"name_prefix":          fmt.Sprintf("%s-net", uniqueId),
 			"vpc_cidr":             TestVPCCIDR,
@@ -162,6 +161,11 @@ func (suite *StagedDeploymentTestSuite) TestFullDeployment() {
 				"project":     utils.ProjectName,
 				"test-run":    uniqueId,
 			},
+		}
+
+		// Add profile only if it's not empty (for local testing)
+		if awsProfile != "" {
+			networkVariables["profile"] = awsProfile
 		}
 		helpers.CreateTfvarsFile(t, networkTfvarsPath, networkVariables)
 
@@ -282,8 +286,7 @@ func (suite *StagedDeploymentTestSuite) setupMaterializeConsolidatedStage(stage,
 	// Build variables map for the generic tfvars creation function
 	variables := map[string]interface{}{
 		// AWS Configuration
-		"profile": profile,
-		"region":  region,
+		"region": region,
 
 		// Network Configuration
 		"vpc_id":     vpcId,
@@ -354,6 +357,11 @@ func (suite *StagedDeploymentTestSuite) setupMaterializeConsolidatedStage(stage,
 			"test-run":     suite.uniqueId,
 			"disk-enabled": fmt.Sprintf("%t", diskEnabled),
 		},
+	}
+
+	// Add profile only if it's not empty (for local testing)
+	if profile != "" {
+		variables["profile"] = profile
 	}
 
 	helpers.CreateTfvarsFile(t, tfvarsPath, variables)

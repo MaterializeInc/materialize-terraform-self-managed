@@ -4,6 +4,6 @@ terraform {
     key     = "github-setup/oidc/terraform.tfstate"
     region  = "us-east-1"
     encrypt = true
-    # profile = "aws-profile-name"  # Add your profile name here since backend block doesn't accept variables
+    profile = "materialize-admin" # Add your profile name here since backend block doesn't accept variables
   }
 }
