@@ -151,7 +151,7 @@ func (suite *StagedDeploymentTestSuite) TestFullDeployment() {
 			"region":               awsRegion,
 			"name_prefix":          fmt.Sprintf("%s-net", uniqueId),
 			"vpc_cidr":             TestVPCCIDR,
-			"availability_zones":   []string{TestAvailabilityZoneA, TestAvailabilityZoneB},
+			"availability_zones":   getAvailabilityZones(awsRegion),
 			"private_subnet_cidrs": []string{TestPrivateSubnetCIDRA, TestPrivateSubnetCIDRB},
 			"public_subnet_cidrs":  []string{TestPublicSubnetCIDRA, TestPublicSubnetCIDRB},
 			"single_nat_gateway":   true,

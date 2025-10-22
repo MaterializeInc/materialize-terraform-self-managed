@@ -84,3 +84,12 @@ func getAWSProfileForTerraform() string {
 
 	return profile
 }
+
+// getAvailabilityZones returns availability zones for the given AWS region
+// Returns the first two AZs (typically 'a' and 'b') for any region
+func getAvailabilityZones(awsRegion string) []string {
+	return []string{
+		awsRegion + "a",
+		awsRegion + "b",
+	}
+}
