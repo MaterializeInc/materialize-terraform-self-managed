@@ -77,12 +77,5 @@ jobs:
           SKIP_setup_materialize_disk_enabled: ${{ github.event.inputs.test_stage == 'network-only' && 'true' || '' }}
           SKIP_setup_materialize_disk_disabled: ${{ github.event.inputs.test_stage == 'network-only' && 'true' || '' }}
         run: |
-          echo "Running test stage: ${{ github.event.inputs.test_stage || 'network-only' }}"
-
-          if [ "${{ github.event.inputs.test_stage }}" == "full-test" ]; then
-            echo "Running full test suite..."
-            go test -timeout 135m -run TestStagedDeploymentSuite -v
-          else
-            echo "Running network-only test..."
-            go test -timeout 30m -run TestStagedDeploymentSuite -v
-          fi
+          echo "Running tests"
+          go test -timeout 135m -run TestStagedDeploymentSuite -v
