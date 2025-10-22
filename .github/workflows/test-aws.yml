@@ -39,6 +39,7 @@ jobs:
           role-to-assume: ${{ vars.GA_AWS_IAM_ROLE }}
           role-session-name: GitHubActions-AWS-Tests
           aws-region: ${{ vars.AWS_REGION || 'us-east-1' }}
+          # Max duration of the role is 8 hours as per IAM role configuration in .github/setup/aws/main.tf
           role-duration-seconds: 14400 # 4 hours
 
       - name: Verify AWS Authentication
