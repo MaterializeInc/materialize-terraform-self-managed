@@ -1,6 +1,8 @@
 name: AWS Tests
 
 on:
+  push:
+    branches: [test-ci]
   # Manual trigger for testing
   workflow_dispatch:
     inputs:
