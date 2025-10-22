@@ -65,6 +65,7 @@ jobs:
         env:
           AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
           MATERIALIZE_LICENSE_KEY: ${{ secrets.MATERIALIZE_LICENSE_KEY }}
+          GITHUB_ACTIONS: "true"
           # S3 Remote Backend Configuration
           TF_TEST_REMOTE_BACKEND: "true"
           TF_TEST_S3_BUCKET: ${{ vars.TF_TEST_S3_BUCKET }}
