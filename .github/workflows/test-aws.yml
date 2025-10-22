@@ -39,6 +39,7 @@ jobs:
           role-to-assume: ${{ vars.GA_AWS_IAM_ROLE }}
           role-session-name: GitHubActions-AWS-Tests
           aws-region: ${{ vars.AWS_REGION || 'us-east-1' }}
+          role-duration-seconds: 10800 # 3 hours
 
       - name: Verify AWS Authentication
         run: |
