@@ -86,6 +86,12 @@ resource "google_project_iam_member" "github_actions_container_admin" {
   member  = "serviceAccount:${google_service_account.github_actions.email}"
 }
 
+resource "google_project_iam_member" "github_actions_compute_admin" {
+  project = var.project_id
+  role    = "roles/compute.admin"
+  member  = "serviceAccount:${google_service_account.github_actions.email}"
+}
+
 # Allow the Workload Identity Pool to impersonate the Service Account
 resource "google_service_account_iam_member" "github_actions_workload_identity_user" {
   service_account_id = google_service_account.github_actions.name
@@ -97,12 +103,13 @@ resource "google_service_account_iam_member" "github_actions_workload_identity_u
 resource "google_project_service" "required_apis" {
   for_each = toset([
     "container.googleapis.com",
+    "compute.googleapis.com",               # Required for GKE node creation
     "sqladmin.googleapis.com",
     "cloudresourcemanager.googleapis.com",
     "servicenetworking.googleapis.com",
     "iamcredentials.googleapis.com",
-    "iam.googleapis.com",        # Required for roles/iam.serviceAccountAdmin
-    "storage.googleapis.com"     # Required for roles/storage.admin
+    "iam.googleapis.com",                   # Required for roles/iam.serviceAccountAdmin
+    "storage.googleapis.com"                # Required for roles/storage.admin
   ])
 
   project = var.project_id
