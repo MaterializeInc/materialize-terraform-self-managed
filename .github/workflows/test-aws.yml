@@ -1,20 +1,17 @@
 name: AWS Tests
 
 on:
-  push:
-    branches: [test-ci]
   # Manual trigger for testing
   workflow_dispatch:
     inputs:
       test_stage:
         description: "Test stage to run"
         required: false
-        default: "network-only"
+        default: "full-test"
         type: choice
         options:
           - network-only
           - full-test
-          - cleanup-only
 
   # TODO: Add scheduled and PR triggers later
   # schedule:
