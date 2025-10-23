@@ -139,6 +139,7 @@ module "cert_manager" {
   depends_on = [
     module.eks_node_group,
     module.eks,
+    module.aws_lbc,
   ]
 }
 
@@ -213,10 +214,13 @@ module "materialize_instance" {
   }
 
   depends_on = [
+    module.eks,
+    module.database,
     module.storage,
     module.self_signed_cluster_issuer,
     module.operator,
-    module.database,
+    module.aws_lbc,
+    module.eks_node_group,
   ]
 }
 
