@@ -114,7 +114,7 @@ func (suite *StagedDeploymentSuite) cleanupStage(stageName, stageDir string) {
 // Stages: Network → (disk-enabled-setup) → (disk-disabled-setup)
 func (suite *StagedDeploymentSuite) TestFullDeployment() {
 	t := suite.T()
-	subscriptionID := os.Getenv("ARM_SUBSCRIPTION_ID")
+	subscriptionID := os.Getenv("AZURE_SUBSCRIPTION_ID")
 	testRegion := os.Getenv("TEST_REGION")
 	if testRegion == "" {
 		testRegion = TestRegion
