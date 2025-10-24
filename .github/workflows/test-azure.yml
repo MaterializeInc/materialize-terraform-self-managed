@@ -79,6 +79,7 @@ jobs:
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
           AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
           MATERIALIZE_LICENSE_KEY: ${{ secrets.MATERIALIZE_LICENSE_KEY }}
+          TEST_REGION: westus2
           GITHUB_ACTIONS: "true"
           # S3 Remote Backend Configuration (for terraform state)
           TF_TEST_REMOTE_BACKEND: "true"
