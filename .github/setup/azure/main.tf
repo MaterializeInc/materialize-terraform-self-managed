@@ -20,14 +20,27 @@ resource "azuread_service_principal" "github_actions" {
   tags = ["GitHubActions", "MaterializeTerraform", "OIDC"]
 }
 
-# Single Federated Identity Credential for all GitHub Actions scenarios
-resource "azuread_application_federated_identity_credential" "github_actions" {
+# Federated Identity Credentials for GitHub Actions OIDC
+# Azure requires specific branch patterns rather than wildcards
+
+# For main branch
+resource "azuread_application_federated_identity_credential" "github_actions_main" {
   application_id = azuread_application.github_actions.id
-  display_name   = "mz-github-actions-oidc"
-  description    = "Federated credential for GitHub Actions OIDC authentication for materialize-terraform-self-managed repository"
+  display_name   = "mz-github-actions-oidc-main"
+  description    = "Federated credential for GitHub Actions on main branch"
   audiences      = ["api://AzureADTokenExchange"]
   issuer         = "https://token.actions.githubusercontent.com"
-  subject        = "repo:${var.github_repository}:*"
+  subject        = "repo:${var.github_repository}:ref:refs/heads/main"
+}
+
+# For pull requests
+resource "azuread_application_federated_identity_credential" "github_actions_pr" {
+  application_id = azuread_application.github_actions.id
+  display_name   = "mz-github-actions-oidc-pr"
+  description    = "Federated credential for GitHub Actions on pull requests"
+  audiences      = ["api://AzureADTokenExchange"]
+  issuer         = "https://token.actions.githubusercontent.com"
+  subject        = "repo:${var.github_repository}:pull_request"
 }
 
 # Get current Azure AD configuration

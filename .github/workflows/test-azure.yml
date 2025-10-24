@@ -1,8 +1,8 @@
 name: Azure Tests
 
 on:
-  push:
-    branches: [test-ci]
+  pull_request:
+    branches: [main]
   # Manual trigger for testing
   workflow_dispatch:
     inputs:
