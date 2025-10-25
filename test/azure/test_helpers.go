@@ -41,7 +41,7 @@ func generateAzureCompliantID() string {
 func getRequiredAzureConfigurations() []config.Configuration {
 	return []config.Configuration{
 		{
-			Key:  "ARM_SUBSCRIPTION_ID",
+			Key:  "AZURE_SUBSCRIPTION_ID",
 			Type: config.Critical,
 		},
 		{

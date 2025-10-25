@@ -3,6 +3,7 @@ package test
 import (
 	"fmt"
 	"math/rand"
+	"os"
 	"time"
 
 	"github.com/MaterializeInc/materialize-terraform-self-managed/test/utils/config"
@@ -41,8 +42,7 @@ func getRequiredAWSConfigurations() []config.Configuration {
 			Type: config.Critical,
 		},
 		{
-			Key:  "AWS_PROFILE",
-			Type: config.Critical,
+			Key: "AWS_PROFILE",
 		},
 		{
 			Key: "MATERIALIZE_LICENSE_KEY",
@@ -68,5 +68,28 @@ func getRequiredAWSConfigurations() []config.Configuration {
 		{
 			Key: "SKIP_cleanup_testDiskDisabled",
 		},
+	}
+}
+
+// getAWSProfileForTerraform returns the AWS profile for terraform configuration
+// Returns empty string when running in GitHub Actions (OIDC environment)
+func getAWSProfileForTerraform() string {
+	profile := os.Getenv("AWS_PROFILE")
+
+	// Check if we're running in GitHub Actions
+	if os.Getenv("GITHUB_ACTIONS") == "true" {
+		// In GitHub Actions, credentials are provided via OIDC, no profile needed
+		return ""
+	}
+
+	return profile
+}
+
+// getAvailabilityZones returns availability zones for the given AWS region
+// Returns the first two AZs (typically 'a' and 'b') for any region
+func getAvailabilityZones(awsRegion string) []string {
+	return []string{
+		awsRegion + "a",
+		awsRegion + "b",
 	}
 }
