@@ -51,49 +51,48 @@ data "azurerm_client_config" "current" {}
 
 
 # Principle of Least Privilege: Minimal role assignments based on fixture requirements
-# All role names verified against Azure CLI output
-
+# Refer roles from https://learn.microsoft.com/en-us/azure/role-based-access-control/built-in-roles to follow the principle of least privilege
 # For AKS cluster management
-resource "azurerm_role_assignment" "github_actions_aks_contributor" {
-  scope                = "/subscriptions/${data.azurerm_client_config.current.subscription_id}"
-  role_definition_name = "Azure Kubernetes Service Contributor Role"
-  principal_id         = azuread_service_principal.github_actions.object_id
-}
+# resource "azurerm_role_assignment" "github_actions_aks_contributor" {
+#   scope                = "/subscriptions/${data.azurerm_client_config.current.subscription_id}"
+#   role_definition_name = "Azure Kubernetes Service Contributor Role"
+#   principal_id         = azuread_service_principal.github_actions.object_id
+# }
 
-# For networking (VNets, subnets)
-resource "azurerm_role_assignment" "github_actions_network_contributor" {
-  scope                = "/subscriptions/${data.azurerm_client_config.current.subscription_id}"
-  role_definition_name = "Network Contributor"
-  principal_id         = azuread_service_principal.github_actions.object_id
-}
+# # For networking (VNets, subnets)
+# resource "azurerm_role_assignment" "github_actions_network_contributor" {
+#   scope                = "/subscriptions/${data.azurerm_client_config.current.subscription_id}"
+#   role_definition_name = "Network Contributor"
+#   principal_id         = azuread_service_principal.github_actions.object_id
+# }
 
-# For PostgreSQL database management
-resource "azurerm_role_assignment" "github_actions_sql_contributor" {
-  scope                = "/subscriptions/${data.azurerm_client_config.current.subscription_id}"
-  role_definition_name = "SQL DB Contributor"
-  principal_id         = azuread_service_principal.github_actions.object_id
-}
+# # For PostgreSQL database management
+# resource "azurerm_role_assignment" "github_actions_sql_contributor" {
+#   scope                = "/subscriptions/${data.azurerm_client_config.current.subscription_id}"
+#   role_definition_name = "SQL DB Contributor"
+#   principal_id         = azuread_service_principal.github_actions.object_id
+# }
 
-# For storage account management
-resource "azurerm_role_assignment" "github_actions_storage_contributor" {
-  scope                = "/subscriptions/${data.azurerm_client_config.current.subscription_id}"
-  role_definition_name = "Storage Account Contributor"
-  principal_id         = azuread_service_principal.github_actions.object_id
-}
+# # For storage account management
+# resource "azurerm_role_assignment" "github_actions_storage_contributor" {
+#   scope                = "/subscriptions/${data.azurerm_client_config.current.subscription_id}"
+#   role_definition_name = "Storage Account Contributor"
+#   principal_id         = azuread_service_principal.github_actions.object_id
+# }
 
-# For blob storage operations
-resource "azurerm_role_assignment" "github_actions_storage_blob" {
-  scope                = "/subscriptions/${data.azurerm_client_config.current.subscription_id}"
-  role_definition_name = "Storage Blob Data Contributor"
-  principal_id         = azuread_service_principal.github_actions.object_id
-}
+# # For blob storage operations
+# resource "azurerm_role_assignment" "github_actions_storage_blob" {
+#   scope                = "/subscriptions/${data.azurerm_client_config.current.subscription_id}"
+#   role_definition_name = "Storage Blob Data Contributor"
+#   principal_id         = azuread_service_principal.github_actions.object_id
+# }
 
-# For workload identity management (Azure AD managed identities)
-resource "azurerm_role_assignment" "github_actions_managed_identity_contributor" {
-  scope                = "/subscriptions/${data.azurerm_client_config.current.subscription_id}"
-  role_definition_name = "Managed Identity Contributor"
-  principal_id         = azuread_service_principal.github_actions.object_id
-}
+# # For workload identity management (Azure AD managed identities)
+# resource "azurerm_role_assignment" "github_actions_managed_identity_contributor" {
+#   scope                = "/subscriptions/${data.azurerm_client_config.current.subscription_id}"
+#   role_definition_name = "Managed Identity Contributor"
+#   principal_id         = azuread_service_principal.github_actions.object_id
+# }
 
 # For Azure Monitor and Log Analytics (if enabled)
 # resource "azurerm_role_assignment" "github_actions_log_analytics_contributor" {
@@ -102,6 +101,7 @@ resource "azurerm_role_assignment" "github_actions_managed_identity_contributor"
 #   principal_id         = azuread_service_principal.github_actions.object_id
 # }
 
+# Facing issues with the custom role definition, so using the built-in Contributor role instead. Figure it out later
 # For resource group creation/management (required by networking fixture)
 # Note: No specific "Resource Group Contributor" role exists - using generic Contributor
 # resource "azurerm_role_assignment" "github_actions_contributor" {
@@ -109,3 +109,36 @@ resource "azurerm_role_assignment" "github_actions_managed_identity_contributor"
 #   role_definition_name = "Contributor"
 #   principal_id         = azuread_service_principal.github_actions.object_id
 # }
+
+# resource "azurerm_role_definition" "resource_group_manager" {
+#   name        = "GitHub Actions Resource Group Manager"
+#   scope       = "/subscriptions/${data.azurerm_client_config.current.subscription_id}"
+#   description = "Minimal permissions for resource group creation and management"
+
+#   permissions {
+#     actions = [
+#       # Core resource group operations (absolutely minimal)
+#       "Microsoft.Resources/subscriptions/resourcegroups/read",
+#       "Microsoft.Resources/subscriptions/resourcegroups/write", 
+#       "Microsoft.Resources/subscriptions/resourcegroups/delete"
+#     ]
+#     not_actions = []
+#   }
+
+#   assignable_scopes = [
+#     "/subscriptions/${data.azurerm_client_config.current.subscription_id}"
+#   ]
+# }
+
+# # Assign the custom resource group role
+# resource "azurerm_role_assignment" "github_actions_resource_group_manager" {
+#   scope              = "/subscriptions/${data.azurerm_client_config.current.subscription_id}"
+#   role_definition_id = azurerm_role_definition.resource_group_manager.role_definition_resource_id
+#   principal_id       = azuread_service_principal.github_actions.object_id
+# }
+
+resource "azurerm_role_assignment" "github_actions_contributor" {
+  scope                = "/subscriptions/${data.azurerm_client_config.current.subscription_id}"
+  role_definition_name = "Contributor"
+  principal_id         = azuread_service_principal.github_actions.object_id
+}
