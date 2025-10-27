@@ -28,9 +28,9 @@ on:
       # Workflow changes
       - ".github/workflows/test-*.yml"
 
-# Prevent resource conflicts - only one workflow instance per PR
+# Prevent resource conflicts - only one workflow instance per branch
 concurrency:
-  group: infra-tests-${{ github.event.pull_request.number }}
+  group: infra-tests-${{ github.ref_name }}
   cancel-in-progress: false # Don't cancel running tests
 
 permissions:
@@ -52,6 +52,40 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
+            // Handle different event types
+            let currentSha, prNumber;
+
+            if (context.eventName === 'pull_request_review') {
+              currentSha = context.payload.pull_request.head.sha;
+              prNumber = context.payload.pull_request.number;
+            } else if (context.eventName === 'push') {
+              currentSha = context.sha;
+              // For push events, we need to find the PR
+              const { data: prs } = await github.rest.pulls.list({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                head: `${context.repo.owner}:${context.ref.replace('refs/heads/', '')}`,
+                state: 'open'
+              });
+              
+              if (prs.length === 0) {
+                console.log('⚠️ No open PR found for this push event - skipping infrastructure tests');
+                console.log('💡 Create a PR to enable approval-gated testing');
+                core.setOutput('existing-count', 0);
+                core.setOutput('pr-number', '');
+                core.setOutput('current-sha', currentSha);
+                core.setOutput('no-pr', 'true');
+                return 0;
+              }
+              
+              prNumber = prs[0].number;
+              console.log(`📋 Found PR #${prNumber} for push to ${context.ref}`);
+            } else {
+              console.log(`⚠️ Unexpected event type: ${context.eventName}`);
+              core.setOutput('existing-count', 0);
+              return 0;
+            }
+
             const { data: runs } = await github.rest.actions.listWorkflowRuns({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -60,7 +94,6 @@ jobs:
               per_page: 100
             });
 
-            const currentSha = context.payload.pull_request.head.sha;
             const prRuns = runs.workflow_runs.filter(run => 
               run.head_sha === currentSha &&
               run.id !== context.runId  // Exclude current run
@@ -70,20 +103,27 @@ jobs:
             console.log('Existing run details:', prRuns.map(r => `${r.id} (${r.status})`));
             core.setOutput('existing-count', prRuns.length);
 
+            // Store for later steps
+            core.setOutput('pr-number', prNumber);
+            core.setOutput('current-sha', currentSha);
+
             return prRuns.length;
 
       - name: Check if PR is approved (with debouncing)
         id: approval
+        if: ${{ steps.existing-runs.outputs.no-pr != 'true' }}
         uses: actions/github-script@v7
         with:
           script: |
             // Wait a few seconds to catch rapid multiple approvals/pushes
             await new Promise(resolve => setTimeout(resolve, 5000));
 
+            const prNumber = ${{ steps.existing-runs.outputs.pr-number }};
+
             const { data: reviews } = await github.rest.pulls.listReviews({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              pull_number: context.payload.pull_request.number,
+              pull_number: prNumber,
             });
 
             // Get the latest review from each reviewer
@@ -101,7 +141,7 @@ jobs:
 
             const isApproved = approvedReviews.length > 0;
 
-            console.log(`PR #${context.payload.pull_request.number} approval status:`);
+            console.log(`PR #${prNumber} approval status:`);
             console.log(`- Total unique reviewers: ${reviewers.size}`);
             console.log(`- Approved by: ${approvedReviews.map(r => r.user.login).join(', ')}`);
             console.log(`- Final approval status: ${isApproved}`);
@@ -111,13 +151,16 @@ jobs:
 
       - name: Check for infrastructure changes
         id: changes
+        if: ${{ steps.existing-runs.outputs.no-pr != 'true' }}
         uses: actions/github-script@v7
         with:
           script: |
+            const prNumber = ${{ steps.existing-runs.outputs.pr-number }};
+
             const { data: files } = await github.rest.pulls.listFiles({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              pull_number: context.payload.pull_request.number,
+              pull_number: prNumber,
             });
 
             const changedClouds = [];
@@ -187,6 +230,14 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
+            // Skip if no PR exists
+            if ('${{ steps.existing-runs.outputs.no-pr }}' === 'true') {
+              console.log('⏸️ Skipping: No PR exists for this branch');
+              console.log('💡 Create a PR to enable infrastructure tests');
+              core.setOutput('should-run', false);
+              return;
+            }
+
             const existingRuns = ${{ steps.existing-runs.outputs.existing-count }};
             const isApproved = '${{ steps.approval.outputs.approved }}' === 'true';
             const hasChanges = '${{ steps.changes.outputs.changes }}' !== '';
