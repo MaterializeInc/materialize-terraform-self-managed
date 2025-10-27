@@ -101,7 +101,7 @@ data "azurerm_client_config" "current" {}
 #   principal_id         = azuread_service_principal.github_actions.object_id
 # }
 
-# Facing issues with the custom role definition, so using the built-in Contributor role instead. Figure it out later
+# Facing issues with the custom role definition, so using the built-in Contributor role instead. Because I cannot create custom role definitions.
 # For resource group creation/management (required by networking fixture)
 # Note: No specific "Resource Group Contributor" role exists - using generic Contributor
 # resource "azurerm_role_assignment" "github_actions_contributor" {
@@ -130,7 +130,7 @@ data "azurerm_client_config" "current" {}
 #   ]
 # }
 
-# # Assign the custom resource group role
+# # Assign the custom resource group role not able to perform this getting authz error
 # resource "azurerm_role_assignment" "github_actions_resource_group_manager" {
 #   scope              = "/subscriptions/${data.azurerm_client_config.current.subscription_id}"
 #   role_definition_id = azurerm_role_definition.resource_group_manager.role_definition_resource_id
@@ -141,4 +141,41 @@ resource "azurerm_role_assignment" "github_actions_contributor" {
   scope                = "/subscriptions/${data.azurerm_client_config.current.subscription_id}"
   role_definition_name = "Contributor"
   principal_id         = azuread_service_principal.github_actions.object_id
+}
+
+# RBAC Administrator role for AKS role assignments
+# AKS modules need to assign network roles to managed identities and subnets
+# Commented out due to ABAC restrictions - use more specific roles instead
+# Maybe make it more restrictive to only assing
+# ---> Network Contributor and Storage Blob Data Contributor since we only assign those in az modules
+resource "azurerm_role_assignment" "github_actions_rbac_admin" {
+  scope                = "/subscriptions/${data.azurerm_client_config.current.subscription_id}"
+  role_definition_name = "Role Based Access Control Administrator"  
+  principal_id         = azuread_service_principal.github_actions.object_id
+  
+  # ABAC condition to block assignment of high-privilege roles
+  # Allows assignment of any role EXCEPT: Owner, User Access Administrator, RBAC Administrator
+  # Role GUIDs: 8e3af657... (Owner), 18d7d88d... (User Access Admin), f58310d9... (RBAC Admin)
+  condition = <<-EOT
+    (
+      (!(ActionMatches{'Microsoft.Authorization/roleAssignments/write'})) 
+      OR 
+      (@Request[Microsoft.Authorization/roleAssignments:RoleDefinitionId] ForAnyOfAllValues:GuidNotEquals {
+        8e3af657-a8ff-443c-a75c-2fe8c4bcb635, 
+        18d7d88d-d35e-4fb5-a5c3-7773c20a72d9, 
+        f58310d9-a9f6-439a-9e8d-f62e7b41a168
+      })
+    ) 
+    AND 
+    (
+      (!(ActionMatches{'Microsoft.Authorization/roleAssignments/delete'})) 
+      OR 
+      (@Resource[Microsoft.Authorization/roleAssignments:RoleDefinitionId] ForAnyOfAllValues:GuidNotEquals {
+        8e3af657-a8ff-443c-a75c-2fe8c4bcb635, 
+        18d7d88d-d35e-4fb5-a5c3-7773c20a72d9, 
+        f58310d9-a9f6-439a-9e8d-f62e7b41a168
+      })
+    )
+  EOT
+  condition_version    = "2.0"
 }

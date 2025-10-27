@@ -1,7 +1,9 @@
 name: GCP Tests
 
 on:
-  # Manual trigger for testing
+  # Only run via approval workflow or manual trigger
+  # Removed pull_request trigger to prevent duplicate runs
+  workflow_call: # Called by test-on-approval.yml
   workflow_dispatch:
     inputs:
       test_stage:
@@ -25,6 +27,7 @@ jobs:
   test-gcp:
     name: GCP Infrastructure Tests
     runs-on: ubuntu-latest
+    # Note: Approval-gated tests now handled by test-on-approval.yml workflow
 
     steps:
       - name: Checkout code
