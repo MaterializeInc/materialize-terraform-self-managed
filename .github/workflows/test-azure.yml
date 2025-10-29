@@ -1,125 +1,126 @@
-# Uncomment after fixing Azure permissions issue
-# name: Azure Tests
+name: Azure Tests
 
-# on:
-#   # Primary trigger: GitHub merge queue with smart path filtering
-#   merge_group:
-#     paths-ignore:
-#       # Exclude other cloud providers
-#       - "aws/**"
-#       - "gcp/**"
-#       - "test/aws/**"
-#       - "test/gcp/**"
-#       # Exclude setup files from other cloud providers
-#       - ".github/setup/aws/**"
-#       - ".github/setup/gcp/**"
-#       # Exclude examples
-#       - "azure/examples/**"
-#       # Exclude documentation and config
-#       - "**.md"
-#       - "**.env"
-#       - ".gitignore"
-#       - "LICENSE"
-#       # Exclude AWS/GCP specific workflows
-#       - ".github/workflows/test-aws*.yml"
-#       - ".github/workflows/test-gcp*.yml"
-#       - ".github/scripts/**"
-#   # Manual trigger: For testing and debugging purposes
-#   workflow_dispatch:
-#     inputs:
-#       test_stage:
-#         description: "Test stage to run"
-#         required: false
-#         default: "full-test"
-#         type: choice
-#         options:
-#           - network-only
-#           - full-test
+on:
+  # Primary trigger: GitHub merge queue with smart path filtering
+  merge_group:
+    paths-ignore:
+      - "**" # Ignore all paths - effectively disables this workflow remove this to enabled the workflow once perms issue is fixed
+      # Exclude other cloud providers
+      - "aws/**"
+      - "gcp/**"
+      - "test/aws/**"
+      - "test/gcp/**"
+      # Exclude setup files from other cloud providers
+      - ".github/setup/aws/**"
+      - ".github/setup/gcp/**"
+      # Exclude examples
+      - "azure/examples/**"
+      # Exclude documentation and config
+      - "**.md"
+      - "**.env"
+      - ".gitignore"
+      - "LICENSE"
+      # Exclude AWS/GCP specific workflows
+      - ".github/workflows/test-aws*.yml"
+      - ".github/workflows/test-gcp*.yml"
+      - ".github/scripts/**"
 
-#   # Future enhancement: Add scheduled runs for nightly testing
-#   # schedule:
-#   #   - cron: '30 4 * * *'  # 10 AM IST (4:30 AM UTC) for nightly infrastructure validation
+  # Manual trigger: For testing and debugging purposes
+  workflow_dispatch:
+    inputs:
+      test_stage:
+        description: "Test stage to run"
+        required: false
+        default: "full-test"
+        type: choice
+        options:
+          - network-only
+          - full-test
 
-# permissions:
-#   id-token: write # Required for OIDC
-#   contents: read # Required to checkout code
+  # Future enhancement: Add scheduled runs for nightly testing
+  # schedule:
+  #   - cron: '30 4 * * *'  # 10 AM IST (4:30 AM UTC) for nightly infrastructure validation
 
-# jobs:
-#   test-azure:
-#     name: Azure Infrastructure Tests
-#     runs-on: ubuntu-latest
-    
-#     steps:
-#       - name: Checkout code
-#         uses: actions/checkout@v4
+permissions:
+  id-token: write # Required for OIDC
+  contents: read # Required to checkout code
 
-#       - name: Configure AWS credentials via OIDC (for S3 backend)
-#         uses: aws-actions/configure-aws-credentials@v4
-#         with:
-#           role-to-assume: ${{ vars.GA_AWS_IAM_ROLE }}
-#           role-session-name: GitHubActions-Azure-S3Backend
-#           aws-region: ${{ vars.TF_TEST_S3_REGION || 'us-east-1' }}
+jobs:
+  test-azure:
+    name: Azure Infrastructure Tests
+    runs-on: ubuntu-latest
 
-#       - name: Verify AWS Authentication (for S3 backend)
-#         run: |
-#           echo "Testing AWS authentication for S3 backend..."
-#           aws sts get-caller-identity
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-#       - name: Azure Login via OIDC
-#         uses: azure/login@v2
-#         with:
-#           client-id: ${{ secrets.AZURE_CLIENT_ID }}
-#           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-#           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - name: Configure AWS credentials via OIDC (for S3 backend)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.GA_AWS_IAM_ROLE }}
+          role-session-name: GitHubActions-Azure-S3Backend
+          aws-region: ${{ vars.TF_TEST_S3_REGION || 'us-east-1' }}
 
-#       - name: Verify Azure Authentication
-#         run: |
-#           echo "Testing Azure authentication..."
-#           az account show
-#           az account list-locations --output table
+      - name: Verify AWS Authentication (for S3 backend)
+        run: |
+          echo "Testing AWS authentication for S3 backend..."
+          aws sts get-caller-identity
 
-#       - name: Setup Terraform
-#         uses: hashicorp/setup-terraform@v3
-#         with:
-#           terraform_version: "1.9.0"
+      - name: Azure Login via OIDC
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-#       - name: Setup Go
-#         uses: actions/setup-go@v5
-#         with:
-#           go-version: "1.23.5"
-#           cache-dependency-path: test/go.sum
+      - name: Verify Azure Authentication
+        run: |
+          echo "Testing Azure authentication..."
+          az account show
+          az account list-locations --output table
 
-#       - name: Install dependencies
-#         working-directory: test
-#         run: go mod tidy
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.9.0"
 
-#       - name: Run Azure Tests
-#         working-directory: test/azure
-#         env:
-#           AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-#           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-#           AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-#           MATERIALIZE_LICENSE_KEY: ${{ secrets.MATERIALIZE_LICENSE_KEY }}
-#           TEST_REGION: westus2
-#           GITHUB_ACTIONS: "true"
-#           # S3 Remote Backend Configuration (for terraform state)
-#           TF_TEST_REMOTE_BACKEND: "true"
-#           TF_TEST_S3_BUCKET: ${{ vars.TF_TEST_S3_BUCKET }}
-#           TF_TEST_S3_REGION: ${{ vars.TF_TEST_S3_REGION || 'us-east-1' }}
-#           TF_TEST_S3_PREFIX: ${{ vars.TF_TEST_S3_PREFIX || 'github-actions-test-runs' }}
-#           # Note: AWS credentials for S3 backend provided via OIDC above
-#           # Azure credentials for Azure provider provided via OIDC above
-#           # Terratest: Set env vars to SKIP stages, unset to RUN stages
-#           SKIP_setup_materialize_disk_enabled: ${{ github.event.inputs.test_stage == 'network-only' && 'true' || '' }}
-#           SKIP_setup_materialize_disk_disabled: ${{ github.event.inputs.test_stage == 'network-only' && 'true' || '' }}
-#         run: |
-#           echo "🚀 Running tests for Azure..."
-#           echo "📁 Current working directory: $(pwd)"
-#           echo "🔧 Go version: $(go version)"
-#           echo ""
-#           echo "📋 Environment variables:"
-#           env | sort
-#           echo ""
-#           echo "🧪 Starting Go tests..."
-          
-#           go test -timeout 240m -run TestStagedDeploymentSuite -v -count=1
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.23.5"
+          cache-dependency-path: test/go.sum
+
+      - name: Install dependencies
+        working-directory: test
+        run: go mod tidy
+
+      - name: Run Azure Tests
+        working-directory: test/azure
+        env:
+          AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          MATERIALIZE_LICENSE_KEY: ${{ secrets.MATERIALIZE_LICENSE_KEY }}
+          TEST_REGION: westus2
+          GITHUB_ACTIONS: "true"
+          # S3 Remote Backend Configuration (for terraform state)
+          TF_TEST_REMOTE_BACKEND: "true"
+          TF_TEST_S3_BUCKET: ${{ vars.TF_TEST_S3_BUCKET }}
+          TF_TEST_S3_REGION: ${{ vars.TF_TEST_S3_REGION || 'us-east-1' }}
+          TF_TEST_S3_PREFIX: ${{ vars.TF_TEST_S3_PREFIX || 'github-actions-test-runs' }}
+          # Note: AWS credentials for S3 backend provided via OIDC above
+          # Azure credentials for Azure provider provided via OIDC above
+          # Terratest: Set env vars to SKIP stages, unset to RUN stages
+          SKIP_setup_materialize_disk_enabled: ${{ github.event.inputs.test_stage == 'network-only' && 'true' || '' }}
+          SKIP_setup_materialize_disk_disabled: ${{ github.event.inputs.test_stage == 'network-only' && 'true' || '' }}
+        run: |
+          echo "🚀 Running tests for Azure..."
+          echo "📁 Current working directory: $(pwd)"
+          echo "🔧 Go version: $(go version)"
+          echo ""
+          echo "📋 Environment variables:"
+          env | sort
+          echo ""
+          echo "🧪 Starting Go tests..."
+
+          go test -timeout 240m -run TestStagedDeploymentSuite -v -count=1
