@@ -49,6 +49,22 @@ data "azuread_client_config" "current" {}
 # Get current subscription
 data "azurerm_client_config" "current" {}
 
+# Get built-in role definitions for ABAC conditions
+data "azurerm_role_definition" "owner" {
+  name  = "Owner"
+  scope = "/subscriptions/${data.azurerm_client_config.current.subscription_id}"
+}
+
+data "azurerm_role_definition" "user_access_administrator" {
+  name  = "User Access Administrator"
+  scope = "/subscriptions/${data.azurerm_client_config.current.subscription_id}"
+}
+
+data "azurerm_role_definition" "rbac_administrator" {
+  name  = "Role Based Access Control Administrator"
+  scope = "/subscriptions/${data.azurerm_client_config.current.subscription_id}"
+}
+
 
 # Principle of Least Privilege: Minimal role assignments based on fixture requirements
 # Refer roles from https://learn.microsoft.com/en-us/azure/role-based-access-control/built-in-roles to follow the principle of least privilege
@@ -155,15 +171,16 @@ resource "azurerm_role_assignment" "github_actions_rbac_admin" {
   
   # ABAC condition to block assignment of high-privilege roles
   # Allows assignment of any role EXCEPT: Owner, User Access Administrator, RBAC Administrator
-  # Role GUIDs: 8e3af657... (Owner), 18d7d88d... (User Access Admin), f58310d9... (RBAC Admin)
+  # Using data sources to get role GUIDs dynamically instead of hardcoding
+  # TODO: Test and validate this configuration, havent tested due to Perms issue.
   condition = <<-EOT
     (
       (!(ActionMatches{'Microsoft.Authorization/roleAssignments/write'})) 
       OR 
       (@Request[Microsoft.Authorization/roleAssignments:RoleDefinitionId] ForAnyOfAllValues:GuidNotEquals {
-        8e3af657-a8ff-443c-a75c-2fe8c4bcb635, 
-        18d7d88d-d35e-4fb5-a5c3-7773c20a72d9, 
-        f58310d9-a9f6-439a-9e8d-f62e7b41a168
+        ${data.azurerm_role_definition.owner.id}, 
+        ${data.azurerm_role_definition.user_access_administrator.id}, 
+        ${data.azurerm_role_definition.rbac_administrator.id}
       })
     ) 
     AND 
@@ -171,9 +188,9 @@ resource "azurerm_role_assignment" "github_actions_rbac_admin" {
       (!(ActionMatches{'Microsoft.Authorization/roleAssignments/delete'})) 
       OR 
       (@Resource[Microsoft.Authorization/roleAssignments:RoleDefinitionId] ForAnyOfAllValues:GuidNotEquals {
-        8e3af657-a8ff-443c-a75c-2fe8c4bcb635, 
-        18d7d88d-d35e-4fb5-a5c3-7773c20a72d9, 
-        f58310d9-a9f6-439a-9e8d-f62e7b41a168
+        ${data.azurerm_role_definition.owner.id}, 
+        ${data.azurerm_role_definition.user_access_administrator.id}, 
+        ${data.azurerm_role_definition.rbac_administrator.id}
       })
     )
   EOT

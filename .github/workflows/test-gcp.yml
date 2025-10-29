@@ -1,23 +1,43 @@
 name: GCP Tests
 
 on:
-  # Only run via approval workflow or manual trigger
-  # Removed pull_request trigger to prevent duplicate runs
-  workflow_call: # Called by test-on-approval.yml
+  # Primary trigger: GitHub merge queue with smart path filtering
+  merge_group:
+    paths-ignore:
+      # Exclude other cloud providers
+      - "aws/**"
+      - "azure/**"
+      - "test/aws/**"
+      - "test/azure/**"
+      # Exclude setup files from other cloud providers
+      - ".github/setup/aws/**"
+      - ".github/setup/azure/**"
+      # Exclude examples
+      - "gcp/examples/**"
+      # Exclude documentation and config
+      - "**.md"
+      - "**.env"
+      - ".gitignore"
+      - "LICENSE"
+      # Exclude AWS/Azure specific workflows
+      - ".github/workflows/test-aws*.yml"
+      - ".github/workflows/test-azure*.yml"
+      - ".github/scripts/**"
+  # Manual trigger: For testing and debugging purposes
   workflow_dispatch:
     inputs:
       test_stage:
         description: "Test stage to run"
         required: false
-        default: "network-only"
+        default: "full-test"
         type: choice
         options:
           - network-only
           - full-test
 
-  # TODO: Add scheduled and PR triggers later
+  # Future enhancement: Add scheduled runs for nightly testing
   # schedule:
-  #   - cron: '30 4 * * *'  # 10 AM IST (4:30 AM UTC)
+  #   - cron: '30 4 * * *'  # 10 AM IST (4:30 AM UTC) for nightly infrastructure validation
 
 permissions:
   id-token: write # Required for Workload Identity
@@ -27,7 +47,6 @@ jobs:
   test-gcp:
     name: GCP Infrastructure Tests
     runs-on: ubuntu-latest
-    # Note: Approval-gated tests now handled by test-on-approval.yml workflow
 
     steps:
       - name: Checkout code

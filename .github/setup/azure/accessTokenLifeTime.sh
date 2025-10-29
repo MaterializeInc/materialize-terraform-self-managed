@@ -1,3 +1,9 @@
+
+#!/bin/bash
+
+# Exit early on error/unset var/pipe failure
+set -euo pipefail
+
 # 1. Create a 4-hour token lifetime policy and capture the policy ID
 POLICY_RESPONSE=$(az rest --method POST \
   --url "https://graph.microsoft.com/v1.0/policies/tokenLifetimePolicies" \
