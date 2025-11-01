@@ -1,5 +1,4 @@
-
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Exit early on error/unset var/pipe failure
 set -euo pipefail
