@@ -202,10 +202,12 @@ module "materialize_instance" {
   }
 
   depends_on = [
-    module.operator,
-    module.storage,
+    module.aks,
     module.database,
+    module.storage,
     module.self_signed_cluster_issuer,
+    module.operator,
+    module.nodepool,
   ]
 }
 

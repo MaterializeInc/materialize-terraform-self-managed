@@ -1,6 +1,6 @@
 provider "aws" {
   region  = var.region # Replace with your desired AWS region
-  profile = var.profile
+  profile = var.profile != null ? var.profile : null
 }
 
 module "networking" {

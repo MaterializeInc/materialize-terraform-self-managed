@@ -19,7 +19,7 @@ Terratest tests for Azure Materialize Terraform modules using staged deployment.
 - Go 1.23+, Terraform 1.0+
 - Azure subscription with required services
 - Service Principal with `Contributor` and `User Access Administrator` roles
-- Set `ARM_SUBSCRIPTION_ID=your-subscription-id`
+- Set `AZURE_SUBSCRIPTION_ID=your-subscription-id`
 
 ## Running Tests
 
@@ -73,7 +73,7 @@ rm -rf test/azure/{uniqueId}
 
 **Environment Variables:**
 - Loaded from `local.env` (if exists) or `.env`
-- Can be set manually: `export ARM_SUBSCRIPTION_ID=your-subscription-id`
+- Can be set manually: `export AZURE_SUBSCRIPTION_ID=your-subscription-id`
 
 ## Troubleshooting
 

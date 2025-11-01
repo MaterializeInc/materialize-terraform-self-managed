@@ -4,6 +4,9 @@ import (
 	"encoding/json"
 	"os"
 	"testing"
+
+	"github.com/gruntwork-io/terratest/modules/terraform"
+	test_structure "github.com/gruntwork-io/terratest/modules/test-structure"
 )
 
 // CreateTfvarsFile creates a terraform.tfvars.json file using JSON format
@@ -21,4 +24,14 @@ func CreateTfvarsFile(t *testing.T, tfvarsPath string, variables map[string]inte
 	}
 
 	t.Logf("📝 Created terraform.tfvars.json file: %s", tfvarsPath)
+}
+
+func SafeLoadTerraformOptions(t *testing.T, testDataDir string) *terraform.Options {
+	terraformOptionsPath := test_structure.FormatTestDataPath(testDataDir, "TerraformOptions.json")
+
+	if !test_structure.IsTestDataPresent(t, terraformOptionsPath) {
+		return nil
+	}
+
+	return test_structure.LoadTerraformOptions(t, testDataDir)
 }

@@ -5,8 +5,9 @@ variable "region" {
 }
 
 variable "profile" {
-  description = "AWS profile to use for authentication"
+  description = "AWS profile to use for authentication (optional for OIDC)"
   type        = string
+  default     = null
 }
 
 # Network Variables
