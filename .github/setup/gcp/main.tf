@@ -30,12 +30,13 @@ resource "google_iam_workload_identity_pool_provider" "github_actions" {
 
   # Attribute mapping from GitHub OIDC token to GCP attributes
   attribute_mapping = {
-    "google.subject"             = "assertion.sub"
+    "google.subject"             = "assertion.repository + \":\" + assertion.run_id"
     "attribute.actor"            = "assertion.actor"
     "attribute.repository"       = "assertion.repository"
     "attribute.repository_owner" = "assertion.repository_owner"
     "attribute.ref"              = "assertion.ref"
     "attribute.workflow"         = "assertion.workflow"
+    "attribute.run_id"           = "assertion.run_id"
   }
 
   # Security: Only allow tokens from MaterializeInc organization

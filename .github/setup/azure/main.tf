@@ -3,6 +3,19 @@
 #
 # Note: Token lifetime is controlled by Azure AD's default policy (60 minutes).
 # To extend token lifetime, you would need to create a TokenLifetimePolicy using accessTokenLifeTime.sh script after applying this terraform configuration
+
+# TODO: Fix Azure federated identity credential for merge queue authentication
+#       - Add environment-based credential or specific merge queue subject pattern
+#       - Subject pattern needed: repo:MaterializeInc/materialize-terraform-self-managed:environment:production
+#       - Or alternative: repo:MaterializeInc/materialize-terraform-self-managed:merge_group(verify if this works, if it does then prefer this)
+
+# TODO: After permissions issue is fixed:
+#       1. Test terraform configuration and apply federated identity credential changes
+#       2. Update Azure workflow to use environment-based authentication (add environment: production to job)
+#       3. Re-enable merge_group trigger in .github/workflows/test-azure.yml
+#       4. Validate merge queue authentication works with new federated identity credential
+
+# TODO: Investigate and resolve Azure permissions issues preventing terraform apply
 resource "azuread_application" "github_actions" {
   display_name = "mz-self-managed-github-actions"
   description  = "Application for GitHub Actions CI/CD with OIDC authentication"

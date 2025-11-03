@@ -1,31 +1,30 @@
 name: Azure Tests
 
 on:
-  # Primary trigger: GitHub merge queue with smart path filtering
-  merge_group:
-    paths-ignore:
-      - "**" # Ignore all paths - effectively disables this workflow remove this to enabled the workflow once perms issue is fixed
-      # Exclude other cloud providers
-      - "aws/**"
-      - "gcp/**"
-      - "test/aws/**"
-      - "test/gcp/**"
-      # Exclude setup files from other cloud providers
-      - ".github/setup/aws/**"
-      - ".github/setup/gcp/**"
-      # Exclude examples
-      - "azure/examples/**"
-      # Exclude documentation and config
-      - "**.md"
-      - "**.env"
-      - ".gitignore"
-      - "LICENSE"
-      # Exclude AWS/GCP specific workflows
-      - ".github/workflows/test-aws*.yml"
-      - ".github/workflows/test-gcp*.yml"
-      - ".github/scripts/**"
+  # DISABLED: Primary trigger commented out until Azure permissions and federated identity issues are resolved
+  # merge_group:
+  #   paths-ignore:
+  #     # Exclude other cloud providers
+  #     - "aws/**"
+  #     - "gcp/**"
+  #     - "test/aws/**"
+  #     - "test/gcp/**"
+  #     # Exclude setup files from other cloud providers
+  #     - ".github/setup/aws/**"
+  #     - ".github/setup/gcp/**"
+  #     # Exclude examples
+  #     - "azure/examples/**"
+  #     # Exclude documentation and config
+  #     - "**.md"
+  #     - "**.env"
+  #     - ".gitignore"
+  #     - "LICENSE"
+  #     # Exclude AWS/GCP specific workflows
+  #     - ".github/workflows/test-aws*.yml"
+  #     - ".github/workflows/test-gcp*.yml"
+  #     - ".github/scripts/**"
 
-  # Manual trigger: For testing and debugging purposes
+  # Manual trigger: For testing and debugging purposes (ONLY trigger until issues are resolved)
   workflow_dispatch:
     inputs:
       test_stage:
