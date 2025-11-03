@@ -177,7 +177,7 @@ resource "azurerm_role_assignment" "github_actions_rbac_admin" {
     (
       (!(ActionMatches{'Microsoft.Authorization/roleAssignments/write'})) 
       OR 
-      (@Request[Microsoft.Authorization/roleAssignments:RoleDefinitionId] ForAnyOfAllValues:GuidNotEquals {
+      (@Request[Microsoft.Authorization/roleAssignments:RoleDefinitionId] ForAllOfAllValues:GuidNotEquals {
         ${data.azurerm_role_definition.owner.id}, 
         ${data.azurerm_role_definition.user_access_administrator.id}, 
         ${data.azurerm_role_definition.rbac_administrator.id}
@@ -187,7 +187,7 @@ resource "azurerm_role_assignment" "github_actions_rbac_admin" {
     (
       (!(ActionMatches{'Microsoft.Authorization/roleAssignments/delete'})) 
       OR 
-      (@Resource[Microsoft.Authorization/roleAssignments:RoleDefinitionId] ForAnyOfAllValues:GuidNotEquals {
+      (@Resource[Microsoft.Authorization/roleAssignments:RoleDefinitionId] ForAllOfAllValues:GuidNotEquals {
         ${data.azurerm_role_definition.owner.id}, 
         ${data.azurerm_role_definition.user_access_administrator.id}, 
         ${data.azurerm_role_definition.rbac_administrator.id}
