@@ -48,6 +48,8 @@ jobs:
   test-azure:
     name: Azure Infrastructure Tests
     runs-on: ubuntu-latest
+    env:
+      DURATION_SECONDS: 14400 # 4 hours
 
     steps:
       - name: Checkout code
@@ -59,6 +61,8 @@ jobs:
           role-to-assume: ${{ vars.GA_AWS_IAM_ROLE }}
           role-session-name: GitHubActions-Azure-S3Backend
           aws-region: ${{ vars.TF_TEST_S3_REGION || 'us-east-1' }}
+          # Max duration of the role is 8 hours as per IAM role configuration in .github/setup/aws/main.tf
+          role-duration-seconds: ${{ env.DURATION_SECONDS }}
 
       - name: Verify AWS Authentication (for S3 backend)
         run: |
@@ -122,4 +126,4 @@ jobs:
           echo ""
           echo "🧪 Starting Go tests..."
 
-          go test -timeout 240m -run TestStagedDeploymentSuite -v -count=1
+          go test -timeout ${{ env.DURATION_SECONDS }}s -run TestStagedDeploymentSuite -v

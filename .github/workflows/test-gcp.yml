@@ -47,6 +47,8 @@ jobs:
   test-gcp:
     name: GCP Infrastructure Tests
     runs-on: ubuntu-latest
+    env:
+      DURATION_SECONDS: 14400 # 4 hours
 
     steps:
       - name: Checkout code
@@ -58,13 +60,15 @@ jobs:
           role-to-assume: ${{ vars.GA_AWS_IAM_ROLE }}
           role-session-name: GitHubActions-GCP-S3Backend
           aws-region: ${{ vars.TF_TEST_S3_REGION || 'us-east-1' }}
+          # Max duration of the role is 8 hours as per IAM role configuration in .github/setup/aws/main.tf
+          role-duration-seconds: ${{ env.DURATION_SECONDS }}
 
       - name: Authenticate to Google Cloud (Service Account Impersonation)
         uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL }}
-          access_token_lifetime: 14400s # 4 hours for long-running tests
+          access_token_lifetime: ${{ env.DURATION_SECONDS }}s # 4 hours for long-running tests
 
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
@@ -120,4 +124,4 @@ jobs:
           echo ""
           echo "🧪 Starting Go tests..."
 
-          go test -timeout 240m -run TestStagedDeploymentSuite -v -count=1
+          go test -timeout ${{ env.DURATION_SECONDS }}s -run TestStagedDeploymentSuite -v

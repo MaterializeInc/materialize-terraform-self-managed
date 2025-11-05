@@ -332,7 +332,6 @@ func (suite *StagedDeploymentSuite) setupMaterializeConsolidatedStage(stage, sta
 
 		// GKE Configuration
 		"namespace":             TestGKENamespace,
-		"skip_nodepool":         false,
 		"materialize_node_type": machineType,
 		"min_nodes":             TestGKEMinNodes,
 		"max_nodes":             TestGKEMaxNodes,
@@ -367,7 +366,6 @@ func (suite *StagedDeploymentSuite) setupMaterializeConsolidatedStage(stage, sta
 		// Storage Configuration
 		"storage_bucket_versioning":  TestStorageBucketVersioning,
 		"storage_bucket_version_ttl": TestStorageBucketVersionTTL,
-		"enable_bucket_encryption":   true,
 
 		// Cert Manager Configuration
 		"cert_manager_install_timeout": TestCertManagerInstallTimeout,
