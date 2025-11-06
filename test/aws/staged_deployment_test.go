@@ -46,7 +46,7 @@ func (suite *StagedDeploymentTestSuite) TearDownSuite() {
 	test_structure.RunTestStage(t, "cleanup_network", func() {
 		// Cleanup network if it was created in this test run
 		networkStageDir := filepath.Join(suite.workingDir, utils.NetworkingDir)
-		if networkOptions := test_structure.LoadTerraformOptions(t, networkStageDir); networkOptions != nil {
+		if networkOptions := helpers.SafeLoadTerraformOptions(t, networkStageDir); networkOptions != nil {
 			t.Logf("🗑️ Cleaning up network...")
 			// TODO: fix cleanup when Destroy errors out because Terraform init was not successful during Terraform InitAndApply
 			terraform.Destroy(t, networkOptions)
@@ -97,7 +97,7 @@ func (suite *StagedDeploymentTestSuite) cleanupStage(stageName, stageDir string)
 	t := suite.T()
 	t.Logf("🗑️ Cleaning up %s stage: %s", stageName, stageDir)
 
-	options := test_structure.LoadTerraformOptions(t, filepath.Join(suite.workingDir, stageDir))
+	options := helpers.SafeLoadTerraformOptions(t, filepath.Join(suite.workingDir, stageDir))
 	if options == nil {
 		t.Logf("♻️ No %s stage to cleanup (was not created in this test)", stageName)
 		return
@@ -115,7 +115,7 @@ func (suite *StagedDeploymentTestSuite) cleanupStage(stageName, stageDir string)
 func (suite *StagedDeploymentTestSuite) TestFullDeployment() {
 	t := suite.T()
 	awsRegion := os.Getenv("AWS_REGION")
-	awsProfile := os.Getenv("AWS_PROFILE")
+	awsProfile := getAWSProfileForTerraform() // Use helper function for OIDC compatibility
 
 	// Stage 1: Network Setup
 	test_structure.RunTestStage(t, "setup_network", func() {
@@ -148,11 +148,10 @@ func (suite *StagedDeploymentTestSuite) TestFullDeployment() {
 		// Create terraform.tfvars.json file for network stage
 		networkTfvarsPath := filepath.Join(networkingPath, "terraform.tfvars.json")
 		networkVariables := map[string]interface{}{
-			"profile":              awsProfile,
 			"region":               awsRegion,
 			"name_prefix":          fmt.Sprintf("%s-net", uniqueId),
 			"vpc_cidr":             TestVPCCIDR,
-			"availability_zones":   []string{TestAvailabilityZoneA, TestAvailabilityZoneB},
+			"availability_zones":   getAvailabilityZones(awsRegion),
 			"private_subnet_cidrs": []string{TestPrivateSubnetCIDRA, TestPrivateSubnetCIDRB},
 			"public_subnet_cidrs":  []string{TestPublicSubnetCIDRA, TestPublicSubnetCIDRB},
 			"single_nat_gateway":   true,
@@ -162,6 +161,11 @@ func (suite *StagedDeploymentTestSuite) TestFullDeployment() {
 				"project":     utils.ProjectName,
 				"test-run":    uniqueId,
 			},
+		}
+
+		// Add profile only if it's not empty (for local testing)
+		if awsProfile != "" {
+			networkVariables["profile"] = awsProfile
 		}
 		helpers.CreateTfvarsFile(t, networkTfvarsPath, networkVariables)
 
@@ -282,8 +286,7 @@ func (suite *StagedDeploymentTestSuite) setupMaterializeConsolidatedStage(stage,
 	// Build variables map for the generic tfvars creation function
 	variables := map[string]interface{}{
 		// AWS Configuration
-		"profile": profile,
-		"region":  region,
+		"region": region,
 
 		// Network Configuration
 		"vpc_id":     vpcId,
@@ -354,6 +357,11 @@ func (suite *StagedDeploymentTestSuite) setupMaterializeConsolidatedStage(stage,
 			"test-run":     suite.uniqueId,
 			"disk-enabled": fmt.Sprintf("%t", diskEnabled),
 		},
+	}
+
+	// Add profile only if it's not empty (for local testing)
+	if profile != "" {
+		variables["profile"] = profile
 	}
 
 	helpers.CreateTfvarsFile(t, tfvarsPath, variables)

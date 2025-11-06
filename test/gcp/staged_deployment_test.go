@@ -47,7 +47,7 @@ func (suite *StagedDeploymentSuite) TearDownSuite() {
 	test_structure.RunTestStage(t, "cleanup_network", func() {
 		// Cleanup network if it was created in this test run
 		networkStageDir := filepath.Join(suite.workingDir, utils.NetworkingDir)
-		if networkOptions := test_structure.LoadTerraformOptions(t, networkStageDir); networkOptions != nil {
+		if networkOptions := helpers.SafeLoadTerraformOptions(t, networkStageDir); networkOptions != nil {
 			t.Logf("🗑️ Cleaning up network...")
 			terraform.Destroy(t, networkOptions)
 			t.Logf("✅ Network cleanup completed")
@@ -97,7 +97,7 @@ func (suite *StagedDeploymentSuite) cleanupStage(stageName, stageDir string) {
 	t := suite.T()
 	t.Logf("🗑️ Cleaning up %s stage: %s", stageName, stageDir)
 
-	options := test_structure.LoadTerraformOptions(t, filepath.Join(suite.workingDir, stageDir))
+	options := helpers.SafeLoadTerraformOptions(t, filepath.Join(suite.workingDir, stageDir))
 	if options == nil {
 		t.Logf("♻️ No %s stage to cleanup (was not created in this test)", stageName)
 		return
@@ -332,7 +332,6 @@ func (suite *StagedDeploymentSuite) setupMaterializeConsolidatedStage(stage, sta
 
 		// GKE Configuration
 		"namespace":             TestGKENamespace,
-		"skip_nodepool":         false,
 		"materialize_node_type": machineType,
 		"min_nodes":             TestGKEMinNodes,
 		"max_nodes":             TestGKEMaxNodes,
@@ -367,7 +366,6 @@ func (suite *StagedDeploymentSuite) setupMaterializeConsolidatedStage(stage, sta
 		// Storage Configuration
 		"storage_bucket_versioning":  TestStorageBucketVersioning,
 		"storage_bucket_version_ttl": TestStorageBucketVersionTTL,
-		"enable_bucket_encryption":   true,
 
 		// Cert Manager Configuration
 		"cert_manager_install_timeout": TestCertManagerInstallTimeout,
@@ -378,8 +376,8 @@ func (suite *StagedDeploymentSuite) setupMaterializeConsolidatedStage(stage, sta
 		"operator_namespace": expectedOperatorNamespace,
 
 		// Materialize Instance Configuration
-		"instance_name":                TestMaterializeInstanceName,
-		"instance_namespace":           expectedInstanceNamespace,
+		"instance_name":      TestMaterializeInstanceName,
+		"instance_namespace": expectedInstanceNamespace,
 		"user": map[string]interface{}{
 			"name":     TestDBUsername,
 			"password": TestPassword,

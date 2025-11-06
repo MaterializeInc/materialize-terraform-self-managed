@@ -1,5 +1,5 @@
 provider "azurerm" {
-  # Set the Azure subscription ID here or use the ARM_SUBSCRIPTION_ID environment variable
+  # Set the Azure subscription ID here or use the AZURE_SUBSCRIPTION_ID environment variable
   subscription_id = var.subscription_id
 
   features {

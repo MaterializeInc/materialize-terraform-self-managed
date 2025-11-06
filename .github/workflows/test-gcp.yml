@@ -1,0 +1,127 @@
+name: GCP Tests
+
+on:
+  # Primary trigger: GitHub merge queue with smart path filtering
+  merge_group:
+    paths-ignore:
+      # Exclude other cloud providers
+      - "aws/**"
+      - "azure/**"
+      - "test/aws/**"
+      - "test/azure/**"
+      # Exclude setup files from other cloud providers
+      - ".github/setup/aws/**"
+      - ".github/setup/azure/**"
+      # Exclude examples
+      - "gcp/examples/**"
+      # Exclude documentation and config
+      - "**.md"
+      - "**.env"
+      - ".gitignore"
+      - "LICENSE"
+      # Exclude AWS/Azure specific workflows
+      - ".github/workflows/test-aws*.yml"
+      - ".github/workflows/test-azure*.yml"
+      - ".github/scripts/**"
+  # Manual trigger: For testing and debugging purposes
+  workflow_dispatch:
+    inputs:
+      test_stage:
+        description: "Test stage to run"
+        required: false
+        default: "full-test"
+        type: choice
+        options:
+          - network-only
+          - full-test
+
+  # Future enhancement: Add scheduled runs for nightly testing
+  # schedule:
+  #   - cron: '30 4 * * *'  # 10 AM IST (4:30 AM UTC) for nightly infrastructure validation
+
+permissions:
+  id-token: write # Required for Workload Identity
+  contents: read # Required to checkout code
+
+jobs:
+  test-gcp:
+    name: GCP Infrastructure Tests
+    runs-on: ubuntu-latest
+    env:
+      DURATION_SECONDS: 14400 # 4 hours
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials via OIDC (for S3 backend)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.GA_AWS_IAM_ROLE }}
+          role-session-name: GitHubActions-GCP-S3Backend
+          aws-region: ${{ vars.TF_TEST_S3_REGION || 'us-east-1' }}
+          # Max duration of the role is 8 hours as per IAM role configuration in .github/setup/aws/main.tf
+          role-duration-seconds: ${{ env.DURATION_SECONDS }}
+
+      - name: Authenticate to Google Cloud (Service Account Impersonation)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL }}
+          access_token_lifetime: ${{ env.DURATION_SECONDS }}s # 4 hours for long-running tests
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Verify AWS Authentication (for S3 backend)
+        run: |
+          echo "Testing AWS authentication for S3 backend..."
+          aws sts get-caller-identity
+
+      - name: Verify GCP Authentication
+        run: |
+          echo "Testing GCP authentication..."
+          gcloud auth list
+          gcloud config list
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.9.0"
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.23.5"
+          cache-dependency-path: test/go.sum
+
+      - name: Install dependencies
+        working-directory: test
+        run: go mod tidy
+
+      - name: Run GCP Tests
+        working-directory: test/gcp
+        env:
+          GOOGLE_PROJECT: ${{ vars.GOOGLE_PROJECT }}
+          MATERIALIZE_LICENSE_KEY: ${{ secrets.MATERIALIZE_LICENSE_KEY }}
+          GITHUB_ACTIONS: "true"
+          # S3 Remote Backend Configuration (for terraform state)
+          TF_TEST_REMOTE_BACKEND: "true"
+          TF_TEST_S3_BUCKET: ${{ vars.TF_TEST_S3_BUCKET }}
+          TF_TEST_S3_REGION: ${{ vars.TF_TEST_S3_REGION || 'us-east-1' }}
+          TF_TEST_S3_PREFIX: ${{ vars.TF_TEST_S3_PREFIX || 'github-actions-test-runs' }}
+          # Note: AWS credentials for S3 backend provided via OIDC above
+          # Terratest: Set env vars to SKIP stages, unset to RUN stages
+          SKIP_setup_materialize_disk_enabled: ${{ github.event.inputs.test_stage == 'network-only' && 'true' || '' }}
+          SKIP_setup_materialize_disk_disabled: ${{ github.event.inputs.test_stage == 'network-only' && 'true' || '' }}
+        run: |
+          echo "🚀 Running tests for GCP..."
+          echo "📁 Current working directory: $(pwd)"
+          echo "🔧 Go version: $(go version)"
+          echo ""
+          echo "📋 Environment variables:"
+          env | sort
+          echo ""
+          echo "🧪 Starting Go tests..."
+
+          go test -timeout ${{ env.DURATION_SECONDS }}s -run TestStagedDeploymentSuite -v

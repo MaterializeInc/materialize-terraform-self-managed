@@ -1,0 +1,107 @@
+name: AWS Tests
+
+on:
+  # Primary trigger: GitHub merge queue with smart path filtering
+  merge_group:
+    paths-ignore:
+      # Exclude other cloud providers
+      - "gcp/**"
+      - "azure/**"
+      - "test/gcp/**"
+      - "test/azure/**"
+      # Exclude setup files from other cloud providers
+      - ".github/setup/gcp/**"
+      - ".github/setup/azure/**"
+      # Exclude examples
+      - "aws/examples/**"
+      # Exclude documentation and config
+      - "**.md"
+      - "**.env"
+      - ".gitignore"
+      - "LICENSE"
+      # Exclude Azure/GCP specific workflows
+      - ".github/workflows/test-gcp*.yml"
+      - ".github/workflows/test-azure*.yml"
+      - ".github/scripts/**"
+  # Manual trigger: For testing and debugging purposes
+  workflow_dispatch:
+    inputs:
+      test_stage:
+        description: "Test stage to run"
+        required: false
+        default: "full-test"
+        type: choice
+        options:
+          - network-only
+          - full-test
+
+  # Future enhancement: Add scheduled runs for nightly testing
+  # schedule:
+  #   - cron: '30 4 * * *'  # 10 AM IST (4:30 AM UTC) for nightly infrastructure validation
+
+permissions:
+  id-token: write # Required for OIDC
+  contents: read # Required to checkout code
+
+jobs:
+  test-aws:
+    name: AWS Infrastructure Tests
+    runs-on: ubuntu-latest
+    # Note: Triggered automatically when approved PRs enter GitHub's merge queue
+    # Smart path filtering ensures tests run only when AWS infrastructure changes
+    env:
+      DURATION_SECONDS: 14400 # 4 hours
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.GA_AWS_IAM_ROLE }}
+          role-session-name: GitHubActions-AWS-Tests
+          aws-region: ${{ vars.AWS_REGION || 'us-east-1' }}
+          # Max duration of the role is 8 hours as per IAM role configuration in .github/setup/aws/main.tf
+          role-duration-seconds: ${{ env.DURATION_SECONDS }}
+
+      - name: Verify AWS Authentication
+        run: |
+          echo "Testing AWS authentication..."
+          aws sts get-caller-identity
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.9.0"
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.23.5"
+          cache-dependency-path: test/go.sum
+
+      - name: Install dependencies
+        working-directory: test
+        run: go mod tidy
+
+      - name: Run AWS Tests
+        working-directory: test/aws
+        env:
+          AWS_REGION: ${{ vars.AWS_REGION || 'us-east-1' }}
+          MATERIALIZE_LICENSE_KEY: ${{ secrets.MATERIALIZE_LICENSE_KEY }}
+          GITHUB_ACTIONS: "true"
+          # S3 Remote Backend Configuration
+          TF_TEST_REMOTE_BACKEND: "true"
+          TF_TEST_S3_BUCKET: ${{ vars.TF_TEST_S3_BUCKET }}
+          TF_TEST_S3_REGION: ${{ vars.TF_TEST_S3_REGION || vars.AWS_REGION || 'us-east-1' }}
+          TF_TEST_S3_PREFIX: ${{ vars.TF_TEST_S3_PREFIX || 'github-actions-test-runs' }}
+          # Note: AWS credentials automatically available via OIDC for both:
+          # - Terraform AWS provider authentication
+          # - S3 backend authentication
+          # Terratest: Set env vars to SKIP stages, unset to RUN stages
+          SKIP_setup_materialize_disk_enabled: ${{ github.event.inputs.test_stage == 'network-only' && 'true' || '' }}
+          SKIP_setup_materialize_disk_disabled: ${{ github.event.inputs.test_stage == 'network-only' && 'true' || '' }}
+        run: |
+          echo "Running tests"
+          go test -timeout ${{ env.DURATION_SECONDS }}s -run TestStagedDeploymentSuite -v
