@@ -2,17 +2,52 @@
 
 This example demonstrates how to deploy a complete Materialize environment on Google Cloud Platform using the modular Terraform setup from this repository.
 
-It provisions the full infrastructure stack, including:
-- VPC network with subnets for GKE and Cloud SQL
-- GKE cluster with node pools
-- Cloud SQL PostgreSQL database for metadata
-- Google Cloud Storage bucket for persistent storage
-- Workload Identity for secure service access
-- Materialize operator
+---
+
+## What Gets Created
+
+This example provisions the following infrastructure:
+
+### Networking
+- **VPC Network**: Custom VPC with auto-create subnets disabled
+- **Subnet**: 192.168.0.0/20 primary range with private Google access enabled
+- **Secondary Ranges**: 
+  - Pods: 192.168.64.0/18
+  - Services: 192.168.128.0/20
+- **Cloud Router**: For NAT and routing configuration
+- **Cloud NAT**: For outbound internet access from private nodes
+- **VPC Peering**: Service networking connection for Cloud SQL private access
+
+### Compute
+- **GKE Cluster**: Regional cluster with Workload Identity enabled
+- **Generic Node Pool**: e2-standard-8 machines, autoscaling 2-5 nodes, 50GB disk, for general workloads
+- **Materialize Node Pool**: n2-highmem-8 machines, autoscaling 2-5 nodes, 100GB disk, 1 local SSD, swap enabled, dedicated taints for Materialize workloads
+- **Service Account**: GKE service account with workload identity binding
+
+### Database
+- **Cloud SQL PostgreSQL**: Private IP only (no public IP)
+- **Tier**: db-custom-2-4096 (2 vCPUs, 4GB memory)
+- **Database**: `materialize` database with UTF8 charset
+- **User**: `materialize` user with auto-generated password
+- **Network**: Connected via VPC peering for private access
+
+### Storage
+- **Cloud Storage Bucket**: Regional bucket for Materialize persistence
+- **Access**: HMAC keys for S3-compatible access (Workload Identity service account with storage permissions is configured but not currently used by Materialize for GCS access, in future we will remove HMAC keys and support access to GCS either via Workload Identity Federation or via Kubernetes ServiceAccounts that impersonate IAM service accounts)
+- **Versioning**: Disabled (for testing; enable in production)
+
+### Kubernetes Add-ons
+- **cert-manager**: Certificate management controller for Kubernetes that automates TLS certificate provisioning and renewal
+- **Self-signed ClusterIssuer**: Provides self-signed TLS certificates for Materialize instance internal communication (balancerd, console). Used by the Materialize instance for secure inter-component communication.
+
+### Materialize
+- **Operator**: Materialize Kubernetes operator in `materialize` namespace
+- **Instance**: Single Materialize instance in `materialize-environment` namespace
+- **Load Balancers**: GCP Load Balancers for Materialize access
 
 ---
 
-### Required APIs
+## Required APIs
 Your GCP project needs several APIs enabled. Here's what each API does in simple terms:
 
 ```bash
