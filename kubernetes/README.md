@@ -51,7 +51,7 @@ Creates a self-signed ClusterIssuer resource that cert-manager uses to issue sel
 - Cluster-wide scope (ClusterIssuer)
 - Used by Materialize for internal component communication (balancerd, console)
 
-**Usage:** Required by Materialize instances for internal TLS certificates.
+**Usage:** Optional convenience module. You can use your own certificate issuer instead (Let's Encrypt, organizational CA, etc.). Materialize instances just need a reference to any cert-manager Issuer or ClusterIssuer.
 
 **Documentation:** See [modules/self-signed-cluster-issuer/README.md](./modules/self-signed-cluster-issuer/README.md)
 
@@ -73,7 +73,8 @@ Deploys a Materialize instance as a Kubernetes custom resource managed by the Ma
 - Materialize operator must be installed (via cloud-specific operator module)
 - PostgreSQL database for metadata
 - Object storage (S3/Azure Storage/GCS) for persistence
-- cert-manager and certificate issuer
+- cert-manager installed
+- Certificate issuer (can be self-signed, Let's Encrypt, or any cert-manager compatible issuer)
 
 **Documentation:** See [modules/materialize-instance/README.md](./modules/materialize-instance/README.md)
 
@@ -83,9 +84,11 @@ Deploys a Materialize instance as a Kubernetes custom resource managed by the Ma
 
 These modules are typically used together in a specific order:
 
-1. **cert-manager** - Install certificate management
-2. **self-signed-cluster-issuer** - Create certificate issuer
-3. **materialize-instance** - Deploy Materialize instance
+1. **cert-manager** - Install certificate management (required)
+2. **Certificate Issuer** - Create or configure an issuer:
+   - Use the provided **self-signed-cluster-issuer** module for quick setup, OR
+   - Configure your own issuer (Let's Encrypt, organizational CA, etc.)
+3. **materialize-instance** - Deploy Materialize instance with issuer reference
 
 ### Example Usage
 
