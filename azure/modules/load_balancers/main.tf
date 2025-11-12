@@ -9,7 +9,7 @@ resource "kubernetes_service" "console_load_balancer" {
 
   spec {
     type                    = "LoadBalancer"
-    external_traffic_policy = "Local"
+    external_traffic_policy = "Cluster"
     selector = {
       "materialize.cloud/name" = "mz${var.resource_id}-console"
     }
@@ -45,7 +45,7 @@ resource "kubernetes_service" "balancerd_load_balancer" {
 
   spec {
     type                    = "LoadBalancer"
-    external_traffic_policy = "Local"
+    external_traffic_policy = "Cluster"
     selector = {
       "materialize.cloud/name" = "mz${var.resource_id}-balancerd"
     }
