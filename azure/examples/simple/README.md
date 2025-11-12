@@ -54,13 +54,26 @@ This example provisions the following infrastructure:
 
 ### Step 1: Set Required Variables
 
-Before running Terraform, create a `terraform.tfvars` file or pass the following variables:
+Before running Terraform, create a `terraform.tfvars` file with the following variables:
 
 ```hcl
-subscription_id = "12345678-1234-1234-1234-123456789012"
-name_prefix = "simple-demo"
-location = "westus2"
+subscription_id     = "12345678-1234-1234-1234-123456789012"
+resource_group_name = "materialize-demo-rg"
+name_prefix         = "simple-demo"
+location            = "westus2"
+license_key         = "your-materialize-license-key"  # Optional: Get from https://materialize.com/self-managed/
+tags = {
+  environment = "demo"
+}
 ```
+
+**Required Variables:**
+- `subscription_id`: Azure subscription ID
+- `resource_group_name`: Name for the resource group (will be created)
+- `name_prefix`: Prefix for all resource names
+- `location`: Azure region for deployment
+- `tags`: Map of tags to apply to resources
+- `license_key`: Materialize license key
 
 ---
 

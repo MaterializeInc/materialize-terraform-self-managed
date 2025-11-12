@@ -21,22 +21,28 @@ AWS Specific Modules:
 
 | Module                                                | Description                                                 |
 |-------------------------------------------------------|-------------------------------------------------------------|
-| [`modules/networking`](./modules/networking)          | VPC, subnets, NAT gateways, and basic networking resources  |
-| [`modules/eks`](./modules/eks)                        | EKS cluster setup                                           |
-| [`modules/eks-node-group`](./modules/eks-node-group)  | EKS managed node groups with disk configuration             |
-| [`modules/database`](./modules/database)              | RDS PostgreSQL database for Materialize metadata            |
-| [`modules/storage`](./modules/storage)                | S3 bucket for Materialize persistence backend               |
-| [`modules/aws-lbc`](./modules/aws-lbc)                | AWS Load Balancer Controller setup for NLBs                 |
-| [`modules/operator`](./modules/operator)              | Materialize Kubernetes operator installation                |
-| [`modules/nlb`](./modules/nlb)                        | Network Load Balancer for Materialize instance access       |
+| [`modules/networking`](./modules/networking)          | VPC, subnets, NAT gateways, and networking resources        |
+| [`modules/eks`](./modules/eks)                        | EKS cluster with OIDC provider and security groups          |
+| [`modules/eks-node-group`](./modules/eks-node-group)  | EKS managed node groups for base workloads                  |
+| [`modules/karpenter`](./modules/karpenter)            | Karpenter for advanced node autoscaling                     |
+| [`modules/karpenter-ec2nodeclass`](./modules/karpenter-ec2nodeclass) | EC2NodeClass for Karpenter provisioning     |
+| [`modules/karpenter-nodepool`](./modules/karpenter-nodepool) | NodePool for Karpenter workload scheduling  |
+| [`modules/database`](./modules/database)              | RDS PostgreSQL database for Materialize metadata           |
+| [`modules/storage`](./modules/storage)                | S3 bucket with IRSA for Materialize persistence            |
+| [`modules/aws-lbc`](./modules/aws-lbc)                | AWS Load Balancer Controller for NLB management            |
+| [`modules/nlb`](./modules/nlb)                        | Network Load Balancer for Materialize instance access      |
+| [`modules/operator`](./modules/operator)              | Materialize Kubernetes operator installation               |
 
-Kubernetes Specific Modules:
+**Cloud-Agnostic Kubernetes Modules:**
 
-| Module                                                                                     | Description                                                           |
-|--------------------------------------------------------------------------------------------|-----------------------------------------------------------------------|
-| [`../kubernetes/modules/openebs`](../kubernetes/modules/openebs)                           | OpenEBS setup for persistent volume storage using NVMe instance disks |
-| [`../kubernetes/modules/certificates`](../kubernetes/modules/certificates)                 | cert-manager installation and TLS management                          |
-| [`../kubernetes/modules/materialize-instance`](../kubernetes/modules/materialize-instance) | Materialize instance configuration and deployment                     |
+For Kubernetes-specific modules (cert-manager, Materialize instance, etc.) that work across all cloud providers, see the [kubernetes/](../kubernetes/) directory.
+
+See the [Kubernetes Modules README](../kubernetes/README.md) for details on:
+- cert-manager installation
+- Self-signed certificate issuer
+- Materialize instance deployment
+
+---
 
 Depending on your needs, you can use the modules individually or combine them to create a setup that fits your needs.
 

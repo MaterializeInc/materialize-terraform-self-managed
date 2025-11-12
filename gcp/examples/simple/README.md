@@ -63,13 +63,25 @@ gcloud services enable iamcredentials.googleapis.com          # For security and
 
 ### Step 1: Set Required Variables
 
-Before running Terraform, create a `terraform.tfvars` file or pass the following variables:
+Before running Terraform, create a `terraform.tfvars` file with the following variables:
 
 ```hcl
-project_id = "my-gcp-project"
+project_id  = "my-gcp-project"
 name_prefix = "simple-demo"
-region = "us-central1"
+region      = "us-central1"
+license_key = "your-materialize-license-key"  # Optional: Get from https://materialize.com/self-managed/
+labels = {
+  environment = "demo"
+  created_by  = "terraform"
+}
 ```
+
+**Required Variables:**
+- `project_id`: GCP project ID
+- `name_prefix`: Prefix for all resource names
+- `region`: GCP region for deployment
+- `labels`: Map of labels to apply to resources
+- `license_key`: Materialize license key (required for production use)
 
 ---
 
