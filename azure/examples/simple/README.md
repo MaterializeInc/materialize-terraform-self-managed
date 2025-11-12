@@ -2,14 +2,51 @@
 
 This example demonstrates how to deploy a complete Materialize environment on Azure using the modular Terraform setup from this repository.
 
-It provisions the full infrastructure stack, including:
-- Virtual Network with AKS and PostgreSQL subnets
-- AKS cluster with system and workload node pools
-- Azure Database for PostgreSQL Flexible Server
-- Azure Storage Account with blob container
-- OpenEBS for disk support
-- Cert-manager for TLS certificates
-- Materialize operator
+---
+
+## What Gets Created
+
+This example provisions the following infrastructure:
+
+### Resource Group
+- **Resource Group**: New resource group to contain all resources
+
+### Networking
+- **Virtual Network**: 20.0.0.0/16 address space
+- **AKS Subnet**: 20.0.0.0/20 with NAT Gateway association and service endpoints for Storage and SQL
+- **PostgreSQL Subnet**: 20.0.16.0/24 delegated to PostgreSQL Flexible Server
+- **NAT Gateway**: Standard SKU with static public IP for outbound connectivity
+- **Private DNS Zone**: For PostgreSQL private endpoint resolution with VNet link
+
+### Compute
+- **AKS Cluster**: Version 1.32 with Cilium networking (network plugin: azure, data plane: cilium, policy: cilium)
+- **Default Node Pool**: Standard_D4pds_v6 VMs, autoscaling 2-5 nodes, labeled for generic workloads
+- **Materialize Node Pool**: Standard_E4pds_v6 VMs with 100GB disk, autoscaling 2-5 nodes, swap enabled, dedicated taints for Materialize workloads
+- **Managed Identities**: 
+  - AKS cluster identity: Used by AKS control plane to provision Azure resources (creating load balancers when Materialize LoadBalancer services are created, managing network interfaces)
+  - Workload identity: Used by Materialize pods for secure, passwordless authentication to Azure Storage (no storage account keys stored in cluster)
+
+### Database
+- **Azure PostgreSQL Flexible Server**: Version 15
+- **SKU**: GP_Standard_D2s_v3 (2 vCores, 4GB memory)
+- **Storage**: 32GB with 7-day backup retention
+- **Network Access**: Pubic Network Access is disabled, Private access only (no public endpoint)
+- **Database**: `materialize` database pre-created
+
+### Storage
+- **Storage Account**: Premium BlockBlobStorage with LRS replication for Materialize persistence
+- **Container**: `materialize` blob container
+- **Access Control**: Workload Identity federation for Kubernetes service account (passwordless authentication via OIDC)
+- **Network Access**: Currently allows all traffic (production deployments should restrict to AKS subnet only traffic)
+
+### Kubernetes Add-ons
+- **cert-manager**: Certificate management controller for Kubernetes that automates TLS certificate provisioning and renewal
+- **Self-signed ClusterIssuer**: Provides self-signed TLS certificates for Materialize instance internal communication (balancerd, console). Used by the Materialize instance for secure inter-component communication.
+
+### Materialize
+- **Operator**: Materialize Kubernetes operator
+- **Instance**: Single Materialize instance in `materialize-environment` namespace
+- **Load Balancers**: Internal Azure Load Balancers for Materialize access
 
 ---
 

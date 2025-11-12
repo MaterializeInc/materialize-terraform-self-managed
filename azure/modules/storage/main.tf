@@ -11,6 +11,7 @@ resource "azurerm_storage_account" "materialize" {
   dynamic "network_rules" {
     for_each = length(var.subnets) == 0 ? [] : ["has_subnets"]
     content {
+      # TODO: Default action should be Deny, and then we can add the subnets to the allow list.
       default_action             = "Allow"
       bypass                     = ["AzureServices"]
       virtual_network_subnet_ids = var.subnets
@@ -48,4 +49,3 @@ resource "azurerm_federated_identity_credential" "materialize_storage" {
   parent_id           = var.workload_identity_id
   subject             = "system:serviceaccount:${var.service_account_namespace}:${var.service_account_name}"
 }
-
