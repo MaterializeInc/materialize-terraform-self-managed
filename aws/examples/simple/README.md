@@ -50,13 +50,24 @@ This example provisions the following infrastructure:
 
 ### Step 1: Set Required Variables
 
-Before running Terraform, create a `terraform.tfvars` file or pass the following variables:
+Before running Terraform, create a `terraform.tfvars` file with the following variables:
 
 ```hcl
 name_prefix = "simple-demo"
-aws_region = "us-east-1"
-aws_profile = "test-profile"
-````
+aws_region  = "us-east-1"
+aws_profile = "your-aws-profile"
+license_key = "your-materialize-license-key"  # Get from https://materialize.com/self-managed/
+tags = {
+  environment = "demo"
+}
+```
+
+**Required Variables:**
+- `name_prefix`: Prefix for all resource names
+- `aws_region`: AWS region for deployment
+- `aws_profile`: AWS CLI profile to use
+- `tags`: Map of tags to apply to resources
+- `license_key`: Materialize license key
 
 ---
 

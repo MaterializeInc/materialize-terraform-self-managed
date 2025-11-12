@@ -53,8 +53,8 @@ terraform fmt -recursive
 # Run linter
 tflint
 
-# Test the examples
-cd examples/simple
+# Test the examples (optional - see Testing section below for integration tests)
+cd <cloudDir>/examples/simple
 terraform init
 terraform plan
 ```
@@ -65,6 +65,22 @@ git commit -m "Add your meaningful commit message"
 ```
 
 5. Push to your fork and submit a pull request
+
+## Testing
+
+For comprehensive testing documentation including architecture, debugging tips, and cloud-specific details, see:
+- [test/README.md](./test/README.md) - Testing overview and approach
+- [test/aws/README.md](./test/aws/README.md) - AWS-specific testing
+- [test/azure/README.md](./test/azure/README.md) - Azure-specific testing
+- [test/gcp/README.md](./test/gcp/README.md) - GCP-specific testing
+
+### Contributing Tests
+
+When adding new features or modules, please include corresponding tests:
+1. **Add fixtures**: Create Terraform configurations in `fixtures/` directory
+2. **Update test suite**: Modify `staged_deployment_test.go` to include new validation
+3. **Update documentation**: Document new test scenarios in the cloud-specific README
+4. **Run locally**: Ensure tests pass before submitting PR
 
 ## Versioning
 
@@ -83,5 +99,5 @@ Perform a manual test of the latest code on `main`. See prior section. Then run:
 
 ## References
 
+- [README.md](./README.md)
 - [Terraform Documentation](https://www.terraform.io/docs)
-- [Materialize Documentation](https://materialize.com/docs)
