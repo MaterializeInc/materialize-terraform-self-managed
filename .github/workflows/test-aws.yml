@@ -3,26 +3,6 @@ name: AWS Tests
 on:
   # Primary trigger: GitHub merge queue with smart path filtering
   merge_group:
-    # paths-ignore:
-    #   # Exclude other cloud providers
-    #   - "gcp/**"
-    #   - "azure/**"
-    #   - "test/gcp/**"
-    #   - "test/azure/**"
-    #   # Exclude setup files from other cloud providers
-    #   - ".github/setup/gcp/**"
-    #   - ".github/setup/azure/**"
-    #   # Exclude examples
-    #   - "aws/examples/**"
-    #   # Exclude documentation and config
-    #   - "**.md"
-    #   - "**.env"
-    #   - ".gitignore"
-    #   - "LICENSE"
-    #   # Exclude Azure/GCP specific workflows
-    #   - ".github/workflows/test-gcp*.yml"
-    #   - ".github/workflows/test-azure*.yml"
-    #   - ".github/scripts/**"
   # Manual trigger: For testing and debugging purposes
   workflow_dispatch:
     inputs:
