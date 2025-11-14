@@ -3,26 +3,6 @@ name: AWS Tests
 on:
   # Primary trigger: GitHub merge queue with smart path filtering
   merge_group:
-    paths-ignore:
-      # Exclude other cloud providers
-      - "gcp/**"
-      - "azure/**"
-      - "test/gcp/**"
-      - "test/azure/**"
-      # Exclude setup files from other cloud providers
-      - ".github/setup/gcp/**"
-      - ".github/setup/azure/**"
-      # Exclude examples
-      - "aws/examples/**"
-      # Exclude documentation and config
-      - "**.md"
-      - "**.env"
-      - ".gitignore"
-      - "LICENSE"
-      # Exclude Azure/GCP specific workflows
-      - ".github/workflows/test-gcp*.yml"
-      - ".github/workflows/test-azure*.yml"
-      - ".github/scripts/**"
   # Manual trigger: For testing and debugging purposes
   workflow_dispatch:
     inputs:
@@ -44,9 +24,41 @@ permissions:
   contents: read # Required to checkout code
 
 jobs:
+  ignored_files:
+    runs-on: ubuntu-latest
+    name: Check for ignored files
+    outputs:
+      only_modified: ${{ steps.ignored-files-changed.outputs.only_modified }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check for changed files
+        id: ignored-files-changed
+        uses: tj-actions/changed-files@v47
+        with:
+          files_ignore: |
+            gcp/**
+            azure/**
+            test/gcp/**
+            test/azure/**
+            .github/setup/gcp/**
+            .github/setup/azure/**
+            aws/examples/**
+            **.md
+            **.env
+            .gitignore
+            LICENSE
+            .github/workflows/test-gcp*.yml
+            .github/workflows/test-azure*.yml
+            .github/scripts/**
+      - name: List all changed files
+        run: |
+          echo "Changed files: ${{ steps.ignored-files-changed.outputs.all_changed_files }}"
+
   test-aws:
     name: AWS Infrastructure Tests
     runs-on: ubuntu-latest
+    needs: ignored_files
+    if: needs.ignored_files.outputs.only_modified == 'false'
     # Note: Triggered automatically when approved PRs enter GitHub's merge queue
     # Smart path filtering ensures tests run only when AWS infrastructure changes
     env:
