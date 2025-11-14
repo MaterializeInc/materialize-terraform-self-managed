@@ -58,13 +58,17 @@ func (suite *StagedDeploymentSuite) TearDownSuite() {
 			t.Logf("🗂️ Removing state directory: %s", suite.workingDir)
 			os.RemoveAll(suite.workingDir)
 			t.Logf("✅ State directory cleanup completed")
+			// Clean up S3 uploaded files (tfvars/tfstate) for this test run after local cleanup is complete
+			if suite.s3Manager != nil {
+				if err := suite.s3Manager.CleanupTestRun(t); err != nil {
+					t.Logf("⚠️ Failed to cleanup S3 files (non-fatal): %v", err)
+				}
+				t.Logf("✅ S3 files cleanup completed")
+			}
 		} else {
 			t.Logf("♻️ No network to cleanup (was not created in this test)")
 		}
 	})
-
-	// S3 backend state files are managed by Terraform and will persist in S3
-	// Use S3 lifecycle policies to manage retention if needed
 
 	suite.TearDownBaseSuite()
 }

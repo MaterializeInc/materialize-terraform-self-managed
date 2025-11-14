@@ -11,6 +11,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 )
 
 // Manager handles S3 backend configuration for test runs
@@ -116,6 +117,66 @@ func (m *Manager) UploadTfvars(t *testing.T, stageName, tfvarsPath string) error
 	}
 
 	t.Logf("☁️ Uploaded tfvars to S3: s3://%s/%s", m.config.Bucket, s3Key)
+	return nil
+}
+
+// CleanupTestRun deletes all S3 objects for this test run (all stages) using batch operations
+func (m *Manager) CleanupTestRun(t *testing.T) error {
+	if !m.config.Enabled || m.s3Client == nil {
+		return nil // Skip cleanup if S3 backend is not enabled
+	}
+
+	// List all objects with this run ID prefix
+	prefix := fmt.Sprintf("%s/%s/%s/", m.config.Prefix, m.provider, m.runID)
+
+	listInput := &s3.ListObjectsV2Input{
+		Bucket: aws.String(m.config.Bucket),
+		Prefix: aws.String(prefix),
+	}
+
+	result, err := m.s3Client.ListObjectsV2(context.TODO(), listInput)
+	if err != nil {
+		return fmt.Errorf("failed to list S3 objects for cleanup: %w", err)
+	}
+
+	if len(result.Contents) == 0 {
+		t.Logf("🔍 No S3 objects found to cleanup for run: %s", m.runID)
+		return nil
+	}
+
+	// Prepare objects for batch deletion (up to 1000 objects per request)
+	var objectsToDelete []types.ObjectIdentifier
+	for _, obj := range result.Contents {
+		objectsToDelete = append(objectsToDelete, types.ObjectIdentifier{
+			Key: obj.Key,
+		})
+	}
+
+	// Batch delete all objects for this test run
+	deleteInput := &s3.DeleteObjectsInput{
+		Bucket: aws.String(m.config.Bucket),
+		Delete: &types.Delete{
+			Objects: objectsToDelete,
+			Quiet:   aws.Bool(false), // We want to see what gets deleted
+		},
+	}
+
+	deleteResult, err := m.s3Client.DeleteObjects(context.TODO(), deleteInput)
+	if err != nil {
+		return fmt.Errorf("failed to batch delete S3 objects: %w", err)
+	}
+
+	// Log successful deletions
+	for _, deleted := range deleteResult.Deleted {
+		t.Logf("🗑️ Deleted S3 object: s3://%s/%s", m.config.Bucket, *deleted.Key)
+	}
+
+	// Log any errors
+	for _, deleteError := range deleteResult.Errors {
+		t.Logf("⚠️ Failed to delete S3 object %s: %s", *deleteError.Key, *deleteError.Message)
+	}
+
+	t.Logf("✅ S3 cleanup completed for test run: %s (%d objects deleted)", m.runID, len(deleteResult.Deleted))
 	return nil
 }
 
