@@ -139,7 +139,7 @@ func (suite *StagedDeploymentSuite) TestFullDeployment() {
 			suite.uniqueId = uniqueId
 
 			// Initialize S3 backend manager for new network
-			s3Manager, err := initS3BackendManager(t, uniqueId)
+			s3Manager, err := s3backend.InitManager(t, utils.Azure, uniqueId)
 			if err != nil {
 				t.Fatalf("❌ Failed to initialize S3 backend manager: %v", err)
 			}
@@ -169,6 +169,11 @@ func (suite *StagedDeploymentSuite) TestFullDeployment() {
 		}
 		helpers.CreateTfvarsFile(t, networkTfvarsPath, networkVariables)
 
+		// Upload tfvars to S3 for debugging/cleanup scenarios
+		if err := suite.s3Manager.UploadTfvars(t, utils.NetworkingDir, networkTfvarsPath); err != nil {
+			t.Logf("⚠️ Failed to upload tfvars to S3 (non-fatal): %v", err)
+		}
+
 		networkOptions := &terraform.Options{
 			TerraformDir: networkingPath,
 			VarFiles:     []string{"terraform.tfvars.json"},
@@ -181,7 +186,7 @@ func (suite *StagedDeploymentSuite) TestFullDeployment() {
 		}
 
 		// Configure S3 backend if enabled - Terraform will handle state management
-		applyBackendConfigToTerraformOptions(networkOptions, suite.s3Manager, utils.NetworkingDir)
+		networkOptions.BackendConfig = suite.s3Manager.GetBackendConfig(utils.NetworkingDir)
 
 		// Save terraform options for potential cleanup stage
 		networkStageDir := filepath.Join(suite.workingDir, utils.NetworkingDir)
@@ -379,6 +384,12 @@ func (suite *StagedDeploymentSuite) setupMaterializeConsolidatedStage(stage, sta
 	}
 
 	helpers.CreateTfvarsFile(t, tfvarsPath, variables)
+
+	// Upload tfvars to S3 for debugging/cleanup scenarios
+	if err := suite.s3Manager.UploadTfvars(t, stageDir, tfvarsPath); err != nil {
+		t.Logf("⚠️ Failed to upload tfvars to S3 (non-fatal): %v", err)
+	}
+
 	materializeOptions := &terraform.Options{
 		TerraformDir: materializePath,
 		VarFiles:     []string{"terraform.tfvars.json"},
@@ -391,7 +402,7 @@ func (suite *StagedDeploymentSuite) setupMaterializeConsolidatedStage(stage, sta
 	}
 
 	// Configure S3 backend if enabled - Terraform will handle state management
-	applyBackendConfigToTerraformOptions(materializeOptions, suite.s3Manager, stageDir)
+	materializeOptions.BackendConfig = suite.s3Manager.GetBackendConfig(stageDir)
 
 	// Save terraform options for cleanup
 	stageDirPath := filepath.Join(suite.workingDir, stageDir)
@@ -556,7 +567,7 @@ func (suite *StagedDeploymentSuite) useExistingNetwork() string {
 	}
 
 	// Initialize S3 backend manager for existing network
-	s3Manager, err := initS3BackendManager(t, uniqueId)
+	s3Manager, err := s3backend.InitManager(t, utils.Azure, uniqueId)
 	if err != nil {
 		t.Fatalf("❌ Failed to initialize S3 backend manager: %v", err)
 	}
