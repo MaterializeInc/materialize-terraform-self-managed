@@ -19,6 +19,14 @@ resource "aws_iam_role" "github_actions" {
             "token.actions.githubusercontent.com:sub" = "repo:MaterializeInc/materialize-terraform-self-managed:*"
           }
         }
+      },
+      {
+        # Allow user role to assume oidc role, useful for purposes like manual cleanup or other debugging scenarios.
+        Effect = "Allow"
+        Action = "sts:AssumeRole"
+        Principal = {
+          AWS = var.user_role_arn
+        }
       }
     ]
   })

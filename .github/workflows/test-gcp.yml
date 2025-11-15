@@ -26,7 +26,7 @@ permissions:
 jobs:
   ignored_files:
     runs-on: ubuntu-latest
-    name: Check for ignored files
+    name: Check for ignored files (GCP Tests)
     outputs:
       only_modified: ${{ steps.ignored-files-changed.outputs.only_modified }}
     steps:

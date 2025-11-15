@@ -88,3 +88,8 @@ func (c *Config) IsEnabled() bool {
 func (c *Config) GetStateKey(provider, testName, runID string) string {
 	return fmt.Sprintf("%s/%s/%s/%s/terraform.tfstate", c.Prefix, provider, runID, testName)
 }
+
+// GetTfvarsKey returns the S3 key for terraform.tfvars.json file
+func (c *Config) GetTfvarsKey(provider, testName, runID string) string {
+	return fmt.Sprintf("%s/%s/%s/%s/terraform.tfvars.json", c.Prefix, provider, runID, testName)
+}

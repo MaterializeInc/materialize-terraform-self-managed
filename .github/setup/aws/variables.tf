@@ -14,3 +14,8 @@ variable "max_session_duration" {
   type        = number
   default     = 28800 # 8 hours
 }
+
+variable "user_role_arn" {
+  description = "The ARN of the user role to assume"
+  type        = string
+}
