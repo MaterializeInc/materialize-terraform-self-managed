@@ -1,9 +1,5 @@
 # Materialize Self-Managed Terraform Modules
 
-### 🚧 Under Construction 🚧
-
-*This project is under active development. It works and can be used to deploy Materialize but may have some minor breaking changes.*
-
 ---
 
 ## About Materialize
