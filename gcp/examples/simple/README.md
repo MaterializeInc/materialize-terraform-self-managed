@@ -53,10 +53,13 @@ Your GCP project needs several APIs enabled. Here's what each API does in simple
 ```bash
 # Enable these APIs in your project
 gcloud services enable container.googleapis.com               # For creating Kubernetes clusters
+gcloud services enable compute.googleapis.com                 # For creating GKE nodes and other compute resources
 gcloud services enable sqladmin.googleapis.com                # For creating databases
 gcloud services enable cloudresourcemanager.googleapis.com    # For managing GCP resources
 gcloud services enable servicenetworking.googleapis.com       # For private network connections
 gcloud services enable iamcredentials.googleapis.com          # For security and authentication
+gcloud services enable iam.googleapis.com                     # For managing IAM service accounts and policies
+gcloud services enable storage.googleapis.com                 # For Cloud Storage buckets
 ```
 
 ## Getting Started
