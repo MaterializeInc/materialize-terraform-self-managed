@@ -10,9 +10,9 @@ provider "aws" {
 # The ECR public authorization token endpoint isn't in all regions,
 # so lets get a new provider just for this purpose.
 provider "aws" {
-  region = "us-east-1"
+  region  = "us-east-1"
   profile = var.aws_profile
-  alias  = "ecrpublic_token_provider"
+  alias   = "ecrpublic_token_provider"
 }
 
 data "aws_ecrpublic_authorization_token" "token" {
