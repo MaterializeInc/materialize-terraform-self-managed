@@ -43,6 +43,12 @@ module "vpc_endpoints" {
   security_group_ids = [aws_security_group.vpc_endpoints[0].id]
 
   endpoints = {
+    s3 = {
+      service         = "s3"
+      service_type    = "Gateway"
+      route_table_ids = module.vpc.private_route_table_ids
+      tags            = { Name = "${var.name_prefix}-s3-gateway-endpoint" }
+    }
     ec2 = {
       service             = "ec2"
       private_dns_enabled = true
