@@ -49,6 +49,10 @@ module "vpc_endpoints" {
       route_table_ids = module.vpc.private_route_table_ids
       tags            = { Name = "${var.name_prefix}-s3-gateway-endpoint" }
     }
+    # not adding aws rds endpoint as it will add up unnecessary cost
+    # pods connect to rds using private ip. The traffic doesn't leave vpc so not needed.
+    # we would endup paying extra $0.02*24*30 = $14 per month even if we don't use it.
+    # https://aws.amazon.com/privatelink/pricing/
     ec2 = {
       service             = "ec2"
       private_dns_enabled = true
