@@ -42,3 +42,9 @@ variable "tags" {
   type        = map(string)
   default     = {}
 }
+
+variable "enable_vpc_endpoints" {
+  description = "Enable VPC endpoints for AWS services (PrivateLink)"
+  type        = bool
+  default     = false
+}

@@ -10,8 +10,9 @@ provider "aws" {
 # The ECR public authorization token endpoint isn't in all regions,
 # so lets get a new provider just for this purpose.
 provider "aws" {
-  region = "us-east-1"
-  alias  = "ecrpublic_token_provider"
+  region  = "us-east-1"
+  profile = var.aws_profile
+  alias   = "ecrpublic_token_provider"
 }
 
 data "aws_ecrpublic_authorization_token" "token" {
@@ -65,6 +66,8 @@ module "networking" {
   availability_zones   = ["us-east-1a", "us-east-1b", "us-east-1c"]
   private_subnet_cidrs = ["10.0.1.0/24", "10.0.2.0/24", "10.0.3.0/24"]
   public_subnet_cidrs  = ["10.0.101.0/24", "10.0.102.0/24", "10.0.103.0/24"]
+
+  enable_vpc_endpoints = true
 
   tags = var.tags
 }
