@@ -22,3 +22,8 @@ output "nat_public_ips" {
   description = "List of public Elastic IPs created for AWS NAT Gateway"
   value       = module.vpc.nat_public_ips
 }
+
+output "vpc_endpoints" {
+  description = "Map of VPC endpoints created"
+  value       = module.vpc_endpoints.endpoints
+}
