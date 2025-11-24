@@ -40,7 +40,7 @@ module "vpc_endpoints" {
 
   vpc_id             = module.vpc.vpc_id
   subnet_ids         = module.vpc.private_subnets
-  security_group_ids = [aws_security_group.vpc_endpoints[0].id]
+  security_group_ids = var.enable_vpc_endpoints ? [aws_security_group.vpc_endpoints[0].id] : []
 
   endpoints = {
     # we store metadata in s3 all pod requests go through this endpoint
