@@ -17,6 +17,11 @@ module "vpc" {
   enable_dns_hostnames = true
   enable_dns_support   = true
 
+  # needed for EKS Cluster private endpoint
+  # https://docs.aws.amazon.com/eks/latest/userguide/cluster-endpoint.html#cluster-endpoint-private
+  enable_dhcp_options = true
+  dhcp_options_domain_name_servers = ["AmazonProvidedDNS"]
+
   # Tags required for EKS
   private_subnet_tags = {
     "kubernetes.io/role/internal-elb"              = "1"
