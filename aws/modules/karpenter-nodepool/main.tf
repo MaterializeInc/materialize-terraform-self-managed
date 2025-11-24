@@ -16,11 +16,6 @@ resource "terraform_data" "destroyer" {
     command     = <<-EOF
       set -euo pipefail
 
-      if ! command -v kubectl &> /dev/null; then
-        echo "Error: kubectl not found. Please install kubectl to clean up NodeClaims."
-        exit 1
-      fi
-
       if [ -z "$${KUBECONFIG_DATA}" ]; then
         echo "Error: KUBECONFIG_DATA is empty"
         exit 1
