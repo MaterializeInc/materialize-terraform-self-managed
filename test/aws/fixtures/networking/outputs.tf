@@ -17,3 +17,8 @@ output "public_subnet_ids" {
   description = "List of public subnet IDs"
   value       = module.networking.public_subnet_ids
 }
+
+output "vpc_endpoints" {
+  description = "List of VPC endpoints"
+  value       = module.networking.vpc_endpoints
+}
