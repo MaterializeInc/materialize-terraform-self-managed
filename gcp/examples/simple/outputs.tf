@@ -19,6 +19,12 @@ output "gke_cluster_endpoint" {
   value       = module.gke.cluster_endpoint
 }
 
+output "gke_cluster_private_endpoint" {
+  description = "GKE cluster private endpoint"
+  value       = module.gke.cluster_private_endpoint
+  sensitive   = true
+}
+
 output "gke_cluster_location" {
   description = "GKE cluster location"
   value       = module.gke.cluster_location
