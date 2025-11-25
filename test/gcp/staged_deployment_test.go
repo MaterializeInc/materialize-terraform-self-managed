@@ -340,14 +340,15 @@ func (suite *StagedDeploymentSuite) setupMaterializeConsolidatedStage(stage, sta
 		"subnet_name":  subnetNames[0],
 
 		// GKE Configuration
-		"namespace":             TestGKENamespace,
-		"materialize_node_type": machineType,
-		"min_nodes":             TestGKEMinNodes,
-		"max_nodes":             TestGKEMaxNodes,
-		"enable_private_nodes":  true,
-		"swap_enabled":          diskEnabled,
-		"disk_size":             diskSize,
-		"local_ssd_count":       localSSDCount,
+		"namespace":                             TestGKENamespace,
+		"master_authorized_networks_cidr_block": TestMasterAuthorizedNetworksCIDRBlock,
+		"materialize_node_type":                 machineType,
+		"min_nodes":                             TestGKEMinNodes,
+		"max_nodes":                             TestGKEMaxNodes,
+		"enable_private_nodes":                  true,
+		"swap_enabled":                          diskEnabled,
+		"disk_size":                             diskSize,
+		"local_ssd_count":                       localSSDCount,
 
 		// Node Labels
 		"labels": map[string]string{

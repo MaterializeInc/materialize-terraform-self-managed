@@ -13,6 +13,8 @@ const (
 	TestMachineTypeMedium = "n2-standard-4" // 4 vCPU, 16 GB RAM
 	TestMachineTypeMemory = "n2-highmem-2"  // 2 vCPU, 16 GB RAM
 
+	TestMasterAuthorizedNetworksCIDRBlock = "0.0.0.0/0"
+
 	// GKE-specific machine types
 	TestGKEMachineType            = "n2-standard-2" // Standard GKE node type
 	TestAlternativeGKEMachineType = "n2-standard-4" // Alternative GKE node type
