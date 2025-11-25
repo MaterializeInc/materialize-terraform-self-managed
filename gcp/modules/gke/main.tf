@@ -42,6 +42,21 @@ resource "google_container_cluster" "primary" {
     services_secondary_range_name = var.services_secondary_range_name
   }
 
+  # Enable private cluster with both private and public endpoint access
+  private_cluster_config {
+    enable_private_nodes    = true
+    enable_private_endpoint = false
+    master_ipv4_cidr_block  = var.master_ipv4_cidr_block
+  }
+
+  # Allow access to the cluster endpoint from specific IP ranges
+  master_authorized_networks_config {
+    cidr_blocks {
+      cidr_block   = var.master_authorized_networks_cidr_block
+      display_name = "Authorized networks"
+    }
+  }
+
   release_channel {
     channel = var.release_channel
   }

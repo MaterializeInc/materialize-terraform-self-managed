@@ -96,3 +96,19 @@ variable "labels" {
   type        = map(string)
   default     = {}
 }
+
+# GCP manages this CIDR block when not provided as input
+variable "master_ipv4_cidr_block" {
+  description = "The IP range in CIDR notation to use for the hosted master network. This range must not overlap with any other ranges in use within the cluster's network."
+  type        = string
+  default     = null
+  nullable    = true
+}
+
+# modify this to restrict public access to master endpoint from specific IP ranges
+variable "master_authorized_networks_cidr_block" {
+  description = "CIDR block to allow access to the Kubernetes master endpoint. Defaults to 0.0.0.0/0 to allow access from anywhere."
+  type        = string
+  default     = "0.0.0.0/0"
+  nullable    = false
+}
