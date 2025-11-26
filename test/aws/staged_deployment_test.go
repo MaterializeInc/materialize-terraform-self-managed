@@ -208,13 +208,13 @@ func (suite *StagedDeploymentTestSuite) TestFullDeployment() {
 		vpcId := terraform.Output(t, networkOptions, "vpc_id")
 		privateSubnetIds := terraform.OutputList(t, networkOptions, "private_subnet_ids")
 		publicSubnetIds := terraform.OutputList(t, networkOptions, "public_subnet_ids")
-		vpcEndpoints := terraform.OutputList(t, networkOptions, "vpc_endpoints")
+		vpcEndpoints := terraform.OutputJson(t, networkOptions, "vpc_endpoints")
 
 		// Save all outputs and resource IDs to networking directory
 		test_structure.SaveString(t, networkStageDir, "vpc_id", vpcId)
 		test_structure.SaveString(t, networkStageDir, "private_subnet_ids", strings.Join(privateSubnetIds, ","))
 		test_structure.SaveString(t, networkStageDir, "public_subnet_ids", strings.Join(publicSubnetIds, ","))
-		test_structure.SaveString(t, networkStageDir, "vpc_endpoints", strings.Join(vpcEndpoints, ","))
+		test_structure.SaveString(t, networkStageDir, "vpc_endpoints", vpcEndpoints)
 
 		t.Logf("✅ Network infrastructure created:")
 		t.Logf("  🌐 VPC: %s", vpcId)

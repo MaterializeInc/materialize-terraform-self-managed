@@ -35,6 +35,8 @@
 | Name | Description | Type | Default | Required |
 |------|-------------|------|---------|:--------:|
 | <a name="input_aks_subnet_cidr"></a> [aks\_subnet\_cidr](#input\_aks\_subnet\_cidr) | CIDR range for the AKS subnet | `string` | n/a | yes |
+| <a name="input_api_server_subnet_cidr"></a> [api\_server\_subnet\_cidr](#input\_api\_server\_subnet\_cidr) | CIDR range for the API Server VNet Integration delegated subnet (minimum /28, recommended /27) | `string` | `null` | no |
+| <a name="input_enable_api_server_vnet_integration"></a> [enable\_api\_server\_vnet\_integration](#input\_enable\_api\_server\_vnet\_integration) | Enable API Server VNet Integration (requires api\_server\_subnet\_cidr to be set) | `bool` | `false` | no |
 | <a name="input_location"></a> [location](#input\_location) | The location where resources will be created | `string` | n/a | yes |
 | <a name="input_nat_gateway_idle_timeout"></a> [nat\_gateway\_idle\_timeout](#input\_nat\_gateway\_idle\_timeout) | The idle timeout in minutes for the NAT Gateway | `number` | `4` | no |
 | <a name="input_postgres_subnet_cidr"></a> [postgres\_subnet\_cidr](#input\_postgres\_subnet\_cidr) | CIDR range for the PostgreSQL subnet | `string` | n/a | yes |
@@ -49,6 +51,8 @@
 |------|-------------|
 | <a name="output_aks_subnet_id"></a> [aks\_subnet\_id](#output\_aks\_subnet\_id) | The ID of the AKS subnet |
 | <a name="output_aks_subnet_name"></a> [aks\_subnet\_name](#output\_aks\_subnet\_name) | The name of the AKS subnet |
+| <a name="output_api_server_subnet_id"></a> [api\_server\_subnet\_id](#output\_api\_server\_subnet\_id) | The ID of the API server subnet (null if VNet Integration is not enabled) |
+| <a name="output_api_server_subnet_name"></a> [api\_server\_subnet\_name](#output\_api\_server\_subnet\_name) | The name of the API server subnet (null if VNet Integration is not enabled) |
 | <a name="output_nat_gateway_id"></a> [nat\_gateway\_id](#output\_nat\_gateway\_id) | The ID of the NAT Gateway |
 | <a name="output_nat_gateway_public_ip"></a> [nat\_gateway\_public\_ip](#output\_nat\_gateway\_public\_ip) | The public IP address of the NAT Gateway |
 | <a name="output_postgres_subnet_id"></a> [postgres\_subnet\_id](#output\_postgres\_subnet\_id) | The ID of the PostgreSQL subnet |
