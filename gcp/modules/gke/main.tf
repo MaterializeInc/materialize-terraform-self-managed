@@ -43,8 +43,11 @@ resource "google_container_cluster" "primary" {
   }
 
   # Enable private cluster with both private and public endpoint access
+  # ref : https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/container_cluster#private_cluster_config-1
   private_cluster_config {
+    # enables private cluster feature,creating a private endpoint on cluster
     enable_private_nodes    = true
+    # when enable_private_endpoint is true, it disables the access through public endpoint, hence this is set to false.
     enable_private_endpoint = false
     master_ipv4_cidr_block  = var.master_ipv4_cidr_block
   }
