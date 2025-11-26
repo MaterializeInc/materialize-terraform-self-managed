@@ -340,14 +340,15 @@ func (suite *StagedDeploymentSuite) setupMaterializeConsolidatedStage(stage, sta
 		"subnet_name":  subnetNames[0],
 
 		// GKE Configuration
-		"namespace":             TestGKENamespace,
-		"materialize_node_type": machineType,
-		"min_nodes":             TestGKEMinNodes,
-		"max_nodes":             TestGKEMaxNodes,
-		"enable_private_nodes":  true,
-		"swap_enabled":          diskEnabled,
-		"disk_size":             diskSize,
-		"local_ssd_count":       localSSDCount,
+		"namespace":                             TestGKENamespace,
+		"master_authorized_networks_cidr_block": TestMasterAuthorizedNetworksCIDRBlock,
+		"materialize_node_type":                 machineType,
+		"min_nodes":                             TestGKEMinNodes,
+		"max_nodes":                             TestGKEMaxNodes,
+		"enable_private_nodes":                  true,
+		"swap_enabled":                          diskEnabled,
+		"disk_size":                             diskSize,
+		"local_ssd_count":                       localSSDCount,
 
 		// Node Labels
 		"labels": map[string]string{
@@ -429,6 +430,7 @@ func (suite *StagedDeploymentSuite) setupMaterializeConsolidatedStage(stage, sta
 	// GKE Cluster Outputs
 	clusterName := terraform.Output(t, materializeOptions, "cluster_name")
 	clusterEndpoint := terraform.Output(t, materializeOptions, "cluster_endpoint")
+	clusterPrivateEndpoint := terraform.Output(t, materializeOptions, "cluster_private_endpoint")
 	clusterCA := terraform.Output(t, materializeOptions, "cluster_ca_certificate")
 	workloadIdentitySA := terraform.Output(t, materializeOptions, "workload_identity_sa_email")
 
@@ -443,6 +445,7 @@ func (suite *StagedDeploymentSuite) setupMaterializeConsolidatedStage(stage, sta
 	t.Log("✅ Validating GKE Cluster Outputs...")
 	suite.NotEmpty(clusterName, "GKE cluster name should not be empty")
 	suite.NotEmpty(clusterEndpoint, "GKE cluster endpoint should not be empty")
+	suite.NotEmpty(clusterPrivateEndpoint, "GKE cluster private endpoint should not be empty")
 	suite.NotEmpty(clusterCA, "GKE cluster CA certificate should not be empty")
 	suite.NotEmpty(workloadIdentitySA, "Workload identity SA email should not be empty")
 

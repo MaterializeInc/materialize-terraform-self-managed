@@ -4,8 +4,14 @@ output "cluster_name" {
 }
 
 output "cluster_endpoint" {
-  description = "The endpoint of the GKE cluster"
+  description = "The public endpoint of the GKE cluster"
   value       = google_container_cluster.primary.endpoint
+  sensitive   = true
+}
+
+output "cluster_private_endpoint" {
+  description = "The private endpoint of the GKE cluster (used by nodes and VPC resources)"
+  value       = google_container_cluster.primary.private_cluster_config != null && length(google_container_cluster.primary.private_cluster_config) > 0 ? google_container_cluster.primary.private_cluster_config[0].private_endpoint : null
   sensitive   = true
 }
 

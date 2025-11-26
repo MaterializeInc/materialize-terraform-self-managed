@@ -12,6 +12,11 @@ output "cluster_endpoint" {
   value       = module.gke.cluster_endpoint
 }
 
+output "cluster_private_endpoint" {
+  description = "GKE cluster private endpoint"
+  value       = module.gke.cluster_private_endpoint
+}
+
 output "cluster_ca_certificate" {
   description = "GKE cluster CA certificate"
   value       = module.gke.cluster_ca_certificate
