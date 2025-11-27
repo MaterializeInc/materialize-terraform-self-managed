@@ -229,7 +229,8 @@ variable "load_balancer_sku" {
 # ============================================================================
 # API Server VNet Integration (Recommended for better performance)
 # ============================================================================
-
+# This enables API Server VNet Integration on Public Cluster Endpoint.
+# Refer for more details: https://learn.microsoft.com/en-us/azure/aks/api-server-vnet-integration#deploy-a-public-cluster
 variable "enable_api_server_vnet_integration" {
   description = "Enable API Server VNet Integration. Projects the API server into a delegated subnet in your VNet. Requires api_server_subnet_id to be provided."
   type        = bool
