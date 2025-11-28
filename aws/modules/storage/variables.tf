@@ -25,6 +25,24 @@ variable "enable_bucket_encryption" {
   nullable    = false
 }
 
+variable "bucket_encryption_mode" {
+  description = "Server-side encryption mode to apply (SSE-S3 by default)"
+  type        = string
+  default     = "SSE-S3"
+  nullable    = false
+
+  validation {
+    condition     = contains(["SSE-S3", "SSE-KMS"], var.bucket_encryption_mode)
+    error_message = "bucket_encryption_mode must be either \"SSE-S3\" or \"SSE-KMS\"."
+  }
+}
+
+variable "bucket_kms_key_arn" {
+  description = "ARN of the KMS key to use when bucket_encryption_mode is SSE-KMS"
+  type        = string
+  default     = null
+}
+
 variable "bucket_lifecycle_rules" {
   description = "List of lifecycle rules for the S3 bucket"
   type = list(object({
