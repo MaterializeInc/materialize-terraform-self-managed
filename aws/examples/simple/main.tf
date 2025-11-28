@@ -329,6 +329,7 @@ module "materialize_instance" {
 
   # The password for the external login to the Materialize instance
   external_login_password_mz_system = random_password.external_login_password_mz_system.result
+  authenticator_kind = "Password"
 
   # AWS IAM role annotation for service account
   service_account_annotations = {
