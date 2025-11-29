@@ -328,7 +328,7 @@ module "materialize_instance" {
   persist_backend_url  = local.persist_backend_url
 
   # Rollout configuration
-  force_rollout = var.force_rollout
+  force_rollout   = var.force_rollout
   request_rollout = var.request_rollout
 
   # The password for the external login to the Materialize instance
