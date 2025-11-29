@@ -39,11 +39,13 @@ const (
 	TestDiskSizeMedium = 100
 	TestDiskSizeLarge  = 150
 
+	EnableAPIServerVNetIntegration = true
 	// Network CIDR blocks that don't conflict
-	TestVNetAddressSpace   = "10.100.0.0/16"
-	TestAKSSubnetCIDR      = "10.100.0.0/20"
-	TestPostgresSubnetCIDR = "10.100.16.0/24"
-	TestServiceCIDR        = "10.101.0.0/16"
+	TestVNetAddressSpace    = "10.100.0.0/16"
+	TestAKSSubnetCIDR       = "10.100.0.0/20"
+	TestPostgresSubnetCIDR  = "10.100.16.0/24"
+	TestAPIServerSubnetCIDR = "10.100.32.0/27"
+	TestServiceCIDR         = "10.101.0.0/16"
 
 	// Test timeouts (in seconds)
 	TestTimeoutShort  = 300  // 5 minutes

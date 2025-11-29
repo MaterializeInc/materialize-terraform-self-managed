@@ -13,6 +13,14 @@ resource "azurerm_role_assignment" "aks_network_contributer" {
   principal_id         = resource.azurerm_user_assigned_identity.aks_identity.principal_id
 }
 
+# Role assignment for API server subnet (required for VNet Integration)
+resource "azurerm_role_assignment" "aks_apiserver_network_contributer" {
+  count                = var.enable_api_server_vnet_integration && var.api_server_subnet_id != null ? 1 : 0
+  scope                = var.api_server_subnet_id
+  role_definition_name = "Network Contributor"
+  principal_id         = resource.azurerm_user_assigned_identity.aks_identity.principal_id
+}
+
 resource "azurerm_user_assigned_identity" "workload_identity" {
   name                = "${var.prefix}-workload-identity"
   resource_group_name = var.resource_group_name
@@ -52,6 +60,15 @@ resource "azurerm_kubernetes_cluster" "aks" {
     identity_ids = [azurerm_user_assigned_identity.aks_identity.id]
   }
 
+  # API Server VNet Integration - Projects API server into a delegated subnet
+  # Can be used for BOTH public and private clusters
+  # Reference: https://learn.microsoft.com/en-us/azure/aks/api-server-vnet-integration
+  api_server_access_profile {
+    virtual_network_integration_enabled = var.enable_api_server_vnet_integration
+    subnet_id                           = var.api_server_subnet_id
+    authorized_ip_ranges                = var.api_server_authorized_ip_ranges
+  }
+
   oidc_issuer_enabled       = true
   workload_identity_enabled = true
 
@@ -83,6 +100,7 @@ resource "azurerm_kubernetes_cluster" "aks" {
 
   depends_on = [
     resource.azurerm_role_assignment.aks_network_contributer,
+    resource.azurerm_role_assignment.aks_apiserver_network_contributer,
   ]
 
   lifecycle {
@@ -105,6 +123,11 @@ resource "azurerm_kubernetes_cluster" "aks" {
         var.network_data_plane == "cilium"
       )
       error_message = "When network_policy is 'cilium', network_data_plane must also be 'cilium'."
+    }
+
+    precondition {
+      condition     = !var.enable_api_server_vnet_integration || var.api_server_subnet_id != null
+      error_message = "api_server_subnet_id must be provided when enable_api_server_vnet_integration is true."
     }
   }
 }

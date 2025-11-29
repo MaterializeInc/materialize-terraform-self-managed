@@ -33,6 +33,8 @@ No modules.
 | <a name="input_horizontal_pod_autoscaling_disabled"></a> [horizontal\_pod\_autoscaling\_disabled](#input\_horizontal\_pod\_autoscaling\_disabled) | Whether to disable horizontal pod autoscaling | `bool` | `false` | no |
 | <a name="input_http_load_balancing_disabled"></a> [http\_load\_balancing\_disabled](#input\_http\_load\_balancing\_disabled) | Whether to disable HTTP load balancing | `bool` | `false` | no |
 | <a name="input_labels"></a> [labels](#input\_labels) | Labels to apply to all resources | `map(string)` | `{}` | no |
+| <a name="input_master_authorized_networks_cidr_block"></a> [master\_authorized\_networks\_cidr\_block](#input\_master\_authorized\_networks\_cidr\_block) | CIDR block to allow access to the Kubernetes master endpoint. Defaults to 0.0.0.0/0 to allow access from anywhere. | `string` | `"0.0.0.0/0"` | no |
+| <a name="input_master_ipv4_cidr_block"></a> [master\_ipv4\_cidr\_block](#input\_master\_ipv4\_cidr\_block) | The IP range in CIDR notation to use for the hosted master network. This range must not overlap with any other ranges in use within the cluster's network. | `string` | `null` | no |
 | <a name="input_namespace"></a> [namespace](#input\_namespace) | The namespace where the Materialize Operator will be installed | `string` | n/a | yes |
 | <a name="input_network_name"></a> [network\_name](#input\_network\_name) | The name of the VPC network | `string` | n/a | yes |
 | <a name="input_networking_mode"></a> [networking\_mode](#input\_networking\_mode) | The networking mode for the GKE cluster | `string` | `"VPC_NATIVE"` | no |
@@ -48,8 +50,9 @@ No modules.
 | Name | Description |
 |------|-------------|
 | <a name="output_cluster_ca_certificate"></a> [cluster\_ca\_certificate](#output\_cluster\_ca\_certificate) | n/a |
-| <a name="output_cluster_endpoint"></a> [cluster\_endpoint](#output\_cluster\_endpoint) | The endpoint of the GKE cluster |
+| <a name="output_cluster_endpoint"></a> [cluster\_endpoint](#output\_cluster\_endpoint) | The public endpoint of the GKE cluster |
 | <a name="output_cluster_location"></a> [cluster\_location](#output\_cluster\_location) | The location of the GKE cluster |
 | <a name="output_cluster_name"></a> [cluster\_name](#output\_cluster\_name) | The name of the GKE cluster |
+| <a name="output_cluster_private_endpoint"></a> [cluster\_private\_endpoint](#output\_cluster\_private\_endpoint) | The private endpoint of the GKE cluster (used by nodes and VPC resources) |
 | <a name="output_service_account_email"></a> [service\_account\_email](#output\_service\_account\_email) | The email of the GKE service account |
 | <a name="output_workload_identity_sa_email"></a> [workload\_identity\_sa\_email](#output\_workload\_identity\_sa\_email) | The email of the Workload Identity service account |
