@@ -83,11 +83,15 @@ variable "memory_limit" {
 }
 
 # Rollout Configuration
-variable "in_place_rollout" {
-  description = "Whether to perform in-place rollouts"
-  type        = bool
-  default     = true
+variable "rollout_strategy" {
+  description = "Strategy to use for rollouts"
+  type        = string
+  default     = "WaitUntilReady"
   nullable    = false
+  validation {
+    condition     = contains(["WaitUntilReady", "ImmediatelyPromoteCausingDowntime"], var.rollout_strategy)
+    error_message = "Rollout strategy must be either 'WaitUntilReady' or 'ImmediatelyPromoteCausingDowntime'"
+  }
 }
 
 variable "request_rollout" {

@@ -41,7 +41,6 @@ No modules.
 | <a name="input_environmentd_version"></a> [environmentd\_version](#input\_environmentd\_version) | Version of environmentd to use | `string` | `"v26.1.0"` | no |
 | <a name="input_external_login_password_mz_system"></a> [external\_login\_password\_mz\_system](#input\_external\_login\_password\_mz\_system) | Password for external login to mz\_system. Must be set if authenticator\_kind is 'Password'. | `string` | `null` | no |
 | <a name="input_force_rollout"></a> [force\_rollout](#input\_force\_rollout) | UUID to force a rollout | `string` | `"00000000-0000-0000-0000-000000000001"` | no |
-| <a name="input_in_place_rollout"></a> [in\_place\_rollout](#input\_in\_place\_rollout) | Whether to perform in-place rollouts | `bool` | `true` | no |
 | <a name="input_instance_name"></a> [instance\_name](#input\_instance\_name) | Name of the Materialize instance | `string` | n/a | yes |
 | <a name="input_instance_namespace"></a> [instance\_namespace](#input\_instance\_namespace) | Kubernetes namespace for the instance. | `string` | n/a | yes |
 | <a name="input_issuer_ref"></a> [issuer\_ref](#input\_issuer\_ref) | Reference to a cert-manager Issuer or ClusterIssuer. | <pre>object({<br/>    name = string<br/>    kind = string<br/>  })</pre> | `null` | no |
@@ -52,6 +51,7 @@ No modules.
 | <a name="input_persist_backend_url"></a> [persist\_backend\_url](#input\_persist\_backend\_url) | S3 connection URL for persist backend | `string` | n/a | yes |
 | <a name="input_pod_labels"></a> [pod\_labels](#input\_pod\_labels) | Labels for the materialize instance pod | `map(string)` | `{}` | no |
 | <a name="input_request_rollout"></a> [request\_rollout](#input\_request\_rollout) | UUID to request a rollout | `string` | `"00000000-0000-0000-0000-000000000001"` | no |
+| <a name="input_rollout_strategy"></a> [rollout\_strategy](#input\_rollout\_strategy) | Strategy to use for rollouts | `string` | `"WaitUntilReady"` | no |
 | <a name="input_service_account_annotations"></a> [service\_account\_annotations](#input\_service\_account\_annotations) | Annotations for the service account associated with the materialize instance. Useful for IAM roles assigned to the service account. | `map(string)` | `{}` | no |
 
 ## Outputs

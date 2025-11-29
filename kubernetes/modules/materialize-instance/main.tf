@@ -25,7 +25,7 @@ resource "kubectl_manifest" "materialize_instance" {
       authenticatorKind         = var.authenticator_kind
       serviceAccountAnnotations = var.service_account_annotations
       podLabels                 = var.pod_labels
-      inPlaceRollout            = var.in_place_rollout
+      rolloutStrategy           = var.rollout_strategy
       requestRollout            = var.request_rollout
       forceRollout              = var.force_rollout
 

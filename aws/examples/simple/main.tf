@@ -327,6 +327,10 @@ module "materialize_instance" {
   metadata_backend_url = local.metadata_backend_url
   persist_backend_url  = local.persist_backend_url
 
+  # Rollout configuration
+  force_rollout = var.force_rollout
+  request_rollout = var.request_rollout
+
   # The password for the external login to the Materialize instance
   external_login_password_mz_system = random_password.external_login_password_mz_system.result
 
