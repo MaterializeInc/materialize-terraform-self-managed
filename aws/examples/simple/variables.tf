@@ -22,6 +22,17 @@ variable "name_prefix" {
 variable "license_key" {
   description = "Materialize license key"
   type        = string
-  default     = null
   sensitive   = true
+}
+
+variable "force_rollout" {
+  description = "UUID to force a rollout"
+  type        = string
+  default     = "00000000-0000-0000-0000-000000000001"
+}
+
+variable "request_rollout" {
+  description = "UUID to request a rollout"
+  type        = string
+  default     = "00000000-0000-0000-0000-000000000001"
 }
