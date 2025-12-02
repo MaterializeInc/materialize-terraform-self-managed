@@ -46,3 +46,17 @@ variable "nat_gateway_idle_timeout" {
   default     = 4
   nullable    = false
 }
+
+variable "api_server_subnet_cidr" {
+  description = "CIDR range for the API Server VNet Integration delegated subnet (minimum /28, recommended /27)"
+  type        = string
+  default     = null
+  nullable    = true
+}
+
+variable "enable_api_server_vnet_integration" {
+  description = "Enable API Server VNet Integration (requires api_server_subnet_cidr to be set)"
+  type        = bool
+  default     = false
+  nullable    = false
+}

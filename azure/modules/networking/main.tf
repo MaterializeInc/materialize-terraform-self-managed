@@ -36,32 +36,52 @@ module "virtual_network" {
   address_space       = [var.vnet_address_space]
   tags                = var.tags
 
-  subnets = {
-    aks = {
-      name              = "${var.prefix}-aks-subnet"
-      address_prefixes  = [var.aks_subnet_cidr]
-      service_endpoints = ["Microsoft.Storage", "Microsoft.Sql"]
-      nat_gateway = {
-        id = azurerm_nat_gateway.main.id
-      }
-    }
-    postgres = {
-      name              = "${var.prefix}-pg-subnet"
-      address_prefixes  = [var.postgres_subnet_cidr]
-      service_endpoints = ["Microsoft.Storage"]
-      delegations = [
-        {
-          name = "postgres-delegation"
-          service_delegation = {
-            name = "Microsoft.DBforPostgreSQL/flexibleServers"
-            actions = [
-              "Microsoft.Network/virtualNetworks/subnets/join/action",
-            ]
-          }
+  subnets = merge(
+    {
+      aks = {
+        name              = "${var.prefix}-aks-subnet"
+        address_prefixes  = [var.aks_subnet_cidr]
+        service_endpoints = ["Microsoft.Storage", "Microsoft.Sql"]
+        nat_gateway = {
+          id = azurerm_nat_gateway.main.id
         }
-      ]
-    }
-  }
+      }
+      postgres = {
+        name              = "${var.prefix}-pg-subnet"
+        address_prefixes  = [var.postgres_subnet_cidr]
+        service_endpoints = ["Microsoft.Storage"]
+        delegations = [
+          {
+            name = "postgres-delegation"
+            service_delegation = {
+              name = "Microsoft.DBforPostgreSQL/flexibleServers"
+              actions = [
+                "Microsoft.Network/virtualNetworks/subnets/join/action",
+              ]
+            }
+          }
+        ]
+      }
+    },
+    # Conditionally add API server subnet for VNet Integration
+    var.enable_api_server_vnet_integration && var.api_server_subnet_cidr != null ? {
+      apiserver = {
+        name             = "${var.prefix}-apiserver-subnet"
+        address_prefixes = [var.api_server_subnet_cidr]
+        delegations = [
+          {
+            name = "apiserver-delegation"
+            service_delegation = {
+              name = "Microsoft.ContainerService/managedClusters"
+              actions = [
+                "Microsoft.Network/virtualNetworks/subnets/join/action",
+              ]
+            }
+          }
+        ]
+      }
+    } : {}
+  )
 
   depends_on = [azurerm_nat_gateway_public_ip_association.main]
 }

@@ -161,13 +161,15 @@ func (suite *StagedDeploymentSuite) TestFullDeployment() {
 		// Create terraform.tfvars.json file for network stage
 		networkTfvarsPath := filepath.Join(networkingPath, "terraform.tfvars.json")
 		networkVariables := map[string]interface{}{
-			"subscription_id":      subscriptionID,
-			"resource_group_name":  fmt.Sprintf("%s-rg", shortId),
-			"location":             testRegion,
-			"prefix":               shortId,
-			"vnet_address_space":   TestVNetAddressSpace,
-			"aks_subnet_cidr":      TestAKSSubnetCIDR,
-			"postgres_subnet_cidr": TestPostgresSubnetCIDR,
+			"subscription_id":                    subscriptionID,
+			"resource_group_name":                fmt.Sprintf("%s-rg", shortId),
+			"location":                           testRegion,
+			"prefix":                             shortId,
+			"vnet_address_space":                 TestVNetAddressSpace,
+			"aks_subnet_cidr":                    TestAKSSubnetCIDR,
+			"postgres_subnet_cidr":               TestPostgresSubnetCIDR,
+			"api_server_subnet_cidr":             TestAPIServerSubnetCIDR,
+			"enable_api_server_vnet_integration": EnableAPIServerVNetIntegration,
 			"tags": map[string]string{
 				"environment": helpers.GetEnvironment(),
 				"project":     utils.ProjectName,
@@ -208,6 +210,7 @@ func (suite *StagedDeploymentSuite) TestFullDeployment() {
 		vnetName := terraform.Output(t, networkOptions, "vnet_name")
 		aksSubnetId := terraform.Output(t, networkOptions, "aks_subnet_id")
 		aksSubnetName := terraform.Output(t, networkOptions, "aks_subnet_name")
+		apiServerSubnetId := terraform.Output(t, networkOptions, "api_server_subnet_id")
 		postgresSubnetId := terraform.Output(t, networkOptions, "postgres_subnet_id")
 		privateDNSZoneId := terraform.Output(t, networkOptions, "private_dns_zone_id")
 
@@ -217,6 +220,7 @@ func (suite *StagedDeploymentSuite) TestFullDeployment() {
 		test_structure.SaveString(t, networkStageDir, "vnet_name", vnetName)
 		test_structure.SaveString(t, networkStageDir, "aks_subnet_id", aksSubnetId)
 		test_structure.SaveString(t, networkStageDir, "aks_subnet_name", aksSubnetName)
+		test_structure.SaveString(t, networkStageDir, "api_server_subnet_id", apiServerSubnetId)
 		test_structure.SaveString(t, networkStageDir, "postgres_subnet_id", postgresSubnetId)
 		test_structure.SaveString(t, networkStageDir, "private_dns_zone_id", privateDNSZoneId)
 		test_structure.SaveString(t, suite.workingDir, "test_region", testRegion)
@@ -283,6 +287,7 @@ func (suite *StagedDeploymentSuite) setupMaterializeConsolidatedStage(stage, sta
 	vnetName := test_structure.LoadString(t, networkStageDir, "vnet_name")
 	aksSubnetId := test_structure.LoadString(t, networkStageDir, "aks_subnet_id")
 	aksSubnetName := test_structure.LoadString(t, networkStageDir, "aks_subnet_name")
+	apiServerSubnetId := test_structure.LoadString(t, networkStageDir, "api_server_subnet_id")
 	postgresSubnetId := test_structure.LoadString(t, networkStageDir, "postgres_subnet_id")
 	privateDNSZoneId := test_structure.LoadString(t, networkStageDir, "private_dns_zone_id")
 
@@ -315,11 +320,13 @@ func (suite *StagedDeploymentSuite) setupMaterializeConsolidatedStage(stage, sta
 		"prefix":              resourceName,
 
 		// Network Configuration
-		"vnet_name":           vnetName,
-		"subnet_name":         aksSubnetName,
-		"subnet_id":           aksSubnetId,
-		"database_subnet_id":  postgresSubnetId,
-		"private_dns_zone_id": privateDNSZoneId,
+		"vnet_name":                          vnetName,
+		"subnet_name":                        aksSubnetName,
+		"subnet_id":                          aksSubnetId,
+		"api_server_subnet_id":               apiServerSubnetId,
+		"enable_api_server_vnet_integration": EnableAPIServerVNetIntegration,
+		"database_subnet_id":                 postgresSubnetId,
+		"private_dns_zone_id":                privateDNSZoneId,
 
 		// AKS Configuration
 		"kubernetes_version":                    TestKubernetesVersion,
