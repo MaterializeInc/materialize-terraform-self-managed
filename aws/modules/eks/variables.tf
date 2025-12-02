@@ -55,3 +55,10 @@ variable "materialize_node_ingress_cidr" {
   type        = list(string)
   nullable    = false
 }
+
+variable "materialize_node_ingress_ipv6_cidr" {
+  description = "List of IPv6 CIDR blocks to allow ingress from for Materialize ports (HTTP 6876, pgwire 6875, health checks 8080). Leave empty to disable IPv6 access."
+  type        = list(string)
+  default     = []
+  nullable    = false
+}

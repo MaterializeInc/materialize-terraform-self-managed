@@ -22,7 +22,7 @@ module "eks" {
       to_port          = 6876
       type             = "ingress"
       cidr_blocks      = var.materialize_node_ingress_cidr
-      ipv6_cidr_blocks = ["::/0"]
+      ipv6_cidr_blocks = length(var.materialize_node_ingress_ipv6_cidr) > 0 ? var.materialize_node_ingress_ipv6_cidr : null
     }
     mz_ingress_pgwire = {
       description      = "Ingress to materialize balancers pgwire"
@@ -31,7 +31,7 @@ module "eks" {
       to_port          = 6875
       type             = "ingress"
       cidr_blocks      = var.materialize_node_ingress_cidr
-      ipv6_cidr_blocks = ["::/0"]
+      ipv6_cidr_blocks = length(var.materialize_node_ingress_ipv6_cidr) > 0 ? var.materialize_node_ingress_ipv6_cidr : null
     }
     mz_ingress_nlb_health_checks = {
       description      = "Ingress to materialize balancer health checks and console"
@@ -40,7 +40,7 @@ module "eks" {
       to_port          = 8080
       type             = "ingress"
       cidr_blocks      = var.materialize_node_ingress_cidr
-      ipv6_cidr_blocks = ["::/0"]
+      ipv6_cidr_blocks = length(var.materialize_node_ingress_ipv6_cidr) > 0 ? var.materialize_node_ingress_ipv6_cidr : null
     }
   }
 
