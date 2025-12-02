@@ -37,7 +37,7 @@ variable "request_rollout" {
   default     = "00000000-0000-0000-0000-000000000001"
 }
 
-variable "whitelisted_cidr_blocks" {
+variable "eks_allowed_ingress_cidrs" {
   description = "Additional CIDR blocks to allow ingress to EKS nodes for Materialize ports (6875, 6876, 8080). For production use, set this to [] (empty list) to only allow traffic from within the VPC, or specify specific CIDR ranges (e.g., VPN, peered networks)"
   type        = list(string)
   default     = ["0.0.0.0/0"]

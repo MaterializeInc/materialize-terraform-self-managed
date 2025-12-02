@@ -81,7 +81,7 @@ module "eks" {
   private_subnet_ids                       = module.networking.private_subnet_ids
   cluster_enabled_log_types                = ["api", "audit"]
   enable_cluster_creator_admin_permissions = true
-  materialize_node_ingress_cidr            = concat([module.networking.vpc_cidr_block], var.whitelisted_cidr_blocks)
+  materialize_node_ingress_cidr            = concat([module.networking.vpc_cidr_block], var.eks_allowed_ingress_cidrs)
   tags                                     = var.tags
 
   depends_on = [
