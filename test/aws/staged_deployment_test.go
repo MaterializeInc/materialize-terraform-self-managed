@@ -1,6 +1,7 @@
 package test
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -208,20 +209,24 @@ func (suite *StagedDeploymentTestSuite) TestFullDeployment() {
 		vpcId := terraform.Output(t, networkOptions, "vpc_id")
 		privateSubnetIds := terraform.OutputList(t, networkOptions, "private_subnet_ids")
 		publicSubnetIds := terraform.OutputList(t, networkOptions, "public_subnet_ids")
-		vpcEndpoints := terraform.OutputList(t, networkOptions, "vpc_endpoints")
+		vpcEndpoints := terraform.OutputMapOfObjects(t, networkOptions, "vpc_endpoints")
+		vpcEndpointsJson, err := json.MarshalIndent(vpcEndpoints, "", "  ")
+		if err != nil {
+			t.Logf("Failed to marshal vpc_endpoints: %v", err)
+		}
 
 		// Save all outputs and resource IDs to networking directory
 		test_structure.SaveString(t, networkStageDir, "vpc_id", vpcId)
 		test_structure.SaveString(t, networkStageDir, "private_subnet_ids", strings.Join(privateSubnetIds, ","))
 		test_structure.SaveString(t, networkStageDir, "public_subnet_ids", strings.Join(publicSubnetIds, ","))
-		test_structure.SaveString(t, networkStageDir, "vpc_endpoints", strings.Join(vpcEndpoints, ","))
+		test_structure.SaveString(t, networkStageDir, "vpc_endpoints", string(vpcEndpointsJson))
 
 		t.Logf("✅ Network infrastructure created:")
 		t.Logf("  🌐 VPC: %s", vpcId)
 		t.Logf("  🔒 Private Subnets: %v", privateSubnetIds)
 		t.Logf("  🌍 Public Subnets: %v", publicSubnetIds)
 		t.Logf("  🏷️ Resource ID: %s", uniqueId)
-		t.Logf("  🏷️ VPC Endpoints: %v", vpcEndpoints)
+		t.Logf("  🏷️ VPC Endpoints: %v", string(vpcEndpointsJson))
 
 	})
 
