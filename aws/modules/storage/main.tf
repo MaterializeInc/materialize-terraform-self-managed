@@ -2,6 +2,11 @@ resource "random_id" "bucket_suffix" {
   byte_length = 4
 }
 
+locals {
+  bucket_encryption_uses_kms = var.bucket_encryption_mode == "SSE-KMS"
+  bucket_sse_algorithm       = local.bucket_encryption_uses_kms ? "aws:kms" : "AES256"
+}
+
 resource "aws_s3_bucket" "materialize_storage" {
   bucket        = "${var.name_prefix}-storage-${random_id.bucket_suffix.hex}"
   force_destroy = var.bucket_force_destroy
@@ -22,9 +27,18 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "materialize_stora
   count = var.enable_bucket_encryption ? 1 : 0
 
   bucket = aws_s3_bucket.materialize_storage.id
+
+  lifecycle {
+    precondition {
+      condition     = !(local.bucket_encryption_uses_kms && var.bucket_kms_key_arn == null)
+      error_message = "Set bucket_kms_key_arn when bucket_encryption_mode is SSE-KMS."
+    }
+  }
+
   rule {
     apply_server_side_encryption_by_default {
-      sse_algorithm = "AES256"
+      sse_algorithm     = local.bucket_sse_algorithm
+      kms_master_key_id = local.bucket_encryption_uses_kms ? var.bucket_kms_key_arn : null
     }
   }
 }
