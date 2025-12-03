@@ -45,3 +45,9 @@ variable "tags" {
   type        = map(string)
   default     = {}
 }
+
+variable "preserve_client_ip" {
+  description = "Whether to preserve the client IP address"
+  type        = bool
+  default     = false
+}

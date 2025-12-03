@@ -10,38 +10,41 @@ resource "aws_lb" "nlb" {
 module "target_pgwire" {
   source = "./target"
 
-  name              = "${var.name_prefix}-pgwire"
-  nlb_arn           = aws_lb.nlb.arn
-  namespace         = var.namespace
-  vpc_id            = var.vpc_id
-  port              = 6875
-  service_name      = "mz${var.mz_resource_id}-balancerd"
-  health_check_path = "/api/readyz"
-  tags              = var.tags
+  name               = "${var.name_prefix}-pgwire"
+  nlb_arn            = aws_lb.nlb.arn
+  namespace          = var.namespace
+  vpc_id             = var.vpc_id
+  preserve_client_ip = !var.internal
+  port               = 6875
+  service_name       = "mz${var.mz_resource_id}-balancerd"
+  health_check_path  = "/api/readyz"
+  tags               = var.tags
 }
 
 module "target_http" {
   source = "./target"
 
-  name              = "${var.name_prefix}-http"
-  nlb_arn           = aws_lb.nlb.arn
-  namespace         = var.namespace
-  vpc_id            = var.vpc_id
-  port              = 6876
-  service_name      = "mz${var.mz_resource_id}-balancerd"
-  health_check_path = "/api/readyz"
-  tags              = var.tags
+  name               = "${var.name_prefix}-http"
+  nlb_arn            = aws_lb.nlb.arn
+  namespace          = var.namespace
+  vpc_id             = var.vpc_id
+  preserve_client_ip = !var.internal
+  port               = 6876
+  service_name       = "mz${var.mz_resource_id}-balancerd"
+  health_check_path  = "/api/readyz"
+  tags               = var.tags
 }
 
 module "target_console" {
   source = "./target"
 
-  name              = "${var.name_prefix}-console"
-  nlb_arn           = aws_lb.nlb.arn
-  namespace         = var.namespace
-  vpc_id            = var.vpc_id
-  port              = 8080
-  service_name      = "mz${var.mz_resource_id}-console"
-  health_check_path = "/"
-  tags              = var.tags
+  name               = "${var.name_prefix}-console"
+  nlb_arn            = aws_lb.nlb.arn
+  namespace          = var.namespace
+  vpc_id             = var.vpc_id
+  preserve_client_ip = !var.internal
+  port               = 8080
+  service_name       = "mz${var.mz_resource_id}-console"
+  health_check_path  = "/"
+  tags               = var.tags
 }
