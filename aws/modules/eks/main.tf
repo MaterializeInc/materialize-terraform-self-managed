@@ -16,31 +16,28 @@ module "eks" {
 
   node_security_group_additional_rules = {
     mz_ingress_http = {
-      description      = "Ingress to materialize balancers HTTP"
-      protocol         = "tcp"
-      from_port        = 6876
-      to_port          = 6876
-      type             = "ingress"
-      cidr_blocks      = var.materialize_node_ingress_cidr
-      ipv6_cidr_blocks = length(var.materialize_node_ingress_ipv6_cidr) > 0 ? var.materialize_node_ingress_ipv6_cidr : null
+      description = "Ingress to materialize balancers HTTP"
+      protocol    = "tcp"
+      from_port   = 6876
+      to_port     = 6876
+      type        = "ingress"
+      cidr_blocks = var.materialize_node_ingress_cidr
     }
     mz_ingress_pgwire = {
-      description      = "Ingress to materialize balancers pgwire"
-      protocol         = "tcp"
-      from_port        = 6875
-      to_port          = 6875
-      type             = "ingress"
-      cidr_blocks      = var.materialize_node_ingress_cidr
-      ipv6_cidr_blocks = length(var.materialize_node_ingress_ipv6_cidr) > 0 ? var.materialize_node_ingress_ipv6_cidr : null
+      description = "Ingress to materialize balancers pgwire"
+      protocol    = "tcp"
+      from_port   = 6875
+      to_port     = 6875
+      type        = "ingress"
+      cidr_blocks = var.materialize_node_ingress_cidr
     }
     mz_ingress_nlb_health_checks = {
-      description      = "Ingress to materialize balancer health checks and console"
-      protocol         = "tcp"
-      from_port        = 8080
-      to_port          = 8080
-      type             = "ingress"
-      cidr_blocks      = var.materialize_node_ingress_cidr
-      ipv6_cidr_blocks = length(var.materialize_node_ingress_ipv6_cidr) > 0 ? var.materialize_node_ingress_ipv6_cidr : null
+      description = "Ingress to materialize balancer health checks and console"
+      protocol    = "tcp"
+      from_port   = 8080
+      to_port     = 8080
+      type        = "ingress"
+      cidr_blocks = var.materialize_node_ingress_cidr
     }
   }
 
