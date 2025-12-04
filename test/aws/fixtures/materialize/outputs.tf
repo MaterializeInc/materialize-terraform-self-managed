@@ -161,8 +161,8 @@ output "instance_resource_id" {
 output "nlb_details" {
   description = "Details of the Materialize instance NLBs."
   value = {
-    arn      = try(module.materialize_nlb.nlb_arn, null)
-    dns_name = try(module.materialize_nlb.nlb_dns_name, null)
+    arn               = try(module.materialize_nlb.nlb_arn, null)
+    dns_name          = try(module.materialize_nlb.nlb_dns_name, null)
     security_group_id = try(module.materialize_nlb.nlb_security_group_id, null)
   }
 }
