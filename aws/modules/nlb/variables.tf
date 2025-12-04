@@ -17,6 +17,19 @@ variable "internal" {
   nullable    = false
 }
 
+variable "preserve_client_ip" {
+  description = "Whether to preserve the client IP address."
+  type        = bool
+  default     = true
+  nullable    = false
+}
+
+variable "ingress_cidr_blocks" {
+  description = "List of CIDR blocks to allow ingress to the NLB Security Group."
+  type        = list(string)
+  nullable    = false
+}
+
 variable "namespace" {
   description = "Kubernetes namespace in which to install TargetGroupBindings"
   type        = string
@@ -37,6 +50,12 @@ variable "vpc_id" {
 
 variable "mz_resource_id" {
   description = "The resourceId from the Materialize CR"
+  type        = string
+  nullable    = false
+}
+
+variable "node_security_group_id" {
+  description = "ID of the EKS Node Security Group to allow traffic to. Used to add ingress rules from the NLB SG."
   type        = string
   nullable    = false
 }

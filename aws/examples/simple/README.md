@@ -42,7 +42,7 @@ This example provisions the following infrastructure:
 ### Materialize
 - **Operator**: Materialize Kubernetes operator
 - **Instance**: Single Materialize instance in `materialize-environment` namespace
-- **Network Load Balancer**: Dedicated internal NLB for Materialize access (ports 6875, 6876, 8080)
+- **Network Load Balancer**: Internet-facing NLB for Materialize access (ports 6875, 6876, 8080)
 
 ---
 
@@ -79,6 +79,33 @@ Run the usual Terraform workflow:
 terraform init
 terraform apply
 ```
+
+---
+
+### Step 3: Accessing Materialize
+
+#### Security Model
+This deployment implements a secure access model:
+- **Public Access**: Only allowed via the Network Load Balancer (NLB).
+- **Direct Node Access**: **BLOCKED**. The EKS nodes have a security group that only accepts traffic from within the VPC.
+
+#### SQL Access
+You can connect to Materialize using any PostgreSQL-compatible client by pointing it to the NLB's DNS name on port **6875**.
+
+To get the NLB DNS name:
+```bash
+terraform output -json | jq -r .nlb_dns_name.value
+```
+
+#### Console Access
+The Materialize Console is available on port 8080. For security, we recommend accessing it via Kubernetes port-forwarding rather than exposing it publicly if possible, though it is available on the NLB through sql access.
+
+**Via Port Forwarding:**
+```bash
+# Forward local port 8080 to the Materialize service
+kubectl port-forward svc/mz<resource-id>-console 8080:8080 -n materialize-environment
+```
+Then open your browser to `http://localhost:8080`.
 
 ---
 
