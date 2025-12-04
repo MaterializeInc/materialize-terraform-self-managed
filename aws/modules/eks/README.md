@@ -29,7 +29,7 @@ No resources.
 | <a name="input_cluster_version"></a> [cluster\_version](#input\_cluster\_version) | Kubernetes version for the EKS cluster | `string` | `"1.32"` | no |
 | <a name="input_enable_cluster_creator_admin_permissions"></a> [enable\_cluster\_creator\_admin\_permissions](#input\_enable\_cluster\_creator\_admin\_permissions) | To add the current caller identity as an administrator | `bool` | `true` | no |
 | <a name="input_iam_role_use_name_prefix"></a> [iam\_role\_use\_name\_prefix](#input\_iam\_role\_use\_name\_prefix) | Use name prefix for IAM roles | `bool` | `true` | no |
-| <a name="input_materialize_node_ingress_cidr"></a> [materialize\_node\_ingress\_cidr](#input\_materialize\_node\_ingress\_cidr) | List of CIDR blocks to allow ingress from for Materialize ports (HTTP 6876, pgwire 6875, health checks 8080). | `list(string)` | n/a | yes |
+| <a name="input_materialize_node_ingress_cidrs"></a> [materialize\_node\_ingress\_cidrs](#input\_materialize\_node\_ingress\_cidrs) | List of CIDR blocks to allow ingress from for Materialize ports (HTTP 6876, pgwire 6875, health checks 8080). | `list(string)` | n/a | yes |
 | <a name="input_name_prefix"></a> [name\_prefix](#input\_name\_prefix) | Prefix for all resource names | `string` | n/a | yes |
 | <a name="input_private_subnet_ids"></a> [private\_subnet\_ids](#input\_private\_subnet\_ids) | List of private subnet IDs for EKS | `list(string)` | n/a | yes |
 | <a name="input_tags"></a> [tags](#input\_tags) | Tags to apply to all resources | `map(string)` | `{}` | no |

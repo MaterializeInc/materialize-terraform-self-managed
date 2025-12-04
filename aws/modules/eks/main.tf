@@ -21,7 +21,7 @@ module "eks" {
       from_port   = 6876
       to_port     = 6876
       type        = "ingress"
-      cidr_blocks = var.materialize_node_ingress_cidr
+      cidr_blocks = var.materialize_node_ingress_cidrs
     }
     mz_ingress_pgwire = {
       description = "Ingress to materialize balancers pgwire"
@@ -29,7 +29,7 @@ module "eks" {
       from_port   = 6875
       to_port     = 6875
       type        = "ingress"
-      cidr_blocks = var.materialize_node_ingress_cidr
+      cidr_blocks = var.materialize_node_ingress_cidrs
     }
     mz_ingress_nlb_health_checks = {
       description = "Ingress to materialize balancer health checks and console"
@@ -37,7 +37,7 @@ module "eks" {
       from_port   = 8080
       to_port     = 8080
       type        = "ingress"
-      cidr_blocks = var.materialize_node_ingress_cidr
+      cidr_blocks = var.materialize_node_ingress_cidrs
     }
   }
 

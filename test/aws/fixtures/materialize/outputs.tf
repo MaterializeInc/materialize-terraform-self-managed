@@ -163,6 +163,7 @@ output "nlb_details" {
   value = {
     arn      = try(module.materialize_nlb.nlb_arn, null)
     dns_name = try(module.materialize_nlb.nlb_dns_name, null)
+    security_group_id = try(module.materialize_nlb.nlb_security_group_id, null)
   }
 }
 

@@ -50,7 +50,7 @@ variable "iam_role_use_name_prefix" {
   nullable    = false
 }
 
-variable "materialize_node_ingress_cidr" {
+variable "materialize_node_ingress_cidrs" {
   description = "List of CIDR blocks to allow ingress from for Materialize ports (HTTP 6876, pgwire 6875, health checks 8080)."
   type        = list(string)
   nullable    = false

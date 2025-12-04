@@ -328,6 +328,7 @@ func (suite *StagedDeploymentTestSuite) setupMaterializeConsolidatedStage(stage,
 		"capacity_type":                            "ON_DEMAND",
 		"swap_enabled":                             diskEnabled,
 		"iam_role_use_name_prefix":                 false,
+		"materialize_node_ingress_cidrs":           []string{TestVPCCIDR},
 
 		// Node Labels
 		"node_labels": map[string]string{
@@ -371,6 +372,9 @@ func (suite *StagedDeploymentTestSuite) setupMaterializeConsolidatedStage(stage,
 
 		// NLB Configuration
 		"enable_cross_zone_load_balancing": true,
+		"internal":                         false,
+		"ingress_cidr_blocks":              []string{"0.0.0.0/0"},
+		"preserve_client_ip":               true,
 
 		// Tags
 		"tags": map[string]string{
@@ -461,6 +465,7 @@ func (suite *StagedDeploymentTestSuite) setupMaterializeConsolidatedStage(stage,
 	nlbDetails := terraform.OutputMap(t, materializeOptions, "nlb_details")
 	nlbArn := nlbDetails["arn"]
 	nlbDnsName := nlbDetails["dns_name"]
+	nlbSecurityGroupId := nlbDetails["security_group_id"]
 
 	// Certificate Outputs
 	clusterIssuerName := terraform.Output(t, materializeOptions, "cluster_issuer_name")
@@ -509,6 +514,7 @@ func (suite *StagedDeploymentTestSuite) setupMaterializeConsolidatedStage(stage,
 	t.Log("✅ Validating Network Load Balancer Outputs...")
 	suite.NotEmpty(nlbArn, "NLB ARN should not be empty")
 	suite.NotEmpty(nlbDnsName, "NLB DNS name should not be empty")
+	suite.NotEmpty(nlbSecurityGroupId, "NLB security group ID should not be empty")
 
 	t.Log("✅ Validating Certificate Outputs...")
 	suite.NotEmpty(clusterIssuerName, "Cluster issuer name should not be empty")
@@ -566,6 +572,7 @@ func (suite *StagedDeploymentTestSuite) setupMaterializeConsolidatedStage(stage,
 	t.Logf("🌐 NETWORK LOAD BALANCER OUTPUTS:")
 	t.Logf("  🆔 NLB ARN: %s", nlbArn)
 	t.Logf("  🌐 NLB DNS Name: %s", nlbDnsName)
+	t.Logf("  🛡️ NLB Security Group ID: %s", nlbSecurityGroupId)
 
 	// Certificate Outputs
 	t.Logf("🔐 CERTIFICATE OUTPUTS:")
