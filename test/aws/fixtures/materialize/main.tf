@@ -232,7 +232,7 @@ module "materialize_nlb" {
   instance_name                    = var.instance_name
   name_prefix                      = var.name_prefix
   namespace                        = var.instance_namespace
-  subnet_ids                       = var.subnet_ids
+  subnet_ids                       = var.nlb_subnet_ids
   internal                         = var.internal
   preserve_client_ip               = var.preserve_client_ip
   ingress_cidr_blocks              = var.ingress_cidr_blocks

@@ -232,6 +232,12 @@ variable "ingress_cidr_blocks" {
   nullable    = false
 }
 
+variable "nlb_subnet_ids" {
+  description = "List of subnet IDs for the NLB"
+  type        = list(string)
+  nullable    = false
+}
+
 variable "preserve_client_ip" {
   description = "Preserve client IP for the NLB"
   type        = bool

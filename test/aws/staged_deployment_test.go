@@ -282,12 +282,14 @@ func (suite *StagedDeploymentTestSuite) setupMaterializeConsolidatedStage(stage,
 	networkStageDir := filepath.Join(suite.workingDir, utils.NetworkingDir)
 	vpcId := test_structure.LoadString(t, networkStageDir, "vpc_id")
 	privateSubnetIdsStr := test_structure.LoadString(t, networkStageDir, "private_subnet_ids")
+	publicSubnetIdsStr := test_structure.LoadString(t, networkStageDir, "public_subnet_ids")
 
 	// Parse private subnet IDs from comma-separated string
 	privateSubnetIds := strings.Split(privateSubnetIdsStr, ",")
+	publicSubnetIds := strings.Split(publicSubnetIdsStr, ",")
 
 	// Validate required network data exists
-	if vpcId == "" || len(privateSubnetIds) == 0 || privateSubnetIds[0] == "" || suite.uniqueId == "" {
+	if vpcId == "" || len(privateSubnetIds) == 0 || privateSubnetIds[0] == "" || len(publicSubnetIds) == 0 || publicSubnetIds[0] == "" || suite.uniqueId == "" {
 		t.Fatal("❌ Cannot create Materialize stack: Missing network data. Run network setup stage first.")
 	}
 
@@ -375,6 +377,7 @@ func (suite *StagedDeploymentTestSuite) setupMaterializeConsolidatedStage(stage,
 		"internal":                         false,
 		"ingress_cidr_blocks":              []string{"0.0.0.0/0"},
 		"preserve_client_ip":               true,
+		"nlb_subnet_ids":                   publicSubnetIds,
 
 		// Tags
 		"tags": map[string]string{
