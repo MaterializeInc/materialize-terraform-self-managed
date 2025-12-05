@@ -215,9 +215,10 @@ module "materialize_instance" {
 module "load_balancer" {
   source = "../../../../azure/modules/load_balancers"
 
-  instance_name = var.instance_name
-  namespace     = var.instance_namespace
-  resource_id   = module.materialize_instance.instance_resource_id
+  instance_name       = var.instance_name
+  namespace           = var.instance_namespace
+  resource_id         = module.materialize_instance.instance_resource_id
+  ingress_cidr_blocks = var.ingress_cidr_blocks
 
   depends_on = [module.materialize_instance]
 }

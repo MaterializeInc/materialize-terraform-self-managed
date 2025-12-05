@@ -17,9 +17,9 @@ variable "resource_id" {
 }
 
 variable "internal" {
-  description = "Whether the load balancer is internal to the VPC."
+  description = "Whether the load balancer is internal to the VNet. Defaults to false (public) to allow external access to Materialize. Set to true for VNet-only access."
   type        = bool
-  default     = true
+  default     = false
   nullable    = false
 }
 
@@ -41,5 +41,11 @@ variable "materialize_balancerd_https_port" {
   description = "HTTPS port configuration for Materialize balancerd service"
   type        = number
   default     = 6876
+  nullable    = false
+}
+
+variable "ingress_cidr_blocks" {
+  description = "CIDR blocks that are allowed to reach the Azure LoadBalancers."
+  type        = list(string)
   nullable    = false
 }

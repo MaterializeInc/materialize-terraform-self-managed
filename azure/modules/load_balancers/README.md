@@ -29,8 +29,9 @@ No modules.
 
 | Name | Description | Type | Default | Required |
 |------|-------------|------|---------|:--------:|
+| <a name="input_ingress_cidr_blocks"></a> [ingress\_cidr\_blocks](#input\_ingress\_cidr\_blocks) | CIDR blocks that are allowed to reach the Azure LoadBalancers. | `list(string)` | n/a | yes |
 | <a name="input_instance_name"></a> [instance\_name](#input\_instance\_name) | The name of the Materialize instance. | `string` | n/a | yes |
-| <a name="input_internal"></a> [internal](#input\_internal) | Whether the load balancer is internal to the VPC. | `bool` | `true` | no |
+| <a name="input_internal"></a> [internal](#input\_internal) | Whether the load balancer is internal to the VNet. Defaults to false (public) to allow external access to Materialize. Set to true for VNet-only access. | `bool` | `false` | no |
 | <a name="input_materialize_balancerd_https_port"></a> [materialize\_balancerd\_https\_port](#input\_materialize\_balancerd\_https\_port) | HTTPS port configuration for Materialize balancerd service | `number` | `6876` | no |
 | <a name="input_materialize_balancerd_sql_port"></a> [materialize\_balancerd\_sql\_port](#input\_materialize\_balancerd\_sql\_port) | SQL port configuration for Materialize balancerd service | `number` | `6875` | no |
 | <a name="input_materialize_console_port"></a> [materialize\_console\_port](#input\_materialize\_console\_port) | Port configuration for Materialize console service | `number` | `8080` | no |

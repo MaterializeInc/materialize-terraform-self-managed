@@ -145,3 +145,9 @@ output "balancerd_load_balancer_ip" {
 output "resource_group_name" {
   value = azurerm_resource_group.materialize.name
 }
+
+output "external_login_password_mz_system" {
+  description = "Password for external login to the Materialize instance"
+  value       = random_password.external_login_password_mz_system.result
+  sensitive   = true
+}
