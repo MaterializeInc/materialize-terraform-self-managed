@@ -24,6 +24,11 @@ variable "tags" {
   type        = map(string)
 }
 
+variable "ingress_cidr_blocks" {
+  description = "CIDR blocks with access to the public load balancers"
+  type        = list(string)
+}
+
 # Network variables
 variable "vnet_name" {
   description = "The name of the virtual network"

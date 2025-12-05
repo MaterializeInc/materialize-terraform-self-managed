@@ -316,6 +316,7 @@ module "materialize_instance" {
   persist_backend_url  = local.persist_backend_url
 
   # The password for the external login to the Materialize instance
+  authenticator_kind                = "Password"
   external_login_password_mz_system = random_password.external_login_password_mz_system.result
 
   # Azure workload identity annotations for service account
@@ -347,10 +348,11 @@ module "materialize_instance" {
 module "load_balancers" {
   source = "../../modules/load_balancers"
 
-  instance_name = local.materialize_instance_name
-  namespace     = local.materialize_instance_namespace
-  resource_id   = module.materialize_instance.instance_resource_id
-  internal      = true
+  instance_name       = local.materialize_instance_name
+  namespace           = local.materialize_instance_namespace
+  resource_id         = module.materialize_instance.instance_resource_id
+  internal            = false
+  ingress_cidr_blocks = var.ingress_cidr_blocks
 
   depends_on = [
     module.materialize_instance,
