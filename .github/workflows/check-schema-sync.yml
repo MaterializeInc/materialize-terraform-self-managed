@@ -25,5 +25,8 @@ jobs:
       - name: Install dependencies
         run: uv sync
 
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+
       - name: Check schema sync
         run: uv run python scripts/check_schema_sync.py --show-fields
