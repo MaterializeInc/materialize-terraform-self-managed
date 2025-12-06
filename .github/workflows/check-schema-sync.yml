@@ -1,0 +1,32 @@
+name: Check Schema Sync
+
+on:
+  merge_group:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  check-schema-sync:
+    name: Verify CRD and Helm Schema Sync
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Check schema sync
+        run: uv run python scripts/check_schema_sync.py --show-fields

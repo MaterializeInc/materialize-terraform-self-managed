@@ -1,0 +1,17 @@
+[project]
+name = "materialize-terraform-tools"
+version = "0.1.0"
+description = "Development tools for Materialize Terraform modules"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "pyyaml>=6.0",
+]
+
+[project.scripts]
+generate-terraform-types = "scripts.generate_terraform_types:main"
+
+[tool.uv]
+dev-dependencies = [
+    "pytest>=7.0",
+]
