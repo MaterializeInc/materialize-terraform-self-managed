@@ -257,6 +257,9 @@ module "operator" {
   # node selector for operator and metrics-server workloads
   operator_node_selector = local.generic_node_labels
 
+  # Pass through any additional Helm values for full customization
+  # See https://materialize.com/docs/installation/configuration/
+  helm_values = var.helm_values_override
 
   depends_on = [
     module.eks,
@@ -331,7 +334,7 @@ module "materialize_instance" {
   force_rollout   = var.force_rollout
   request_rollout = var.request_rollout
 
-  # The password for the external login to the Materialize instance
+  # Password authentication for the Materialize instance
   external_login_password_mz_system = random_password.external_login_password_mz_system.result
   authenticator_kind                = "Password"
 
@@ -346,6 +349,10 @@ module "materialize_instance" {
     name = module.self_signed_cluster_issuer.issuer_name
     kind = "ClusterIssuer"
   }
+
+  # Pass through any additional CRD spec fields for full customization
+  # See https://materialize.com/docs/installation/appendix-materialize-crd-field-descriptions/
+  materialize_spec_override = var.materialize_spec_override
 
   depends_on = [
     module.eks,

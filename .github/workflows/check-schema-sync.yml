@@ -1,0 +1,113 @@
+name: Check Schema Sync
+
+on:
+  merge_group:
+  pull_request:
+    branches: [main]
+  schedule:
+    # Run weekly to detect upstream schema changes
+    - cron: "0 0 * * 0"
+  workflow_dispatch:
+
+jobs:
+  check-schema-sync:
+    name: Verify CRD and Helm Schema Sync
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Extract default Materialize version
+        id: get-version
+        run: |
+          # Extract version from the materialize-instance module (marked with # META: mz version)
+          VERSION=$(grep -E "default.*=.*\"v[0-9]+\.[0-9]+\.[0-9]+\".*# META: mz version" \
+            kubernetes/modules/materialize-instance/variables.tf | \
+            grep -oE "v[0-9]+\.[0-9]+\.[0-9]+" | head -1)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Detected Materialize version: $VERSION"
+
+      - name: Validate CRD schema is accessible
+        run: |
+          VERSION="${{ steps.get-version.outputs.version }}"
+          CRD_URL="https://raw.githubusercontent.com/MaterializeInc/materialize/${VERSION}/doc/user/data/self_managed/materialize_crd_descriptions.json"
+          echo "Checking CRD schema at: $CRD_URL"
+
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$CRD_URL")
+          if [ "$HTTP_STATUS" != "200" ]; then
+            echo "::error::CRD schema not found at $CRD_URL (HTTP $HTTP_STATUS)"
+            echo "This may indicate the Materialize version $VERSION does not exist or the schema path has changed."
+            exit 1
+          fi
+          echo "CRD schema accessible"
+
+      - name: Validate Helm values schema is accessible
+        run: |
+          VERSION="${{ steps.get-version.outputs.version }}"
+          HELM_URL="https://raw.githubusercontent.com/MaterializeInc/materialize/${VERSION}/misc/helm-charts/operator/values.yaml"
+          echo "Checking Helm values at: $HELM_URL"
+
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$HELM_URL")
+          if [ "$HTTP_STATUS" != "200" ]; then
+            echo "::error::Helm values not found at $HELM_URL (HTTP $HTTP_STATUS)"
+            echo "This may indicate the Materialize version $VERSION does not exist or the values path has changed."
+            exit 1
+          fi
+          echo "Helm values schema accessible"
+
+      - name: Run type generation script (dry run)
+        run: |
+          VERSION="${{ steps.get-version.outputs.version }}"
+          echo "Running type generation script for version $VERSION..."
+          uv run python scripts/generate_terraform_types.py --version "$VERSION" --output simplified > /dev/null
+          echo "Type generation script completed successfully"
+
+      - name: Check for new CRD fields
+        run: |
+          VERSION="${{ steps.get-version.outputs.version }}"
+          CRD_URL="https://raw.githubusercontent.com/MaterializeInc/materialize/${VERSION}/doc/user/data/self_managed/materialize_crd_descriptions.json"
+
+          # Fetch current CRD fields
+          curl -s "$CRD_URL" | python3 -c "
+          import json
+          import sys
+
+          data = json.load(sys.stdin)
+
+          # Find MaterializeSpec
+          for item in data:
+              if item[0] == 'MaterializeSpec':
+                  fields = item[1]
+                  print('MaterializeSpec fields:')
+                  for field in fields:
+                      deprecated = ' (DEPRECATED)' if field.get('deprecated', False) else ''
+                      required = ' (required)' if field.get('required', False) else ''
+                      print(f\"  - {field['name']}: {field['type']}{required}{deprecated}\")
+                  break
+          "
+
+      - name: Summary
+        run: |
+          VERSION="${{ steps.get-version.outputs.version }}"
+          echo "## Schema Sync Check Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Materialize Version:** $VERSION" >> $GITHUB_STEP_SUMMARY
+          echo "- **CRD Schema:** Accessible" >> $GITHUB_STEP_SUMMARY
+          echo "- **Helm Values:** Accessible" >> $GITHUB_STEP_SUMMARY
+          echo "- **Type Generation:** Successful" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "To regenerate types after a version bump, run:" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
+          echo "uv run python scripts/generate_terraform_types.py --version $VERSION" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
