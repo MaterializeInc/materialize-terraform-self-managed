@@ -65,6 +65,22 @@ uv run python scripts/generate_terraform_types.py --output full
 
 The script fetches the CRD field descriptions and Helm values from the Materialize repository and generates corresponding Terraform variable type definitions.
 
+### Checking Schema Sync
+
+To verify that the generated Terraform types are in sync with upstream Materialize schemas:
+
+```bash
+uv run python scripts/check_schema_sync.py
+
+# Show CRD fields for debugging
+uv run python scripts/check_schema_sync.py --show-fields
+
+# Check against a specific version
+uv run python scripts/check_schema_sync.py --version v26.1.0
+```
+
+This check runs automatically in CI via the `check-schema-sync` workflow.
+
 ## Development Process
 
 1. Clone the repository
