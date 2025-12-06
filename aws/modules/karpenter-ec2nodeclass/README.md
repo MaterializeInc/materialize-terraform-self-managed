@@ -31,7 +31,7 @@ No modules.
 | Name | Description | Type | Default | Required |
 |------|-------------|------|---------|:--------:|
 | <a name="input_ami_selector_terms"></a> [ami\_selector\_terms](#input\_ami\_selector\_terms) | Terms for selecting which AMI to launch. See https://karpenter.sh/docs/tasks/managing-amis/ for more information. Only Bottlerocket AMIs are supported by this terraform code. | `list(any)` | n/a | yes |
-| <a name="input_disk_setup_image"></a> [disk\_setup\_image](#input\_disk\_setup\_image) | Docker image for disk bootstraping when swap is enabled. | `string` | `"docker.io/materialize/ephemeral-storage-setup-image:v0.4.0"` | no |
+| <a name="input_disk_setup_image"></a> [disk\_setup\_image](#input\_disk\_setup\_image) | Docker image for disk bootstraping when swap is enabled. | `string` | `"docker.io/materialize/ephemeral-storage-setup-image:v0.4.1"` | no |
 | <a name="input_instance_profile"></a> [instance\_profile](#input\_instance\_profile) | Name of the instance profile to assign to nodes. | `string` | n/a | yes |
 | <a name="input_instance_types"></a> [instance\_types](#input\_instance\_types) | List of instance types to support. | `list(string)` | n/a | yes |
 | <a name="input_name"></a> [name](#input\_name) | Name of the EC2NodeClass. | `string` | n/a | yes |

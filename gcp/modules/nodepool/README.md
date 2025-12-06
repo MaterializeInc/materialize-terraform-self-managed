@@ -34,7 +34,7 @@ No modules.
 |------|-------------|------|---------|:--------:|
 | <a name="input_cluster_name"></a> [cluster\_name](#input\_cluster\_name) | The name of the GKE cluster | `string` | n/a | yes |
 | <a name="input_disk_setup_container_resource_config"></a> [disk\_setup\_container\_resource\_config](#input\_disk\_setup\_container\_resource\_config) | Resource configuration for disk setup init container | <pre>object({<br/>    memory_limit   = string<br/>    memory_request = string<br/>    cpu_request    = string<br/>  })</pre> | <pre>{<br/>  "cpu_request": "50m",<br/>  "memory_limit": "128Mi",<br/>  "memory_request": "128Mi"<br/>}</pre> | no |
-| <a name="input_disk_setup_image"></a> [disk\_setup\_image](#input\_disk\_setup\_image) | Docker image for the disk setup script | `string` | `"materialize/ephemeral-storage-setup-image:v0.4.0"` | no |
+| <a name="input_disk_setup_image"></a> [disk\_setup\_image](#input\_disk\_setup\_image) | Docker image for the disk setup script | `string` | `"materialize/ephemeral-storage-setup-image:v0.4.1"` | no |
 | <a name="input_disk_size_gb"></a> [disk\_size\_gb](#input\_disk\_size\_gb) | The disk size in GB for each node | `number` | `100` | no |
 | <a name="input_enable_private_nodes"></a> [enable\_private\_nodes](#input\_enable\_private\_nodes) | Whether to enable private nodes | `bool` | `true` | no |
 | <a name="input_labels"></a> [labels](#input\_labels) | Labels to apply to the nodes | `map(string)` | `{}` | no |
