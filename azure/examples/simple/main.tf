@@ -316,8 +316,11 @@ module "materialize_instance" {
   persist_backend_url  = local.persist_backend_url
 
   # The password for the external login to the Materialize instance
-  authenticator_kind                = "Password"
-  external_login_password_mz_system = random_password.external_login_password_mz_system.result
+  authenticator_kind = "None"
+  # external_login_password_mz_system = random_password.external_login_password_mz_system.result
+
+  request_rollout = "00000000-0000-0000-0000-000000000003"
+  force_rollout   = "00000000-0000-0000-0000-000000000003"
 
   # Azure workload identity annotations for service account
   service_account_annotations = {
@@ -353,6 +356,11 @@ module "load_balancers" {
   resource_id         = module.materialize_instance.instance_resource_id
   internal            = false
   ingress_cidr_blocks = var.ingress_cidr_blocks
+  resource_group_name = azurerm_resource_group.materialize.name
+  location            = var.location
+  prefix              = var.name_prefix
+  tags                = var.tags
+  aks_subnet_id       = module.networking.aks_subnet_id
 
   depends_on = [
     module.materialize_instance,

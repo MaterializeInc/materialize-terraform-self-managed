@@ -42,8 +42,3 @@ output "nat_gateway_public_ip" {
   description = "The public IP address of the NAT Gateway"
   value       = azurerm_public_ip.nat_gateway.ip_address
 }
-
-output "aks_nsg_id" {
-  description = "The ID of the Network Security Group for the AKS subnet"
-  value       = azurerm_network_security_group.aks.id
-}

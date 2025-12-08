@@ -10,6 +10,43 @@ variable "namespace" {
   nullable    = false
 }
 
+variable "resource_group_name" {
+  description = "The name of the resource group."
+  type        = string
+  nullable    = false
+}
+
+variable "location" {
+  description = "The location of the resource group."
+  type        = string
+  nullable    = false
+}
+
+variable "prefix" {
+  description = "The prefix for the resource group."
+  type        = string
+  nullable    = false
+}
+
+variable "tags" {
+  description = "The tags for the resource group."
+  type        = map(string)
+  nullable    = false
+}
+
+variable "aks_subnet_id" {
+  description = "The ID of the AKS subnet."
+  type        = string
+  nullable    = false
+}
+
+variable "ingress_cidr_blocks" {
+  description = "CIDR blocks that are allowed to reach the Azure LoadBalancers."
+  type        = list(string)
+  default     = [""]
+  nullable    = false
+}
+
 variable "resource_id" {
   description = "The resource_id in the Materialize status."
   type        = string
@@ -44,8 +81,8 @@ variable "materialize_balancerd_https_port" {
   nullable    = false
 }
 
-variable "ingress_cidr_blocks" {
-  description = "CIDR blocks that are allowed to reach the Azure LoadBalancers."
-  type        = list(string)
-  nullable    = false
-}
+# variable "ingress_cidr_blocks" {
+#   description = "CIDR blocks that are allowed to reach the Azure LoadBalancers."
+#   type        = list(string)
+#   nullable    = false
+# }

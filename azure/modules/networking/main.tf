@@ -25,105 +25,6 @@ resource "azurerm_nat_gateway_public_ip_association" "main" {
   public_ip_address_id = azurerm_public_ip.nat_gateway.id
 }
 
-# Network Security Group for AKS subnet
-# This NSG will have a default rule to allow all traffic from Loadbalancers in VNet so no need to configure explicitly
-# We want this NSG to block all external traffic and only allow traffic within vnet and from Loadbalancers
-# https://learn.microsoft.com/en-us/azure/virtual-network/network-security-groups-overview#allowazureloadbalancerinbound
-resource "azurerm_network_security_group" "aks" {
-  name                = "${var.prefix}-aks-nsg"
-  location            = var.location
-  resource_group_name = var.resource_group_name
-  tags                = var.tags
-}
-
-# NSG Rule: Allow Materialize HTTP (port 6876) from VNet only
-resource "azurerm_network_security_rule" "materialize_lb_https" {
-  name                        = "AllowAzureLBMaterializeHTTPS"
-  priority                    = 70
-  direction                   = "Inbound"
-  access                      = "Allow"
-  protocol                    = "Tcp"
-  source_port_range           = "*"
-  destination_port_range      = "6876" # balancerd https port
-  source_address_prefix       = "AzureLoadBalancer"
-  destination_address_prefix  = var.aks_subnet_cidr
-  resource_group_name         = var.resource_group_name
-  network_security_group_name = azurerm_network_security_group.aks.name
-}
-
-resource "azurerm_network_security_rule" "materialize_lb_pgwire" {
-  name                        = "AllowAzureLBMaterializePgwire"
-  priority                    = 80
-  direction                   = "Inbound"
-  access                      = "Allow"
-  protocol                    = "Tcp"
-  source_port_range           = "*"
-  destination_port_range      = "6875" # balancerd sql port
-  source_address_prefix       = "AzureLoadBalancer"
-  destination_address_prefix  = var.aks_subnet_cidr
-  resource_group_name         = var.resource_group_name
-  network_security_group_name = azurerm_network_security_group.aks.name
-}
-
-resource "azurerm_network_security_rule" "materialize_lb_health_checks" {
-  name                        = "AllowAzureLBMaterializeHealthChecks"
-  priority                    = 90
-  direction                   = "Inbound"
-  access                      = "Allow"
-  protocol                    = "Tcp"
-  source_port_range           = "*"
-  destination_port_range      = "8080" # balancerd console port
-  source_address_prefix       = "AzureLoadBalancer"
-  destination_address_prefix  = var.aks_subnet_cidr
-  resource_group_name         = var.resource_group_name
-  network_security_group_name = azurerm_network_security_group.aks.name
-}
-
-# NSG Rule: Allow Materialize HTTP (port 6876) from VNet only
-resource "azurerm_network_security_rule" "materialize_http" {
-  name                        = "AllowMaterializeHTTP"
-  priority                    = 100
-  direction                   = "Inbound"
-  access                      = "Allow"
-  protocol                    = "Tcp"
-  source_port_range           = "*"
-  destination_port_range      = "6876" # balancerd https port
-  source_address_prefixes     = [var.vnet_address_space]
-  destination_address_prefix  = var.aks_subnet_cidr
-  resource_group_name         = var.resource_group_name
-  network_security_group_name = azurerm_network_security_group.aks.name
-}
-
-# NSG Rule: Allow Materialize pgwire (port 6875) from VNet only
-resource "azurerm_network_security_rule" "materialize_pgwire" {
-  name                        = "AllowMaterializePgwire"
-  priority                    = 110
-  direction                   = "Inbound"
-  access                      = "Allow"
-  protocol                    = "Tcp"
-  source_port_range           = "*"
-  destination_port_range      = "6875" # balancerd sql port
-  source_address_prefixes     = [var.vnet_address_space]
-  destination_address_prefix  = var.aks_subnet_cidr
-  resource_group_name         = var.resource_group_name
-  network_security_group_name = azurerm_network_security_group.aks.name
-}
-
-# NSG Rule: Allow Materialize health checks (port 8080) from VNet only
-resource "azurerm_network_security_rule" "materialize_health_checks" {
-  name                        = "AllowMaterializeHealthChecks"
-  priority                    = 120
-  direction                   = "Inbound"
-  access                      = "Allow"
-  protocol                    = "Tcp"
-  source_port_range           = "*"
-  destination_port_range      = "8080" # balancerd console port
-  source_address_prefixes     = [var.vnet_address_space]
-  destination_address_prefix  = var.aks_subnet_cidr
-  resource_group_name         = var.resource_group_name
-  network_security_group_name = azurerm_network_security_group.aks.name
-}
-
 # Virtual Network using Azure Verified Module
 module "virtual_network" {
   source  = "Azure/avm-res-network-virtualnetwork/azurerm"
@@ -140,9 +41,6 @@ module "virtual_network" {
       name              = "${var.prefix}-aks-subnet"
       address_prefixes  = [var.aks_subnet_cidr]
       service_endpoints = ["Microsoft.Storage", "Microsoft.Sql"]
-      network_security_group = {
-        id = azurerm_network_security_group.aks.id
-      }
       nat_gateway = {
         id = azurerm_nat_gateway.main.id
       }
