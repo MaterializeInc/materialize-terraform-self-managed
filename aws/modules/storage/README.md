@@ -33,7 +33,9 @@ No modules.
 
 | Name | Description | Type | Default | Required |
 |------|-------------|------|---------|:--------:|
+| <a name="input_bucket_encryption_mode"></a> [bucket\_encryption\_mode](#input\_bucket\_encryption\_mode) | Server-side encryption mode to apply (SSE-S3 by default) | `string` | `"SSE-S3"` | no |
 | <a name="input_bucket_force_destroy"></a> [bucket\_force\_destroy](#input\_bucket\_force\_destroy) | Enable force destroy for the S3 bucket | `bool` | `true` | no |
+| <a name="input_bucket_kms_key_arn"></a> [bucket\_kms\_key\_arn](#input\_bucket\_kms\_key\_arn) | ARN of the KMS key to use when bucket\_encryption\_mode is SSE-KMS | `string` | `null` | no |
 | <a name="input_bucket_lifecycle_rules"></a> [bucket\_lifecycle\_rules](#input\_bucket\_lifecycle\_rules) | List of lifecycle rules for the S3 bucket | <pre>list(object({<br/>    id                                 = string<br/>    enabled                            = bool<br/>    prefix                             = string<br/>    transition_days                    = number<br/>    transition_storage_class           = string<br/>    noncurrent_version_expiration_days = number<br/>  }))</pre> | n/a | yes |
 | <a name="input_cluster_oidc_issuer_url"></a> [cluster\_oidc\_issuer\_url](#input\_cluster\_oidc\_issuer\_url) | OIDC issuer URL for the EKS cluster | `string` | n/a | yes |
 | <a name="input_enable_bucket_encryption"></a> [enable\_bucket\_encryption](#input\_enable\_bucket\_encryption) | Enable server-side encryption for the S3 bucket | `bool` | `true` | no |
