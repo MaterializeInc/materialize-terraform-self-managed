@@ -67,10 +67,12 @@ variable "ingress_cidr_blocks" {
   nullable    = true
 
   validation {
-    condition = var.ingress_cidr_blocks == null || alltrue([
-      for cidr in var.ingress_cidr_blocks : can(cidrhost(cidr, 0))
-    ])
-    error_message = "All ingress_cidr_blocks must be valid CIDR notation (e.g., '10.0.0.0/8' or '0.0.0.0/0')."
+    condition = var.internal ? true : (
+      var.ingress_cidr_blocks != null && alltrue([
+        for cidr in var.ingress_cidr_blocks : can(cidrhost(cidr, 0))
+      ])
+    )
+    error_message = "ingress_cidr_blocks must be provided and contain valid CIDR notation when creating a public load balancer (internal = false)."
   }
 }
 
