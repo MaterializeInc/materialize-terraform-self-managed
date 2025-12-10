@@ -44,7 +44,7 @@ variable "ingress_cidr_blocks" {
   description = "CIDR blocks that are allowed to reach the Azure LoadBalancers."
   type        = list(string)
   default     = ["0.0.0.0/0"]
-  nullable    = false
+  nullable    = true
 }
 
 variable "resource_id" {
