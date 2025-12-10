@@ -83,9 +83,9 @@ variable "resource_id" {
 }
 
 variable "internal" {
-  description = "Whether the load balancer is internal to the VNet. Defaults to false (public) to allow external access to Materialize. Set to true for VNet-only access."
+  description = "Whether the load balancer is internal to the VNet. Defaults to true (internal) to allow internal access to Materialize. Set to false for public access."
   type        = bool
-  default     = false
+  default     = true
   nullable    = false
 }
 
