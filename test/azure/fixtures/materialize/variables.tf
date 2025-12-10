@@ -29,6 +29,11 @@ variable "ingress_cidr_blocks" {
   type        = list(string)
 }
 
+variable "internal" {
+  description = "Whether to use internal load balancers"
+  type        = bool
+}
+
 # Network variables
 variable "vnet_name" {
   description = "The name of the virtual network"

@@ -19,25 +19,45 @@ variable "resource_group_name" {
 variable "location" {
   description = "The location of the resource group."
   type        = string
-  nullable    = false
+  nullable    = true
+
+  validation {
+    condition     = var.internal || var.location != null
+    error_message = "location must be provided when creating a public load balancer (internal = false)."
+  }
 }
 
 variable "prefix" {
   description = "The prefix for the resource group."
   type        = string
-  nullable    = false
+  nullable    = true
+
+  validation {
+    condition     = var.internal || var.prefix != null
+    error_message = "prefix must be provided when creating a public load balancer (internal = false)."
+  }
 }
 
 variable "tags" {
   description = "The tags for the resource group."
   type        = map(string)
-  nullable    = false
+  nullable    = true
+
+  validation {
+    condition     = var.internal || var.tags != null
+    error_message = "tags must be provided when creating a public load balancer (internal = false)."
+  }
 }
 
 variable "aks_subnet_id" {
   description = "The ID of the AKS subnet."
   type        = string
-  nullable    = false
+  nullable    = true
+
+  validation {
+    condition     = var.internal || var.aks_subnet_id != null
+    error_message = "aks_subnet_id must be provided when creating a public load balancer (internal = false)."
+  }
 }
 
 variable "ingress_cidr_blocks" {
