@@ -1,4 +1,6 @@
 locals {
+  # AWS load balancer name_prefix has a maximum length of 6 characters
+  # We trim the name_prefix to ensure it fits within this limit
   trimmed_name_prefix = substr(var.name_prefix, 0, min(6, length(var.name_prefix)))
 }
 
