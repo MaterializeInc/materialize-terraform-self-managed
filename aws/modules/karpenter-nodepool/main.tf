@@ -22,7 +22,7 @@ resource "terraform_data" "destroyer" {
       fi
 
       kubeconfig_file=$(mktemp)
-      trap "rm -f "$${kubeconfig_file}" EXIT
+      trap "rm -f '$${kubeconfig_file}' EXIT
       echo "$${KUBECONFIG_DATA}" > "$${kubeconfig_file}"
 
       nodeclaims=$(kubectl --kubeconfig "$${kubeconfig_file}" get nodeclaims -l "karpenter.sh/nodepool=$${NODEPOOL_NAME}" -o name)
