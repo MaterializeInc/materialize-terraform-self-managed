@@ -43,7 +43,7 @@ variable "aks_subnet_id" {
 variable "ingress_cidr_blocks" {
   description = "CIDR blocks that are allowed to reach the Azure LoadBalancers."
   type        = list(string)
-  default     = [""]
+  default     = ["0.0.0.0/0"]
   nullable    = false
 }
 

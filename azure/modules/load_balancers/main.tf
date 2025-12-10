@@ -26,7 +26,7 @@ resource "azurerm_network_security_rule" "public_lb_ingress" {
   network_security_group_name = azurerm_network_security_group.aks[0].name
 }
 
-resource "azurerm_subnet_network_security_group_association" "example" {
+resource "azurerm_subnet_network_security_group_association" "subnet_sg_association" {
   count                     = var.internal ? 0 : 1
   subnet_id                 = var.aks_subnet_id
   network_security_group_id = azurerm_network_security_group.aks[0].id
