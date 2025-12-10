@@ -28,6 +28,13 @@ variable "ingress_cidr_blocks" {
   description = "CIDR blocks that can reach the Azure LoadBalancer frontends."
   type        = list(string)
   default     = ["0.0.0.0/0"]
+
+  validation {
+    condition = alltrue([
+      for cidr in var.ingress_cidr_blocks : can(cidrhost(cidr, 0))
+    ])
+    error_message = "All ingress_cidr_blocks must be valid CIDR notation (e.g., '10.0.0.0/8' or '0.0.0.0/0')."
+  }
 }
 
 variable "license_key" {

@@ -121,6 +121,7 @@ locals {
       effect   = "NoSchedule"
     }
   ]
+
   internal_lb = true
 }
 
@@ -224,7 +225,6 @@ module "database" {
 
   # Administrator configuration
   administrator_login = local.database_config.administrator_login
-  # No administrator password is provided, so a random one will be generated
 
   # Infrastructure configuration
   resource_group_name = azurerm_resource_group.materialize.name
@@ -319,9 +319,6 @@ module "materialize_instance" {
   # The password for the external login to the Materialize instance
   authenticator_kind                = "Password"
   external_login_password_mz_system = random_password.external_login_password_mz_system.result
-
-  request_rollout = "00000000-0000-0000-0000-000000000004"
-  force_rollout   = "00000000-0000-0000-0000-000000000004"
 
   # Azure workload identity annotations for service account
   service_account_annotations = {

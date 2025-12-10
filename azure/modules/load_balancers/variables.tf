@@ -45,6 +45,13 @@ variable "ingress_cidr_blocks" {
   type        = list(string)
   default     = ["0.0.0.0/0"]
   nullable    = true
+
+  validation {
+    condition = var.ingress_cidr_blocks == null || alltrue([
+      for cidr in var.ingress_cidr_blocks : can(cidrhost(cidr, 0))
+    ])
+    error_message = "All ingress_cidr_blocks must be valid CIDR notation (e.g., '10.0.0.0/8' or '0.0.0.0/0')."
+  }
 }
 
 variable "resource_id" {
@@ -80,9 +87,3 @@ variable "materialize_balancerd_https_port" {
   default     = 6876
   nullable    = false
 }
-
-# variable "ingress_cidr_blocks" {
-#   description = "CIDR blocks that are allowed to reach the Azure LoadBalancers."
-#   type        = list(string)
-#   nullable    = false
-# }
