@@ -61,7 +61,7 @@ resource "kubectl_manifest" "nodepool" {
               },
             ],
             "taints" : var.node_taints,
-            "terminationGracePeriod" : "60s",
+            "terminationGracePeriod" : "300s",
           },
         },
       },
