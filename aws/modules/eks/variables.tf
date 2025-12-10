@@ -54,4 +54,9 @@ variable "materialize_node_ingress_cidrs" {
   description = "List of CIDR blocks to allow ingress from for Materialize ports (HTTP 6876, pgwire 6875, health checks 8080)."
   type        = list(string)
   nullable    = false
+
+  validation {
+    condition     = alltrue([for cidr in var.materialize_node_ingress_cidrs : can(cidrhost(cidr, 0))])
+    error_message = "All CIDR blocks must be valid IPv4 CIDR notation (e.g., '10.0.0.0/16' or '0.0.0.0/0')."
+  }
 }
