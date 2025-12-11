@@ -15,9 +15,19 @@ resource "terraform_data" "destroyer" {
 
     command     = <<-EOF
       set -euo pipefail
-      nodeclaims=$(kubectl --kubeconfig <(echo "$${KUBECONFIG_DATA}") get nodeclaims -l "karpenter.sh/nodepool=$${NODEPOOL_NAME}" -o name)
+
+      if [ -z "$${KUBECONFIG_DATA}" ]; then
+        echo "Error: KUBECONFIG_DATA is empty"
+        exit 1
+      fi
+
+      kubeconfig_file=$(mktemp)
+      trap "rm -f '$${kubeconfig_file}'" EXIT
+      echo "$${KUBECONFIG_DATA}" > "$${kubeconfig_file}"
+
+      nodeclaims=$(kubectl --kubeconfig "$${kubeconfig_file}" get nodeclaims -l "karpenter.sh/nodepool=$${NODEPOOL_NAME}" -o name)
       if [ -n "$${nodeclaims}" ]; then
-        echo "$${nodeclaims}" | xargs kubectl --kubeconfig <(echo "$${KUBECONFIG_DATA}") delete --wait=true
+        echo "$${nodeclaims}" | xargs kubectl --kubeconfig "$${kubeconfig_file}" delete --wait=true
       fi
     EOF
     interpreter = ["/usr/bin/env", "bash", "-c"]
