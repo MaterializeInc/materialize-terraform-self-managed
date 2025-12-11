@@ -368,7 +368,7 @@ module "materialize_nlb" {
   name_prefix                      = var.name_prefix
   namespace                        = local.materialize_instance_namespace
   subnet_ids                       = module.networking.public_subnet_ids
-  internal                         = false
+  internal                         = true
   enable_cross_zone_load_balancing = true
   vpc_id                           = module.networking.vpc_id
   mz_resource_id                   = module.materialize_instance.instance_resource_id
