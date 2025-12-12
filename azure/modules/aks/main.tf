@@ -15,7 +15,7 @@ resource "azurerm_role_assignment" "aks_network_contributer" {
 
 # Role assignment for API server subnet (required for VNet Integration)
 resource "azurerm_role_assignment" "aks_apiserver_network_contributer" {
-  count                = var.enable_api_server_vnet_integration && var.api_server_subnet_id != null ? 1 : 0
+  count                = var.enable_api_server_vnet_integration ? 1 : 0
   scope                = var.api_server_subnet_id
   role_definition_name = "Network Contributor"
   principal_id         = resource.azurerm_user_assigned_identity.aks_identity.principal_id
@@ -94,6 +94,8 @@ resource "azurerm_kubernetes_cluster" "aks" {
     service_cidr       = var.service_cidr
     dns_service_ip     = var.dns_service_ip != null ? var.dns_service_ip : cidrhost(var.service_cidr, 10)
     load_balancer_sku  = var.load_balancer_sku
+    # https://learn.microsoft.com/en-gb/azure/aks/nat-gateway#create-an-aks-cluster-with-a-user-assigned-nat-gateway
+    outbound_type = "userAssignedNATGateway"
   }
 
   tags = var.tags

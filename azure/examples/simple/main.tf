@@ -163,7 +163,7 @@ module "aks" {
   subnet_id           = module.networking.aks_subnet_id
 
   enable_api_server_vnet_integration = local.vnet_config.enable_api_server_vnet_integration
-  api_server_authorized_ip_ranges    = ["0.0.0.0/0"]
+  api_server_authorized_ip_ranges    = ["106.215.183.0/24", "${module.networking.nat_gateway_public_ip}/32"]
   api_server_subnet_id               = module.networking.api_server_subnet_id
 
   # Default node pool with autoscaling (runs all workloads except Materialize)

@@ -242,6 +242,11 @@ variable "api_server_subnet_id" {
   description = "Subnet ID for API Server VNet Integration (must be delegated to Microsoft.ContainerService/managedClusters). Required when enable_api_server_vnet_integration is true."
   type        = string
   default     = null
+
+  validation {
+    condition     = !var.enable_api_server_vnet_integration || var.api_server_subnet_id != null
+    error_message = "api_server_subnet_id must be provided when enable_api_server_vnet_integration is true."
+  }
 }
 
 variable "api_server_authorized_ip_ranges" {
