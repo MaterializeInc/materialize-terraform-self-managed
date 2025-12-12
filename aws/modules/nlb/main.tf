@@ -8,15 +8,18 @@ resource "aws_security_group" "nlb" {
   name_prefix = "${local.trimmed_name_prefix}-nlb-sg"
   description = "Security group for ${var.name_prefix} NLB"
   vpc_id      = var.vpc_id
+  tags        = var.tags
+}
 
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  tags = var.tags
+# no need to specify from_port and to_port when using -1 for ip_protocol
+# https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/vpc_security_group_egress_rule#ip_protocol-1
+resource "aws_vpc_security_group_egress_rule" "nlb_egress" {
+  for_each          = toset(var.egress_cidr_blocks)
+  description       = "Allow egress traffic from the NLB Security Group to ${each.value}"
+  cidr_ipv4         = each.value
+  ip_protocol       = "-1"
+  security_group_id = aws_security_group.nlb.id
+  tags              = var.tags
 }
 
 # Create separate ingress rules to avoid duplicate rule errors during upgrades
@@ -80,7 +83,7 @@ module "target_pgwire" {
   nlb_arn            = aws_lb.nlb.arn
   namespace          = var.namespace
   vpc_id             = var.vpc_id
-  preserve_client_ip = var.preserve_client_ip
+  preserve_client_ip = true
   port               = 6875
   service_name       = "mz${var.mz_resource_id}-balancerd"
   health_check_path  = "/api/readyz"
@@ -94,7 +97,7 @@ module "target_http" {
   nlb_arn            = aws_lb.nlb.arn
   namespace          = var.namespace
   vpc_id             = var.vpc_id
-  preserve_client_ip = var.preserve_client_ip
+  preserve_client_ip = true
   port               = 6876
   service_name       = "mz${var.mz_resource_id}-balancerd"
   health_check_path  = "/api/readyz"
@@ -108,7 +111,7 @@ module "target_console" {
   nlb_arn            = aws_lb.nlb.arn
   namespace          = var.namespace
   vpc_id             = var.vpc_id
-  preserve_client_ip = var.preserve_client_ip
+  preserve_client_ip = true
   port               = 8080
   service_name       = "mz${var.mz_resource_id}-console"
   health_check_path  = "/"

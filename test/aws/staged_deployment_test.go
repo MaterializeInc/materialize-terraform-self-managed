@@ -376,7 +376,7 @@ func (suite *StagedDeploymentTestSuite) setupMaterializeConsolidatedStage(stage,
 		"enable_cross_zone_load_balancing": true,
 		"internal":                         false,
 		"ingress_cidr_blocks":              []string{"0.0.0.0/0"},
-		"preserve_client_ip":               true,
+		"egress_cidr_blocks":               []string{TestVPCCIDR},
 		"nlb_subnet_ids":                   publicSubnetIds,
 
 		// Tags

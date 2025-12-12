@@ -17,15 +17,14 @@ variable "internal" {
   nullable    = false
 }
 
-variable "preserve_client_ip" {
-  description = "Whether to preserve the client IP address."
-  type        = bool
-  default     = true
+variable "ingress_cidr_blocks" {
+  description = "List of CIDR blocks to allow ingress to the NLB Security Group."
+  type        = list(string)
   nullable    = false
 }
 
-variable "ingress_cidr_blocks" {
-  description = "List of CIDR blocks to allow ingress to the NLB Security Group."
+variable "egress_cidr_blocks" {
+  description = "The CIDR block to allow egress ."
   type        = list(string)
   nullable    = false
 }

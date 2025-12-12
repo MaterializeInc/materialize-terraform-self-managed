@@ -238,9 +238,10 @@ variable "nlb_subnet_ids" {
   nullable    = false
 }
 
-variable "preserve_client_ip" {
-  description = "Preserve client IP for the NLB"
-  type        = bool
+variable "egress_cidr_blocks" {
+  description = "The CIDR block to allow egress traffic from the NLB Security Group."
+  type        = list(string)
+  nullable    = false
 }
 
 # Common Variables

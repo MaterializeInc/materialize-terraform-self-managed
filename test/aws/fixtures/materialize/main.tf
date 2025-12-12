@@ -234,11 +234,11 @@ module "materialize_nlb" {
   namespace                        = var.instance_namespace
   subnet_ids                       = var.nlb_subnet_ids
   internal                         = var.internal
-  preserve_client_ip               = var.preserve_client_ip
   ingress_cidr_blocks              = var.ingress_cidr_blocks
   node_security_group_id           = module.eks.node_security_group_id
   enable_cross_zone_load_balancing = var.enable_cross_zone_load_balancing
   vpc_id                           = var.vpc_id
+  egress_cidr_blocks               = var.egress_cidr_blocks
   mz_resource_id                   = module.materialize_instance.instance_resource_id
 
   tags = var.tags

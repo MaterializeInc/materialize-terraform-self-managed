@@ -367,13 +367,14 @@ module "materialize_nlb" {
   instance_name                    = local.materialize_instance_name
   name_prefix                      = var.name_prefix
   namespace                        = local.materialize_instance_namespace
-  subnet_ids                       = module.networking.public_subnet_ids
+  subnet_ids                       = module.networking.private_subnet_ids
   internal                         = true
   enable_cross_zone_load_balancing = true
   vpc_id                           = module.networking.vpc_id
   mz_resource_id                   = module.materialize_instance.instance_resource_id
   node_security_group_id           = module.eks.node_security_group_id
   ingress_cidr_blocks              = var.ingress_cidr_blocks
+  egress_cidr_blocks               = [module.networking.vpc_cidr_block]
 
   tags = var.tags
 
