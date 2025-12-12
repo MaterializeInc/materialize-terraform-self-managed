@@ -24,7 +24,7 @@ variable "ingress_cidr_blocks" {
 }
 
 variable "egress_cidr_blocks" {
-  description = "The CIDR block to allow egress ."
+  description = "List of CIDR blocks to allow egress from the NLB Security Group."
   type        = list(string)
   nullable    = false
 }
