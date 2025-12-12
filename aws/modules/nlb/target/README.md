@@ -37,7 +37,7 @@ No modules.
 | <a name="input_namespace"></a> [namespace](#input\_namespace) | Kubernetes namespace in which to install TargetGroupBindings | `string` | n/a | yes |
 | <a name="input_nlb_arn"></a> [nlb\_arn](#input\_nlb\_arn) | ARN of the NLB | `string` | n/a | yes |
 | <a name="input_port"></a> [port](#input\_port) | Port for the NLB listener and Kubernetes service | `number` | n/a | yes |
-| <a name="input_preserve_client_ip"></a> [preserve\_client\_ip](#input\_preserve\_client\_ip) | Whether to preserve the client IP address | `bool` | `false` | no |
+| <a name="input_preserve_client_ip"></a> [preserve\_client\_ip](#input\_preserve\_client\_ip) | Whether to preserve the client IP address | `bool` | `true` | no |
 | <a name="input_service_name"></a> [service\_name](#input\_service\_name) | The name of the Kubernetes service to connect to | `string` | n/a | yes |
 | <a name="input_tags"></a> [tags](#input\_tags) | Tags to apply to all resources | `map(string)` | `{}` | no |
 | <a name="input_vpc_id"></a> [vpc\_id](#input\_vpc\_id) | ID of the VPC | `string` | n/a | yes |
