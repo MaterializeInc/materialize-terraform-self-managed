@@ -388,6 +388,10 @@ func (suite *StagedDeploymentSuite) setupMaterializeConsolidatedStage(stage, sta
 		"license_key":                       os.Getenv("MATERIALIZE_LICENSE_KEY"),
 		"external_login_password_mz_system": TestPassword,
 
+		// Public Load Balancer Configuration
+		"ingress_cidr_blocks": []string{"0.0.0.0/0"},
+		"internal":            false,
+
 		// Tags
 		"tags": map[string]string{
 			"environment":  helpers.GetEnvironment(),

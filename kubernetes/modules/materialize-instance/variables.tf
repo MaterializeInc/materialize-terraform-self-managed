@@ -41,7 +41,7 @@ variable "license_key" {
 variable "environmentd_version" {
   description = "Version of environmentd to use"
   type        = string
-  default     = "v26.0.0" # META: mz version
+  default     = "v26.3.0" # META: mz version
   nullable    = false
 }
 
@@ -83,11 +83,15 @@ variable "memory_limit" {
 }
 
 # Rollout Configuration
-variable "in_place_rollout" {
-  description = "Whether to perform in-place rollouts"
-  type        = bool
-  default     = true
+variable "rollout_strategy" {
+  description = "Strategy to use for rollouts"
+  type        = string
+  default     = "WaitUntilReady"
   nullable    = false
+  validation {
+    condition     = contains(["WaitUntilReady", "ImmediatelyPromoteCausingDowntime"], var.rollout_strategy)
+    error_message = "Rollout strategy must be either 'WaitUntilReady' or 'ImmediatelyPromoteCausingDowntime'"
+  }
 }
 
 variable "request_rollout" {
@@ -142,13 +146,13 @@ variable "authenticator_kind" {
   default     = "None"
   nullable    = false
   validation {
-    condition     = contains(["None", "Password"], var.authenticator_kind)
-    error_message = "Authenticator kind must be either 'None' or 'Password'"
+    condition     = contains(["None", "Password", "Sasl"], var.authenticator_kind)
+    error_message = "Authenticator kind must be one of: 'None', 'Password', or 'Sasl'"
   }
 }
 
 variable "external_login_password_mz_system" {
-  description = "Password for external login to mz_system. Must be set if authenticator_kind is 'Password'."
+  description = "Password for external login to mz_system. Must be set if authenticator_kind is 'Password' or 'Sasl'."
   type        = string
   default     = null
   sensitive   = true

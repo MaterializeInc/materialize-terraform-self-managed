@@ -36,6 +36,10 @@ variable "enable_cluster_creator_admin_permissions" {
   type        = bool
 }
 
+variable "materialize_node_ingress_cidrs" {
+  description = "List of CIDR blocks to allow ingress from for Materialize ports (HTTP 6876, pgwire 6875, health checks 8080)."
+  type        = list(string)
+}
 
 variable "min_nodes" {
   description = "Minimum number of nodes in the node group"
@@ -213,6 +217,25 @@ variable "license_key" {
 variable "enable_cross_zone_load_balancing" {
   description = "Enable cross-zone load balancing for the NLB"
   type        = bool
+}
+
+variable "internal" {
+  description = "Whether the NLB is internal only. Defaults to false (public) to allow external access to Materialize. Set to true for VPC-only access."
+  type        = bool
+  default     = false
+  nullable    = false
+}
+
+variable "ingress_cidr_blocks" {
+  description = "List of CIDR blocks to allow ingress to the NLB Security Group."
+  type        = list(string)
+  nullable    = false
+}
+
+variable "nlb_subnet_ids" {
+  description = "List of subnet IDs for the NLB"
+  type        = list(string)
+  nullable    = false
 }
 
 # Common Variables

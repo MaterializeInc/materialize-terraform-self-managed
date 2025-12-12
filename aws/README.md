@@ -7,6 +7,16 @@ This repository provides a set of reusable, **self-contained Terraform modules**
 
 ---
 
+## Prerequisites
+
+Before using these modules, ensure you have the following tools installed:
+
+- [Terraform](https://developer.hashicorp.com/terraform/install) (>= 1.0)
+- [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html)
+- [kubectl](https://kubernetes.io/docs/tasks/tools/) (required for cleaning up Karpenter NodeClaims)
+
+---
+
 ## Modular Architecture
 
 Each module is designed to be used independently. You can compose them in any way that fits your use case.

@@ -25,7 +25,7 @@ resource "kubectl_manifest" "materialize_instance" {
       authenticatorKind         = var.authenticator_kind
       serviceAccountAnnotations = var.service_account_annotations
       podLabels                 = var.pod_labels
-      inPlaceRollout            = var.in_place_rollout
+      rolloutStrategy           = var.rollout_strategy
       requestRollout            = var.request_rollout
       forceRollout              = var.force_rollout
 
@@ -103,7 +103,7 @@ resource "kubernetes_secret" "materialize_backend" {
       persist_backend_url  = var.persist_backend_url
       license_key          = var.license_key == null ? "" : var.license_key
     },
-    var.authenticator_kind == "Password" && var.external_login_password_mz_system != null ? {
+    contains(["Password", "Sasl"], var.authenticator_kind) && var.external_login_password_mz_system != null ? {
       external_login_password_mz_system = var.external_login_password_mz_system
     } : {}
   )

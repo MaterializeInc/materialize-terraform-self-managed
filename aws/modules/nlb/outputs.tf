@@ -12,3 +12,8 @@ output "nlb_arn" {
   description = "ARN of the Network Load Balancer."
   value       = aws_lb.nlb.arn
 }
+
+output "security_group_id" {
+  description = "The ID of the security group attached to the NLB"
+  value       = aws_security_group.nlb.id
+}

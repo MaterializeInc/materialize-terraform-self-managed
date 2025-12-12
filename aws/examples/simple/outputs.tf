@@ -110,3 +110,9 @@ output "nlb_dns_name" {
   description = "DNS name of the Materialize NLB."
   value       = module.materialize_nlb.nlb_dns_name
 }
+
+output "external_login_password_mz_system" {
+  description = "Password for the external login to the Materialize instance"
+  value       = random_password.external_login_password_mz_system.result
+  sensitive   = true
+}

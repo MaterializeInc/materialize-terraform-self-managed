@@ -81,6 +81,7 @@ module "eks" {
   private_subnet_ids                       = module.networking.private_subnet_ids
   cluster_enabled_log_types                = ["api", "audit"]
   enable_cluster_creator_admin_permissions = true
+  materialize_node_ingress_cidrs           = [module.networking.vpc_cidr_block]
   tags                                     = var.tags
 
   depends_on = [
@@ -305,10 +306,10 @@ module "storage" {
   bucket_lifecycle_rules = []
   bucket_force_destroy   = true
 
-  # For testing purposes, we are disabling encryption and versioning to allow for easier cleanup
-  # This should be enabled in production environments for security and data integrity
+  # For testing purposes, we are disabling versioning to allow for easier cleanup.
+  # SSE-S3 encryption remains enabled by default for this example.
   enable_bucket_versioning = false
-  enable_bucket_encryption = false
+  enable_bucket_encryption = true
 
   # IRSA configuration
   oidc_provider_arn         = module.eks.oidc_provider_arn
@@ -327,8 +328,13 @@ module "materialize_instance" {
   metadata_backend_url = local.metadata_backend_url
   persist_backend_url  = local.persist_backend_url
 
+  # Rollout configuration
+  force_rollout   = var.force_rollout
+  request_rollout = var.request_rollout
+
   # The password for the external login to the Materialize instance
   external_login_password_mz_system = random_password.external_login_password_mz_system.result
+  authenticator_kind                = "Password"
 
   # AWS IAM role annotation for service account
   service_account_annotations = {
@@ -362,9 +368,12 @@ module "materialize_nlb" {
   name_prefix                      = var.name_prefix
   namespace                        = local.materialize_instance_namespace
   subnet_ids                       = module.networking.private_subnet_ids
+  internal                         = true
   enable_cross_zone_load_balancing = true
   vpc_id                           = module.networking.vpc_id
   mz_resource_id                   = module.materialize_instance.instance_resource_id
+  node_security_group_id           = module.eks.node_security_group_id
+  ingress_cidr_blocks              = var.ingress_cidr_blocks
 
   tags = var.tags
 
