@@ -23,12 +23,6 @@ variable "ingress_cidr_blocks" {
   nullable    = false
 }
 
-variable "egress_cidr_blocks" {
-  description = "List of CIDR blocks to allow egress from the NLB Security Group."
-  type        = list(string)
-  nullable    = false
-}
-
 variable "namespace" {
   description = "Kubernetes namespace in which to install TargetGroupBindings"
   type        = string
