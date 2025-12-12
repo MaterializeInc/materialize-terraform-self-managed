@@ -238,7 +238,6 @@ module "materialize_nlb" {
   node_security_group_id           = module.eks.node_security_group_id
   enable_cross_zone_load_balancing = var.enable_cross_zone_load_balancing
   vpc_id                           = var.vpc_id
-  egress_cidr_blocks               = var.egress_cidr_blocks
   mz_resource_id                   = module.materialize_instance.instance_resource_id
 
   tags = var.tags

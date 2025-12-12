@@ -238,12 +238,6 @@ variable "nlb_subnet_ids" {
   nullable    = false
 }
 
-variable "egress_cidr_blocks" {
-  description = "List of CIDR blocks to allow egress from the NLB Security Group."
-  type        = list(string)
-  nullable    = false
-}
-
 # Common Variables
 variable "tags" {
   description = "Tags to apply to all resources"
