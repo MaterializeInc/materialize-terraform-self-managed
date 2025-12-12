@@ -374,7 +374,6 @@ module "materialize_nlb" {
   mz_resource_id                   = module.materialize_instance.instance_resource_id
   node_security_group_id           = module.eks.node_security_group_id
   ingress_cidr_blocks              = var.ingress_cidr_blocks
-  egress_cidr_blocks               = [module.networking.vpc_cidr_block]
 
   tags = var.tags
 
