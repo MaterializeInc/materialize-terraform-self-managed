@@ -1,7 +1,7 @@
 resource "aws_lb_target_group" "target_group" {
   name               = var.name
   port               = var.port
-  preserve_client_ip = true
+  preserve_client_ip = var.preserve_client_ip
   protocol           = "TCP"
   target_type        = "ip"
   vpc_id             = var.vpc_id

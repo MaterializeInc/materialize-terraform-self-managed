@@ -1,6 +1,7 @@
 package test
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -208,20 +209,24 @@ func (suite *StagedDeploymentTestSuite) TestFullDeployment() {
 		vpcId := terraform.Output(t, networkOptions, "vpc_id")
 		privateSubnetIds := terraform.OutputList(t, networkOptions, "private_subnet_ids")
 		publicSubnetIds := terraform.OutputList(t, networkOptions, "public_subnet_ids")
-		vpcEndpoints := terraform.OutputList(t, networkOptions, "vpc_endpoints")
+		vpcEndpoints := terraform.OutputMapOfObjects(t, networkOptions, "vpc_endpoints")
+		vpcEndpointsJson, err := json.MarshalIndent(vpcEndpoints, "", "  ")
+		if err != nil {
+			t.Logf("Failed to marshal vpc_endpoints: %v", err)
+		}
 
 		// Save all outputs and resource IDs to networking directory
 		test_structure.SaveString(t, networkStageDir, "vpc_id", vpcId)
 		test_structure.SaveString(t, networkStageDir, "private_subnet_ids", strings.Join(privateSubnetIds, ","))
 		test_structure.SaveString(t, networkStageDir, "public_subnet_ids", strings.Join(publicSubnetIds, ","))
-		test_structure.SaveString(t, networkStageDir, "vpc_endpoints", strings.Join(vpcEndpoints, ","))
+		test_structure.SaveString(t, networkStageDir, "vpc_endpoints", string(vpcEndpointsJson))
 
 		t.Logf("✅ Network infrastructure created:")
 		t.Logf("  🌐 VPC: %s", vpcId)
 		t.Logf("  🔒 Private Subnets: %v", privateSubnetIds)
 		t.Logf("  🌍 Public Subnets: %v", publicSubnetIds)
 		t.Logf("  🏷️ Resource ID: %s", uniqueId)
-		t.Logf("  🏷️ VPC Endpoints: %v", vpcEndpoints)
+		t.Logf("  🏷️ VPC Endpoints: %v", string(vpcEndpointsJson))
 
 	})
 
@@ -277,12 +282,14 @@ func (suite *StagedDeploymentTestSuite) setupMaterializeConsolidatedStage(stage,
 	networkStageDir := filepath.Join(suite.workingDir, utils.NetworkingDir)
 	vpcId := test_structure.LoadString(t, networkStageDir, "vpc_id")
 	privateSubnetIdsStr := test_structure.LoadString(t, networkStageDir, "private_subnet_ids")
+	publicSubnetIdsStr := test_structure.LoadString(t, networkStageDir, "public_subnet_ids")
 
 	// Parse private subnet IDs from comma-separated string
 	privateSubnetIds := strings.Split(privateSubnetIdsStr, ",")
+	publicSubnetIds := strings.Split(publicSubnetIdsStr, ",")
 
 	// Validate required network data exists
-	if vpcId == "" || len(privateSubnetIds) == 0 || privateSubnetIds[0] == "" || suite.uniqueId == "" {
+	if vpcId == "" || len(privateSubnetIds) == 0 || privateSubnetIds[0] == "" || len(publicSubnetIds) == 0 || publicSubnetIds[0] == "" || suite.uniqueId == "" {
 		t.Fatal("❌ Cannot create Materialize stack: Missing network data. Run network setup stage first.")
 	}
 
@@ -323,6 +330,7 @@ func (suite *StagedDeploymentTestSuite) setupMaterializeConsolidatedStage(stage,
 		"capacity_type":                            "ON_DEMAND",
 		"swap_enabled":                             diskEnabled,
 		"iam_role_use_name_prefix":                 false,
+		"materialize_node_ingress_cidrs":           []string{TestVPCCIDR},
 
 		// Node Labels
 		"node_labels": map[string]string{
@@ -366,6 +374,9 @@ func (suite *StagedDeploymentTestSuite) setupMaterializeConsolidatedStage(stage,
 
 		// NLB Configuration
 		"enable_cross_zone_load_balancing": true,
+		"internal":                         false,
+		"ingress_cidr_blocks":              []string{"0.0.0.0/0"},
+		"nlb_subnet_ids":                   publicSubnetIds,
 
 		// Tags
 		"tags": map[string]string{
@@ -456,6 +467,7 @@ func (suite *StagedDeploymentTestSuite) setupMaterializeConsolidatedStage(stage,
 	nlbDetails := terraform.OutputMap(t, materializeOptions, "nlb_details")
 	nlbArn := nlbDetails["arn"]
 	nlbDnsName := nlbDetails["dns_name"]
+	nlbSecurityGroupId := nlbDetails["security_group_id"]
 
 	// Certificate Outputs
 	clusterIssuerName := terraform.Output(t, materializeOptions, "cluster_issuer_name")
@@ -504,6 +516,7 @@ func (suite *StagedDeploymentTestSuite) setupMaterializeConsolidatedStage(stage,
 	t.Log("✅ Validating Network Load Balancer Outputs...")
 	suite.NotEmpty(nlbArn, "NLB ARN should not be empty")
 	suite.NotEmpty(nlbDnsName, "NLB DNS name should not be empty")
+	suite.NotEmpty(nlbSecurityGroupId, "NLB security group ID should not be empty")
 
 	t.Log("✅ Validating Certificate Outputs...")
 	suite.NotEmpty(clusterIssuerName, "Cluster issuer name should not be empty")
@@ -561,6 +574,7 @@ func (suite *StagedDeploymentTestSuite) setupMaterializeConsolidatedStage(stage,
 	t.Logf("🌐 NETWORK LOAD BALANCER OUTPUTS:")
 	t.Logf("  🆔 NLB ARN: %s", nlbArn)
 	t.Logf("  🌐 NLB DNS Name: %s", nlbDnsName)
+	t.Logf("  🛡️ NLB Security Group ID: %s", nlbSecurityGroupId)
 
 	// Certificate Outputs
 	t.Logf("🔐 CERTIFICATE OUTPUTS:")

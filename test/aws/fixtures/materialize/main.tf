@@ -15,6 +15,7 @@ module "eks" {
   cluster_enabled_log_types                = var.cluster_enabled_log_types
   enable_cluster_creator_admin_permissions = var.enable_cluster_creator_admin_permissions
   iam_role_use_name_prefix                 = var.iam_role_use_name_prefix
+  materialize_node_ingress_cidrs           = var.materialize_node_ingress_cidrs
   tags                                     = var.tags
 }
 
@@ -231,7 +232,10 @@ module "materialize_nlb" {
   instance_name                    = var.instance_name
   name_prefix                      = var.name_prefix
   namespace                        = var.instance_namespace
-  subnet_ids                       = var.subnet_ids
+  subnet_ids                       = var.nlb_subnet_ids
+  internal                         = var.internal
+  ingress_cidr_blocks              = var.ingress_cidr_blocks
+  node_security_group_id           = module.eks.node_security_group_id
   enable_cross_zone_load_balancing = var.enable_cross_zone_load_balancing
   vpc_id                           = var.vpc_id
   mz_resource_id                   = module.materialize_instance.instance_resource_id

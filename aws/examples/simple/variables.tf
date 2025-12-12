@@ -36,3 +36,10 @@ variable "request_rollout" {
   type        = string
   default     = "00000000-0000-0000-0000-000000000001"
 }
+
+variable "ingress_cidr_blocks" {
+  description = "List of CIDR blocks to allow access to materialize."
+  type        = list(string)
+  default     = ["0.0.0.0/0"]
+  nullable    = false
+}

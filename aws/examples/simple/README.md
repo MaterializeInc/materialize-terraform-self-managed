@@ -42,7 +42,7 @@ This example provisions the following infrastructure:
 ### Materialize
 - **Operator**: Materialize Kubernetes operator
 - **Instance**: Single Materialize instance in `materialize-environment` namespace
-- **Network Load Balancer**: Dedicated internal NLB for Materialize access (ports 6875, 6876, 8080)
+- **Network Load Balancer**: Internet-facing NLB for Materialize access (ports 6875, 6876, 8080)
 
 ---
 
@@ -79,6 +79,50 @@ Run the usual Terraform workflow:
 terraform init
 terraform apply
 ```
+
+---
+
+### Step 3: Accessing Materialize
+
+#### Security Model
+This deployment implements a secure access model:
+- **Public Access**: Only allowed via the Network Load Balancer (NLB).
+- **Direct Node Access**: **BLOCKED**. The EKS nodes have a security group that only accepts traffic from within the VPC.
+
+#### Access Methods
+
+**If using a public (internet-facing) NLB:**
+
+Both SQL and Console are available via the public NLB:
+
+- **SQL Access**: Connect using any PostgreSQL-compatible client pointing to the NLB's DNS name on port **6875**
+- **Console Access**: Access the Materialize Console via the NLB's DNS name on port **8080**
+
+To get the NLB DNS name:
+```bash
+terraform output -json | jq -r .nlb_dns_name.value
+```
+
+**If using a private (internal) NLB:**
+
+Use Kubernetes port-forwarding for both SQL and Console. `kubectl port-forward` creates a TCP tunnel that preserves the underlying protocol (pgwire for SQL, HTTP for Console):
+
+- **SQL Access**:
+```bash
+# Forward local port 6875 to the Materialize balancerd service
+kubectl port-forward svc/mz<resource-id>-balancerd 6875:6875 -n materialize-environment
+```
+Then connect your PostgreSQL client to `localhost:6875`. The pgwire protocol is preserved through the TCP tunnel.
+
+- **Console Access**:
+```bash
+# Forward local port 8080 to the Materialize console service
+kubectl port-forward svc/mz<resource-id>-console 8080:8080 -n materialize-environment
+```
+Then open your browser to `http://localhost:8080`. HTTP traffic is preserved through the TCP tunnel.
+
+**Note on NLB Layer 4 operation:**
+The NLB operates at Layer 4 (TCP), forwarding connections without interpreting application-layer protocols. This works correctly for both pgwire (port 6875) and HTTP console access (port 8080), as both protocols run over TCP. The NLB forwards the TCP packets to the backend services, which handle the respective protocols.
 
 ---
 

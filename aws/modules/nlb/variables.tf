@@ -11,9 +11,15 @@ variable "name_prefix" {
 }
 
 variable "internal" {
-  description = "Whether the NLB is internal only. Defaults to true to avoid exposing Materialize to the internet."
+  description = "Whether the NLB is internal only. Defaults to false (public) to allow external access to Materialize. Set to true for VPC-only access."
   type        = bool
   default     = true
+  nullable    = false
+}
+
+variable "ingress_cidr_blocks" {
+  description = "List of CIDR blocks to allow ingress to the NLB Security Group."
+  type        = list(string)
   nullable    = false
 }
 
@@ -37,6 +43,12 @@ variable "vpc_id" {
 
 variable "mz_resource_id" {
   description = "The resourceId from the Materialize CR"
+  type        = string
+  nullable    = false
+}
+
+variable "node_security_group_id" {
+  description = "ID of the EKS Node Security Group to allow traffic to. Used to add ingress rules from the NLB SG."
   type        = string
   nullable    = false
 }
