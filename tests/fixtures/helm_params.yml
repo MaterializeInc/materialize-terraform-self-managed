@@ -1,0 +1,97 @@
+# Test fixture for Helm chart parameters
+# Minimal but representative set covering different types and nesting levels
+
+- key: operator.image.repository
+  type: string
+  default: '`"materialize/operator"`'
+  description: The repository of the operator image
+
+- key: operator.image.tag
+  type: string
+  default: '`"v26.7.0"`'
+  description: The tag/version of the operator image
+
+- key: operator.image.pullPolicy
+  type: string
+  default: '`"IfNotPresent"`'
+  description: Image pull policy
+
+- key: operator.args.enableLicenseKeyChecks
+  type: bool
+  default: '`true`'
+  description: Enable license key checks
+
+- key: operator.args.startupLogFilter
+  type: string
+  default: '`"INFO"`'
+  description: Log filter for startup
+
+- key: operator.replicas
+  type: int
+  default: '`1`'
+  description: Number of operator replicas
+
+- key: operator.tolerations
+  type: object
+  default: '`[]`'
+  description: Tolerations for operator pods
+
+- key: operator.nodeSelector
+  type: object
+  default: '`{}`'
+  description: Node selector for operator pods
+
+- key: operator.clusters.sizes.default.workers
+  type: int
+  default: '`1`'
+  description: Default number of workers
+
+- key: operator.clusters.sizes.default.scale
+  type: int
+  default: '`1`'
+  description: Default scale
+
+- key: operator.clusters.sizes.small.workers
+  type: int
+  default: '`1`'
+  description: Small cluster workers
+
+- key: operator.clusters.sizes.small.scale
+  type: int
+  default: '`1`'
+  description: Small cluster scale
+
+- key: operator.clusters.swap_enabled
+  type: bool
+  default: '`true`'
+  description: Enable swap
+
+- key: balancerd.enabled
+  type: bool
+  default: '`true`'
+  description: Enable balancerd
+
+- key: balancerd.replicas
+  type: int
+  default: '`1`'
+  description: Number of balancerd replicas
+
+- key: environmentd.resources.limits.memory
+  type: string
+  default: '`"4Gi"`'
+  description: Memory limit for environmentd
+
+- key: environmentd.resources.requests.cpu
+  type: string
+  default: '`"1"`'
+  description: CPU request for environmentd
+
+- key: networkPolicies.enabled
+  type: bool
+  default: '`false`'
+  description: Enable network policies
+
+- key: networkPolicies.ingress.enabled
+  type: bool
+  default: '`false`'
+  description: Enable ingress network policies

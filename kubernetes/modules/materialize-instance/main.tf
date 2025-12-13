@@ -7,6 +7,68 @@ resource "kubernetes_namespace" "instance" {
   }
 }
 
+locals {
+  # Build the default spec from explicit variables
+  default_spec = {
+    environmentdImageRef      = "materialize/environmentd:${var.environmentd_version}"
+    backendSecretName         = "${var.instance_name}-materialize-backend"
+    authenticatorKind         = var.authenticator_kind
+    serviceAccountAnnotations = var.service_account_annotations
+    podLabels                 = var.pod_labels
+    rolloutStrategy           = var.rollout_strategy
+    requestRollout            = var.request_rollout
+    forceRollout              = var.force_rollout
+
+    environmentdExtraEnv = length(var.environmentd_extra_env) > 0 ? [{
+      name = "MZ_SYSTEM_PARAMETER_DEFAULT"
+      value = join(";", [
+        for item in var.environmentd_extra_env :
+        "${item.name}=${item.value}"
+      ])
+    }] : null
+
+    environmentdExtraArgs = length(var.environmentd_extra_args) > 0 ? var.environmentd_extra_args : null
+
+    environmentdResourceRequirements = {
+      limits = {
+        memory = var.memory_limit
+      }
+      requests = {
+        cpu    = var.cpu_request
+        memory = var.memory_request
+      }
+    }
+    balancerdResourceRequirements = {
+      limits = {
+        memory = var.balancer_memory_limit
+      }
+      requests = {
+        cpu    = var.balancer_cpu_request
+        memory = var.balancer_memory_request
+      }
+    }
+
+    balancerdExternalCertificateSpec = var.issuer_ref == null ? null : {
+      dnsNames = [
+        "balancerd",
+      ]
+      issuerRef = var.issuer_ref
+    }
+    consoleExternalCertificateSpec = var.issuer_ref == null ? null : {
+      dnsNames = [
+        "console",
+      ]
+      issuerRef = var.issuer_ref
+    }
+    internalCertificateSpec = var.issuer_ref == null ? null : {
+      issuerRef = var.issuer_ref
+    }
+  }
+
+  # Deep merge the default spec with user overrides
+  merged_spec = provider::deepmerge::mergo(local.default_spec, var.materialize_spec_override)
+}
+
 # Create the Materialize instance using the kubernetes_manifest resource
 resource "kubectl_manifest" "materialize_instance" {
   field_manager   = "terraform"
@@ -19,61 +81,7 @@ resource "kubectl_manifest" "materialize_instance" {
       name      = var.instance_name
       namespace = var.instance_namespace
     }
-    spec = {
-      environmentdImageRef      = "materialize/environmentd:${var.environmentd_version}"
-      backendSecretName         = "${var.instance_name}-materialize-backend"
-      authenticatorKind         = var.authenticator_kind
-      serviceAccountAnnotations = var.service_account_annotations
-      podLabels                 = var.pod_labels
-      rolloutStrategy           = var.rollout_strategy
-      requestRollout            = var.request_rollout
-      forceRollout              = var.force_rollout
-
-      environmentdExtraEnv = length(var.environmentd_extra_env) > 0 ? [{
-        name = "MZ_SYSTEM_PARAMETER_DEFAULT"
-        value = join(";", [
-          for item in var.environmentd_extra_env :
-          "${item.name}=${item.value}"
-        ])
-      }] : null
-
-      environmentdExtraArgs = length(var.environmentd_extra_args) > 0 ? var.environmentd_extra_args : null
-
-      environmentdResourceRequirements = {
-        limits = {
-          memory = var.memory_limit
-        }
-        requests = {
-          cpu    = var.cpu_request
-          memory = var.memory_request
-        }
-      }
-      balancerdResourceRequirements = {
-        limits = {
-          memory = var.balancer_memory_limit
-        }
-        requests = {
-          cpu    = var.balancer_cpu_request
-          memory = var.balancer_memory_request
-        }
-      }
-
-      balancerdExternalCertificateSpec = var.issuer_ref == null ? null : {
-        dnsNames = [
-          "balancerd",
-        ]
-        issuerRef = var.issuer_ref
-      }
-      consoleExternalCertificateSpec = var.issuer_ref == null ? null : {
-        dnsNames = [
-          "console",
-        ]
-        issuerRef = var.issuer_ref
-      }
-      internalCertificateSpec = var.issuer_ref == null ? null : {
-        issuerRef = var.issuer_ref
-      }
-    }
+    spec = local.merged_spec
   })
 
   wait_for {
