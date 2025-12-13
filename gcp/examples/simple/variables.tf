@@ -26,3 +26,15 @@ variable "license_key" {
   default     = null
   sensitive   = true
 }
+
+variable "force_rollout" {
+  description = "DEPRECATED: Use materialize_spec_override.forceRollout instead. UUID to force a rollout of the environment."
+  type        = string
+  default     = null
+}
+
+variable "request_rollout" {
+  description = "DEPRECATED: Use materialize_spec_override.requestRollout instead. UUID to request a rollout of the environment."
+  type        = string
+  default     = null
+}
