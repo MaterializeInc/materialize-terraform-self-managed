@@ -38,12 +38,6 @@ variable "use_local_chart" {
   nullable    = false
 }
 
-variable "helm_values" {
-  description = "Values to pass to the Helm chart"
-  type        = any
-  default     = {}
-}
-
 variable "operator_namespace" {
   description = "Namespace for the Materialize operator"
   type        = string
@@ -92,20 +86,20 @@ variable "region" {
 }
 
 variable "enable_license_key_checks" {
-  description = "Enable license key checks."
+  description = "DEPRECATED: Use helm_values.operator.args.enableLicenseKeyChecks instead. Enable license key checks."
   type        = bool
   default     = true
   nullable    = false
 }
 
 variable "swap_enabled" {
-  description = "Whether to enable swap on the local NVMe disks."
+  description = "DEPRECATED: Use helm_values.operator.clusters.swap_enabled instead. Whether to enable swap on the local NVMe disks."
   type        = bool
   default     = true
 }
 
 variable "tolerations" {
-  description = "Tolerations for operator pods and metrics-server."
+  description = "DEPRECATED: Use helm_values.operator.tolerations instead. Tolerations for operator pods and metrics-server."
   type = list(object({
     key      = string
     value    = optional(string)
@@ -117,7 +111,7 @@ variable "tolerations" {
 }
 
 variable "instance_pod_tolerations" {
-  description = "Tolerations for Materialize instance workloads (environmentd, clusterd, balancerd, console)."
+  description = "DEPRECATED: Use helm_values.environmentd.tolerations (and clusterd, balancerd, console) instead. Tolerations for Materialize instance workloads."
   type = list(object({
     key      = string
     value    = optional(string)
@@ -129,14 +123,14 @@ variable "instance_pod_tolerations" {
 }
 
 variable "operator_node_selector" {
-  description = "Node selector for operator pods and metrics-server."
+  description = "DEPRECATED: Use helm_values.operator.nodeSelector instead. Node selector for operator pods and metrics-server."
   type        = map(string)
   default     = {}
   nullable    = false
 }
 
 variable "instance_node_selector" {
-  description = "Node selector for Materialize workloads (environmentd, clusterd, balancerd, console)."
+  description = "DEPRECATED: Use helm_values.environmentd.nodeSelector (and clusterd, balancerd, console) instead. Node selector for Materialize workloads."
   type        = map(string)
   default     = {}
   nullable    = false
