@@ -26,15 +26,15 @@ variable "license_key" {
 }
 
 variable "force_rollout" {
-  description = "UUID to force a rollout"
+  description = "DEPRECATED: Use materialize_spec_override.forceRollout instead. UUID to force a rollout of the environment."
   type        = string
-  default     = "00000000-0000-0000-0000-000000000001"
+  default     = null
 }
 
 variable "request_rollout" {
-  description = "UUID to request a rollout"
+  description = "DEPRECATED: Use materialize_spec_override.requestRollout instead. UUID to request a rollout of the environment."
   type        = string
-  default     = "00000000-0000-0000-0000-000000000001"
+  default     = null
 }
 
 variable "ingress_cidr_blocks" {
