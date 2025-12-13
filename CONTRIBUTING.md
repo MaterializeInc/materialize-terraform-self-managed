@@ -22,6 +22,24 @@ Pull requests are the best way to propose changes to the codebase. We actively w
 6. Issue that pull request!
 
 
+## Development Setup
+
+This project uses [uv](https://docs.astral.sh/uv/) for Python dependency management. Install uv first:
+
+```bash
+# macOS/Linux
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Or with Homebrew
+brew install uv
+```
+
+Then install the development dependencies:
+
+```bash
+uv sync
+```
+
 ## Generating Documentation
 
 This module uses [terraform-docs](https://terraform-docs.io/user-guide/introduction/) to generate documentation. To generate the documentation, run the following command from the root of the repository:
@@ -29,6 +47,26 @@ This module uses [terraform-docs](https://terraform-docs.io/user-guide/introduct
 ```bash
 .github/scripts/generate-docs.sh
 ```
+
+## Generating Terraform Type Definitions
+
+The Terraform variable type definitions are auto-generated from the upstream Materialize CRD and Helm chart schemas. The version is read from the `environmentd_version` variable default in the source code.
+
+To regenerate:
+
+```bash
+uv run python scripts/generate_terraform_types.py
+```
+
+### Checking Schema Sync
+
+To verify that the generated Terraform types are in sync with upstream schemas:
+
+```bash
+uv run python scripts/check_schema_sync.py
+```
+
+This check runs automatically in CI via the `check-schema-sync` workflow.
 
 ## Development Process
 
