@@ -75,6 +75,25 @@ tags = {
 - `tags`: Map of tags to apply to resources
 - `license_key`: Materialize license key
 
+**Optional Variables:**
+- `api_server_authorized_ip_ranges`: List of authorized IP ranges for AKS API server access (defaults to `["0.0.0.0/0"]`)
+
+### Configuring API Server Authorized IP Ranges
+
+To restrict AKS API server access to your IP address:
+
+1. Get your public IP and convert to CIDR:
+```bash
+MY_IP=$(curl -s https://ipinfo.io/ip)
+MY_IP_CIDR="${MY_IP}/32"  # Single IP, or use: whois $MY_IP | grep route
+echo $MY_IP_CIDR
+```
+
+2. Add to `terraform.tfvars`:
+```hcl
+api_server_authorized_ip_ranges = ["X.X.X.X/X"]  # Replace with your IP from step 1
+```
+
 ---
 
 ### Step 2: Deploy Materialize

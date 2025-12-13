@@ -225,3 +225,44 @@ variable "load_balancer_sku" {
     error_message = "Load balancer SKU must be either 'basic' or 'standard'."
   }
 }
+
+# ============================================================================
+# API Server VNet Integration (Recommended for better performance)
+# ============================================================================
+# This enables API Server VNet Integration on Public Cluster Endpoint.
+# Refer for more details: https://learn.microsoft.com/en-us/azure/aks/api-server-vnet-integration#deploy-a-public-cluster
+variable "enable_api_server_vnet_integration" {
+  description = "Enable API Server VNet Integration. Projects the API server into a delegated subnet in your VNet. Requires api_server_subnet_id to be provided."
+  type        = bool
+  default     = true
+  nullable    = false
+}
+
+variable "api_server_subnet_id" {
+  description = "Subnet ID for API Server VNet Integration (must be delegated to Microsoft.ContainerService/managedClusters). Required when enable_api_server_vnet_integration is true."
+  type        = string
+  default     = null
+
+  validation {
+    condition     = !var.enable_api_server_vnet_integration || var.api_server_subnet_id != null
+    error_message = "api_server_subnet_id must be provided when enable_api_server_vnet_integration is true."
+  }
+}
+
+variable "api_server_authorized_ip_ranges" {
+  description = "List of authorized IP ranges that can access the Kubernetes API server when public access is available. Defaults to ['0.0.0.0/0'] (allow all). For production, restrict to specific IPs (e.g., ['203.0.113.0/24'])"
+  type        = list(string)
+  default     = ["0.0.0.0/0"] # Explicit default: allow all IPs
+  nullable    = true
+
+  validation {
+    condition = (
+      var.api_server_authorized_ip_ranges == null ||
+      alltrue([
+        for cidr in var.api_server_authorized_ip_ranges :
+        can(cidrhost(cidr, 0))
+      ])
+    )
+    error_message = "All api_server_authorized_ip_ranges must be valid CIDR blocks (e.g., '203.0.113.0/24')."
+  }
+}

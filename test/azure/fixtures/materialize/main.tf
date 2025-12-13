@@ -25,6 +25,9 @@ module "aks" {
   subnet_name         = var.subnet_name
   subnet_id           = var.subnet_id
 
+  enable_api_server_vnet_integration = var.enable_api_server_vnet_integration
+  api_server_subnet_id               = var.api_server_subnet_id
+
   # Default node pool configuration
   default_node_pool_vm_size             = var.default_node_pool_vm_size
   default_node_pool_enable_auto_scaling = var.default_node_pool_enable_auto_scaling

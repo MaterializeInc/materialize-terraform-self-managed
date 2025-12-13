@@ -42,3 +42,13 @@ output "nat_gateway_public_ip" {
   description = "The public IP address of the NAT Gateway"
   value       = azurerm_public_ip.nat_gateway.ip_address
 }
+
+output "api_server_subnet_id" {
+  description = "The ID of the API server subnet (null if VNet Integration is not enabled)"
+  value       = var.enable_api_server_vnet_integration && var.api_server_subnet_cidr != null ? module.virtual_network.subnets["apiserver"].resource_id : null
+}
+
+output "api_server_subnet_name" {
+  description = "The name of the API server subnet (null if VNet Integration is not enabled)"
+  value       = var.enable_api_server_vnet_integration && var.api_server_subnet_cidr != null ? module.virtual_network.subnets["apiserver"].name : null
+}

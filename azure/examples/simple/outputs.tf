@@ -5,6 +5,7 @@ output "networking" {
     vnet_id               = module.networking.vnet_id
     vnet_name             = module.networking.vnet_name
     aks_subnet_id         = module.networking.aks_subnet_id
+    api_server_subnet_id  = module.networking.api_server_subnet_id
     postgres_subnet_id    = module.networking.postgres_subnet_id
     private_dns_zone_id   = module.networking.private_dns_zone_id
     nat_gateway_id        = module.networking.nat_gateway_id
@@ -12,6 +13,7 @@ output "networking" {
     vnet_address_space    = module.networking.vnet_address_space
   }
 }
+
 
 # Cluster outputs
 output "aks_cluster_name" {
@@ -27,6 +29,11 @@ output "aks_cluster_id" {
 output "aks_cluster_fqdn" {
   description = "The FQDN of the AKS cluster"
   value       = module.aks.cluster_fqdn
+}
+
+output "aks_cluster_private_fqdn" {
+  description = "The private FQDN of the AKS cluster"
+  value       = module.aks.cluster_private_fqdn
 }
 
 output "aks_cluster_endpoint" {

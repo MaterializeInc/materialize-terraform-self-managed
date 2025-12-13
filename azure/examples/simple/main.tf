@@ -41,9 +41,11 @@ provider "kubectl" {
 
 locals {
   vnet_config = {
-    address_space        = "20.0.0.0/16"
-    aks_subnet_cidr      = "20.0.0.0/20"
-    postgres_subnet_cidr = "20.0.16.0/24"
+    address_space                      = "20.0.0.0/16"
+    aks_subnet_cidr                    = "20.0.0.0/20"
+    postgres_subnet_cidr               = "20.0.16.0/24"
+    enable_api_server_vnet_integration = true
+    api_server_subnet_cidr             = "20.0.32.0/27" # keeping atleast 32 IPs reserved for API server and related services used in delegation might reduce it later.
   }
 
   aks_config = {
@@ -135,12 +137,14 @@ resource "azurerm_resource_group" "materialize" {
 module "networking" {
   source = "../../modules/networking"
 
-  resource_group_name  = azurerm_resource_group.materialize.name
-  location             = var.location
-  prefix               = var.name_prefix
-  vnet_address_space   = local.vnet_config.address_space
-  aks_subnet_cidr      = local.vnet_config.aks_subnet_cidr
-  postgres_subnet_cidr = local.vnet_config.postgres_subnet_cidr
+  resource_group_name                = azurerm_resource_group.materialize.name
+  location                           = var.location
+  prefix                             = var.name_prefix
+  vnet_address_space                 = local.vnet_config.address_space
+  aks_subnet_cidr                    = local.vnet_config.aks_subnet_cidr
+  postgres_subnet_cidr               = local.vnet_config.postgres_subnet_cidr
+  enable_api_server_vnet_integration = local.vnet_config.enable_api_server_vnet_integration
+  api_server_subnet_cidr             = local.vnet_config.api_server_subnet_cidr
 
   tags = var.tags
 
@@ -159,6 +163,10 @@ module "aks" {
   vnet_name           = module.networking.vnet_name
   subnet_name         = module.networking.aks_subnet_name
   subnet_id           = module.networking.aks_subnet_id
+
+  enable_api_server_vnet_integration = local.vnet_config.enable_api_server_vnet_integration
+  api_server_authorized_ip_ranges    = concat(var.api_server_authorized_ip_ranges, ["${module.networking.nat_gateway_public_ip}/32"])
+  api_server_subnet_id               = module.networking.api_server_subnet_id
 
   # Default node pool with autoscaling (runs all workloads except Materialize)
   default_node_pool_vm_size             = "Standard_D4pds_v6"

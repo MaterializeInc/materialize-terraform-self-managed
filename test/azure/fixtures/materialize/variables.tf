@@ -71,6 +71,16 @@ variable "service_cidr" {
   type        = string
 }
 
+variable "enable_api_server_vnet_integration" {
+  description = "Enable API Server VNet Integration"
+  type        = bool
+}
+
+variable "api_server_subnet_id" {
+  description = "Subnet ID for API Server VNet Integration"
+  type        = string
+}
+
 variable "default_node_pool_vm_size" {
   description = "The VM size for the default node pool"
   type        = string
