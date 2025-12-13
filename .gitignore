@@ -29,6 +29,9 @@ tests/.terraform.lock.hcl
 # macOS
 .DS_Store
 
+# Python
+__pycache__/
+
 # IDE
 .idea/
 .vscode/
