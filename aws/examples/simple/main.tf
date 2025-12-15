@@ -58,8 +58,7 @@ provider "kubectl" {
 
 # 1. Create network infrastructure
 module "networking" {
-  source = "../../modules/networking"
-
+  source      = "../../modules/networking"
   name_prefix = var.name_prefix
 
   vpc_cidr             = "10.0.0.0/16"
@@ -82,7 +81,9 @@ module "eks" {
   cluster_enabled_log_types                = ["api", "audit"]
   enable_cluster_creator_admin_permissions = true
   materialize_node_ingress_cidrs           = [module.networking.vpc_cidr_block]
+  cluster_endpoint_public_access_cidrs     = var.cluster_endpoint_public_access_cidrs
   tags                                     = var.tags
+
 
   depends_on = [
     module.networking,
@@ -93,19 +94,18 @@ module "eks" {
 module "base_node_group" {
   source = "../../modules/eks-node-group"
 
-  cluster_name                         = module.eks.cluster_name
-  subnet_ids                           = module.networking.private_subnet_ids
-  node_group_name                      = "${var.name_prefix}-base"
-  instance_types                       = local.instance_types_base
-  swap_enabled                         = false
-  min_size                             = 2
-  max_size                             = 3
-  desired_size                         = 2
-  labels                               = local.base_node_labels
-  cluster_service_cidr                 = module.eks.cluster_service_cidr
-  cluster_primary_security_group_id    = module.eks.node_security_group_id
-  cluster_endpoint_public_access_cidrs = var.cluster_endpoint_public_access_cidrs
-  tags                                 = var.tags
+  cluster_name                      = module.eks.cluster_name
+  subnet_ids                        = module.networking.private_subnet_ids
+  node_group_name                   = "${var.name_prefix}-base"
+  instance_types                    = local.instance_types_base
+  swap_enabled                      = false
+  min_size                          = 2
+  max_size                          = 3
+  desired_size                      = 2
+  labels                            = local.base_node_labels
+  cluster_service_cidr              = module.eks.cluster_service_cidr
+  cluster_primary_security_group_id = module.eks.node_security_group_id
+  tags                              = var.tags
 }
 
 # 2.2 Install Karpenter to manage creation of additional nodes
