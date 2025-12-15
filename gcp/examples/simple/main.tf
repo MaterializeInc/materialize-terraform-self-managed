@@ -325,7 +325,7 @@ module "load_balancers" {
   prefix                     = var.name_prefix
   ingress_cidr_blocks        = var.ingress_cidr_blocks
   node_service_account_email = module.gke.service_account_email
-  internal                   = false
+  internal                   = true
   instance_name              = local.materialize_instance_name
   namespace                  = local.materialize_instance_namespace
   resource_id                = module.materialize_instance.instance_resource_id
