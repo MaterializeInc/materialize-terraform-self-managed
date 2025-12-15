@@ -31,10 +31,10 @@ variable "ingress_cidr_blocks" {
   description = "The CIDR blocks that are allowed to reach the Load Balancer."
   type        = list(string)
   default     = ["0.0.0.0/0"]
-  nullable    = false
+  nullable    = true
 
   validation {
-    condition = alltrue([
+    condition = var.ingress_cidr_blocks == null || alltrue([
       for cidr in var.ingress_cidr_blocks : can(cidrhost(cidr, 0))
     ])
     error_message = "All ingress_cidr_blocks must be valid CIDR notation (e.g., '10.0.0.0/8' or '0.0.0.0/0')."

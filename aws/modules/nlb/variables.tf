@@ -20,7 +20,17 @@ variable "internal" {
 variable "ingress_cidr_blocks" {
   description = "List of CIDR blocks to allow ingress to the NLB Security Group."
   type        = list(string)
-  nullable    = false
+  nullable    = true
+  default     = ["0.0.0.0/0"]
+
+  validation {
+    condition = var.internal ? true : (
+      var.ingress_cidr_blocks != null && alltrue([
+        for cidr in var.ingress_cidr_blocks : can(cidrhost(cidr, 0))
+      ])
+    )
+    error_message = "ingress_cidr_blocks must be provided and contain valid CIDR notation when creating a public load balancer (internal = false)."
+  }
 }
 
 variable "namespace" {

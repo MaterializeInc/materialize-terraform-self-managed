@@ -10,6 +10,10 @@ resource "kubernetes_service" "console_load_balancer" {
   spec {
     type                    = "LoadBalancer"
     external_traffic_policy = "Local"
+
+    # https://docs.cloud.google.com/kubernetes-engine/docs/concepts/service-load-balancer-parameters#fw_ip_address
+    # we create explicit firewall rules so that we can bound them to target node service account, the default behavior is to allow traffic to all nodes of cluster.
+    load_balancer_source_ranges = var.internal ? null : var.ingress_cidr_blocks
     selector = {
       "materialize.cloud/name" = "mz${var.resource_id}-console"
     }
@@ -46,6 +50,9 @@ resource "kubernetes_service" "balancerd_load_balancer" {
   spec {
     type                    = "LoadBalancer"
     external_traffic_policy = "Local"
+    # https://docs.cloud.google.com/kubernetes-engine/docs/concepts/service-load-balancer-parameters#fw_ip_address
+    # we create explicit firewall rules so that we can bound them to target node service account, the default behavior is to allow traffic to all nodes of cluster.
+    load_balancer_source_ranges = var.internal ? null : var.ingress_cidr_blocks
     selector = {
       "materialize.cloud/name" = "mz${var.resource_id}-balancerd"
     }

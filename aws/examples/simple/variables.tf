@@ -38,13 +38,13 @@ variable "request_rollout" {
 }
 
 variable "ingress_cidr_blocks" {
-  description = "List of CIDR blocks to allow access to materialize Load Balancers."
+  description = "List of CIDR blocks to allow access to materialize Load Balancers. Only applied when Load Balancer is public."
   type        = list(string)
   default     = ["0.0.0.0/0"]
-  nullable    = false
+  nullable    = true
 
   validation {
-    condition     = alltrue([for cidr in var.ingress_cidr_blocks : can(cidrhost(cidr, 0))])
+    condition     = var.ingress_cidr_blocks == null || alltrue([for cidr in var.ingress_cidr_blocks : can(cidrhost(cidr, 0))])
     error_message = "All CIDR blocks must be valid IPv4 CIDR notation (e.g., '10.0.0.0/16' or '0.0.0.0/0')."
   }
 }

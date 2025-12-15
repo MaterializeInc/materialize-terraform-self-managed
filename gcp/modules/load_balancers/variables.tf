@@ -15,11 +15,6 @@ variable "prefix" {
   type        = string
   nullable    = false
 }
-variable "ingress_cidr_blocks" {
-  description = "The CIDR blocks that are allowed to reach the Load Balancer."
-  type        = list(string)
-  nullable    = false
-}
 
 variable "node_service_account_email" {
   description = "The email of the node service account."
@@ -50,6 +45,22 @@ variable "internal" {
   type        = bool
   default     = true
   nullable    = false
+}
+
+variable "ingress_cidr_blocks" {
+  description = "List of CIDR blocks to allow ingress to the Load Balancer."
+  type        = list(string)
+  nullable    = true
+  default     = ["0.0.0.0/0"]
+
+  validation {
+    condition = var.internal ? true : (
+      var.ingress_cidr_blocks != null && alltrue([
+        for cidr in var.ingress_cidr_blocks : can(cidrhost(cidr, 0))
+      ])
+    )
+    error_message = "ingress_cidr_blocks must be provided and contain valid CIDR notation when creating a public load balancer (internal = false)."
+  }
 }
 
 variable "materialize_console_port" {
