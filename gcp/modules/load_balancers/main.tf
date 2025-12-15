@@ -98,25 +98,6 @@ resource "google_compute_firewall" "external_rules" {
   target_service_accounts = [var.node_service_account_email]
 }
 
-# Custom firewall rule to allow ingress traffic to Materialize nodes (Internal LB)
-# For internal load balancers, traffic source is the original client IP from VPC CIDR
-# This rule targets specific nodes via service account instead of all cluster nodes
-resource "google_compute_firewall" "internal_rules" {
-  count = var.internal ? 1 : 0
-
-  project     = var.project_id
-  name        = "${var.prefix}-lb-internal-ingress-rule"
-  network     = var.network_name
-  description = "Allow VPC traffic from specified CIDR blocks to Materialize nodes via Internal Load Balancer (custom rule targeting specific service account)"
-  direction   = "INGRESS"
-  allow {
-    protocol = "tcp"
-    ports    = ["8080", "6875", "6876"]
-  }
-  source_ranges           = var.vpc_cidr_blocks
-  target_service_accounts = [var.node_service_account_email]
-}
-
 # Firewall rule to allow GCP health check traffic
 # Required for both internal and external load balancer health checks
 # Health checks originate from GCP infrastructure IP ranges

@@ -63,22 +63,6 @@ variable "ingress_cidr_blocks" {
   }
 }
 
-variable "vpc_cidr_blocks" {
-  description = "List of VPC CIDR blocks to allow ingress to Internal Load Balancer. Required when internal = true, must be null when internal = false."
-  type        = list(string)
-  nullable    = true
-  default     = null
-
-  validation {
-    condition = var.internal ? (
-      var.vpc_cidr_blocks != null && length(var.vpc_cidr_blocks) > 0 && alltrue([
-        for cidr in var.vpc_cidr_blocks : can(cidrhost(cidr, 0))
-      ])
-    ) : true
-    error_message = "vpc_cidr_blocks must be provided (non-null, non-empty) when internal = true, and must be null when internal = false. All CIDR blocks must be valid CIDR notation."
-  }
-}
-
 variable "materialize_console_port" {
   description = "Port configuration for Materialize console service"
   type        = number
