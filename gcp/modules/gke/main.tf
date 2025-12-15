@@ -90,6 +90,10 @@ resource "google_container_cluster" "primary" {
       enabled = var.gce_persistent_disk_csi_driver_enabled
     }
   }
+
+  # https://docs.cloud.google.com/kubernetes-engine/docs/how-to/user-managed-firewall-rules#disable-in-new-cluster
+  disable_l4_lb_firewall_reconciliation = true
+  enable_l4_ilb_subsetting              = true
 }
 
 resource "google_service_account_iam_binding" "workload_identity" {

@@ -322,7 +322,8 @@ module "load_balancers" {
   prefix                     = var.name_prefix
   ingress_cidr_blocks        = var.ingress_cidr_blocks
   node_service_account_email = module.gke.service_account_email
-  internal                   = true
+  internal                   = false
+  vpc_cidr_blocks            = [for subnet in local.subnets : subnet.cidr]
   instance_name              = local.materialize_instance_name
   namespace                  = local.materialize_instance_namespace
   resource_id                = module.materialize_instance.instance_resource_id

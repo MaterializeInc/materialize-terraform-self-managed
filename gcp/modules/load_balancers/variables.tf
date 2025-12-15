@@ -48,18 +48,34 @@ variable "internal" {
 }
 
 variable "ingress_cidr_blocks" {
-  description = "List of CIDR blocks to allow ingress to the Load Balancer."
+  description = "List of external IP CIDR blocks to allow ingress to External Load Balancer. Required when internal = false, must be null when internal = true."
   type        = list(string)
   nullable    = true
-  default     = ["0.0.0.0/0"]
+  default     = null
 
   validation {
     condition = var.internal ? true : (
-      var.ingress_cidr_blocks != null && alltrue([
+      var.ingress_cidr_blocks != null && length(var.ingress_cidr_blocks) > 0 && alltrue([
         for cidr in var.ingress_cidr_blocks : can(cidrhost(cidr, 0))
       ])
     )
-    error_message = "ingress_cidr_blocks must be provided and contain valid CIDR notation when creating a public load balancer (internal = false)."
+    error_message = "ingress_cidr_blocks must be provided (non-null, non-empty) when internal = false, and must be null when internal = true. All CIDR blocks must be valid CIDR notation."
+  }
+}
+
+variable "vpc_cidr_blocks" {
+  description = "List of VPC CIDR blocks to allow ingress to Internal Load Balancer. Required when internal = true, must be null when internal = false."
+  type        = list(string)
+  nullable    = true
+  default     = null
+
+  validation {
+    condition = var.internal ? (
+      var.vpc_cidr_blocks != null && length(var.vpc_cidr_blocks) > 0 && alltrue([
+        for cidr in var.vpc_cidr_blocks : can(cidrhost(cidr, 0))
+      ])
+    ) : true
+    error_message = "vpc_cidr_blocks must be provided (non-null, non-empty) when internal = true, and must be null when internal = false. All CIDR blocks must be valid CIDR notation."
   }
 }
 

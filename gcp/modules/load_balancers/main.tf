@@ -11,9 +11,7 @@ resource "kubernetes_service" "console_load_balancer" {
     type                    = "LoadBalancer"
     external_traffic_policy = "Local"
 
-    # https://docs.cloud.google.com/kubernetes-engine/docs/concepts/service-load-balancer-parameters#fw_ip_address
-    # we create explicit firewall rules so that we can bound them to target node service account, the default behavior is to allow traffic to all nodes of cluster.
-    load_balancer_source_ranges = var.internal ? null : var.ingress_cidr_blocks
+
     selector = {
       "materialize.cloud/name" = "mz${var.resource_id}-console"
     }
@@ -50,9 +48,7 @@ resource "kubernetes_service" "balancerd_load_balancer" {
   spec {
     type                    = "LoadBalancer"
     external_traffic_policy = "Local"
-    # https://docs.cloud.google.com/kubernetes-engine/docs/concepts/service-load-balancer-parameters#fw_ip_address
-    # we create explicit firewall rules so that we can bound them to target node service account, the default behavior is to allow traffic to all nodes of cluster.
-    load_balancer_source_ranges = var.internal ? null : var.ingress_cidr_blocks
+
     selector = {
       "materialize.cloud/name" = "mz${var.resource_id}-balancerd"
     }
@@ -83,16 +79,60 @@ resource "kubernetes_service" "balancerd_load_balancer" {
   wait_for_load_balancer = true
 }
 
-resource "google_compute_firewall" "rules" {
+# Custom firewall rule to allow ingress traffic to Materialize nodes (External LB)
+# For external load balancers, this restricts access to specific external IP ranges
+# This rule targets specific nodes via service account instead of all cluster nodes
+resource "google_compute_firewall" "external_rules" {
+  count = var.internal ? 0 : 1
+
   project     = var.project_id
-  name        = "${var.prefix}-lb-ingress-filter-rule"
+  name        = "${var.prefix}-lb-external-ingress-rule"
   network     = var.network_name
-  description = "Allow traffic from Load Balancer to Materialize nodes"
+  description = "Allow external traffic from specified CIDR blocks to Materialize nodes via External Load Balancer (custom rule targeting specific service account)"
   direction   = "INGRESS"
   allow {
     protocol = "tcp"
     ports    = ["8080", "6875", "6876"]
   }
   source_ranges           = var.ingress_cidr_blocks
+  target_service_accounts = [var.node_service_account_email]
+}
+
+# Custom firewall rule to allow ingress traffic to Materialize nodes (Internal LB)
+# For internal load balancers, traffic source is the original client IP from VPC CIDR
+# This rule targets specific nodes via service account instead of all cluster nodes
+resource "google_compute_firewall" "internal_rules" {
+  count = var.internal ? 1 : 0
+
+  project     = var.project_id
+  name        = "${var.prefix}-lb-internal-ingress-rule"
+  network     = var.network_name
+  description = "Allow VPC traffic from specified CIDR blocks to Materialize nodes via Internal Load Balancer (custom rule targeting specific service account)"
+  direction   = "INGRESS"
+  allow {
+    protocol = "tcp"
+    ports    = ["8080", "6875", "6876"]
+  }
+  source_ranges           = var.vpc_cidr_blocks
+  target_service_accounts = [var.node_service_account_email]
+}
+
+# Firewall rule to allow GCP health check traffic
+# Required for both internal and external load balancer health checks
+# Health checks originate from GCP infrastructure IP ranges
+# https://cloud.google.com/load-balancing/docs/firewall-rules
+resource "google_compute_firewall" "health_checks" {
+  project     = var.project_id
+  name        = "${var.prefix}-lb-health-check-rule"
+  network     = var.network_name
+  description = "Allow GCP load balancer health check traffic to Materialize nodes (required for both internal and external LBs)"
+  direction   = "INGRESS"
+  allow {
+    protocol = "tcp"
+    ports    = ["8080", "6875", "6876"]
+  }
+  # GCP health check IP ranges (same for internal and external LBs)
+  # https://cloud.google.com/load-balancing/docs/firewall-rules
+  source_ranges           = ["35.191.0.0/16", "130.211.0.0/22"]
   target_service_accounts = [var.node_service_account_email]
 }
