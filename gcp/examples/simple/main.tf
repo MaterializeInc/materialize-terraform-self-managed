@@ -289,9 +289,6 @@ module "materialize_instance" {
   external_login_password_mz_system = random_password.external_login_password_mz_system.result
   authenticator_kind                = "Password"
 
-  force_rollout   = "00000000-0000-0000-0000-000000000002"
-  request_rollout = "00000000-0000-0000-0000-000000000002"
-
   # GCP workload identity annotation for service account
   # TODO: this needs a fix in Environmentd Client. KSA based access to storage doesn't work end to end
   service_account_annotations = {

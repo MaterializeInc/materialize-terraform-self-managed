@@ -86,6 +86,45 @@ labels = {
 - `labels`: Map of labels to apply to resources
 - `license_key`: Materialize license key (required for production use)
 
+**Optional Variables:**
+- `master_authorized_networks`: List of authorized CIDR blocks for GKE API server access (defaults to `[{ cidr_block = "0.0.0.0/0", display_name = "Default Placeholder for authorized networks" }]`)
+- `ingress_cidr_blocks`: List of CIDR blocks allowed to reach the Load Balancer (defaults to `["0.0.0.0/0"]`)
+
+### Configuring Master Authorized Networks
+
+To restrict GKE API server access to specific IP ranges:
+
+1. Get your public IP and convert to CIDR:
+```bash
+MY_IP=$(curl -s https://ipinfo.io/ip)
+MY_IP_CIDR="${MY_IP}/32"  # Single IP, or use: whois $MY_IP | grep route
+echo $MY_IP_CIDR
+```
+
+2. Add to `terraform.tfvars`:
+```hcl
+master_authorized_networks = [
+  {
+    cidr_block   = "X.X.X.X/32"  # Replace with your IP from step 1
+    display_name = "My office network"
+  },
+  {
+    cidr_block   = "203.0.113.0/24"
+    display_name = "VPN endpoint"
+  }
+]
+```
+
+**Note**: Public IP addresses may change since they are allocated by your ISP. These steps should be used in environments where the CIDR is static (e.g., corporate networks with fixed IP ranges, VPN endpoints, or static IP services). For dynamic IP environments, consider using broader CIDR ranges or alternative access methods.
+
+### Configuring Load Balancer Ingress CIDR Blocks
+
+To restrict Load Balancer access to specific IP ranges:
+
+```hcl
+ingress_cidr_blocks = ["203.0.113.0/24", "198.51.100.0/24"]
+```
+
 ---
 
 ### Step 2: Deploy Materialize
