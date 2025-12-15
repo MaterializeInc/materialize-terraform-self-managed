@@ -347,13 +347,13 @@ func (suite *StagedDeploymentSuite) setupMaterializeConsolidatedStage(stage, sta
 				"display_name": "Authorized networks",
 			},
 		},
-		"materialize_node_type":                 machineType,
-		"min_nodes":                             TestGKEMinNodes,
-		"max_nodes":                             TestGKEMaxNodes,
-		"enable_private_nodes":                  true,
-		"swap_enabled":                          diskEnabled,
-		"disk_size":                             diskSize,
-		"local_ssd_count":                       localSSDCount,
+		"materialize_node_type": machineType,
+		"min_nodes":             TestGKEMinNodes,
+		"max_nodes":             TestGKEMaxNodes,
+		"enable_private_nodes":  true,
+		"swap_enabled":          diskEnabled,
+		"disk_size":             diskSize,
+		"local_ssd_count":       localSSDCount,
 
 		// Node Labels
 		"labels": map[string]string{

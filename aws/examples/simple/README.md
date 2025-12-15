@@ -69,6 +69,36 @@ tags = {
 - `tags`: Map of tags to apply to resources
 - `license_key`: Materialize license key
 
+**Optional Variables:**
+- `cluster_endpoint_public_access_cidrs`: List of CIDR blocks allowed to access the EKS cluster endpoint (defaults to `["0.0.0.0/0"]`)
+- `ingress_cidr_blocks`: List of CIDR blocks allowed to reach the Load Balancer (defaults to `["0.0.0.0/0"]`)
+
+### Configuring Cluster Endpoint Public Access CIDRs
+
+To restrict EKS API server access to specific IP ranges:
+
+1. Get your public IP and convert to CIDR:
+```bash
+MY_IP=$(curl -s https://ipinfo.io/ip)
+MY_IP_CIDR="${MY_IP}/32"  # Single IP, or use: whois $MY_IP | grep route
+echo $MY_IP_CIDR
+```
+
+2. Add to `terraform.tfvars`:
+```hcl
+cluster_endpoint_public_access_cidrs = ["X.X.X.X/32"]  # Replace with your IP from step 1
+```
+
+**Note**: Public IP addresses may change since they are allocated by your ISP. These steps should be used in environments where the CIDR is static (e.g., corporate networks with fixed IP ranges, VPN endpoints, or static IP services). For dynamic IP environments, consider using broader CIDR ranges or alternative access methods.
+
+### Configuring Load Balancer Ingress CIDR Blocks
+
+To restrict Load Balancer access to specific IP ranges:
+
+```hcl
+ingress_cidr_blocks = ["203.0.113.0/24", "198.51.100.0/24"]
+```
+
 ---
 
 ### Step 2: Deploy Materialize

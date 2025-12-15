@@ -331,6 +331,7 @@ func (suite *StagedDeploymentTestSuite) setupMaterializeConsolidatedStage(stage,
 		"swap_enabled":                             diskEnabled,
 		"iam_role_use_name_prefix":                 false,
 		"materialize_node_ingress_cidrs":           []string{TestVPCCIDR},
+		"cluster_endpoint_public_access_cidrs":     []string{"0.0.0.0/0"},
 
 		// Node Labels
 		"node_labels": map[string]string{

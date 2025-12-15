@@ -60,3 +60,14 @@ variable "materialize_node_ingress_cidrs" {
     error_message = "All CIDR blocks must be valid IPv4 CIDR notation (e.g., '10.0.0.0/16' or '0.0.0.0/0')."
   }
 }
+
+variable "cluster_endpoint_public_access_cidrs" {
+  description = "List of CIDR blocks to allow public access to the EKS cluster endpoint"
+  type        = list(string)
+  nullable    = false
+
+  validation {
+    condition     = alltrue([for cidr in var.cluster_endpoint_public_access_cidrs : can(cidrhost(cidr, 0))])
+    error_message = "All CIDR blocks must be valid IPv4 CIDR notation (e.g., '10.0.0.0/16' or '0.0.0.0/0')."
+  }
+}
