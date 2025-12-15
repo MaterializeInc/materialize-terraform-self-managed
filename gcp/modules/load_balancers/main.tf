@@ -75,3 +75,17 @@ resource "kubernetes_service" "balancerd_load_balancer" {
   }
   wait_for_load_balancer = true
 }
+
+resource "google_compute_firewall" "rules" {
+  project     = var.project_id
+  name        = "${var.prefix}-lb-ingress-filter-rule"
+  network     = var.network_name
+  description = "Allow traffic from Load Balancer to Materialize nodes"
+  direction   = "INGRESS"
+  allow {
+    protocol  = "tcp"
+    ports     = ["8080", "6875", "6876"]
+  }
+  source_ranges = var.ingress_cidr_blocks
+  target_service_accounts = [var.node_service_account_email]
+}

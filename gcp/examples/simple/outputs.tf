@@ -146,3 +146,9 @@ output "balancerd_load_balancer_ip" {
   description = "IP address of the Materialize balancerd's load balancer."
   value       = module.load_balancers.balancerd_load_balancer_ip
 }
+
+output "external_login_password_mz_system" {
+  description = "Password for the external login to the Materialize instance"
+  value       = random_password.external_login_password_mz_system.result
+  sensitive   = true
+}

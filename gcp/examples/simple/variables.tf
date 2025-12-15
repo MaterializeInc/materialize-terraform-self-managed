@@ -26,3 +26,37 @@ variable "license_key" {
   default     = null
   sensitive   = true
 }
+
+variable "ingress_cidr_blocks" {
+  description = "The CIDR blocks that are allowed to reach the Load Balancer."
+  type        = list(string)
+  default     = ["0.0.0.0/0"]
+  nullable    = false
+
+  validation {
+    condition = alltrue([
+      for cidr in var.ingress_cidr_blocks : can(cidrhost(cidr, 0))
+    ])
+    error_message = "All ingress_cidr_blocks must be valid CIDR notation (e.g., '10.0.0.0/8' or '0.0.0.0/0')."
+  }
+}
+
+variable "master_authorized_networks" {
+  description = "The CIDR blocks that are allowed to reach the Kubernetes master endpoint."
+  type        = list(object({
+    cidr_block   = string
+    display_name = string
+  }))
+  default     = [{
+    cidr_block   = "0.0.0.0/0"
+    display_name = "Default Placeholder for authorized networks"
+  }]
+  nullable    = false
+
+  validation {
+    condition = alltrue([
+      for network in var.master_authorized_networks : can(cidrhost(network.cidr_block, 0))
+    ])
+    error_message = "All master_authorized_networks must be valid CIDR notation (e.g., '10.0.0.0/8' or '0.0.0.0/0')."
+  }
+}

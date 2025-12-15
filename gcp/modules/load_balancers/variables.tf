@@ -1,3 +1,32 @@
+variable "project_id" {
+  description = "The ID of the project in which to create the firewall rule."
+  type        = string
+  nullable    = false
+}
+
+variable "network_name" {
+  description = "The name of the network in which to create the firewall rule."
+  type        = string
+  nullable    = false
+}
+
+variable "prefix" {
+  description = "Prefix to be used for resource names"
+  type        = string
+  nullable    = false
+}
+variable "ingress_cidr_blocks" {
+  description = "The CIDR blocks that are allowed to reach the Load Balancer."
+  type        = list(string)
+  nullable    = false
+}
+
+variable "node_service_account_email" {
+  description = "The email of the node service account."
+  type        = string
+  nullable    = false
+}
+
 variable "instance_name" {
   description = "The name of the Materialize instance."
   type        = string

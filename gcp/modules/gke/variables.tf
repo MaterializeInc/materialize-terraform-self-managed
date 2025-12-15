@@ -106,9 +106,15 @@ variable "master_ipv4_cidr_block" {
 }
 
 # modify this to restrict public access to master endpoint from specific IP ranges
-variable "master_authorized_networks_cidr_block" {
-  description = "CIDR block to allow access to the Kubernetes master endpoint. Defaults to 0.0.0.0/0 to allow access from anywhere."
-  type        = string
-  default     = "0.0.0.0/0"
-  nullable    = false
+variable "master_authorized_networks" {
+  description = "List of CIDR blocks to allow access to the Kubernetes master endpoint. Each entry should have cidr_block and display_name. Defaults to 0.0.0.0/0 to allow access from anywhere."
+  type = list(object({
+    cidr_block   = string
+    display_name = string
+  }))
+  default = [{
+    cidr_block   = "0.0.0.0/0"
+    display_name = "Authorized networks"
+  }]
+  nullable = false
 }
