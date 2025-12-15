@@ -145,10 +145,10 @@ module "gke" {
   network_name = module.networking.network_name
   # we only have one subnet, so we can use the first one
   # if multiple subnets are created, we need to use the specific subnet name here
-  subnet_name = module.networking.subnets_names[0]
-  namespace   = local.materialize_operator_namespace
+  subnet_name                = module.networking.subnets_names[0]
+  namespace                  = local.materialize_operator_namespace
   master_authorized_networks = var.master_authorized_networks
-  labels      = var.labels
+  labels                     = var.labels
 }
 
 # Create and configure generic node pool for all workloads except Materialize
@@ -287,9 +287,9 @@ module "materialize_instance" {
 
   # The password for the external login to the Materialize instance
   external_login_password_mz_system = random_password.external_login_password_mz_system.result
-  authenticator_kind = "Password"
+  authenticator_kind                = "Password"
 
-  force_rollout = "00000000-0000-0000-0000-000000000002"
+  force_rollout   = "00000000-0000-0000-0000-000000000002"
   request_rollout = "00000000-0000-0000-0000-000000000002"
 
   # GCP workload identity annotation for service account
@@ -320,15 +320,15 @@ module "materialize_instance" {
 module "load_balancers" {
   source = "../../modules/load_balancers"
 
-  project_id = var.project_id
-  network_name = module.networking.network_name
-  prefix = var.name_prefix
-  ingress_cidr_blocks = var.ingress_cidr_blocks
+  project_id                 = var.project_id
+  network_name               = module.networking.network_name
+  prefix                     = var.name_prefix
+  ingress_cidr_blocks        = var.ingress_cidr_blocks
   node_service_account_email = module.gke.service_account_email
-  internal = false
-  instance_name = local.materialize_instance_name
-  namespace     = local.materialize_instance_namespace
-  resource_id   = module.materialize_instance.instance_resource_id
+  internal                   = false
+  instance_name              = local.materialize_instance_name
+  namespace                  = local.materialize_instance_namespace
+  resource_id                = module.materialize_instance.instance_resource_id
 
   depends_on = [
     module.materialize_instance,

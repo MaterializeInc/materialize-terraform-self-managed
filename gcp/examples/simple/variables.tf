@@ -43,15 +43,15 @@ variable "ingress_cidr_blocks" {
 
 variable "master_authorized_networks" {
   description = "The CIDR blocks that are allowed to reach the Kubernetes master endpoint."
-  type        = list(object({
+  type = list(object({
     cidr_block   = string
     display_name = string
   }))
-  default     = [{
+  default = [{
     cidr_block   = "0.0.0.0/0"
     display_name = "Default Placeholder for authorized networks"
   }]
-  nullable    = false
+  nullable = false
 
   validation {
     condition = alltrue([

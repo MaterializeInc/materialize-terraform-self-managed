@@ -186,8 +186,23 @@ variable "master_ipv4_cidr_block" {
 }
 
 # modify this to restrict public access to master endpoint from specific IP ranges
-variable "master_authorized_networks_cidr_block" {
-  description = "CIDR block to allow access to the Kubernetes master endpoint"
-  type        = string
+variable "master_authorized_networks" {
+  description = "List of CIDR blocks to allow access to the Kubernetes master endpoint. Each entry should have cidr_block and display_name."
+  type = list(object({
+    cidr_block   = string
+    display_name = string
+  }))
+  nullable = false
+}
+
+variable "ingress_cidr_blocks" {
+  description = "List of CIDR blocks to allow ingress to the Load Balancer."
+  type        = list(string)
+  nullable    = false
+}
+
+variable "internal" {
+  description = "Whether the load balancer is internal to the VPC."
+  type        = bool
   nullable    = false
 }

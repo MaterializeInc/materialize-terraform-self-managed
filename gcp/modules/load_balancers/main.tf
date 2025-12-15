@@ -83,9 +83,9 @@ resource "google_compute_firewall" "rules" {
   description = "Allow traffic from Load Balancer to Materialize nodes"
   direction   = "INGRESS"
   allow {
-    protocol  = "tcp"
-    ports     = ["8080", "6875", "6876"]
+    protocol = "tcp"
+    ports    = ["8080", "6875", "6876"]
   }
-  source_ranges = var.ingress_cidr_blocks
+  source_ranges           = var.ingress_cidr_blocks
   target_service_accounts = [var.node_service_account_email]
 }
