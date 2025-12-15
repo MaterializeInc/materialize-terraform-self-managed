@@ -66,7 +66,7 @@ resource "azurerm_kubernetes_cluster" "aks" {
   api_server_access_profile {
     virtual_network_integration_enabled = var.enable_api_server_vnet_integration
     subnet_id                           = var.api_server_subnet_id
-    authorized_ip_ranges                = var.api_server_authorized_ip_ranges
+    authorized_ip_ranges                = var.k8s_apiserver_authorized_networks
   }
 
   oidc_issuer_enabled       = true

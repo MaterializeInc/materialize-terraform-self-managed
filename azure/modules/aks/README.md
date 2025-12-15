@@ -31,7 +31,6 @@ No modules.
 
 | Name | Description | Type | Default | Required |
 |------|-------------|------|---------|:--------:|
-| <a name="input_api_server_authorized_ip_ranges"></a> [api\_server\_authorized\_ip\_ranges](#input\_api\_server\_authorized\_ip\_ranges) | List of authorized IP ranges that can access the Kubernetes API server when public access is available. Defaults to ['0.0.0.0/0'] (allow all). For production, restrict to specific IPs (e.g., ['203.0.113.0/24']) | `list(string)` | <pre>[<br/>  "0.0.0.0/0"<br/>]</pre> | no |
 | <a name="input_api_server_subnet_id"></a> [api\_server\_subnet\_id](#input\_api\_server\_subnet\_id) | Subnet ID for API Server VNet Integration (must be delegated to Microsoft.ContainerService/managedClusters). Required when enable\_api\_server\_vnet\_integration is true. | `string` | `null` | no |
 | <a name="input_azure_ad_admin_group_object_ids"></a> [azure\_ad\_admin\_group\_object\_ids](#input\_azure\_ad\_admin\_group\_object\_ids) | List of Azure AD group object IDs that will have admin access to the cluster, applied only if enable\_azure\_ad\_rbac is true | `list(string)` | `[]` | no |
 | <a name="input_default_node_pool_enable_auto_scaling"></a> [default\_node\_pool\_enable\_auto\_scaling](#input\_default\_node\_pool\_enable\_auto\_scaling) | Enable auto scaling for the default node pool | `bool` | `true` | no |
@@ -45,6 +44,7 @@ No modules.
 | <a name="input_enable_api_server_vnet_integration"></a> [enable\_api\_server\_vnet\_integration](#input\_enable\_api\_server\_vnet\_integration) | Enable API Server VNet Integration. Projects the API server into a delegated subnet in your VNet. Requires api\_server\_subnet\_id to be provided. | `bool` | `true` | no |
 | <a name="input_enable_azure_ad_rbac"></a> [enable\_azure\_ad\_rbac](#input\_enable\_azure\_ad\_rbac) | Enable Azure Active Directory integration for RBAC | `bool` | `false` | no |
 | <a name="input_enable_azure_monitor"></a> [enable\_azure\_monitor](#input\_enable\_azure\_monitor) | Enable Azure Monitor for the AKS cluster | `bool` | `false` | no |
+| <a name="input_k8s_apiserver_authorized_networks"></a> [k8s\_apiserver\_authorized\_networks](#input\_k8s\_apiserver\_authorized\_networks) | List of authorized IP ranges that can access the Kubernetes API server when public access is available. Defaults to ['0.0.0.0/0'] (allow all). For production, restrict to specific IPs (e.g., ['203.0.113.0/24']) | `list(string)` | <pre>[<br/>  "0.0.0.0/0"<br/>]</pre> | no |
 | <a name="input_kubernetes_version"></a> [kubernetes\_version](#input\_kubernetes\_version) | Version of Kubernetes to use for the AKS cluster | `string` | `"1.32"` | no |
 | <a name="input_load_balancer_sku"></a> [load\_balancer\_sku](#input\_load\_balancer\_sku) | SKU of the Load Balancer used for this Kubernetes Cluster | `string` | `"standard"` | no |
 | <a name="input_location"></a> [location](#input\_location) | The location where resources will be created | `string` | n/a | yes |

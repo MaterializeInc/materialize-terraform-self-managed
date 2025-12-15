@@ -165,7 +165,7 @@ module "aks" {
   subnet_id           = module.networking.aks_subnet_id
 
   enable_api_server_vnet_integration = local.vnet_config.enable_api_server_vnet_integration
-  api_server_authorized_ip_ranges    = concat(var.api_server_authorized_ip_ranges, ["${module.networking.nat_gateway_public_ip}/32"])
+  k8s_apiserver_authorized_networks  = concat(var.k8s_apiserver_authorized_networks, ["${module.networking.nat_gateway_public_ip}/32"])
   api_server_subnet_id               = module.networking.api_server_subnet_id
 
   # Default node pool with autoscaling (runs all workloads except Materialize)

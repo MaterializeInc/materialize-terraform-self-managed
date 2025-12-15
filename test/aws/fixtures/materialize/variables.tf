@@ -238,7 +238,7 @@ variable "nlb_subnet_ids" {
   nullable    = false
 }
 
-variable "cluster_endpoint_public_access_cidrs" {
+variable "k8s_apiserver_authorized_networks" {
   description = "List of CIDR blocks to allow public access to the EKS cluster endpoint"
   type        = list(string)
   nullable    = false

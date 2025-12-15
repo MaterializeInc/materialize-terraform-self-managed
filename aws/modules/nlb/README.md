@@ -40,7 +40,7 @@
 | Name | Description | Type | Default | Required |
 |------|-------------|------|---------|:--------:|
 | <a name="input_enable_cross_zone_load_balancing"></a> [enable\_cross\_zone\_load\_balancing](#input\_enable\_cross\_zone\_load\_balancing) | Whether to enable cross zone load balancing on the NLB. | `bool` | `true` | no |
-| <a name="input_ingress_cidr_blocks"></a> [ingress\_cidr\_blocks](#input\_ingress\_cidr\_blocks) | List of CIDR blocks to allow ingress to the NLB Security Group. | `list(string)` | n/a | yes |
+| <a name="input_ingress_cidr_blocks"></a> [ingress\_cidr\_blocks](#input\_ingress\_cidr\_blocks) | List of CIDR blocks to allow ingress to the NLB Security Group. | `list(string)` | <pre>[<br/>  "0.0.0.0/0"<br/>]</pre> | no |
 | <a name="input_instance_name"></a> [instance\_name](#input\_instance\_name) | The name of the Materialize instance. | `string` | n/a | yes |
 | <a name="input_internal"></a> [internal](#input\_internal) | Whether the NLB is internal only. Defaults to false (public) to allow external access to Materialize. Set to true for VPC-only access. | `bool` | `true` | no |
 | <a name="input_mz_resource_id"></a> [mz\_resource\_id](#input\_mz\_resource\_id) | The resourceId from the Materialize CR | `string` | n/a | yes |

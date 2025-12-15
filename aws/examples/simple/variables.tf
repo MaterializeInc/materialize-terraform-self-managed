@@ -49,14 +49,14 @@ variable "ingress_cidr_blocks" {
   }
 }
 
-variable "cluster_endpoint_public_access_cidrs" {
+variable "k8s_apiserver_authorized_networks" {
   description = "List of CIDR blocks to allow public access to the EKS cluster endpoint"
   type        = list(string)
   nullable    = false
   default     = ["0.0.0.0/0"]
 
   validation {
-    condition     = alltrue([for cidr in var.cluster_endpoint_public_access_cidrs : can(cidrhost(cidr, 0))])
-    error_message = "All CIDR blocks must be valid IPv4 CIDR notation (e.g., '10.0.0.0/16' or '0.0.0.0/0')."
+    condition     = alltrue([for cidr in var.k8s_apiserver_authorized_networks : can(cidrhost(cidr, 0))])
+    error_message = "All k8s_apiserver_authorized_networks valid IPv4 CIDR notation (e.g., '10.0.0.0/16' or '0.0.0.0/0')."
   }
 }

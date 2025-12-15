@@ -106,7 +106,7 @@ variable "master_ipv4_cidr_block" {
 }
 
 # modify this to restrict public access to master endpoint from specific IP ranges
-variable "master_authorized_networks" {
+variable "k8s_apiserver_authorized_networks" {
   description = "List of CIDR blocks to allow access to the Kubernetes master endpoint. Each entry should have cidr_block and display_name. Defaults to 0.0.0.0/0 to allow access from anywhere."
   type = list(object({
     cidr_block   = string

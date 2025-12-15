@@ -341,7 +341,7 @@ func (suite *StagedDeploymentSuite) setupMaterializeConsolidatedStage(stage, sta
 
 		// GKE Configuration
 		"namespace": TestGKENamespace,
-		"master_authorized_networks": []map[string]interface{}{
+		"k8s_apiserver_authorized_networks": []map[string]interface{}{
 			{
 				"cidr_block":   TestMasterAuthorizedNetworksCIDRBlock,
 				"display_name": "Authorized networks",

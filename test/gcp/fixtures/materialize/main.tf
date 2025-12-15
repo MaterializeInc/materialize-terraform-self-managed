@@ -10,15 +10,15 @@ data "google_client_config" "default" {}
 module "gke" {
   source = "../../../../gcp/modules/gke"
 
-  project_id                 = var.project_id
-  region                     = var.region
-  prefix                     = var.prefix
-  network_name               = var.network_name
-  subnet_name                = var.subnet_name
-  namespace                  = var.namespace
-  master_authorized_networks = var.master_authorized_networks
-  master_ipv4_cidr_block     = var.master_ipv4_cidr_block
-  labels                     = var.labels
+  project_id                        = var.project_id
+  region                            = var.region
+  prefix                            = var.prefix
+  network_name                      = var.network_name
+  subnet_name                       = var.subnet_name
+  namespace                         = var.namespace
+  k8s_apiserver_authorized_networks = var.k8s_apiserver_authorized_networks
+  master_ipv4_cidr_block            = var.master_ipv4_cidr_block
+  labels                            = var.labels
 }
 
 # Nodepool creation

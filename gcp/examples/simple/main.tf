@@ -145,10 +145,10 @@ module "gke" {
   network_name = module.networking.network_name
   # we only have one subnet, so we can use the first one
   # if multiple subnets are created, we need to use the specific subnet name here
-  subnet_name                = module.networking.subnets_names[0]
-  namespace                  = local.materialize_operator_namespace
-  master_authorized_networks = var.master_authorized_networks
-  labels                     = var.labels
+  subnet_name                       = module.networking.subnets_names[0]
+  namespace                         = local.materialize_operator_namespace
+  k8s_apiserver_authorized_networks = var.k8s_apiserver_authorized_networks
+  labels                            = var.labels
 }
 
 # Create and configure generic node pool for all workloads except Materialize

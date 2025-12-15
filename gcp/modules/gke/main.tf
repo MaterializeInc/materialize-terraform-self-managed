@@ -16,8 +16,8 @@ locals {
   # Deduplicate CIDR blocks by converting to a map keyed by cidr_block
   # This ensures each CIDR block appears only once (set-like behavior)
   # If duplicates exist, the last occurrence is kept
-  unique_master_authorized_networks = {
-    for network in var.master_authorized_networks :
+  unique_k8s_apiserver_authorized_networks = {
+    for network in var.k8s_apiserver_authorized_networks :
     network.cidr_block => network
   }
 }
@@ -67,7 +67,7 @@ resource "google_container_cluster" "primary" {
   # Allow access to the cluster endpoint from specific IP ranges
   master_authorized_networks_config {
     dynamic "cidr_blocks" {
-      for_each = local.unique_master_authorized_networks
+      for_each = local.unique_k8s_apiserver_authorized_networks
       content {
         cidr_block   = cidr_blocks.value.cidr_block
         display_name = cidr_blocks.value.display_name

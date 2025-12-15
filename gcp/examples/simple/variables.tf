@@ -41,7 +41,7 @@ variable "ingress_cidr_blocks" {
   }
 }
 
-variable "master_authorized_networks" {
+variable "k8s_apiserver_authorized_networks" {
   description = "The CIDR blocks that are allowed to reach the Kubernetes master endpoint."
   type = list(object({
     cidr_block   = string
@@ -55,8 +55,8 @@ variable "master_authorized_networks" {
 
   validation {
     condition = alltrue([
-      for network in var.master_authorized_networks : can(cidrhost(network.cidr_block, 0))
+      for network in var.k8s_apiserver_authorized_networks : can(cidrhost(network.cidr_block, 0))
     ])
-    error_message = "All master_authorized_networks must be valid CIDR notation (e.g., '10.0.0.0/8' or '0.0.0.0/0')."
+    error_message = "All k8s_apiserver_authorized_networks must be valid CIDR notation (e.g., '10.0.0.0/8' or '0.0.0.0/0')."
   }
 }

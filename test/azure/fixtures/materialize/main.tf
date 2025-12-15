@@ -27,6 +27,7 @@ module "aks" {
 
   enable_api_server_vnet_integration = var.enable_api_server_vnet_integration
   api_server_subnet_id               = var.api_server_subnet_id
+  k8s_apiserver_authorized_networks  = var.k8s_apiserver_authorized_networks
 
   # Default node pool configuration
   default_node_pool_vm_size             = var.default_node_pool_vm_size

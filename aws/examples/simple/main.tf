@@ -81,7 +81,7 @@ module "eks" {
   cluster_enabled_log_types                = ["api", "audit"]
   enable_cluster_creator_admin_permissions = true
   materialize_node_ingress_cidrs           = [module.networking.vpc_cidr_block]
-  cluster_endpoint_public_access_cidrs     = var.cluster_endpoint_public_access_cidrs
+  k8s_apiserver_authorized_networks        = var.k8s_apiserver_authorized_networks
   tags                                     = var.tags
 
 
