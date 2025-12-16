@@ -70,6 +70,7 @@ module "eks" {
   enable_cluster_creator_admin_permissions = true
   materialize_node_ingress_cidrs           = [module.networking.vpc_cidr_block]
   k8s_apiserver_authorized_networks        = var.k8s_apiserver_authorized_networks
+  coredns_node_selector                    = local.base_node_labels
   tags                                     = var.tags
 
 

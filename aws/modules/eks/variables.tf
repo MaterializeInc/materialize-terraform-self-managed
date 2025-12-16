@@ -71,3 +71,10 @@ variable "k8s_apiserver_authorized_networks" {
     error_message = "All CIDR blocks must be valid IPv4 CIDR notation (e.g., '10.0.0.0/16' or '0.0.0.0/0')."
   }
 }
+
+variable "coredns_node_selector" {
+  description = "Map of label key and value for CoreDNS nodeSelector"
+  type        = map(string)
+  default     = {}
+  nullable    = false
+}
