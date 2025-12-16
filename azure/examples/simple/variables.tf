@@ -61,3 +61,10 @@ variable "k8s_apiserver_authorized_networks" {
     error_message = "All k8s_apiserver_authorized_networks must be valid CIDR blocks (e.g., '203.0.113.0/24')."
   }
 }
+
+
+variable "internal_load_balancer" {
+  description = "Whether to use an internal load balancer"
+  type        = bool
+  default     = true
+}

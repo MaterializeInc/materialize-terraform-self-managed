@@ -64,5 +64,5 @@ variable "k8s_apiserver_authorized_networks" {
 variable "internal_load_balancer" {
   description = "Whether to use an internal load balancer"
   type        = bool
-  default     = false
+  default     = true
 }

@@ -123,8 +123,6 @@ locals {
       effect   = "NoSchedule"
     }
   ]
-
-  internal_lb = true
 }
 
 
@@ -361,7 +359,7 @@ module "load_balancers" {
   namespace           = local.materialize_instance_namespace
   resource_id         = module.materialize_instance.instance_resource_id
   internal            = var.internal_load_balancer
-  ingress_cidr_blocks = local.internal_lb ? null : var.ingress_cidr_blocks
+  ingress_cidr_blocks = var.internal_load_balancer ? null : var.ingress_cidr_blocks
   resource_group_name = azurerm_resource_group.materialize.name
   location            = var.location
   prefix              = var.name_prefix
