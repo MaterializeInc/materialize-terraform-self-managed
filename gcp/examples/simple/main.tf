@@ -145,9 +145,10 @@ module "gke" {
   network_name = module.networking.network_name
   # we only have one subnet, so we can use the first one
   # if multiple subnets are created, we need to use the specific subnet name here
-  subnet_name = module.networking.subnets_names[0]
-  namespace   = local.materialize_operator_namespace
-  labels      = var.labels
+  subnet_name                       = module.networking.subnets_names[0]
+  namespace                         = local.materialize_operator_namespace
+  k8s_apiserver_authorized_networks = var.k8s_apiserver_authorized_networks
+  labels                            = var.labels
 }
 
 # Create and configure generic node pool for all workloads except Materialize
@@ -286,6 +287,7 @@ module "materialize_instance" {
 
   # The password for the external login to the Materialize instance
   external_login_password_mz_system = random_password.external_login_password_mz_system.result
+  authenticator_kind                = "Password"
 
   # GCP workload identity annotation for service account
   # TODO: this needs a fix in Environmentd Client. KSA based access to storage doesn't work end to end
@@ -315,9 +317,15 @@ module "materialize_instance" {
 module "load_balancers" {
   source = "../../modules/load_balancers"
 
-  instance_name = local.materialize_instance_name
-  namespace     = local.materialize_instance_namespace
-  resource_id   = module.materialize_instance.instance_resource_id
+  project_id                 = var.project_id
+  network_name               = module.networking.network_name
+  prefix                     = var.name_prefix
+  node_service_account_email = module.gke.service_account_email
+  internal                   = true
+  ingress_cidr_blocks        = var.ingress_cidr_blocks
+  instance_name              = local.materialize_instance_name
+  namespace                  = local.materialize_instance_namespace
+  resource_id                = module.materialize_instance.instance_resource_id
 
   depends_on = [
     module.materialize_instance,

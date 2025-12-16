@@ -1,3 +1,27 @@
+variable "project_id" {
+  description = "The ID of the project in which to create the firewall rule."
+  type        = string
+  nullable    = false
+}
+
+variable "network_name" {
+  description = "The name of the network in which to create the firewall rule."
+  type        = string
+  nullable    = false
+}
+
+variable "prefix" {
+  description = "Prefix to be used for resource names"
+  type        = string
+  nullable    = false
+}
+
+variable "node_service_account_email" {
+  description = "The email of the node service account."
+  type        = string
+  nullable    = false
+}
+
 variable "instance_name" {
   description = "The name of the Materialize instance."
   type        = string
@@ -21,6 +45,22 @@ variable "internal" {
   type        = bool
   default     = true
   nullable    = false
+}
+
+variable "ingress_cidr_blocks" {
+  description = "List of external IP CIDR blocks to allow ingress to External Load Balancer. Required when internal = false, must be null when internal = true."
+  type        = list(string)
+  nullable    = true
+  default     = null
+
+  validation {
+    condition = var.internal ? true : (
+      var.ingress_cidr_blocks != null && length(var.ingress_cidr_blocks) > 0 && alltrue([
+        for cidr in var.ingress_cidr_blocks : can(cidrhost(cidr, 0))
+      ])
+    )
+    error_message = "ingress_cidr_blocks must be provided (non-null, non-empty) when internal = false, and must be null when internal = true. All CIDR blocks must be valid CIDR notation."
+  }
 }
 
 variable "materialize_console_port" {

@@ -38,8 +38,31 @@ variable "request_rollout" {
 }
 
 variable "ingress_cidr_blocks" {
-  description = "List of CIDR blocks to allow access to materialize."
+  description = "List of CIDR blocks to allow access to materialize Load Balancers. Only applied when Load Balancer is public."
   type        = list(string)
   default     = ["0.0.0.0/0"]
+  nullable    = true
+
+  validation {
+    condition     = var.ingress_cidr_blocks == null || alltrue([for cidr in var.ingress_cidr_blocks : can(cidrhost(cidr, 0))])
+    error_message = "All CIDR blocks must be valid IPv4 CIDR notation (e.g., '10.0.0.0/16' or '0.0.0.0/0')."
+  }
+}
+
+variable "k8s_apiserver_authorized_networks" {
+  description = "List of CIDR blocks to allow public access to the EKS cluster endpoint"
+  type        = list(string)
   nullable    = false
+  default     = ["0.0.0.0/0"]
+
+  validation {
+    condition     = alltrue([for cidr in var.k8s_apiserver_authorized_networks : can(cidrhost(cidr, 0))])
+    error_message = "All k8s_apiserver_authorized_networks valid IPv4 CIDR notation (e.g., '10.0.0.0/16' or '0.0.0.0/0')."
+  }
+}
+
+variable "internal_load_balancer" {
+  description = "Whether to use an internal load balancer"
+  type        = bool
+  default     = true
 }

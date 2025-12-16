@@ -249,7 +249,7 @@ variable "api_server_subnet_id" {
   }
 }
 
-variable "api_server_authorized_ip_ranges" {
+variable "k8s_apiserver_authorized_networks" {
   description = "List of authorized IP ranges that can access the Kubernetes API server when public access is available. Defaults to ['0.0.0.0/0'] (allow all). For production, restrict to specific IPs (e.g., ['203.0.113.0/24'])"
   type        = list(string)
   default     = ["0.0.0.0/0"] # Explicit default: allow all IPs
@@ -257,12 +257,12 @@ variable "api_server_authorized_ip_ranges" {
 
   validation {
     condition = (
-      var.api_server_authorized_ip_ranges == null ||
+      var.k8s_apiserver_authorized_networks == null ||
       alltrue([
-        for cidr in var.api_server_authorized_ip_ranges :
+        for cidr in var.k8s_apiserver_authorized_networks :
         can(cidrhost(cidr, 0))
       ])
     )
-    error_message = "All api_server_authorized_ip_ranges must be valid CIDR blocks (e.g., '203.0.113.0/24')."
+    error_message = "All k8s_apiserver_authorized_networks must be valid CIDR blocks (e.g., '203.0.113.0/24')."
   }
 }

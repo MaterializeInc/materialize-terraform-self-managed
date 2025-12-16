@@ -331,6 +331,7 @@ func (suite *StagedDeploymentTestSuite) setupMaterializeConsolidatedStage(stage,
 		"swap_enabled":                             diskEnabled,
 		"iam_role_use_name_prefix":                 false,
 		"materialize_node_ingress_cidrs":           []string{TestVPCCIDR},
+		"k8s_apiserver_authorized_networks":        []string{"0.0.0.0/0"},
 
 		// Node Labels
 		"node_labels": map[string]string{

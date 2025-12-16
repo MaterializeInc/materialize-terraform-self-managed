@@ -76,7 +76,9 @@ tags = {
 - `license_key`: Materialize license key
 
 **Optional Variables:**
-- `api_server_authorized_ip_ranges`: List of authorized IP ranges for AKS API server access (defaults to `["0.0.0.0/0"]`)
+- `k8s_apiserver_authorized_networks`: List of authorized IP ranges for AKS API server access (defaults to `["0.0.0.0/0"]`)
+- `ingress_cidr_blocks`: List of CIDR blocks allowed to reach the Load Balancer (defaults to `["0.0.0.0/0"]`)
+- `internal_load_balancer`: Whether to use an internal load balancer (defaults to `true`)
 
 ### Configuring API Server Authorized IP Ranges
 
@@ -91,7 +93,17 @@ echo $MY_IP_CIDR
 
 2. Add to `terraform.tfvars`:
 ```hcl
-api_server_authorized_ip_ranges = ["X.X.X.X/X"]  # Replace with your IP from step 1
+k8s_apiserver_authorized_networks = ["X.X.X.X/X"]  # Replace with your IP from step 1
+```
+
+**Note**: Public IP addresses may change since they are allocated by your ISP. These steps should be used in environments where the CIDR is static (e.g., corporate networks with fixed IP ranges, VPN endpoints, or static IP services). For dynamic IP environments, consider using broader CIDR ranges or alternative access methods.
+
+### Configuring Load Balancer Ingress CIDR Blocks
+
+To restrict Load Balancer access to specific IP ranges:
+
+```hcl
+ingress_cidr_blocks = ["203.0.113.0/24", "198.51.100.0/24"]
 ```
 
 ---
@@ -104,6 +116,52 @@ Run the usual Terraform workflow:
 terraform init
 terraform apply
 ```
+
+---
+
+### Step 3: Accessing Materialize
+
+#### Security Model
+This deployment implements a secure access model:
+- **Public Access**: Only allowed via the Azure Load Balancer.
+- **Direct Node Access**: **BLOCKED**. The AKS nodes are in private subnets and only accept traffic from within the VNet.
+
+#### Access Methods
+
+**If using a public (external) Load Balancer:**
+
+Both SQL and Console are available via the public Load Balancer:
+
+- **SQL Access**: Connect using any PostgreSQL-compatible client pointing to the Load Balancer's IP on port **6875**
+- **Console Access**: Access the Materialize Console via the Load Balancer's IP on port **8080**
+
+To get the Load Balancer IP:
+```bash
+kubectl get svc -n materialize-environment -o jsonpath='{.items[?(@.spec.type=="LoadBalancer")].status.loadBalancer.ingress[0].ip}'
+```
+
+**If using a private (internal) Load Balancer:**
+
+Use Kubernetes port-forwarding for both SQL and Console. `kubectl port-forward` creates a TCP tunnel that preserves the underlying protocol (pgwire for SQL, HTTP for Console):
+
+- **SQL Access**:
+```bash
+# Forward local port 6875 to the Materialize balancerd service
+kubectl port-forward svc/mz<resource-id>-balancerd 6875:6875 -n materialize-environment
+```
+Then connect your PostgreSQL client to `localhost:6875`. The pgwire protocol is preserved through the TCP tunnel.
+
+- **Console Access**:
+```bash
+# Forward local port 8080 to the Materialize console service
+kubectl port-forward svc/mz<resource-id>-console 8080:8080 -n materialize-environment
+```
+Then open your browser to `http://localhost:8080`. HTTP traffic is preserved through the TCP tunnel.
+
+**Note on Load Balancer Layer 4 operation:**
+The Load Balancer operates at Layer 4 (TCP), forwarding connections without interpreting application-layer protocols. This works correctly for both pgwire (port 6875) and HTTP console access (port 8080), as both protocols run over TCP.
+
+---
 
 ## Notes
 

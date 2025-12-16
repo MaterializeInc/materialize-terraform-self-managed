@@ -345,6 +345,7 @@ func (suite *StagedDeploymentSuite) setupMaterializeConsolidatedStage(stage, sta
 		"swap_enabled":                          diskEnabled,
 		"enable_azure_monitor":                  false,
 		"log_analytics_workspace_id":            "",
+		"k8s_apiserver_authorized_networks":     []string{"0.0.0.0/0"},
 
 		// Node Labels
 		"node_labels": map[string]string{

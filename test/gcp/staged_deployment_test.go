@@ -340,15 +340,20 @@ func (suite *StagedDeploymentSuite) setupMaterializeConsolidatedStage(stage, sta
 		"subnet_name":  subnetNames[0],
 
 		// GKE Configuration
-		"namespace":                             TestGKENamespace,
-		"master_authorized_networks_cidr_block": TestMasterAuthorizedNetworksCIDRBlock,
-		"materialize_node_type":                 machineType,
-		"min_nodes":                             TestGKEMinNodes,
-		"max_nodes":                             TestGKEMaxNodes,
-		"enable_private_nodes":                  true,
-		"swap_enabled":                          diskEnabled,
-		"disk_size":                             diskSize,
-		"local_ssd_count":                       localSSDCount,
+		"namespace": TestGKENamespace,
+		"k8s_apiserver_authorized_networks": []map[string]interface{}{
+			{
+				"cidr_block":   TestMasterAuthorizedNetworksCIDRBlock,
+				"display_name": "Authorized networks",
+			},
+		},
+		"materialize_node_type": machineType,
+		"min_nodes":             TestGKEMinNodes,
+		"max_nodes":             TestGKEMaxNodes,
+		"enable_private_nodes":  true,
+		"swap_enabled":          diskEnabled,
+		"disk_size":             diskSize,
+		"local_ssd_count":       localSSDCount,
 
 		// Node Labels
 		"labels": map[string]string{
@@ -384,6 +389,10 @@ func (suite *StagedDeploymentSuite) setupMaterializeConsolidatedStage(stage, sta
 
 		// Operator Configuration
 		"operator_namespace": expectedOperatorNamespace,
+
+		// Load Balancer Configuration
+		"ingress_cidr_blocks": []string{TestMasterAuthorizedNetworksCIDRBlock},
+		"internal":            false,
 
 		// Materialize Instance Configuration
 		"instance_name":      TestMaterializeInstanceName,

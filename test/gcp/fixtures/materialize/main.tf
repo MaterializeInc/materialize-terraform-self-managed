@@ -10,15 +10,15 @@ data "google_client_config" "default" {}
 module "gke" {
   source = "../../../../gcp/modules/gke"
 
-  project_id                            = var.project_id
-  region                                = var.region
-  prefix                                = var.prefix
-  network_name                          = var.network_name
-  subnet_name                           = var.subnet_name
-  namespace                             = var.namespace
-  master_authorized_networks_cidr_block = var.master_authorized_networks_cidr_block
-  master_ipv4_cidr_block                = var.master_ipv4_cidr_block
-  labels                                = var.labels
+  project_id                        = var.project_id
+  region                            = var.region
+  prefix                            = var.prefix
+  network_name                      = var.network_name
+  subnet_name                       = var.subnet_name
+  namespace                         = var.namespace
+  k8s_apiserver_authorized_networks = var.k8s_apiserver_authorized_networks
+  master_ipv4_cidr_block            = var.master_ipv4_cidr_block
+  labels                            = var.labels
 }
 
 # Nodepool creation
@@ -172,11 +172,16 @@ module "materialize_instance" {
 
 # Load Balancer
 module "load_balancer" {
-  source = "../../../../gcp/modules/load_balancers"
-
-  instance_name = var.instance_name
-  namespace     = var.instance_namespace
-  resource_id   = module.materialize_instance.instance_resource_id
+  source                     = "../../../../gcp/modules/load_balancers"
+  project_id                 = var.project_id
+  network_name               = var.network_name
+  prefix                     = var.prefix
+  ingress_cidr_blocks        = var.ingress_cidr_blocks
+  node_service_account_email = module.gke.service_account_email
+  internal                   = var.internal
+  instance_name              = var.instance_name
+  namespace                  = var.instance_namespace
+  resource_id                = module.materialize_instance.instance_resource_id
 
   depends_on = [module.materialize_instance]
 }

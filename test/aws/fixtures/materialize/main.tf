@@ -16,6 +16,7 @@ module "eks" {
   enable_cluster_creator_admin_permissions = var.enable_cluster_creator_admin_permissions
   iam_role_use_name_prefix                 = var.iam_role_use_name_prefix
   materialize_node_ingress_cidrs           = var.materialize_node_ingress_cidrs
+  k8s_apiserver_authorized_networks        = var.k8s_apiserver_authorized_networks
   tags                                     = var.tags
 }
 

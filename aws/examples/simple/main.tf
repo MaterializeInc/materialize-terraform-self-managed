@@ -58,8 +58,7 @@ provider "kubectl" {
 
 # 1. Create network infrastructure
 module "networking" {
-  source = "../../modules/networking"
-
+  source      = "../../modules/networking"
   name_prefix = var.name_prefix
 
   vpc_cidr             = "10.0.0.0/16"
@@ -82,7 +81,9 @@ module "eks" {
   cluster_enabled_log_types                = ["api", "audit"]
   enable_cluster_creator_admin_permissions = true
   materialize_node_ingress_cidrs           = [module.networking.vpc_cidr_block]
+  k8s_apiserver_authorized_networks        = var.k8s_apiserver_authorized_networks
   tags                                     = var.tags
+
 
   depends_on = [
     module.networking,
@@ -367,8 +368,8 @@ module "materialize_nlb" {
   instance_name                    = local.materialize_instance_name
   name_prefix                      = var.name_prefix
   namespace                        = local.materialize_instance_namespace
-  subnet_ids                       = module.networking.private_subnet_ids
-  internal                         = true
+  subnet_ids                       = var.internal_load_balancer ? module.networking.private_subnet_ids : module.networking.public_subnet_ids
+  internal                         = var.internal_load_balancer
   enable_cross_zone_load_balancing = true
   vpc_id                           = module.networking.vpc_id
   mz_resource_id                   = module.materialize_instance.instance_resource_id

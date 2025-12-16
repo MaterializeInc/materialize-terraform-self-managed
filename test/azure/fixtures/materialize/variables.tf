@@ -29,6 +29,11 @@ variable "ingress_cidr_blocks" {
   type        = list(string)
 }
 
+variable "k8s_apiserver_authorized_networks" {
+  description = "List of CIDR blocks to allow public access to the EKS cluster endpoint"
+  type        = list(string)
+}
+
 variable "internal" {
   description = "Whether to use internal load balancers"
   type        = bool

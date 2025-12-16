@@ -50,7 +50,7 @@ variable "swap_enabled" {
 variable "disk_setup_image" {
   description = "Docker image for disk bootstraping when swap is enabled."
   type        = string
-  default     = "docker.io/materialize/ephemeral-storage-setup-image:v0.4.0"
+  default     = "docker.io/materialize/ephemeral-storage-setup-image:v0.4.1"
   nullable    = false
 }
 

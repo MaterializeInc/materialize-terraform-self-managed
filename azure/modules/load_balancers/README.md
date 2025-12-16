@@ -36,7 +36,7 @@ No modules.
 | <a name="input_aks_subnet_id"></a> [aks\_subnet\_id](#input\_aks\_subnet\_id) | The ID of the AKS subnet. | `string` | n/a | yes |
 | <a name="input_ingress_cidr_blocks"></a> [ingress\_cidr\_blocks](#input\_ingress\_cidr\_blocks) | CIDR blocks that are allowed to reach the Azure LoadBalancers. | `list(string)` | <pre>[<br/>  "0.0.0.0/0"<br/>]</pre> | no |
 | <a name="input_instance_name"></a> [instance\_name](#input\_instance\_name) | The name of the Materialize instance. | `string` | n/a | yes |
-| <a name="input_internal"></a> [internal](#input\_internal) | Whether the load balancer is internal to the VNet. Defaults to false (public) to allow external access to Materialize. Set to true for VNet-only access. | `bool` | `false` | no |
+| <a name="input_internal"></a> [internal](#input\_internal) | Whether the load balancer is internal to the VNet. Defaults to true (internal) to allow internal access to Materialize. Set to false for public access. | `bool` | `true` | no |
 | <a name="input_location"></a> [location](#input\_location) | The location of the resource group. | `string` | n/a | yes |
 | <a name="input_materialize_balancerd_https_port"></a> [materialize\_balancerd\_https\_port](#input\_materialize\_balancerd\_https\_port) | HTTPS port configuration for Materialize balancerd service | `number` | `6876` | no |
 | <a name="input_materialize_balancerd_sql_port"></a> [materialize\_balancerd\_sql\_port](#input\_materialize\_balancerd\_sql\_port) | SQL port configuration for Materialize balancerd service | `number` | `6875` | no |
