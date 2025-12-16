@@ -72,6 +72,7 @@ tags = {
 **Optional Variables:**
 - `k8s_apiserver_authorized_networks`: List of CIDR blocks allowed to access the EKS cluster endpoint (defaults to `["0.0.0.0/0"]`)
 - `ingress_cidr_blocks`: List of CIDR blocks allowed to reach the Load Balancer (defaults to `["0.0.0.0/0"]`)
+- `internal_load_balancer`: Whether to use an internal load balancer (defaults to `true`)
 
 ### Configuring Cluster Endpoint Public Access CIDRs
 

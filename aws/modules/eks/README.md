@@ -27,6 +27,7 @@ No resources.
 |------|-------------|------|---------|:--------:|
 | <a name="input_cluster_enabled_log_types"></a> [cluster\_enabled\_log\_types](#input\_cluster\_enabled\_log\_types) | List of desired control plane logging to enable | `list(string)` | <pre>[<br/>  "api",<br/>  "audit",<br/>  "authenticator",<br/>  "controllerManager",<br/>  "scheduler"<br/>]</pre> | no |
 | <a name="input_cluster_version"></a> [cluster\_version](#input\_cluster\_version) | Kubernetes version for the EKS cluster | `string` | `"1.32"` | no |
+| <a name="input_coredns_node_selector"></a> [coredns\_node\_selector](#input\_coredns\_node\_selector) | Map of label key and value for CoreDNS nodeSelector | `map(string)` | `{}` | no |
 | <a name="input_enable_cluster_creator_admin_permissions"></a> [enable\_cluster\_creator\_admin\_permissions](#input\_enable\_cluster\_creator\_admin\_permissions) | To add the current caller identity as an administrator | `bool` | `true` | no |
 | <a name="input_iam_role_use_name_prefix"></a> [iam\_role\_use\_name\_prefix](#input\_iam\_role\_use\_name\_prefix) | Use name prefix for IAM roles | `bool` | `true` | no |
 | <a name="input_k8s_apiserver_authorized_networks"></a> [k8s\_apiserver\_authorized\_networks](#input\_k8s\_apiserver\_authorized\_networks) | List of CIDR blocks to allow public access to the EKS cluster endpoint | `list(string)` | n/a | yes |

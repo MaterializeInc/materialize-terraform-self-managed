@@ -360,7 +360,7 @@ module "load_balancers" {
   instance_name       = local.materialize_instance_name
   namespace           = local.materialize_instance_namespace
   resource_id         = module.materialize_instance.instance_resource_id
-  internal            = local.internal_lb
+  internal            = var.internal_load_balancer
   ingress_cidr_blocks = local.internal_lb ? null : var.ingress_cidr_blocks
   resource_group_name = azurerm_resource_group.materialize.name
   location            = var.location
