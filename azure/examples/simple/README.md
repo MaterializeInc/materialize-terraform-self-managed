@@ -76,7 +76,7 @@ tags = {
 - `license_key`: Materialize license key
 
 **Optional Variables:**
-- `api_server_authorized_ip_ranges`: List of authorized IP ranges for AKS API server access (defaults to `["0.0.0.0/0"]`)
+- `k8s_apiserver_authorized_networks`: List of authorized IP ranges for AKS API server access (defaults to `["0.0.0.0/0"]`)
 - `ingress_cidr_blocks`: List of CIDR blocks allowed to reach the Load Balancer (defaults to `["0.0.0.0/0"]`)
 
 ### Configuring API Server Authorized IP Ranges
@@ -92,7 +92,7 @@ echo $MY_IP_CIDR
 
 2. Add to `terraform.tfvars`:
 ```hcl
-api_server_authorized_ip_ranges = ["X.X.X.X/X"]  # Replace with your IP from step 1
+k8s_apiserver_authorized_networks = ["X.X.X.X/X"]  # Replace with your IP from step 1
 ```
 
 **Note**: Public IP addresses may change since they are allocated by your ISP. These steps should be used in environments where the CIDR is static (e.g., corporate networks with fixed IP ranges, VPN endpoints, or static IP services). For dynamic IP environments, consider using broader CIDR ranges or alternative access methods.

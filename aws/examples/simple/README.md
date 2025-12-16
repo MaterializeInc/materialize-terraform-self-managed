@@ -70,7 +70,7 @@ tags = {
 - `license_key`: Materialize license key
 
 **Optional Variables:**
-- `cluster_endpoint_public_access_cidrs`: List of CIDR blocks allowed to access the EKS cluster endpoint (defaults to `["0.0.0.0/0"]`)
+- `k8s_apiserver_authorized_networks`: List of CIDR blocks allowed to access the EKS cluster endpoint (defaults to `["0.0.0.0/0"]`)
 - `ingress_cidr_blocks`: List of CIDR blocks allowed to reach the Load Balancer (defaults to `["0.0.0.0/0"]`)
 
 ### Configuring Cluster Endpoint Public Access CIDRs
@@ -86,7 +86,7 @@ echo $MY_IP_CIDR
 
 2. Add to `terraform.tfvars`:
 ```hcl
-cluster_endpoint_public_access_cidrs = ["X.X.X.X/32"]  # Replace with your IP from step 1
+k8s_apiserver_authorized_networks = ["X.X.X.X/32"]  # Replace with your IP from step 1
 ```
 
 **Note**: Public IP addresses may change since they are allocated by your ISP. These steps should be used in environments where the CIDR is static (e.g., corporate networks with fixed IP ranges, VPN endpoints, or static IP services). For dynamic IP environments, consider using broader CIDR ranges or alternative access methods.

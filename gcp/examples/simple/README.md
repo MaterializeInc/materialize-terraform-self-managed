@@ -87,7 +87,7 @@ labels = {
 - `license_key`: Materialize license key (required for production use)
 
 **Optional Variables:**
-- `master_authorized_networks`: List of authorized CIDR blocks for GKE API server access (defaults to `[{ cidr_block = "0.0.0.0/0", display_name = "Default Placeholder for authorized networks" }]`)
+- `k8s_apiserver_authorized_networks`: List of authorized CIDR blocks for GKE API server access (defaults to `[{ cidr_block = "0.0.0.0/0", display_name = "Default Placeholder for authorized networks" }]`)
 - `ingress_cidr_blocks`: List of CIDR blocks allowed to reach the Load Balancer (defaults to `["0.0.0.0/0"]`)
 
 ### Configuring Master Authorized Networks
@@ -103,7 +103,7 @@ echo $MY_IP_CIDR
 
 2. Add to `terraform.tfvars`:
 ```hcl
-master_authorized_networks = [
+k8s_apiserver_authorized_networks = [
   {
     cidr_block   = "X.X.X.X/32"  # Replace with your IP from step 1
     display_name = "My office network"
