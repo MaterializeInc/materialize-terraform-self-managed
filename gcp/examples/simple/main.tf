@@ -321,7 +321,7 @@ module "load_balancers" {
   network_name               = module.networking.network_name
   prefix                     = var.name_prefix
   node_service_account_email = module.gke.service_account_email
-  internal                   = true
+  internal                   = var.internal_load_balancer
   ingress_cidr_blocks        = var.ingress_cidr_blocks
   instance_name              = local.materialize_instance_name
   namespace                  = local.materialize_instance_namespace
