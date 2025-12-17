@@ -60,3 +60,9 @@ variable "k8s_apiserver_authorized_networks" {
     error_message = "All k8s_apiserver_authorized_networks must be valid CIDR notation (e.g., '10.0.0.0/8' or '0.0.0.0/0')."
   }
 }
+
+variable "internal_load_balancer" {
+  description = "Whether to use an internal load balancer"
+  type        = bool
+  default     = true
+}

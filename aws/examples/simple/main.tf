@@ -7,18 +7,6 @@ provider "aws" {
   }
 }
 
-# The ECR public authorization token endpoint isn't in all regions,
-# so lets get a new provider just for this purpose.
-provider "aws" {
-  region  = "us-east-1"
-  profile = var.aws_profile
-  alias   = "ecrpublic_token_provider"
-}
-
-data "aws_ecrpublic_authorization_token" "token" {
-  provider = aws.ecrpublic_token_provider
-}
-
 provider "kubernetes" {
   host                   = module.eks.cluster_endpoint
   cluster_ca_certificate = base64decode(module.eks.cluster_certificate_authority_data)
@@ -118,9 +106,6 @@ module "karpenter" {
   oidc_provider_arn       = module.eks.oidc_provider_arn
   cluster_oidc_issuer_url = module.eks.cluster_oidc_issuer_url
   node_selector           = local.base_node_labels
-
-  helm_repo_username = data.aws_ecrpublic_authorization_token.token.user_name
-  helm_repo_password = data.aws_ecrpublic_authorization_token.token.password
 
   depends_on = [
     module.eks,

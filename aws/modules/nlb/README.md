@@ -31,6 +31,7 @@
 | [aws_security_group_rule.allow_nlb_to_nodes_health](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/security_group_rule) | resource |
 | [aws_security_group_rule.allow_nlb_to_nodes_http](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/security_group_rule) | resource |
 | [aws_security_group_rule.allow_nlb_to_nodes_pgwire](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/security_group_rule) | resource |
+| [aws_vpc_security_group_egress_rule.nlb_egress](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/vpc_security_group_egress_rule) | resource |
 | [aws_vpc_security_group_ingress_rule.nlb_console](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/vpc_security_group_ingress_rule) | resource |
 | [aws_vpc_security_group_ingress_rule.nlb_http](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/vpc_security_group_ingress_rule) | resource |
 | [aws_vpc_security_group_ingress_rule.nlb_pgwire](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/vpc_security_group_ingress_rule) | resource |
@@ -42,7 +43,7 @@
 | <a name="input_enable_cross_zone_load_balancing"></a> [enable\_cross\_zone\_load\_balancing](#input\_enable\_cross\_zone\_load\_balancing) | Whether to enable cross zone load balancing on the NLB. | `bool` | `true` | no |
 | <a name="input_ingress_cidr_blocks"></a> [ingress\_cidr\_blocks](#input\_ingress\_cidr\_blocks) | List of CIDR blocks to allow ingress to the NLB Security Group. | `list(string)` | <pre>[<br/>  "0.0.0.0/0"<br/>]</pre> | no |
 | <a name="input_instance_name"></a> [instance\_name](#input\_instance\_name) | The name of the Materialize instance. | `string` | n/a | yes |
-| <a name="input_internal"></a> [internal](#input\_internal) | Whether the NLB is internal only. Defaults to false (public) to allow external access to Materialize. Set to true for VPC-only access. | `bool` | `true` | no |
+| <a name="input_internal"></a> [internal](#input\_internal) | Whether the NLB is internal only. Defaults to true (private) to allow internal access to Materialize. Set to false for public access. | `bool` | `true` | no |
 | <a name="input_mz_resource_id"></a> [mz\_resource\_id](#input\_mz\_resource\_id) | The resourceId from the Materialize CR | `string` | n/a | yes |
 | <a name="input_name_prefix"></a> [name\_prefix](#input\_name\_prefix) | Prefix to use for NLB, Target Groups, Listeners, and TargetGroupBindings | `string` | n/a | yes |
 | <a name="input_namespace"></a> [namespace](#input\_namespace) | Kubernetes namespace in which to install TargetGroupBindings | `string` | n/a | yes |
