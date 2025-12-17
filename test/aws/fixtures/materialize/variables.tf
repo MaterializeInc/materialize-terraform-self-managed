@@ -220,9 +220,8 @@ variable "enable_cross_zone_load_balancing" {
 }
 
 variable "internal" {
-  description = "Whether the NLB is internal only. Defaults to false (public) to allow external access to Materialize. Set to true for VPC-only access."
+  description = "Whether the NLB is internal only."
   type        = bool
-  default     = false
   nullable    = false
 }
 

@@ -11,7 +11,7 @@ variable "name_prefix" {
 }
 
 variable "internal" {
-  description = "Whether the NLB is internal only. Defaults to false (public) to allow external access to Materialize. Set to true for VPC-only access."
+  description = "Whether the NLB is internal only. Defaults to true (private) to allow internal access to Materialize. Set to false for public access."
   type        = bool
   default     = true
   nullable    = false

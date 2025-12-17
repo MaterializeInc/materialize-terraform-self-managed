@@ -32,7 +32,7 @@ No modules.
 |------|-------------|------|---------|:--------:|
 | <a name="input_ingress_cidr_blocks"></a> [ingress\_cidr\_blocks](#input\_ingress\_cidr\_blocks) | List of external IP CIDR blocks to allow ingress to External Load Balancer. Required when internal = false, must be null when internal = true. | `list(string)` | `null` | no |
 | <a name="input_instance_name"></a> [instance\_name](#input\_instance\_name) | The name of the Materialize instance. | `string` | n/a | yes |
-| <a name="input_internal"></a> [internal](#input\_internal) | Whether the load balancer is internal to the VPC. | `bool` | `true` | no |
+| <a name="input_internal"></a> [internal](#input\_internal) | Whether the load balancer is internal to the VPC. Defaults to true (private) to allow internal access to Materialize. Set to false for public access. | `bool` | `true` | no |
 | <a name="input_materialize_balancerd_https_port"></a> [materialize\_balancerd\_https\_port](#input\_materialize\_balancerd\_https\_port) | HTTPS port configuration for Materialize balancerd service | `number` | `6876` | no |
 | <a name="input_materialize_balancerd_sql_port"></a> [materialize\_balancerd\_sql\_port](#input\_materialize\_balancerd\_sql\_port) | SQL port configuration for Materialize balancerd service | `number` | `6875` | no |
 | <a name="input_materialize_console_port"></a> [materialize\_console\_port](#input\_materialize\_console\_port) | Port configuration for Materialize console service | `number` | `8080` | no |

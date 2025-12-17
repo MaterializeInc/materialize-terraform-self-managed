@@ -41,7 +41,7 @@ variable "resource_id" {
 }
 
 variable "internal" {
-  description = "Whether the load balancer is internal to the VPC."
+  description = "Whether the load balancer is internal to the VPC. Defaults to true (private) to allow internal access to Materialize. Set to false for public access."
   type        = bool
   default     = true
   nullable    = false
