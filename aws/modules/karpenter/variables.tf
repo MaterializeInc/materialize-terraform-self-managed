@@ -16,19 +16,6 @@ variable "cluster_endpoint" {
   nullable    = false
 }
 
-variable "helm_repo_username" {
-  description = "Username to access the Karpenter helm repo."
-  type        = string
-  nullable    = false
-}
-
-variable "helm_repo_password" {
-  description = "Password to access the Karpenter helm repo."
-  type        = string
-  nullable    = false
-  sensitive   = true
-}
-
 variable "oidc_provider_arn" {
   description = "ARN of the EKS cluster's OIDC provider."
   type        = string

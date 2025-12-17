@@ -315,13 +315,11 @@ resource "kubernetes_service_account" "karpenter_controller" {
 }
 
 resource "helm_release" "karpenter" {
-  namespace           = kubernetes_namespace.karpenter.metadata[0].name
-  name                = "karpenter"
-  repository          = "oci://public.ecr.aws/karpenter"
-  repository_username = var.helm_repo_username
-  repository_password = var.helm_repo_password
-  chart               = "karpenter"
-  version             = var.helm_chart_version
+  namespace  = kubernetes_namespace.karpenter.metadata[0].name
+  name       = "karpenter"
+  repository = "oci://public.ecr.aws/karpenter"
+  chart      = "karpenter"
+  version    = var.helm_chart_version
 
   values = [
     jsonencode(
