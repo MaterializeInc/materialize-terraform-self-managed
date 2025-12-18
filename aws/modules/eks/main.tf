@@ -20,8 +20,8 @@ module "eks" {
       # Compatible with EKS 1.32 https://docs.aws.amazon.com/eks/latest/userguide/managing-coredns.html#coredns-versions
       addon_version = "v1.11.4-eksbuild.24"
       # if conflict occur during create/update we fail early and report to user
-      resolve_conflicts_on_create = "OVERWRITE"
-      resolve_conflicts_on_update = "OVERWRITE"
+      resolve_conflicts_on_create = "NONE"
+      resolve_conflicts_on_update = "NONE"
       configuration_values = jsonencode({
         nodeSelector = var.coredns_node_selector
         affinity = {
@@ -48,25 +48,27 @@ module "eks" {
           }
         }
         corefile = <<-EOT
-.:53 {
-    errors
-    health {
-        lameduck 5s
-    }
-    ready
-    kubernetes cluster.local in-addr.arpa ip6.arpa {
-        ttl 0
-        pods insecure
-        fallthrough in-addr.arpa ip6.arpa
-    }
-    prometheus :9153
-    forward . /etc/resolv.conf
-    cache 30
-    loop
-    reload
-    loadbalance
-}
-EOT
+          # This is the stock EKS configuration for CoreDNS, with modifications
+          # noted inline.
+          .:53 {
+              errors
+              health {
+                  lameduck 5s
+              }
+              ready
+              kubernetes cluster.local in-addr.arpa ip6.arpa {
+                  ttl 0
+                  pods insecure
+                  fallthrough in-addr.arpa ip6.arpa
+              }
+              prometheus :9153
+              cache 30
+              forward . /etc/resolv.conf
+              loop
+              reload
+              loadbalance
+          }
+        EOT
         resources = {
           limits = {
             memory = "170Mi"
