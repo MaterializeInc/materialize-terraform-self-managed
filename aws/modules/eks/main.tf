@@ -48,8 +48,6 @@ module "eks" {
           }
         }
         corefile = <<-EOT
-          # This is the stock EKS configuration for CoreDNS, with modifications
-          # noted inline.
           .:53 {
               errors
               health {
@@ -62,7 +60,10 @@ module "eks" {
                   fallthrough in-addr.arpa ip6.arpa
               }
               prometheus :9153
-              cache 30
+              cache 30 {
+                  disable success cluster.local
+                  disable denial cluster.local
+              }
               forward . /etc/resolv.conf
               loop
               reload
