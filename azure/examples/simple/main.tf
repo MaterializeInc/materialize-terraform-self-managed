@@ -276,6 +276,15 @@ resource "random_password" "external_login_password_mz_system" {
   override_special = "!#$%&*()-_=+[]{}<>:?"
 }
 
+# Deploy custom CoreDNS with TTL 0 (GKE's kube-dns doesn't support disabling caching)
+module "coredns" {
+  source        = "../../modules/coredns"
+  node_selector = local.generic_node_labels
+  depends_on = [
+    module.aks,
+  ]
+}
+
 module "cert_manager" {
   source = "../../../kubernetes/modules/cert-manager"
 

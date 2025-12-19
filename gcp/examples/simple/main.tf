@@ -194,6 +194,18 @@ module "materialize_nodepool" {
   local_ssd_count = local.local_ssd_count
 }
 
+# Deploy custom CoreDNS with TTL 0 (GKE's kube-dns doesn't support disabling caching)
+module "coredns" {
+  source = "../../modules/coredns"
+
+  node_selector = local.generic_node_labels
+
+  depends_on = [
+    module.gke,
+    module.generic_nodepool,
+  ]
+}
+
 resource "random_password" "external_login_password_mz_system" {
   length           = 16
   special          = true
