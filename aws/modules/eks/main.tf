@@ -23,6 +23,10 @@ module "eks" {
       resolve_conflicts_on_create = "NONE"
       resolve_conflicts_on_update = "NONE"
       configuration_values = jsonencode({
+        # reference: https://docs.aws.amazon.com/eks/latest/userguide/coredns-autoscaling.html
+        autoScaling = {
+          enabled = true
+        }
         nodeSelector = var.coredns_node_selector
         affinity = {
           podAntiAffinity = {
