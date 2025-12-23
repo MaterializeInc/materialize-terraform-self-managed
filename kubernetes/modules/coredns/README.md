@@ -15,7 +15,9 @@
 
 ## Modules
 
-No modules.
+| Name | Source | Version |
+|------|--------|---------|
+| <a name="module_hpa"></a> [hpa](#module\_hpa) | ../hpa | n/a |
 
 ## Resources
 

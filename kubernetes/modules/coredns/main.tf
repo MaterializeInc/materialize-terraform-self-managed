@@ -266,3 +266,29 @@ resource "null_resource" "scale_down_kube_dns" {
 
   depends_on = [null_resource.scale_down_kube_dns_autoscaler]
 }
+
+module "hpa" {
+  source = "../hpa"
+
+  name        = "coredns"
+  namespace   = local.namespace
+  target_name = kubernetes_deployment.coredns.metadata[0].name
+  target_kind = "Deployment"
+
+  min_replicas = 6
+  max_replicas = 100
+
+  cpu_target_utilization    = 60
+  memory_target_utilization = 50
+
+  scale_up_stabilization_window = 180
+  scale_up_pods_per_period      = 4
+  scale_up_percent_per_period   = 100
+
+  scale_down_stabilization_window = 600
+  scale_down_percent_per_period   = 100
+
+  policy_period_seconds = 15
+
+  depends_on = [kubernetes_deployment.coredns]
+}
