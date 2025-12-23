@@ -96,6 +96,20 @@ module "base_node_group" {
   tags                              = var.tags
 }
 
+module "coredns" {
+  source = "../../../kubernetes/modules/coredns"
+
+  node_selector = local.base_node_labels
+  # in aws coredns autoscaler deployment doesn't exist
+  disable_default_coredns_autoscaler = false
+
+  depends_on = [
+    module.eks,
+    module.base_node_group,
+    module.networking,
+  ]
+}
+
 # 2.2 Install Karpenter to manage creation of additional nodes
 module "karpenter" {
   source = "../../modules/karpenter"
@@ -111,6 +125,7 @@ module "karpenter" {
     module.eks,
     module.base_node_group,
     module.networking,
+    module.coredns,
   ]
 }
 
