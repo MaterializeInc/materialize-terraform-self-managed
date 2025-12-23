@@ -10,5 +10,5 @@ output "config_map_name" {
 
 output "service_account_name" {
   description = "Name of the CoreDNS service account"
-  value       = kubernetes_service_account.coredns.metadata[0].name
+  value       = var.create_coredns_service_account ? kubernetes_service_account.coredns[0].metadata[0].name : null
 }

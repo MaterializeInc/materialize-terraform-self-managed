@@ -1,7 +1,21 @@
-variable "disable_default_kube_dns" {
+variable "disable_default_coredns" {
   description = "Whether to scale down the default kube-dns deployment"
   type        = bool
   default     = true
+  nullable    = false
+}
+
+variable "disable_default_coredns_autoscaler" {
+  description = "Whether to scale down the default kube-dns autoscaler deployment"
+  type        = bool
+  default     = true
+  nullable    = false
+}
+
+variable "create_coredns_service_account" {
+  description = "Whether to create the CoreDNS service account"
+  type        = bool
+  default     = false
   nullable    = false
 }
 
@@ -16,6 +30,20 @@ variable "node_selector" {
   description = "Node selector for CoreDNS deployment"
   type        = map(string)
   default     = {}
+  nullable    = false
+}
+
+variable "coredns_deployment_to_scale_down" {
+  description = "Name of the CoreDNS deployment to scale down"
+  type        = string
+  default     = "coredns"
+  nullable    = false
+}
+
+variable "coredns_autoscaler_deployment_to_scale_down" {
+  description = "Name of the CoreDNS autoscaler deployment to scale down"
+  type        = string
+  default     = "coredns-autoscaler"
   nullable    = false
 }
 

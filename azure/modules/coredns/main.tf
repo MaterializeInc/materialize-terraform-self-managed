@@ -198,7 +198,6 @@ resource "kubernetes_deployment" "coredns" {
   ]
 }
 
-# TODO add autoscaler for coredns, should we use cluster-proportional autoscaler or HPA?
 
 resource "null_resource" "scale_down_kube_dns_autoscaler" {
   count = var.disable_default_kube_dns ? 1 : 0

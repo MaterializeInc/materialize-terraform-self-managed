@@ -196,9 +196,9 @@ module "materialize_nodepool" {
 
 # Deploy custom CoreDNS with TTL 0 (GKE's kube-dns doesn't support disabling caching)
 module "coredns" {
-  source = "../../modules/coredns"
-
-  node_selector = local.generic_node_labels
+  source                         = "../../../kubernetes/modules/coredns"
+  create_coredns_service_account = true
+  node_selector                  = local.generic_node_labels
 
   depends_on = [
     module.gke,

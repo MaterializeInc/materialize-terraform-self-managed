@@ -8,7 +8,7 @@ locals {
 }
 
 resource "aws_s3_bucket" "materialize_storage" {
-  bucket        = "${var.name_prefix}-storage-${random_id.bucket_suffix.hex}"
+  bucket        = "${var.name_prefix}-storage-${random_id.bucket_suffix.hex}a"
   force_destroy = var.bucket_force_destroy
 
   tags = var.tags

@@ -1,7 +1,5 @@
-# Custom CoreDNS deployment for GKE
-# GKE's kube-dns addon doesn't support disabling caching, so we deploy custom CoreDNS
-# Reference: https://cloud.google.com/kubernetes-engine/docs/concepts/kube-dns#manage-custom-kube-dns
-
+# Custom CoreDNS deployment for AKS because AKS CoreDNS doesn't allow overriding default Configuration including cache. 
+# https://github.com/Azure/AKS/issues/3661
 locals {
   namespace = "kube-system"
   labels = {
@@ -36,8 +34,10 @@ locals {
   EOF
 }
 
+
 # ServiceAccount for CoreDNS
 resource "kubernetes_service_account" "coredns" {
+  count = var.create_coredns_service_account ? 1 : 0
   metadata {
     name      = "coredns"
     namespace = local.namespace
@@ -46,6 +46,7 @@ resource "kubernetes_service_account" "coredns" {
 
 # ClusterRole for CoreDNS
 resource "kubernetes_cluster_role" "coredns" {
+  count = var.create_coredns_service_account ? 1 : 0
   metadata {
     name = "system:coredns"
   }
@@ -65,6 +66,7 @@ resource "kubernetes_cluster_role" "coredns" {
 
 # ClusterRoleBinding for CoreDNS
 resource "kubernetes_cluster_role_binding" "coredns" {
+  count = var.create_coredns_service_account ? 1 : 0
   metadata {
     name = "system:coredns"
   }
@@ -72,12 +74,12 @@ resource "kubernetes_cluster_role_binding" "coredns" {
   role_ref {
     api_group = "rbac.authorization.k8s.io"
     kind      = "ClusterRole"
-    name      = kubernetes_cluster_role.coredns.metadata[0].name
+    name      = kubernetes_cluster_role.coredns[0].metadata[0].name
   }
 
   subject {
     kind      = "ServiceAccount"
-    name      = kubernetes_service_account.coredns.metadata[0].name
+    name      = kubernetes_service_account.coredns[0].metadata[0].name
     namespace = local.namespace
   }
 }
@@ -85,7 +87,7 @@ resource "kubernetes_cluster_role_binding" "coredns" {
 # ConfigMap with Corefile
 resource "kubernetes_config_map" "coredns" {
   metadata {
-    name      = "coredns-custom"
+    name      = "coredns-user-managed"
     namespace = local.namespace
   }
 
@@ -246,21 +248,20 @@ resource "kubernetes_deployment" "coredns" {
   ]
 }
 
-# TODO add autoscaler for coredns, should we use cluster-proportional autoscaler or HPA?
 
 resource "null_resource" "scale_down_kube_dns_autoscaler" {
-  count = var.disable_default_kube_dns ? 1 : 0
+  count = var.disable_default_coredns_autoscaler ? 1 : 0
 
   provisioner "local-exec" {
-    command = "kubectl scale deployment kube-dns-autoscaler -n kube-system --replicas=0 || true"
+    command = "kubectl scale deployment ${var.coredns_autoscaler_deployment_to_scale_down} -n ${local.namespace} --replicas=0 || true"
   }
 }
 
 resource "null_resource" "scale_down_kube_dns" {
-  count = var.disable_default_kube_dns ? 1 : 0
+  count = var.disable_default_coredns ? 1 : 0
 
   provisioner "local-exec" {
-    command = "kubectl scale deployment kube-dns -n kube-system --replicas=0 || true"
+    command = "kubectl scale deployment ${var.coredns_deployment_to_scale_down} -n ${local.namespace} --replicas=0 || true"
   }
 
   depends_on = [null_resource.scale_down_kube_dns_autoscaler]
