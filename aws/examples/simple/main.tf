@@ -145,6 +145,7 @@ module "ec2nodeclass_generic" {
 
   depends_on = [
     module.karpenter,
+    module.coredns,
   ]
 }
 
@@ -162,6 +163,7 @@ module "nodepool_generic" {
   depends_on = [
     module.karpenter,
     module.ec2nodeclass_generic,
+    module.coredns,
   ]
 }
 
@@ -180,6 +182,7 @@ module "ec2nodeclass_materialize" {
 
   depends_on = [
     module.karpenter,
+    module.coredns,
   ]
 }
 
@@ -198,6 +201,7 @@ module "nodepool_materialize" {
   depends_on = [
     module.karpenter,
     module.ec2nodeclass_materialize,
+    module.coredns,
   ]
 }
 
@@ -218,6 +222,7 @@ module "aws_lbc" {
   depends_on = [
     module.eks,
     module.nodepool_generic,
+    module.coredns,
   ]
 }
 
@@ -232,6 +237,7 @@ module "cert_manager" {
     module.eks,
     module.nodepool_generic,
     module.aws_lbc,
+    module.coredns,
   ]
 }
 
@@ -265,6 +271,7 @@ module "operator" {
     module.eks,
     module.networking,
     module.nodepool_generic,
+    module.coredns,
   ]
 }
 
