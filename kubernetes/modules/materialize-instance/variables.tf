@@ -78,7 +78,7 @@ variable "memory_request" {
 variable "memory_limit" {
   description = "Memory limit for environmentd"
   type        = string
-  default     = "1Gi"
+  default     = "4Gi"
   nullable    = false
 }
 
