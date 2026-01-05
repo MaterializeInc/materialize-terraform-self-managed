@@ -1,5 +1,5 @@
 locals {
-  secret_name = "${var.instance_name}-materialize-backend"
+  secret_name    = "${var.instance_name}-materialize-backend"
   mz_resource_id = data.kubernetes_resource.materialize_instance.object.status.resourceId
 }
 # Set system parameters after instance is ready using a Kubernetes Job
@@ -42,8 +42,8 @@ resource "kubernetes_job" "system_parameters" {
             name = "MZ_PASSWORD"
             value_from {
               secret_key_ref {
-                  name = local.secret_name
-                  key  = "external_login_password_mz_system"
+                name = local.secret_name
+                key  = "external_login_password_mz_system"
               }
             }
           }
