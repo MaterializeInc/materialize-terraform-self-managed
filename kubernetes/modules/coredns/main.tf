@@ -1,9 +1,10 @@
-# Custom CoreDNS deployment for AKS because AKS CoreDNS doesn't allow overriding default Configuration including cache. 
-# https://github.com/Azure/AKS/issues/3661
+# Custom CoreDNS deployment for all cloud providers, because in some cloud providers, the default CoreDNS doesn't support overriding the default configuration including cache.
+# Azure reference: https://github.com/Azure/AKS/issues/3661
 locals {
   namespace = "kube-system"
   labels = {
-    "k8s-app" = "kube-dns"
+    "k8s-app"        = "kube-dns"
+    "provisioned-by" = "materialize"
   }
 
   # Corefile with TTL 0 first in the kubernetes plugin block (required for correct parsing)
@@ -243,52 +244,170 @@ resource "kubernetes_deployment" "coredns" {
 
   depends_on = [
     kubernetes_config_map.coredns,
-    null_resource.scale_down_kube_dns,
-    null_resource.scale_down_kube_dns_autoscaler
+    terraform_data.scale_down_kube_dns,
+    terraform_data.scale_down_kube_dns_autoscaler
   ]
 }
 
 
-resource "null_resource" "scale_down_kube_dns_autoscaler" {
+resource "terraform_data" "scale_down_kube_dns_autoscaler" {
   count = var.disable_default_coredns_autoscaler ? 1 : 0
-
+  input = {
+    KUBECONFIG_DATA = var.kubeconfig_data
+    DEPLOYMENT_NAME = var.coredns_autoscaler_deployment_to_scale_down
+    NAMESPACE       = local.namespace
+  }
   provisioner "local-exec" {
-    command = "kubectl scale deployment ${var.coredns_autoscaler_deployment_to_scale_down} -n ${local.namespace} --replicas=0 || true"
+    interpreter = ["/usr/bin/env", "bash", "-c"]
+    when        = create
+    on_failure  = fail
+    environment = self.input
+    command     = <<-EOT
+      set -euo pipefail
+
+      kubeconfig_file=$(mktemp)
+      trap "rm -f '$${kubeconfig_file}'" EXIT
+      echo "$${KUBECONFIG_DATA}" > "$${kubeconfig_file}"
+
+      output=$(kubectl --kubeconfig="$${kubeconfig_file}" scale deployment $${DEPLOYMENT_NAME} -n $${NAMESPACE} --replicas=0 2>&1) || {
+        if echo "$output" | grep -q "no objects passed to scale"; then
+          echo "Deployment $${DEPLOYMENT_NAME} not found, skipping"
+          exit 0
+        fi
+        echo "Error scaling down $${DEPLOYMENT_NAME} deployment: $output"
+        exit 1
+      }
+      echo "Successfully scaled down $${DEPLOYMENT_NAME} to 0 replicas"
+    EOT
   }
 }
 
-resource "null_resource" "scale_down_kube_dns" {
+resource "terraform_data" "scale_down_kube_dns" {
   count = var.disable_default_coredns ? 1 : 0
-
+  input = {
+    KUBECONFIG_DATA = var.kubeconfig_data
+    DEPLOYMENT_NAME = var.coredns_deployment_to_scale_down
+    NAMESPACE       = local.namespace
+  }
   provisioner "local-exec" {
-    command = "kubectl scale deployment ${var.coredns_deployment_to_scale_down} -n ${local.namespace} --replicas=0 || true"
+    interpreter = ["/usr/bin/env", "bash", "-c"]
+    when        = create
+    on_failure  = fail
+    environment = self.input
+
+    command = <<-EOT
+      set -euo pipefail
+
+      kubeconfig_file=$(mktemp)
+      trap "rm -f '$${kubeconfig_file}'" EXIT
+      echo "$${KUBECONFIG_DATA}" > "$${kubeconfig_file}"
+
+      output=$(kubectl --kubeconfig="$${kubeconfig_file}" scale deployment $${DEPLOYMENT_NAME} -n $${NAMESPACE} --replicas=0 2>&1) || {
+        if echo "$output" | grep -q "no objects passed to scale"; then
+          echo "Deployment $${DEPLOYMENT_NAME} not found, skipping"
+          exit 0
+        fi
+        echo "Error scaling down kube-dns deployment: $output"
+        exit 1
+      }
+      echo "Successfully scaled down $${DEPLOYMENT_NAME} to 0 replicas"
+    EOT
   }
 
-  depends_on = [null_resource.scale_down_kube_dns_autoscaler]
+  depends_on = [terraform_data.scale_down_kube_dns_autoscaler]
+}
+
+# Scale up the default CoreDNS during cleanup
+resource "terraform_data" "scale_up_kube_dns_autoscaler" {
+  count = var.disable_default_coredns_autoscaler ? 1 : 0
+  input = {
+    KUBECONFIG_DATA = var.kubeconfig_data
+    DEPLOYMENT_NAME = var.coredns_autoscaler_deployment_to_scale_down
+    NAMESPACE       = local.namespace
+  }
+  provisioner "local-exec" {
+    interpreter = ["/usr/bin/env", "bash", "-c"]
+    when        = destroy
+    on_failure  = fail
+    environment = self.input
+    command     = <<-EOT
+      set -euo pipefail
+
+      kubeconfig_file=$(mktemp)
+      trap "rm -f '$${kubeconfig_file}'" EXIT
+      echo "$${KUBECONFIG_DATA}" > "$${kubeconfig_file}"
+
+      output=$(kubectl --kubeconfig="$${kubeconfig_file}" scale deployment $${DEPLOYMENT_NAME} -n $${NAMESPACE} --replicas=1 2>&1) || {
+        if echo "$output" | grep -q "no objects passed to scale"; then
+          echo "Deployment $${DEPLOYMENT_NAME} not found, skipping"
+          exit 0
+        fi
+        echo "Error scaling up $${DEPLOYMENT_NAME} deployment: $output"
+        exit 1
+      }
+      echo "Successfully scaled up $${DEPLOYMENT_NAME} to 1 replica"
+    EOT
+  }
+  depends_on = [terraform_data.scale_down_kube_dns]
+}
+
+resource "terraform_data" "scale_up_kube_dns" {
+  count = var.disable_default_coredns ? 1 : 0
+
+  input = {
+    KUBECONFIG_DATA = var.kubeconfig_data
+    DEPLOYMENT_NAME = var.coredns_deployment_to_scale_down
+    NAMESPACE       = local.namespace
+  }
+  provisioner "local-exec" {
+    interpreter = ["/usr/bin/env", "bash", "-c"]
+    when        = destroy
+    on_failure  = fail
+    environment = self.input
+    command     = <<-EOT
+      set -euo pipefail
+
+      kubeconfig_file=$(mktemp)
+      trap "rm -f '$${kubeconfig_file}'" EXIT
+      echo "$${KUBECONFIG_DATA}" > "$${kubeconfig_file}"
+
+      output=$(kubectl --kubeconfig="$${kubeconfig_file}" scale deployment $${DEPLOYMENT_NAME} -n $${NAMESPACE} --replicas=2 2>&1) || {
+        if echo "$output" | grep -q "no objects passed to scale"; then
+          echo "Deployment $${DEPLOYMENT_NAME} not found, skipping"
+          exit 0
+        fi
+        echo "Error scaling up kube-dns deployment: $output"
+        exit 1
+      }
+      echo "Successfully scaled up $${DEPLOYMENT_NAME} to 2 replicas"
+    EOT
+  }
+
+  depends_on = [terraform_data.scale_up_kube_dns_autoscaler]
 }
 
 module "hpa" {
   source = "../hpa"
 
-  name        = "coredns"
+  name        = "coredns-custom"
   namespace   = local.namespace
   target_name = kubernetes_deployment.coredns.metadata[0].name
   target_kind = "Deployment"
 
-  min_replicas = 6
-  max_replicas = 100
+  min_replicas = var.hpa_min_replicas
+  max_replicas = var.hpa_max_replicas
 
-  cpu_target_utilization    = 60
-  memory_target_utilization = 50
+  cpu_target_utilization    = var.hpa_cpu_target_utilization
+  memory_target_utilization = var.hpa_memory_target_utilization
 
-  scale_up_stabilization_window = 180
-  scale_up_pods_per_period      = 4
-  scale_up_percent_per_period   = 100
+  scale_up_stabilization_window = var.hpa_scale_up_stabilization_window
+  scale_up_pods_per_period      = var.hpa_scale_up_pods_per_period
+  scale_up_percent_per_period   = var.hpa_scale_up_percent_per_period
 
-  scale_down_stabilization_window = 600
-  scale_down_percent_per_period   = 100
+  scale_down_stabilization_window = var.hpa_scale_down_stabilization_window
+  scale_down_percent_per_period   = var.hpa_scale_down_percent_per_period
 
-  policy_period_seconds = 15
+  policy_period_seconds = var.hpa_policy_period_seconds
 
   depends_on = [kubernetes_deployment.coredns]
 }

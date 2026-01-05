@@ -102,6 +102,7 @@ module "coredns" {
   node_selector = local.base_node_labels
   # in aws coredns autoscaler deployment doesn't exist
   disable_default_coredns_autoscaler = false
+  kubeconfig_data                    = local.kubeconfig_data
 
   depends_on = [
     module.eks,

@@ -120,6 +120,38 @@ locals {
     local.encoded_endpoint,
     var.region
   )
+
+  kubeconfig_data = jsonencode({
+    apiVersion = "v1"
+    kind       = "Config"
+    clusters = [{
+      name = module.gke.cluster_name
+      cluster = {
+        certificate-authority-data = module.gke.cluster_ca_certificate
+        server                     = "https://${module.gke.cluster_endpoint}"
+      }
+    }]
+    contexts = [{
+      name = module.gke.cluster_name
+      context = {
+        cluster = module.gke.cluster_name
+        user    = module.gke.cluster_name
+      }
+    }]
+    current-context = module.gke.cluster_name
+    users = [{
+      name = module.gke.cluster_name
+      user = {
+        exec = {
+          apiVersion         = "client.authentication.k8s.io/v1beta1"
+          command            = "gcloud"
+          args               = ["container", "clusters", "get-credentials", module.gke.cluster_name, "--location", module.gke.cluster_location, "--project", var.project_id]
+          interactiveMode    = "Never"
+          provideClusterInfo = true
+        }
+      }
+    }]
+  })
 }
 
 # Configure networking infrastructure including VPC, subnets, and CIDR blocks
@@ -199,7 +231,7 @@ module "coredns" {
   source                         = "../../../kubernetes/modules/coredns"
   create_coredns_service_account = true
   node_selector                  = local.generic_node_labels
-
+  kubeconfig_data                = local.kubeconfig_data
   depends_on = [
     module.gke,
     module.generic_nodepool,
@@ -324,7 +356,6 @@ module "materialize_instance" {
     module.self_signed_cluster_issuer,
     module.operator,
     module.materialize_nodepool,
-    module.coredns,
   ]
 }
 

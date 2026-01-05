@@ -31,7 +31,7 @@ variable "target_kind" {
 variable "min_replicas" {
   description = "Minimum number of replicas"
   type        = number
-  default     = 6
+  default     = 2
   nullable    = false
 }
 
