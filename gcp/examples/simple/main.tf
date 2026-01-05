@@ -254,6 +254,7 @@ module "cert_manager" {
   depends_on = [
     module.gke,
     module.generic_nodepool,
+    module.coredns,
   ]
 }
 
@@ -286,6 +287,7 @@ module "operator" {
     module.generic_nodepool,
     module.database,
     module.storage,
+    module.coredns,
   ]
 }
 
@@ -322,6 +324,7 @@ module "materialize_instance" {
     module.self_signed_cluster_issuer,
     module.operator,
     module.materialize_nodepool,
+    module.coredns,
   ]
 }
 

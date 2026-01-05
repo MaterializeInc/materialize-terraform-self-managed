@@ -358,6 +358,7 @@ module "materialize_instance" {
     module.operator,
     module.aws_lbc,
     module.nodepool_materialize,
+    module.coredns,
   ]
 }
 
