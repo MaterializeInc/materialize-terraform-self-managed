@@ -1,3 +1,68 @@
+locals {
+  secret_name = "${var.instance_name}-materialize-backend"
+  mz_resource_id = data.kubernetes_resource.materialize_instance.object.status.resourceId
+}
+# Set system parameters after instance is ready using a Kubernetes Job
+#https://materialize.com/changelog/2024-02-08-default-configuration-parameters/
+resource "kubernetes_job" "system_parameters" {
+  metadata {
+    name      = "${var.instance_name}-set-system-params"
+    namespace = var.instance_namespace
+  }
+
+  spec {
+    ttl_seconds_after_finished = 300
+    backoff_limit              = 3
+
+    template {
+      metadata {
+        labels = {
+          app = "${var.instance_name}-set-system-params"
+        }
+      }
+
+      spec {
+        restart_policy = "Never"
+
+        container {
+          name  = "psql"
+          image = "postgres:16-alpine"
+
+          command = [
+            "sh", "-c",
+            "PGPASSWORD=$MZ_PASSWORD psql -h $MZ_HOST -p 6875 -U mz_system -d materialize -c \"ALTER SYSTEM SET cluster TO 'quickstart';\""
+          ]
+
+          env {
+            name  = "MZ_HOST"
+            value = "mz${local.mz_resource_id}-balancerd.${var.instance_namespace}.svc.cluster.local"
+          }
+
+          env {
+            name = "MZ_PASSWORD"
+            value_from {
+              secret_key_ref {
+                  name = local.secret_name
+                  key  = "external_login_password_mz_system"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  wait_for_completion = true
+
+  timeouts {
+    create = "5m"
+  }
+
+  depends_on = [
+    kubectl_manifest.materialize_instance
+  ]
+}
+
 # Create a namespace for this Materialize instance
 resource "kubernetes_namespace" "instance" {
   count = var.create_namespace ? 1 : 0
@@ -21,7 +86,7 @@ resource "kubectl_manifest" "materialize_instance" {
     }
     spec = {
       environmentdImageRef      = "materialize/environmentd:${var.environmentd_version}"
-      backendSecretName         = "${var.instance_name}-materialize-backend"
+      backendSecretName         = local.secret_name
       authenticatorKind         = var.authenticator_kind
       serviceAccountAnnotations = var.service_account_annotations
       podLabels                 = var.pod_labels
@@ -93,7 +158,7 @@ resource "kubectl_manifest" "materialize_instance" {
 # Create a secret with connection information for the Materialize instance
 resource "kubernetes_secret" "materialize_backend" {
   metadata {
-    name      = "${var.instance_name}-materialize-backend"
+    name      = local.secret_name
     namespace = var.instance_namespace
   }
 
