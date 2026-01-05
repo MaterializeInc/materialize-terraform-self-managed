@@ -28,7 +28,7 @@ No modules.
 | <a name="input_cpu_target_utilization"></a> [cpu\_target\_utilization](#input\_cpu\_target\_utilization) | Target CPU utilization percentage | `number` | `60` | no |
 | <a name="input_max_replicas"></a> [max\_replicas](#input\_max\_replicas) | Maximum number of replicas | `number` | `100` | no |
 | <a name="input_memory_target_utilization"></a> [memory\_target\_utilization](#input\_memory\_target\_utilization) | Target memory utilization percentage | `number` | `50` | no |
-| <a name="input_min_replicas"></a> [min\_replicas](#input\_min\_replicas) | Minimum number of replicas | `number` | `6` | no |
+| <a name="input_min_replicas"></a> [min\_replicas](#input\_min\_replicas) | Minimum number of replicas | `number` | `2` | no |
 | <a name="input_name"></a> [name](#input\_name) | Name of the HPA resource | `string` | n/a | yes |
 | <a name="input_namespace"></a> [namespace](#input\_namespace) | Namespace for the HPA | `string` | n/a | yes |
 | <a name="input_policy_period_seconds"></a> [policy\_period\_seconds](#input\_policy\_period\_seconds) | Period in seconds for scaling policies | `number` | `15` | no |

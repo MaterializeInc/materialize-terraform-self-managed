@@ -11,7 +11,7 @@
 | Name | Version |
 |------|---------|
 | <a name="provider_kubernetes"></a> [kubernetes](#provider\_kubernetes) | ~> 2.0 |
-| <a name="provider_null"></a> [null](#provider\_null) | ~> 3.0 |
+| <a name="provider_terraform"></a> [terraform](#provider\_terraform) | n/a |
 
 ## Modules
 
@@ -28,8 +28,10 @@
 | [kubernetes_config_map.coredns](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/config_map) | resource |
 | [kubernetes_deployment.coredns](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/deployment) | resource |
 | [kubernetes_service_account.coredns](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/service_account) | resource |
-| [null_resource.scale_down_kube_dns](https://registry.terraform.io/providers/hashicorp/null/latest/docs/resources/resource) | resource |
-| [null_resource.scale_down_kube_dns_autoscaler](https://registry.terraform.io/providers/hashicorp/null/latest/docs/resources/resource) | resource |
+| [terraform_data.scale_down_kube_dns](https://registry.terraform.io/providers/hashicorp/terraform/latest/docs/resources/data) | resource |
+| [terraform_data.scale_down_kube_dns_autoscaler](https://registry.terraform.io/providers/hashicorp/terraform/latest/docs/resources/data) | resource |
+| [terraform_data.scale_up_kube_dns](https://registry.terraform.io/providers/hashicorp/terraform/latest/docs/resources/data) | resource |
+| [terraform_data.scale_up_kube_dns_autoscaler](https://registry.terraform.io/providers/hashicorp/terraform/latest/docs/resources/data) | resource |
 
 ## Inputs
 
@@ -42,8 +44,19 @@
 | <a name="input_create_coredns_service_account"></a> [create\_coredns\_service\_account](#input\_create\_coredns\_service\_account) | Whether to create the CoreDNS service account | `bool` | `false` | no |
 | <a name="input_disable_default_coredns"></a> [disable\_default\_coredns](#input\_disable\_default\_coredns) | Whether to scale down the default kube-dns deployment | `bool` | `true` | no |
 | <a name="input_disable_default_coredns_autoscaler"></a> [disable\_default\_coredns\_autoscaler](#input\_disable\_default\_coredns\_autoscaler) | Whether to scale down the default kube-dns autoscaler deployment | `bool` | `true` | no |
+| <a name="input_hpa_cpu_target_utilization"></a> [hpa\_cpu\_target\_utilization](#input\_hpa\_cpu\_target\_utilization) | Target CPU utilization percentage for HPA | `number` | `60` | no |
+| <a name="input_hpa_max_replicas"></a> [hpa\_max\_replicas](#input\_hpa\_max\_replicas) | Maximum number of replicas for HPA | `number` | `100` | no |
+| <a name="input_hpa_memory_target_utilization"></a> [hpa\_memory\_target\_utilization](#input\_hpa\_memory\_target\_utilization) | Target memory utilization percentage for HPA | `number` | `50` | no |
+| <a name="input_hpa_min_replicas"></a> [hpa\_min\_replicas](#input\_hpa\_min\_replicas) | Minimum number of replicas for HPA | `number` | `2` | no |
+| <a name="input_hpa_policy_period_seconds"></a> [hpa\_policy\_period\_seconds](#input\_hpa\_policy\_period\_seconds) | Period in seconds for scaling policies | `number` | `15` | no |
+| <a name="input_hpa_scale_down_percent_per_period"></a> [hpa\_scale\_down\_percent\_per\_period](#input\_hpa\_scale\_down\_percent\_per\_period) | Maximum percent to scale down per period | `number` | `100` | no |
+| <a name="input_hpa_scale_down_stabilization_window"></a> [hpa\_scale\_down\_stabilization\_window](#input\_hpa\_scale\_down\_stabilization\_window) | Stabilization window for scale down in seconds | `number` | `600` | no |
+| <a name="input_hpa_scale_up_percent_per_period"></a> [hpa\_scale\_up\_percent\_per\_period](#input\_hpa\_scale\_up\_percent\_per\_period) | Maximum percent to scale up per period | `number` | `100` | no |
+| <a name="input_hpa_scale_up_pods_per_period"></a> [hpa\_scale\_up\_pods\_per\_period](#input\_hpa\_scale\_up\_pods\_per\_period) | Maximum pods to add per period during scale up | `number` | `4` | no |
+| <a name="input_hpa_scale_up_stabilization_window"></a> [hpa\_scale\_up\_stabilization\_window](#input\_hpa\_scale\_up\_stabilization\_window) | Stabilization window for scale up in seconds | `number` | `180` | no |
+| <a name="input_kubeconfig_data"></a> [kubeconfig\_data](#input\_kubeconfig\_data) | Kubeconfig data for kubectl commands | `string` | n/a | yes |
 | <a name="input_memory_limit"></a> [memory\_limit](#input\_memory\_limit) | Memory limit for CoreDNS container | `string` | `"170Mi"` | no |
-| <a name="input_memory_request"></a> [memory\_request](#input\_memory\_request) | Memory request for CoreDNS container | `string` | `"70Mi"` | no |
+| <a name="input_memory_request"></a> [memory\_request](#input\_memory\_request) | Memory request for CoreDNS container | `string` | `"170Mi"` | no |
 | <a name="input_node_selector"></a> [node\_selector](#input\_node\_selector) | Node selector for CoreDNS deployment | `map(string)` | `{}` | no |
 | <a name="input_replicas"></a> [replicas](#input\_replicas) | Number of CoreDNS replicas | `number` | `2` | no |
 
