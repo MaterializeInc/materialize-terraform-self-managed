@@ -294,6 +294,8 @@ module "cert_manager" {
 
   depends_on = [
     module.aks,
+    module.networking,
+    module.coredns,
   ]
 }
 
@@ -323,6 +325,7 @@ module "operator" {
     module.aks,
     module.database,
     module.storage,
+    module.coredns,
   ]
 }
 
