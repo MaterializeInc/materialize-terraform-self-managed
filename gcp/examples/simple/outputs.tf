@@ -147,8 +147,14 @@ output "balancerd_load_balancer_ip" {
   value       = module.load_balancers.balancerd_load_balancer_ip
 }
 
-output "external_login_password_mz_system" {
-  description = "Password for the external login to the Materialize instance"
-  value       = random_password.external_login_password_mz_system.result
+output "mz_instance_service_account_credentials" {
+  description = "Credentials for the default service account with superuser privileges, Login to materialize using these credentials"
+  value       = module.materialize_instance.service_account_credentials
+  sensitive   = true
+}
+
+output "mz_system_credentials" {
+  description = "Credentials for the mz_system user, not to be used by applications"
+  value       = module.materialize_instance.mz_system_credentials
   sensitive   = true
 }

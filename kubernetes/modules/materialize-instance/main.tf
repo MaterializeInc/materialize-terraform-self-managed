@@ -2,6 +2,9 @@ locals {
   secret_name          = "${var.instance_name}-materialize-backend"
   mz_resource_id       = data.kubernetes_resource.materialize_instance.object.status.resourceId
   service_account_name = "default"
+
+  # Hash of password - job only recreates when password changes
+  service_account_password_hash = contains(["Password", "Sasl"], var.authenticator_kind) ? substr(sha256(random_password.service_account_password[0].result), 0, 8) : ""
 }
 
 resource "random_password" "service_account_password" {
@@ -16,18 +19,19 @@ resource "random_password" "service_account_password" {
 resource "kubernetes_job" "create_service_account" {
   count = contains(["Password", "Sasl"], var.authenticator_kind) ? 1 : 0
   metadata {
-    name      = "${var.instance_name}-create-default-role"
+    # Hash in name ensures job only recreates when password changes
+    name      = "${var.instance_name}-create-role-${local.service_account_password_hash}"
     namespace = var.instance_namespace
   }
 
   spec {
-    ttl_seconds_after_finished = 300
-    backoff_limit              = 3
+    # No TTL - job stays so Terraform doesn't see drift and recreate on every apply
+    backoff_limit = 3
 
     template {
       metadata {
         labels = {
-          app = "${var.instance_name}-create-default-role"
+          app = "${var.instance_name}-create-role"
         }
       }
 
@@ -40,7 +44,16 @@ resource "kubernetes_job" "create_service_account" {
 
           command = [
             "sh", "-c",
-            "PGPASSWORD=$MZ_PASSWORD psql -h $MZ_HOST -p 6875 -U mz_system -d materialize -c \"CREATE ROLE \"${local.service_account_name}\" WITH SUPERUSER LOGIN PASSWORD '${random_password.service_account_password[0].result}';\""
+            <<-EOT
+            ROLE_EXISTS=$(PGPASSWORD=$MZ_PASSWORD psql -h $MZ_HOST -p 6875 -U mz_system -d materialize -tAc "SELECT 1 FROM mz_roles WHERE name = '${local.service_account_name}';")
+            if [ -z "$ROLE_EXISTS" ]; then
+              PGPASSWORD=$MZ_PASSWORD psql -h $MZ_HOST -p 6875 -U mz_system -d materialize \
+                -c "CREATE ROLE ${local.service_account_name} WITH SUPERUSER LOGIN PASSWORD '${random_password.service_account_password[0].result}';"
+            else
+              PGPASSWORD=$MZ_PASSWORD psql -h $MZ_HOST -p 6875 -U mz_system -d materialize \
+                -c "ALTER ROLE ${local.service_account_name} PASSWORD '${random_password.service_account_password[0].result}';"
+            fi
+            EOT
           ]
 
           env {
