@@ -160,6 +160,13 @@ To get the Load Balancer IP:
 kubectl get svc -n materialize-environment -o jsonpath='{.items[?(@.spec.type=="LoadBalancer")].status.loadBalancer.ingress[0].ip}'
 ```
 
+Connect using psql with the default service account credentials:
+```bash
+terraform output -json mz_instance_service_account_credentials
+ {"password":"Your-Password","username":"default"}
+psql -h <LoadBalancerIP> -p 6875 -U default
+```
+
 **If using a private (internal) Load Balancer:**
 
 Use Kubernetes port-forwarding for both SQL and Console. `kubectl port-forward` creates a TCP tunnel that preserves the underlying protocol (pgwire for SQL, HTTP for Console):

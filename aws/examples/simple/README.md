@@ -134,6 +134,13 @@ To get the NLB DNS name:
 terraform output -json | jq -r .nlb_dns_name.value
 ```
 
+Connect using psql with the default service account credentials:
+```bash
+terraform output -json mz_instance_service_account_credentials
+ {"password":"Your-Password","username":"default"}
+psql -h <NLB_DNS> -p 6875 -U default
+```
+
 **If using a private (internal) NLB:**
 
 Use Kubernetes port-forwarding for both SQL and Console. `kubectl port-forward` creates a TCP tunnel that preserves the underlying protocol (pgwire for SQL, HTTP for Console):
