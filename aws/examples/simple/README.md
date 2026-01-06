@@ -136,8 +136,9 @@ terraform output -json | jq -r .nlb_dns_name.value
 
 Connect using psql with the default service account credentials:
 ```bash
-terraform output -json mz_instance_service_account_credentials
- {"password":"Your-Password","username":"default"}
+# Get the password (use jq -r to decode JSON-escaped characters)
+terraform output -json mz_instance_service_account_credentials | jq -r '.password'
+
 psql -h <NLB_DNS> -p 6875 -U default
 ```
 
