@@ -142,13 +142,7 @@ locals {
     users = [{
       name = module.gke.cluster_name
       user = {
-        exec = {
-          apiVersion         = "client.authentication.k8s.io/v1beta1"
-          command            = "gcloud"
-          args               = ["container", "clusters", "get-credentials", module.gke.cluster_name, "--location", module.gke.cluster_location, "--project", var.project_id]
-          interactiveMode    = "Never"
-          provideClusterInfo = true
-        }
+        token : data.google_client_config.default.access_token
       }
     }]
   })
@@ -228,10 +222,12 @@ module "materialize_nodepool" {
 
 # Deploy custom CoreDNS with TTL 0 (GKE's kube-dns doesn't support disabling caching)
 module "coredns" {
-  source                         = "../../../kubernetes/modules/coredns"
-  create_coredns_service_account = true
-  node_selector                  = local.generic_node_labels
-  kubeconfig_data                = local.kubeconfig_data
+  source                                      = "../../../kubernetes/modules/coredns"
+  create_coredns_service_account              = true
+  node_selector                               = local.generic_node_labels
+  kubeconfig_data                             = local.kubeconfig_data
+  coredns_deployment_to_scale_down            = "kube-dns"
+  coredns_autoscaler_deployment_to_scale_down = "kube-dns-autoscaler"
   depends_on = [
     module.gke,
     module.generic_nodepool,
