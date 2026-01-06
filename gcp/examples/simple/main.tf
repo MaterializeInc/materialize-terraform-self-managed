@@ -120,6 +120,32 @@ locals {
     local.encoded_endpoint,
     var.region
   )
+
+  kubeconfig_data = jsonencode({
+    apiVersion = "v1"
+    kind       = "Config"
+    clusters = [{
+      name = module.gke.cluster_name
+      cluster = {
+        certificate-authority-data = module.gke.cluster_ca_certificate
+        server                     = "https://${module.gke.cluster_endpoint}"
+      }
+    }]
+    contexts = [{
+      name = module.gke.cluster_name
+      context = {
+        cluster = module.gke.cluster_name
+        user    = module.gke.cluster_name
+      }
+    }]
+    current-context = module.gke.cluster_name
+    users = [{
+      name = module.gke.cluster_name
+      user = {
+        token : data.google_client_config.default.access_token
+      }
+    }]
+  })
 }
 
 # Configure networking infrastructure including VPC, subnets, and CIDR blocks
@@ -194,6 +220,20 @@ module "materialize_nodepool" {
   local_ssd_count = local.local_ssd_count
 }
 
+# Deploy custom CoreDNS with TTL 0 (GKE's kube-dns doesn't support disabling caching)
+module "coredns" {
+  source                                      = "../../../kubernetes/modules/coredns"
+  create_coredns_service_account              = true
+  node_selector                               = local.generic_node_labels
+  kubeconfig_data                             = local.kubeconfig_data
+  coredns_deployment_to_scale_down            = "kube-dns"
+  coredns_autoscaler_deployment_to_scale_down = "kube-dns-autoscaler"
+  depends_on = [
+    module.gke,
+    module.generic_nodepool,
+  ]
+}
+
 resource "random_password" "external_login_password_mz_system" {
   length           = 16
   special          = true
@@ -242,6 +282,7 @@ module "cert_manager" {
   depends_on = [
     module.gke,
     module.generic_nodepool,
+    module.coredns,
   ]
 }
 
@@ -274,6 +315,7 @@ module "operator" {
     module.generic_nodepool,
     module.database,
     module.storage,
+    module.coredns,
   ]
 }
 
@@ -310,6 +352,7 @@ module "materialize_instance" {
     module.self_signed_cluster_issuer,
     module.operator,
     module.materialize_nodepool,
+    module.coredns,
   ]
 }
 

@@ -96,6 +96,21 @@ module "base_node_group" {
   tags                              = var.tags
 }
 
+module "coredns" {
+  source = "../../../kubernetes/modules/coredns"
+
+  node_selector = local.base_node_labels
+  # in aws coredns autoscaler deployment doesn't exist
+  disable_default_coredns_autoscaler = false
+  kubeconfig_data                    = local.kubeconfig_data
+
+  depends_on = [
+    module.eks,
+    module.base_node_group,
+    module.networking,
+  ]
+}
+
 # 2.2 Install Karpenter to manage creation of additional nodes
 module "karpenter" {
   source = "../../modules/karpenter"
@@ -146,6 +161,7 @@ module "nodepool_generic" {
   depends_on = [
     module.karpenter,
     module.ec2nodeclass_generic,
+    module.coredns,
   ]
 }
 
@@ -182,6 +198,7 @@ module "nodepool_materialize" {
   depends_on = [
     module.karpenter,
     module.ec2nodeclass_materialize,
+    module.coredns,
   ]
 }
 
@@ -202,6 +219,7 @@ module "aws_lbc" {
   depends_on = [
     module.eks,
     module.nodepool_generic,
+    module.coredns,
   ]
 }
 
@@ -216,6 +234,7 @@ module "cert_manager" {
     module.eks,
     module.nodepool_generic,
     module.aws_lbc,
+    module.coredns,
   ]
 }
 
@@ -249,6 +268,7 @@ module "operator" {
     module.eks,
     module.networking,
     module.nodepool_generic,
+    module.coredns,
   ]
 }
 
@@ -343,6 +363,7 @@ module "materialize_instance" {
     module.operator,
     module.aws_lbc,
     module.nodepool_materialize,
+    module.coredns,
   ]
 }
 
