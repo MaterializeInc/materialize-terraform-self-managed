@@ -126,7 +126,6 @@ module "karpenter" {
     module.eks,
     module.base_node_group,
     module.networking,
-    module.coredns,
   ]
 }
 
@@ -145,7 +144,6 @@ module "ec2nodeclass_generic" {
 
   depends_on = [
     module.karpenter,
-    module.coredns,
   ]
 }
 
@@ -182,7 +180,6 @@ module "ec2nodeclass_materialize" {
 
   depends_on = [
     module.karpenter,
-    module.coredns,
   ]
 }
 
