@@ -1,12 +1,22 @@
 locals {
-  secret_name    = "${var.instance_name}-materialize-backend"
-  mz_resource_id = data.kubernetes_resource.materialize_instance.object.status.resourceId
+  secret_name          = "${var.instance_name}-materialize-backend"
+  mz_resource_id       = data.kubernetes_resource.materialize_instance.object.status.resourceId
+  service_account_name = "default"
 }
-# Set system parameters after instance is ready using a Kubernetes Job
-#https://materialize.com/changelog/2024-02-08-default-configuration-parameters/
-resource "kubernetes_job" "system_parameters" {
+
+resource "random_password" "service_account_password" {
+  count            = contains(["Password", "Sasl"], var.authenticator_kind) ? 1 : 0
+  length           = 16
+  special          = true
+  override_special = "!#$%&*()-_=+[]{}<>:?"
+}
+
+# Create a job to create the default service account with superuser privileges
+# https://materialize.com/docs/security/self-managed/access-control/manage-roles/#create-individual-userservice-account-roles
+resource "kubernetes_job" "create_service_account" {
+  count = contains(["Password", "Sasl"], var.authenticator_kind) ? 1 : 0
   metadata {
-    name      = "${var.instance_name}-set-system-params"
+    name      = "${var.instance_name}-create-default-role"
     namespace = var.instance_namespace
   }
 
@@ -17,7 +27,7 @@ resource "kubernetes_job" "system_parameters" {
     template {
       metadata {
         labels = {
-          app = "${var.instance_name}-set-system-params"
+          app = "${var.instance_name}-create-default-role"
         }
       }
 
@@ -30,7 +40,7 @@ resource "kubernetes_job" "system_parameters" {
 
           command = [
             "sh", "-c",
-            "PGPASSWORD=$MZ_PASSWORD psql -h $MZ_HOST -p 6875 -U mz_system -d materialize -c \"ALTER SYSTEM SET cluster TO 'quickstart';\""
+            "PGPASSWORD=$MZ_PASSWORD psql -h $MZ_HOST -p 6875 -U mz_system -d materialize -c \"CREATE ROLE \"${local.service_account_name}\" WITH SUPERUSER LOGIN PASSWORD '${random_password.service_account_password[0].result}';\""
           ]
 
           env {
