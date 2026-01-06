@@ -162,8 +162,9 @@ kubectl get svc -n materialize-environment -o jsonpath='{.items[?(@.spec.type=="
 
 Connect using psql with the default service account credentials:
 ```bash
-terraform output -json mz_instance_service_account_credentials
- {"password":"Your-Password","username":"default"}
+# Get the password (use jq -r to decode JSON-escaped characters)
+terraform output -json mz_instance_service_account_credentials | jq -r '.password'
+
 psql -h <LoadBalancerIP> -p 6875 -U default
 ```
 
