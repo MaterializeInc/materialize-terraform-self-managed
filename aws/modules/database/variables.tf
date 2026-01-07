@@ -112,3 +112,27 @@ variable "tags" {
   type        = map(string)
   default     = {}
 }
+
+variable "kms_key_id" {
+  description = "The ARN for the KMS encryption key. If not specified and create_kms_key is false, the default AWS managed key will be used."
+  type        = string
+  default     = null
+}
+
+variable "create_kms_key" {
+  description = "Whether to create a new KMS key for RDS encryption. If false and kms_key_id is not specified, the default AWS managed key will be used."
+  type        = bool
+  default     = false
+}
+
+variable "kms_key_deletion_window_in_days" {
+  description = "The waiting period, specified in number of days, after which AWS KMS deletes the KMS key. Valid values are 7-30 days."
+  type        = number
+  default     = 30
+}
+
+variable "kms_key_enable_rotation" {
+  description = "Specifies whether key rotation is enabled for the KMS key."
+  type        = bool
+  default     = true
+}
