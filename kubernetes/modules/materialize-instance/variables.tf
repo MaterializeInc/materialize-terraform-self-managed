@@ -71,7 +71,7 @@ variable "cpu_request" {
 variable "memory_request" {
   description = "Memory request for environmentd"
   type        = string
-  default     = "1Gi"
+  default     = "4095Mi"
   nullable    = false
 }
 

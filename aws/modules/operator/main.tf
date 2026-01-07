@@ -151,4 +151,3 @@ resource "helm_release" "metrics_server" {
     kubernetes_namespace.monitoring
   ]
 }
-
