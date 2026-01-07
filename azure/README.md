@@ -93,3 +93,7 @@ provider "helm" {
   }
 }
 ```
+
+### Required Features
+
+Your Azure project needs several APIs enabled. See the [examples/simple/README.md](./examples/simple/README.md#required-features) for the complete list of required APIs and how to enable them.

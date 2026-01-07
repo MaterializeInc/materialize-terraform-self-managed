@@ -50,6 +50,26 @@ This example provisions the following infrastructure:
 
 ---
 
+## Required Features
+
+Your Azure subscription needs certain features enabled.
+
+
+```bash
+# Enable the API Server VNet Integration preview feature:
+# This allows the AKS API server to be placed inside your VNet for enhanced security
+az feature register \
+  --namespace Microsoft.ContainerService \
+  --name EnableAPIServerVnetIntegrationPreview
+
+# Check the status of the required feature:
+az feature show \
+  --namespace Microsoft.ContainerService \
+  --name EnableAPIServerVnetIntegrationPreview
+```
+- Reference: https://learn.microsoft.com/en-us/azure/aks/api-server-vnet-integration#prerequisites
+---
+
 ## Getting Started
 
 ### Step 1: Set Required Variables
