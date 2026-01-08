@@ -136,4 +136,3 @@ variable "kms_key_enable_rotation" {
   type        = bool
   default     = true
 }
-
