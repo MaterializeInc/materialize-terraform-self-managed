@@ -302,11 +302,6 @@ module "database" {
   cluster_security_group_id = module.eks.cluster_security_group_id
   node_security_group_id    = module.eks.node_security_group_id
 
-  # KMS encryption at rest configuration
-  # Set to true to create a customer-managed KMS key for RDS encryption
-  # Alternatively, provide kms_key_id with an existing KMS key ARN
-  create_kms_key          = true
-
   tags = var.tags
 }
 

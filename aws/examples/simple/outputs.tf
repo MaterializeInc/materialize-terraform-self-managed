@@ -116,3 +116,13 @@ output "external_login_password_mz_system" {
   value       = random_password.external_login_password_mz_system.result
   sensitive   = true
 }
+
+output "rds_kms_key_alias" {
+  description = "KMS Key used to encrypt the RDS instance"
+  value       = module.database.kms_key_alias
+}
+
+output "rds_kms_key_arn" {
+  description = "KMS Key used to encrypt the RDS instance"
+  value       = module.database.kms_key_arn
+}
