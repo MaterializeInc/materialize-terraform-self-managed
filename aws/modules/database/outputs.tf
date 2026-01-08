@@ -28,3 +28,18 @@ output "db_security_group_id" {
   description = "The security group ID of the database"
   value       = aws_security_group.database.id
 }
+
+output "kms_key_arn" {
+  description = "The ARN of the KMS key used for RDS encryption"
+  value       = local.kms_key_arn
+}
+
+output "kms_key_id" {
+  description = "The ID of the KMS key used for RDS encryption (only if created by this module)"
+  value       = var.create_kms_key ? aws_kms_key.rds[0].key_id : null
+}
+
+output "kms_key_alias" {
+  description = "The alias of the KMS key used for RDS encryption"
+  value       = var.create_kms_key ? aws_kms_alias.rds[0].name : null
+}

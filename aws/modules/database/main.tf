@@ -1,3 +1,32 @@
+# KMS key for RDS encryption at rest
+# NOTE: Once an RDS instance is created with this KMS key, it cannot be changed.
+# Deleting this key while the database exists will make the database inaccessible.
+# The deletion_window_in_days provides a recovery period - use `aws kms cancel-key-deletion`
+# to recover if deleted accidentally. See: https://repost.aws/knowledge-center/update-encryption-key-rds
+resource "aws_kms_key" "rds" {
+  count = var.create_kms_key ? 1 : 0
+
+  description             = "KMS key for RDS encryption - ${var.name_prefix}"
+  deletion_window_in_days = var.kms_key_deletion_window_in_days
+  enable_key_rotation     = var.kms_key_enable_rotation
+
+  tags = merge(var.tags, {
+    Name = "${var.name_prefix}-rds-kms-key"
+  })
+}
+
+resource "aws_kms_alias" "rds" {
+  count = var.create_kms_key ? 1 : 0
+
+  name          = "alias/${var.name_prefix}-rds"
+  target_key_id = aws_kms_key.rds[0].key_id
+}
+
+locals {
+  # Use created KMS key if create_kms_key is true, otherwise use provided kms_key_id (or null for AWS-managed key)
+  kms_key_arn = var.create_kms_key ? aws_kms_key.rds[0].arn : var.kms_key_id
+}
+
 module "db" {
   source  = "terraform-aws-modules/rds/aws"
   version = "~> 6.0"
@@ -16,6 +45,7 @@ module "db" {
   allocated_storage     = var.allocated_storage
   max_allocated_storage = var.max_allocated_storage
   storage_encrypted     = true
+  kms_key_id            = local.kms_key_arn
 
   db_name  = var.database_name
   username = var.database_username
