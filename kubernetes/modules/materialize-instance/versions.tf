@@ -10,5 +10,9 @@ terraform {
       source  = "alekc/kubectl"
       version = "~> 2.0"
     }
+    random = {
+      source  = "hashicorp/random"
+      version = ">= 3.0"
+    }
   }
 }

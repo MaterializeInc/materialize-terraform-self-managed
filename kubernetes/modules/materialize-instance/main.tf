@@ -1,3 +1,91 @@
+locals {
+  secret_name          = "${var.instance_name}-materialize-backend"
+  mz_resource_id       = data.kubernetes_resource.materialize_instance.object.status.resourceId
+  service_account_name = "default"
+
+  # Hash of password - job only recreates when password changes
+  service_account_password_hash = contains(["Password", "Sasl"], var.authenticator_kind) ? substr(sha256(random_password.service_account_password[0].result), 0, 8) : ""
+}
+
+resource "random_password" "service_account_password" {
+  count            = contains(["Password", "Sasl"], var.authenticator_kind) ? 1 : 0
+  length           = 16
+  special          = true
+  override_special = "!#$%&*()-_=+[]{}<>:?"
+}
+
+# Create a job to create the default service account with superuser privileges
+# https://materialize.com/docs/security/self-managed/access-control/manage-roles/#create-individual-userservice-account-roles
+resource "kubernetes_job" "create_service_account" {
+  count = contains(["Password", "Sasl"], var.authenticator_kind) ? 1 : 0
+  metadata {
+    # Hash in name ensures job only recreates when password changes
+    name      = "${var.instance_name}-create-role-${local.service_account_password_hash}"
+    namespace = var.instance_namespace
+  }
+
+  spec {
+    # No TTL - job stays so Terraform doesn't see drift and recreate on every apply
+    backoff_limit = 3
+
+    template {
+      metadata {
+        labels = {
+          app = "${var.instance_name}-create-role"
+        }
+      }
+
+      spec {
+        restart_policy = "Never"
+
+        container {
+          name  = "psql"
+          image = "postgres:16-alpine"
+
+          command = [
+            "sh", "-c",
+            <<-EOT
+            ROLE_EXISTS=$(PGPASSWORD=$MZ_PASSWORD psql -h $MZ_HOST -p 6875 -U mz_system -d materialize -tAc "SELECT 1 FROM mz_roles WHERE name = '${local.service_account_name}';")
+            if [ -z "$ROLE_EXISTS" ]; then
+              PGPASSWORD=$MZ_PASSWORD psql -h $MZ_HOST -p 6875 -U mz_system -d materialize \
+                -c "CREATE ROLE ${local.service_account_name} WITH SUPERUSER LOGIN PASSWORD '${random_password.service_account_password[0].result}';"
+            else
+              PGPASSWORD=$MZ_PASSWORD psql -h $MZ_HOST -p 6875 -U mz_system -d materialize \
+                -c "ALTER ROLE ${local.service_account_name} PASSWORD '${random_password.service_account_password[0].result}';"
+            fi
+            EOT
+          ]
+
+          env {
+            name  = "MZ_HOST"
+            value = "mz${local.mz_resource_id}-balancerd.${var.instance_namespace}.svc.cluster.local"
+          }
+
+          env {
+            name = "MZ_PASSWORD"
+            value_from {
+              secret_key_ref {
+                name = local.secret_name
+                key  = "external_login_password_mz_system"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  wait_for_completion = true
+
+  timeouts {
+    create = "5m"
+  }
+
+  depends_on = [
+    kubectl_manifest.materialize_instance
+  ]
+}
+
 # Create a namespace for this Materialize instance
 resource "kubernetes_namespace" "instance" {
   count = var.create_namespace ? 1 : 0
@@ -21,7 +109,7 @@ resource "kubectl_manifest" "materialize_instance" {
     }
     spec = {
       environmentdImageRef      = "materialize/environmentd:${var.environmentd_version}"
-      backendSecretName         = "${var.instance_name}-materialize-backend"
+      backendSecretName         = local.secret_name
       authenticatorKind         = var.authenticator_kind
       serviceAccountAnnotations = var.service_account_annotations
       podLabels                 = var.pod_labels
@@ -93,7 +181,7 @@ resource "kubectl_manifest" "materialize_instance" {
 # Create a secret with connection information for the Materialize instance
 resource "kubernetes_secret" "materialize_backend" {
   metadata {
-    name      = "${var.instance_name}-materialize-backend"
+    name      = local.secret_name
     namespace = var.instance_namespace
   }
 
