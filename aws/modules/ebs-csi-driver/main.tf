@@ -184,6 +184,11 @@ resource "helm_release" "ebs_csi_driver" {
     value = aws_iam_role.ebs_csi_driver.arn
   }
 
+  set {
+    name  = "controller.serviceAccount.automountServiceAccountToken"
+    value = "true"
+  }
+
   # Add node selectors for controller pods if provided
   dynamic "set" {
     for_each = var.node_selector

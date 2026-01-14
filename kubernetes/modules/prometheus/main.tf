@@ -29,11 +29,14 @@ locals {
         enabled = true
         size    = var.storage_size
         accessModes = [
-          # Will be helpful in case of rolling updates of the prometheus server.
-          "ReadWriteMany"
+          # EBS only supports ReadWriteOnce (single node attachment)
+          "ReadWriteOnce"
         ]
         storageClass = var.storage_class
       }
+
+      # This will be taken from the scrape_configs
+      global = {}
 
       resources = {
         requests = {
@@ -71,12 +74,7 @@ locals {
       enabled = false
     }
 
-    # Only override scrape_configs - let the chart handle global settings
-    serverFiles = {
-      "prometheus.yml" = {
-        scrape_configs = local.materialize_scrape_config.scrape_configs
-      }
-    }
+    scrape_configs = local.materialize_scrape_config.scrape_configs
   }
 }
 

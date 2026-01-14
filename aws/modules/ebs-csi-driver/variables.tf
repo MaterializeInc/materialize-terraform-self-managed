@@ -39,7 +39,7 @@ variable "service_account_name" {
 variable "chart_version" {
   description = "Version of the EBS CSI driver Helm chart"
   type        = string
-  default     = "2.37.0"
+  default     = "2.54.1"
   nullable    = false
 }
 

@@ -223,6 +223,25 @@ module "aws_lbc" {
   ]
 }
 
+# 4. Install EBS CSI Driver for dynamic EBS volume provisioning
+module "ebs_csi_driver" {
+  source = "../../modules/ebs-csi-driver"
+
+  name_prefix       = var.name_prefix
+  eks_cluster_name  = module.eks.cluster_name
+  oidc_provider_arn = module.eks.oidc_provider_arn
+  oidc_issuer_url   = module.eks.cluster_oidc_issuer_url
+  node_selector     = local.generic_node_labels
+
+  tags = var.tags
+
+  depends_on = [
+    module.eks,
+    module.base_node_group,
+    module.coredns,
+  ]
+}
+
 # 5. Install Certificate Manager for TLS
 module "cert_manager" {
   source = "../../../kubernetes/modules/cert-manager"
@@ -263,6 +282,14 @@ module "operator" {
   # node selector for operator and metrics-server workloads
   operator_node_selector = local.generic_node_labels
 
+  # Enable Prometheus scrape annotations when observability is enabled
+  helm_values = var.enable_observability ? {
+    prometheus = {
+      scrapeAnnotations = {
+        enabled = true
+      }
+    }
+  } : {}
 
   depends_on = [
     module.eks,
@@ -367,7 +394,40 @@ module "materialize_instance" {
   ]
 }
 
-# 10. Setup dedicated NLB for Materialize instance
+# 10. Setup Observability Stack (Prometheus + Grafana)
+module "prometheus" {
+  count  = var.enable_observability ? 1 : 0
+  source = "../../../kubernetes/modules/prometheus"
+
+  namespace        = "monitoring"
+  create_namespace = false # operator creates the "monitoring" namespace
+  node_selector    = local.generic_node_labels
+  storage_class    = module.ebs_csi_driver.storage_class_name
+
+  depends_on = [
+    module.operator,
+    module.nodepool_generic,
+    module.coredns,
+    module.ebs_csi_driver,
+  ]
+}
+
+module "grafana" {
+  count  = var.enable_observability ? 1 : 0
+  source = "../../../kubernetes/modules/grafana"
+
+  namespace = "monitoring"
+  # operator creates the "monitoring" namespace
+  create_namespace = false
+  prometheus_url   = module.prometheus[0].prometheus_url
+  node_selector    = local.generic_node_labels
+
+  depends_on = [
+    module.prometheus,
+  ]
+}
+
+# 11. Setup dedicated NLB for Materialize instance
 module "materialize_nlb" {
   source = "../../modules/nlb"
 
