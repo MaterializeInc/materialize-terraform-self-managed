@@ -9,17 +9,11 @@ resource "kubernetes_namespace" "prometheus" {
   }
 }
 
-# Fetch Materialize scrape configs from GitHub
-# Source: https://github.com/MaterializeInc/materialize/blob/main/doc/user/data/self_managed/monitoring/prometheus.yml
-data "http" "scrape_config" {
-  url = "https://raw.githubusercontent.com/MaterializeInc/materialize/main/doc/user/data/self_managed/monitoring/prometheus.yml"
-}
-
 locals {
   namespace = var.create_namespace ? kubernetes_namespace.prometheus[0].metadata[0].name : var.namespace
 
-  # Parse the YAML response
-  materialize_scrape_config = yamldecode(data.http.scrape_config.response_body)
+  # Source: https://github.com/MaterializeInc/materialize/blob/main/doc/user/data/self_managed/monitoring/prometheus.yml
+  materialize_scrape_config = yamldecode(file("${path.module}/prometheus.yml"))
 
   helm_values = {
     server = {
