@@ -228,7 +228,6 @@ module "ebs_csi_driver" {
   source = "../../modules/ebs-csi-driver"
 
   name_prefix       = var.name_prefix
-  eks_cluster_name  = module.eks.cluster_name
   oidc_provider_arn = module.eks.oidc_provider_arn
   oidc_issuer_url   = module.eks.cluster_oidc_issuer_url
   node_selector     = local.generic_node_labels
