@@ -284,9 +284,12 @@ module "operator" {
 
   # Enable Prometheus scrape annotations when observability is enabled
   helm_values = var.enable_observability ? {
-    prometheus = {
-      scrapeAnnotations = {
-        enabled = true
+    observability = {
+      enabled : true
+      prometheus = {
+        scrapeAnnotations = {
+          enabled = true
+        }
       }
     }
   } : {}
