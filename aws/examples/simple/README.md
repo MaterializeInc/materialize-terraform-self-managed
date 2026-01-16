@@ -180,7 +180,7 @@ kubectl get secret grafana -n monitoring -o jsonpath='{.data.admin-password}' | 
 
 #### Pre-configured Dashboards
 
-The deployment includes Materialize dashboards under the "Materialize" folder:
+The deployment includes Materialize dashboards under the "kubernetes/grafana" folder:
 - **Environment Overview** - Overall Materialize environment health
 - **Freshness Overview** - Data freshness monitoring
 

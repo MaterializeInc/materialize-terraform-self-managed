@@ -34,7 +34,6 @@ No modules.
 | Name | Description | Type | Default | Required |
 |------|-------------|------|---------|:--------:|
 | <a name="input_chart_version"></a> [chart\_version](#input\_chart\_version) | Version of the EBS CSI driver Helm chart | `string` | `"2.54.1"` | no |
-| <a name="input_eks_cluster_name"></a> [eks\_cluster\_name](#input\_eks\_cluster\_name) | Name of the EKS cluster | `string` | n/a | yes |
 | <a name="input_name_prefix"></a> [name\_prefix](#input\_name\_prefix) | Prefix for all resource names | `string` | n/a | yes |
 | <a name="input_namespace"></a> [namespace](#input\_namespace) | Namespace to install the EBS CSI driver | `string` | `"kube-system"` | no |
 | <a name="input_node_selector"></a> [node\_selector](#input\_node\_selector) | Node selector for EBS CSI driver pods | `map(string)` | `{}` | no |

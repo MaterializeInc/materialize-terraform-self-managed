@@ -183,6 +183,33 @@ The Load Balancer operates at Layer 4 (TCP), forwarding connections without inte
 
 ---
 
+### Step 4: Accessing Grafana
+
+Grafana is deployed in the `monitoring` namespace with pre-configured Materialize dashboards.
+
+#### Port Forwarding
+
+```bash
+kubectl port-forward svc/grafana 3000:80 -n monitoring
+```
+
+Then open [http://localhost:3000](http://localhost:3000) in your browser.
+
+#### Login Credentials
+
+- **Username:** `admin`
+- **Password:** Retrieve from Kubernetes secret:
+
+```bash
+kubectl get secret grafana -n monitoring -o jsonpath='{.data.admin-password}' | base64 -d
+```
+
+#### Pre-configured Dashboards
+
+The deployment includes Materialize dashboards under the "kubernetes/grafana" folder:
+- **Environment Overview** - Overall Materialize environment health
+- **Freshness Overview** - Data freshness monitoring
+
 ## Notes
 
 * You can customize each module independently.
