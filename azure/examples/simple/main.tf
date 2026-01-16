@@ -329,6 +329,39 @@ module "operator" {
   ]
 }
 
+
+module "prometheus" {
+  count  = var.enable_observability ? 1 : 0
+  source = "../../../kubernetes/modules/prometheus"
+
+  namespace        = "monitoring"
+  create_namespace = false # operator creates the "monitoring" namespace
+  node_selector    = local.generic_node_labels
+  # https://learn.microsoft.com/en-us/azure/aks/concepts-storage#storage-classes
+  storage_class = "managed-csi"
+
+  depends_on = [
+    module.operator,
+    module.aks,
+    module.coredns,
+  ]
+}
+
+module "grafana" {
+  count  = var.enable_observability ? 1 : 0
+  source = "../../../kubernetes/modules/grafana"
+
+  namespace = "monitoring"
+  # operator creates the "monitoring" namespace
+  create_namespace = false
+  prometheus_url   = module.prometheus[0].prometheus_url
+  node_selector    = local.generic_node_labels
+
+  depends_on = [
+    module.prometheus,
+  ]
+}
+
 module "materialize_instance" {
   source               = "../../../kubernetes/modules/materialize-instance"
   instance_name        = local.materialize_instance_name
