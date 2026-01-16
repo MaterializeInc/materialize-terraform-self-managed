@@ -66,3 +66,21 @@ variable "internal_load_balancer" {
   type        = bool
   default     = true
 }
+
+
+variable "enable_observability" {
+  description = "Enable Prometheus and Grafana monitoring stack for Materialize"
+  type        = bool
+  default     = false
+}
+
+# Observability outputs (only when enabled)
+output "prometheus_url" {
+  description = "Internal URL for Prometheus server"
+  value       = var.enable_observability ? module.prometheus[0].prometheus_url : null
+}
+
+output "grafana_url" {
+  description = "Internal URL for Grafana"
+  value       = var.enable_observability ? module.grafana[0].grafana_url : null
+}
