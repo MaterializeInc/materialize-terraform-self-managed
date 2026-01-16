@@ -319,6 +319,37 @@ module "operator" {
   ]
 }
 
+module "prometheus" {
+  count  = var.enable_observability ? 1 : 0
+  source = "../../../kubernetes/modules/prometheus"
+
+  namespace        = "monitoring"
+  create_namespace = false # operator creates the "monitoring" namespace
+  node_selector    = local.generic_node_labels
+  storage_class    = "standard-rwo" # default storage class in gcp
+
+  depends_on = [
+    module.operator,
+    module.gke,
+    module.coredns,
+  ]
+}
+
+module "grafana" {
+  count  = var.enable_observability ? 1 : 0
+  source = "../../../kubernetes/modules/grafana"
+
+  namespace = "monitoring"
+  # operator creates the "monitoring" namespace
+  create_namespace = false
+  prometheus_url   = module.prometheus[0].prometheus_url
+  node_selector    = local.generic_node_labels
+
+  depends_on = [
+    module.prometheus,
+  ]
+}
+
 # Deploy Materialize instance with configured backend connections
 module "materialize_instance" {
   source               = "../../../kubernetes/modules/materialize-instance"
