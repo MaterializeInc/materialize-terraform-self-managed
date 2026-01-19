@@ -121,7 +121,7 @@
                     },
                     "editorMode": "code",
                     "exemplar": false,
-                    "expr": "(mz_compute_cluster_status)",
+                    "expr": "(mz_compute_cluster_status{ materialize_cloud_organization_namespace=\"$namespace\",compute_cluster_id=~\"u.*\"})",
                     "format": "table",
                     "instant": true,
                     "legendFormat": "__auto",
@@ -131,17 +131,6 @@
             ],
             "title": "Cluster Replicas",
             "transformations": [
-                {
-                    "id": "reduce",
-                    "options": {
-                        "includeTimeField": false,
-                        "labelsToFields": false,
-                        "mode": "reduceFields",
-                        "reducers": [
-                            "lastNotNull"
-                        ]
-                    }
-                },
                 {
                     "id": "groupBy",
                     "options": {
