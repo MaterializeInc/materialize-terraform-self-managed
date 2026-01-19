@@ -29,8 +29,7 @@ locals {
         storageClass = var.storage_class
       }
 
-      # This will be taken from the scrape_configs
-      global = {}
+      global = local.materialize_scrape_config.global
 
       resources = {
         requests = {
@@ -68,7 +67,7 @@ locals {
       enabled = false
     }
 
-    scrape_configs = local.materialize_scrape_config.scrape_configs
+    scrapeConfigs = local.materialize_scrape_config.scrape_configs
   }
 }
 
