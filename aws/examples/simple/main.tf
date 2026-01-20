@@ -193,7 +193,7 @@ module "nodepool_materialize" {
   node_taints    = local.materialize_node_taints
   # WARNING: setting this to any value other than Never may cause
   # downtime. Karpenter will remove nodes regardless of whether they
-  # pods with do-not-disrupt labels. If you set this to any duration
+  # have pods with do-not-disrupt labels. If you set this to any duration
   # you should ensure that you always gracefull roll nodes during a
   # materialize rollout. To do this cordon the node, perform an upgrade or 
   # forced rollout of all materialize instances that may be using the node pool.
