@@ -47,3 +47,4 @@ __pycache__/
 test/*/t[0-9]*-*/
 .github/setup/*/terraform.tfstate
 .github/setup/*/backend-override.tf
+tests/kind/logs/

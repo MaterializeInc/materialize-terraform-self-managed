@@ -65,8 +65,13 @@ locals {
     }
   }
 
+  # Strip null values from override to avoid overwriting defaults with null
+  clean_spec_override = {
+    for k, v in var.materialize_spec_override : k => v if v != null
+  }
+
   # Deep merge the default spec with user overrides
-  merged_spec = provider::deepmerge::mergo(local.default_spec, var.materialize_spec_override)
+  merged_spec = provider::deepmerge::mergo(local.default_spec, local.clean_spec_override)
 }
 
 # Create the Materialize instance using the kubernetes_manifest resource

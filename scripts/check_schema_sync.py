@@ -18,6 +18,7 @@ REPO_ROOT = SCRIPT_DIR.parent
 
 GENERATED_FILES = [
     "kubernetes/modules/materialize-instance/crd_variables.gen.tf",
+    "kubernetes/modules/operator/helm_variables.gen.tf",
     "aws/modules/operator/helm_variables.gen.tf",
     "azure/modules/operator/helm_variables.gen.tf",
     "gcp/modules/operator/helm_variables.gen.tf",
