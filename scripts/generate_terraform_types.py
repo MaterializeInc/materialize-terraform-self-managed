@@ -12,6 +12,7 @@ Usage:
 
 The script generates:
     - kubernetes/modules/materialize-instance/crd_variables.gen.tf
+    - kubernetes/modules/operator/helm_variables.gen.tf
     - aws/modules/operator/helm_variables.gen.tf
     - azure/modules/operator/helm_variables.gen.tf
     - gcp/modules/operator/helm_variables.gen.tf
@@ -38,6 +39,8 @@ REPO_ROOT = SCRIPT_DIR.parent
 
 # Module directories
 MATERIALIZE_INSTANCE_DIR = REPO_ROOT / "kubernetes/modules/materialize-instance"
+
+KUBERNETES_OPERATOR_DIR = REPO_ROOT / "kubernetes/modules/operator"
 AWS_OPERATOR_DIR = REPO_ROOT / "aws/modules/operator"
 AZURE_OPERATOR_DIR = REPO_ROOT / "azure/modules/operator"
 GCP_OPERATOR_DIR = REPO_ROOT / "gcp/modules/operator"

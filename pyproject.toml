@@ -16,3 +16,8 @@ generate-terraform-types = "scripts.generate_terraform_types:main"
 dev-dependencies = [
     "pytest>=7.0",
 ]
+
+[tool.pytest.ini_options]
+markers = [
+    "kind: marks tests that require a kind cluster (deselect with '-m \"not kind\"')",
+]

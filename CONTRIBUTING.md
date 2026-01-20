@@ -112,6 +112,36 @@ For comprehensive testing documentation including architecture, debugging tips, 
 - [test/azure/README.md](./test/azure/README.md) - Azure-specific testing
 - [test/gcp/README.md](./test/gcp/README.md) - GCP-specific testing
 
+### Local Integration Tests (kind)
+
+Python-based integration tests validate Terraform modules by deploying a full Materialize stack on a local kind cluster.
+
+**Requirements:**
+- Docker
+- kind
+- kubectl
+- terraform
+- helm
+- `MATERIALIZE_LICENSE_KEY` environment variable
+
+**Running the tests:**
+
+```bash
+# Set your license key
+export MATERIALIZE_LICENSE_KEY="your-license-key"
+
+# Run kind integration tests
+uv run pytest tests/test_kind_integration.py -v --kind
+```
+
+The tests will:
+1. Create a kind cluster
+2. Deploy PostgreSQL and MinIO backends
+3. Apply Terraform to install the Materialize operator and instance
+4. Validate the deployment
+
+**Note:** The kind cluster persists after tests for debugging. Delete manually with `kind delete cluster --name mz-test`.
+
 ### Contributing Tests
 
 When adding new features or modules, please include corresponding tests:
