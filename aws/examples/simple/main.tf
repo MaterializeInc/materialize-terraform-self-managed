@@ -421,6 +421,7 @@ module "grafana" {
   namespace = "monitoring"
   # operator creates the "monitoring" namespace
   create_namespace = false
+  storage_class    = module.ebs_csi_driver.storage_class_name
   prometheus_url   = module.prometheus[0].prometheus_url
   node_selector    = local.generic_node_labels
 
