@@ -46,6 +46,12 @@ variable "storage_size" {
   nullable    = false
 }
 
+variable "storage_class" {
+  description = "Storage class for Grafana persistent volume. If not specified, uses the cluster default storage class."
+  type        = string
+  default     = null
+}
+
 variable "node_selector" {
   description = "Node selector for Grafana pods"
   type        = map(string)

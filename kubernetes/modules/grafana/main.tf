@@ -42,13 +42,23 @@ resource "kubernetes_config_map" "dashboards" {
   }
 }
 
+resource "random_password" "grafana_admin" {
+  count            = var.admin_password == null ? 1 : 0
+  length           = 16
+  special          = true
+  override_special = "@$%^()_+-="
+}
+
 locals {
+  admin_password = var.admin_password != null ? var.admin_password : random_password.grafana_admin[0].result
+
   helm_values = {
-    adminPassword = var.admin_password
+    adminPassword = local.admin_password
 
     persistence = {
-      enabled = true
-      size    = var.storage_size
+      enabled      = true
+      size         = var.storage_size
+      storageClass = var.storage_class
     }
 
     resources = {
@@ -94,8 +104,8 @@ locals {
         enabled           = true
         label             = "grafana_dashboard"
         labelValue        = "1"
-        searchNamespace   = "ALL"
-        folder            = "/tmp/dashboards"
+        searchNamespace   = var.namespace
+        folder            = "/var/lib/grafana/dashboards"
         defaultFolderName = "materialize"
       }
     }

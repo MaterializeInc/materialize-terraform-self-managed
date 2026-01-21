@@ -12,3 +12,13 @@ output "release_name" {
   description = "Name of the Prometheus Helm release"
   value       = helm_release.prometheus.name
 }
+
+output "service_name" {
+  description = "Prometheus server service name"
+  value       = "prometheus-server"
+}
+
+output "service_port" {
+  description = "Prometheus server service port"
+  value       = 80
+}

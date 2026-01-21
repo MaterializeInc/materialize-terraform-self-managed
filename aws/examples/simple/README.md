@@ -172,10 +172,10 @@ Then open [http://localhost:3000](http://localhost:3000) in your browser.
 #### Login Credentials
 
 - **Username:** `admin`
-- **Password:** Retrieve from Kubernetes secret:
+- **Password:** Retrieve from Terraform output:
 
 ```bash
-kubectl get secret grafana -n monitoring -o jsonpath='{.data.admin-password}' | base64 -d
+terraform output -raw grafana_admin_password
 ```
 
 #### Pre-configured Dashboards
@@ -183,6 +183,38 @@ kubectl get secret grafana -n monitoring -o jsonpath='{.data.admin-password}' | 
 The deployment includes Materialize dashboards under the "Materialize" folder:
 - **Environment Overview** - Overall Materialize environment health
 - **Freshness Overview** - Data freshness monitoring
+
+---
+
+## Prometheus Resource Sizing Recommendations
+
+The default Prometheus resource limits (500m CPU / 512Mi memory request, 1 CPU / 1Gi memory limit) are suitable for small deployments monitoring a single Materialize environment with default scrape intervals.
+
+For production deployments, consider increasing resources based on:
+- **Number of scrape targets**: More targets = more memory for time series
+- **Scrape interval**: Lower intervals increase CPU and memory usage
+- **Retention period**: Longer retention requires more storage and memory
+- **Query complexity**: Heavy dashboard usage increases CPU needs
+
+Example configuration for medium workload in `main.tf`:
+
+```hcl
+module "prometheus" {
+  source = "../../../kubernetes/modules/prometheus"
+  # ...
+  server_resources = {
+    requests = {
+      cpu    = "1000m"
+      memory = "2Gi"
+    }
+    limits = {
+      cpu    = "2000m"
+      memory = "4Gi"
+    }
+  }
+  storage_size = "100Gi"
+}
+```
 
 ---
 

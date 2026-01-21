@@ -12,7 +12,6 @@
 | Name | Version |
 |------|---------|
 | <a name="provider_helm"></a> [helm](#provider\_helm) | >= 2.5.0 |
-| <a name="provider_http"></a> [http](#provider\_http) | >= 3.0.0 |
 | <a name="provider_kubernetes"></a> [kubernetes](#provider\_kubernetes) | >= 2.10.0 |
 
 ## Modules
@@ -25,7 +24,7 @@ No modules.
 |------|------|
 | [helm_release.prometheus](https://registry.terraform.io/providers/hashicorp/helm/latest/docs/resources/release) | resource |
 | [kubernetes_namespace.prometheus](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/namespace) | resource |
-| [http_http.scrape_config](https://registry.terraform.io/providers/hashicorp/http/latest/docs/data-sources/http) | data source |
+| [kubernetes_storage_class.prometheus](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/data-sources/storage_class) | data source |
 
 ## Inputs
 
@@ -49,3 +48,5 @@ No modules.
 | <a name="output_namespace"></a> [namespace](#output\_namespace) | Namespace where Prometheus is deployed |
 | <a name="output_prometheus_url"></a> [prometheus\_url](#output\_prometheus\_url) | Internal URL for Prometheus server (for use as Grafana data source) |
 | <a name="output_release_name"></a> [release\_name](#output\_release\_name) | Name of the Prometheus Helm release |
+| <a name="output_service_name"></a> [service\_name](#output\_service\_name) | Prometheus server service name |
+| <a name="output_service_port"></a> [service\_port](#output\_service\_port) | Prometheus server service port |

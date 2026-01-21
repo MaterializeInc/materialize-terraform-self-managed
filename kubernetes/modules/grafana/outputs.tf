@@ -14,7 +14,7 @@ output "release_name" {
 }
 
 output "admin_password" {
-  description = "Admin password for Grafana (retrieve with: kubectl get secret grafana -n monitoring -o jsonpath='{.data.admin-password}' | base64 -d)"
-  value       = var.admin_password != null ? var.admin_password : "Generated - retrieve from Kubernetes secret"
+  description = "Admin password for Grafana"
+  value       = var.admin_password != null ? var.admin_password : random_password.grafana_admin[0].result
   sensitive   = true
 }

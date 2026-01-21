@@ -49,3 +49,9 @@ variable "tags" {
   type        = map(string)
   default     = {}
 }
+
+variable "kms_key_id" {
+  description = "The ARN of a KMS key to use for EBS volume encryption. If not specified, volumes will use AWS managed encryption."
+  type        = string
+  default     = null
+}
