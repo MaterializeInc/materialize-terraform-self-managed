@@ -123,6 +123,9 @@ locals {
       effect   = "NoSchedule"
     }
   ]
+
+  # https://learn.microsoft.com/en-us/azure/aks/concepts-storage#storage-classes
+  storage_class = "managed-csi"
 }
 
 
@@ -337,8 +340,7 @@ module "prometheus" {
   namespace        = "monitoring"
   create_namespace = false # operator creates the "monitoring" namespace
   node_selector    = local.generic_node_labels
-  # https://learn.microsoft.com/en-us/azure/aks/concepts-storage#storage-classes
-  storage_class = "managed-csi"
+  storage_class    = local.storage_class
 
   depends_on = [
     module.operator,
@@ -351,7 +353,8 @@ module "grafana" {
   count  = var.enable_observability ? 1 : 0
   source = "../../../kubernetes/modules/grafana"
 
-  namespace = "monitoring"
+  namespace     = "monitoring"
+  storage_class = local.storage_class
   # operator creates the "monitoring" namespace
   create_namespace = false
   prometheus_url   = module.prometheus[0].prometheus_url
