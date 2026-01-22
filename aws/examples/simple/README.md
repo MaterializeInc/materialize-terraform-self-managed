@@ -257,7 +257,7 @@ instance_types_materialize = ["r7gd.8xlarge"]
 - All `r7gd` instances include local NVMe SSD storage required for swap
 - Larger instances have higher costs but support larger Materialize clusters
 - Instance availability varies by region/zone; verify availability in your target region
-- The kube-reserved memory calculations are based on the configured instance type
+- The kube-reserved memory calculations are based on the largest configured instance type. Specifying multiple instance types with different CPU or RAM capacities may result in some instance types having inefficient kube-reserved values.
 
 ---
 
