@@ -7,6 +7,7 @@ resource "azurerm_storage_account" "materialize" {
   account_tier             = "Premium"
   account_replication_type = "LRS"
   account_kind             = "BlockBlobStorage"
+  min_tls_version          = "TLS1_2"
 
   dynamic "network_rules" {
     for_each = length(var.subnets) == 0 ? [] : ["has_subnets"]
