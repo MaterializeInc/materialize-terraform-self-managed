@@ -169,3 +169,9 @@ output "grafana_url" {
   description = "Internal URL for Grafana"
   value       = var.enable_observability ? module.grafana[0].grafana_url : null
 }
+
+output "grafana_admin_password" {
+  description = "`admin` password for Grafana"
+  value       = var.enable_observability ? module.grafana[0].admin_password : null
+  sensitive   = true
+}
