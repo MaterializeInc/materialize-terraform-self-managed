@@ -227,7 +227,7 @@ The Karpenter Materialize nodepool is configured to use `r7gd.2xlarge` instances
 
 ### Supported Cluster Sizes
 
-With the default `r7gd.2xlarge` instance type, you can create Materialize clusters up to approximately **300cc** with `REPLICATION FACTOR = 2`. Larger cluster sizes (e.g., `600cc`) require more resources than a single `r7gd.2xlarge` can provide.
+With the default `r7gd.2xlarge` instance type, you can create Materialize clusters up to approximately **300cc**. Larger cluster sizes (e.g., `600cc`) require more resources than a single `r7gd.2xlarge` can provide.
 
 ### Configuring Larger Instance Types
 
