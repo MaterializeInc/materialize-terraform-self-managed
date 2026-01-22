@@ -218,6 +218,49 @@ module "prometheus" {
 
 ---
 
+## Cluster Sizes and Instance Types
+
+The Karpenter Materialize nodepool is configured to use `r7gd.2xlarge` instances by default. This instance type has:
+- **8 vCPUs**
+- **64 GiB RAM**
+- **NVMe SSD** (for swap)
+
+### Supported Cluster Sizes
+
+With the default `r7gd.2xlarge` instance type, you can create Materialize clusters up to approximately **300cc** with `REPLICATION FACTOR = 2`. Larger cluster sizes (e.g., `600cc`) require more resources than a single `r7gd.2xlarge` can provide.
+
+### Configuring Larger Instance Types
+
+To support larger cluster sizes, modify the `instance_types_materialize` variable in `main.tf`:
+
+```hcl
+# Default (supports up to ~300cc with RF=2)
+instance_types_materialize = ["r7gd.2xlarge"]
+
+# For larger clusters (supports up to ~600cc with RF=2)
+instance_types_materialize = ["r7gd.4xlarge"]
+
+# For very large clusters (supports up to ~1200cc with RF=2)
+instance_types_materialize = ["r7gd.8xlarge"]
+```
+
+**Instance Type Reference:**
+
+| Instance Type | vCPUs | Memory | Max Cluster Size (approx, RF=2) |
+|---------------|-------|--------|--------------------------------|
+| r7gd.2xlarge  | 8     | 64 GiB | ~300cc                         |
+| r7gd.4xlarge  | 16    | 128 GiB| ~600cc                         |
+| r7gd.8xlarge  | 32    | 256 GiB| ~1200cc                        |
+| r7gd.16xlarge | 64    | 512 GiB| ~2400cc                        |
+
+**Important Notes:**
+- All `r7gd` instances include local NVMe SSD storage required for swap
+- Larger instances have higher costs but support larger Materialize clusters
+- Instance availability varies by region/zone; verify availability in your target region
+- The kube-reserved memory calculations are based on the configured instance type
+
+---
+
 ## Notes
 
 * You can customize each module independently.
