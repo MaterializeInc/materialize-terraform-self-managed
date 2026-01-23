@@ -46,7 +46,7 @@ variable "environmentd_version" {
 }
 
 variable "environmentd_extra_env" {
-  description = "Extra environment variables for environmentd"
+  description = "DEPRECATED: Use materialize_spec_override.environmentdExtraEnv instead. Extra environment variables for environmentd."
   type = list(object({
     name  = string
     value = string
@@ -55,28 +55,28 @@ variable "environmentd_extra_env" {
 }
 
 variable "environmentd_extra_args" {
-  description = "Extra command line arguments for environmentd"
+  description = "DEPRECATED: Use materialize_spec_override.environmentdExtraArgs instead. Extra command line arguments for environmentd."
   type        = list(string)
   default     = []
 }
 
 # Resource Requirements
 variable "cpu_request" {
-  description = "CPU request for environmentd"
+  description = "DEPRECATED: Use materialize_spec_override.environmentdResourceRequirements instead. CPU request for environmentd."
   type        = string
   default     = "1"
   nullable    = false
 }
 
 variable "memory_request" {
-  description = "Memory request for environmentd"
+  description = "DEPRECATED: Use materialize_spec_override.environmentdResourceRequirements instead. Memory request for environmentd."
   type        = string
   default     = "4095Mi"
   nullable    = false
 }
 
 variable "memory_limit" {
-  description = "Memory limit for environmentd"
+  description = "DEPRECATED: Use materialize_spec_override.environmentdResourceRequirements instead. Memory limit for environmentd."
   type        = string
   default     = "4Gi"
   nullable    = false
@@ -84,7 +84,7 @@ variable "memory_limit" {
 
 # Rollout Configuration
 variable "rollout_strategy" {
-  description = "Strategy to use for rollouts"
+  description = "DEPRECATED: Use materialize_spec_override.rolloutStrategy instead. Strategy to use for rollouts."
   type        = string
   default     = "WaitUntilReady"
   nullable    = false
@@ -95,7 +95,7 @@ variable "rollout_strategy" {
 }
 
 variable "request_rollout" {
-  description = "UUID to request a rollout"
+  description = "DEPRECATED: Use materialize_spec_override.requestRollout instead. UUID to request a rollout."
   type        = string
   default     = "00000000-0000-0000-0000-000000000001"
   nullable    = false
@@ -107,7 +107,7 @@ variable "request_rollout" {
 }
 
 variable "force_rollout" {
-  description = "UUID to force a rollout"
+  description = "DEPRECATED: Use materialize_spec_override.forceRollout instead. UUID to force a rollout."
   type        = string
   default     = "00000000-0000-0000-0000-000000000001"
   nullable    = false
@@ -120,30 +120,30 @@ variable "force_rollout" {
 
 # Balancer Resource Requirements
 variable "balancer_memory_request" {
-  description = "Memory request for balancer"
+  description = "DEPRECATED: Use materialize_spec_override.balancerdResourceRequirements instead. Memory request for balancer."
   type        = string
   default     = "256Mi"
   nullable    = false
 }
 
 variable "balancer_memory_limit" {
-  description = "Memory limit for balancer"
+  description = "DEPRECATED: Use materialize_spec_override.balancerdResourceRequirements instead. Memory limit for balancer."
   type        = string
   default     = "256Mi"
   nullable    = false
 }
 
 variable "balancer_cpu_request" {
-  description = "CPU request for balancer"
+  description = "DEPRECATED: Use materialize_spec_override.balancerdResourceRequirements instead. CPU request for balancer."
   type        = string
   default     = "100m"
   nullable    = false
 }
 
 variable "authenticator_kind" {
-  description = "Kind of authenticator to use for Materialize instance"
+  description = "DEPRECATED: Use materialize_spec_override.authenticatorKind instead. Kind of authenticator to use for Materialize instance. Password or Sasl (SCRAM) is recommended for production."
   type        = string
-  default     = "None"
+  default     = "Password"
   nullable    = false
   validation {
     condition     = contains(["None", "Password", "Sasl"], var.authenticator_kind)
@@ -159,14 +159,14 @@ variable "external_login_password_mz_system" {
 }
 
 variable "service_account_annotations" {
-  description = "Annotations for the service account associated with the materialize instance. Useful for IAM roles assigned to the service account."
+  description = "DEPRECATED: Use materialize_spec_override.serviceAccountAnnotations instead. Annotations for the service account associated with the materialize instance. Useful for IAM roles assigned to the service account."
   type        = map(string)
   default     = {}
   nullable    = false
 }
 
 variable "pod_labels" {
-  description = "Labels for the materialize instance pod"
+  description = "DEPRECATED: Use materialize_spec_override.podLabels instead. Labels for the materialize instance pod."
   type        = map(string)
   default     = {}
   nullable    = false
@@ -174,10 +174,11 @@ variable "pod_labels" {
 
 
 variable "issuer_ref" {
-  description = "Reference to a cert-manager Issuer or ClusterIssuer."
+  description = "DEPRECATED: Use materialize_spec_override.internalCertificateSpec.issuerRef instead. Reference to a cert-manager Issuer or ClusterIssuer."
   type = object({
     name = string
     kind = string
   })
   default = null
 }
+

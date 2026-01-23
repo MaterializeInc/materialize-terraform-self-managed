@@ -1,0 +1,59 @@
+[
+  ["MaterializeSpec", [
+    {"name": "backendSecretName", "type": "String", "required": true, "description": "The name of a secret containing backend URLs"},
+    {"name": "environmentdImageRef", "type": "String", "required": false, "description": "Docker image reference"},
+    {"name": "authenticatorKind", "type": "Enum", "required": false, "description": "Kind of authenticator"},
+    {"name": "enableRbac", "type": "Bool", "required": false, "description": "Enable RBAC"},
+    {"name": "balancerdReplicas", "type": "Integer", "required": false, "description": "Number of balancer replicas"},
+    {"name": "environmentdExtraArgs", "type": "Array<String>", "required": false, "description": "Extra args"},
+    {"name": "podLabels", "type": "Map<String, String>", "required": false, "description": "Labels for pods"},
+    {"name": "internalCertificateSpec", "type": "MaterializeCertSpec", "required": false, "description": "Internal cert config"},
+    {"name": "environmentdResourceRequirements", "type": "ResourceRequirements", "required": false, "description": "Resource requirements"},
+    {"name": "environmentdExtraEnv", "type": "Array<EnvVar>", "required": false, "description": "Extra env vars"},
+    {"name": "oldDeprecatedField", "type": "String", "required": false, "description": "Old field", "deprecated": true}
+  ]],
+  ["MaterializeCertSpec", [
+    {"name": "dnsNames", "type": "Array<String>", "required": false, "description": "DNS names for certificate"},
+    {"name": "duration", "type": "String", "required": false, "description": "Certificate duration"},
+    {"name": "renewBefore", "type": "String", "required": false, "description": "Renew before expiry"},
+    {"name": "issuerRef", "type": "CertificateIssuerRef", "required": false, "description": "Reference to issuer"},
+    {"name": "secretTemplate", "type": "SecretTemplate", "required": false, "description": "Template for secret"}
+  ]],
+  ["CertificateIssuerRef", [
+    {"name": "name", "type": "String", "required": true, "description": "Name of the issuer"},
+    {"name": "kind", "type": "String", "required": false, "description": "Kind of issuer"},
+    {"name": "group", "type": "String", "required": false, "description": "API group"}
+  ]],
+  ["SecretTemplate", [
+    {"name": "annotations", "type": "Map<String, String>", "required": false, "description": "Annotations"},
+    {"name": "labels", "type": "Map<String, String>", "required": false, "description": "Labels"}
+  ]],
+  ["ResourceRequirements", [
+    {"name": "limits", "type": "Map<String, String>", "required": false, "description": "Resource limits"},
+    {"name": "requests", "type": "Map<String, String>", "required": false, "description": "Resource requests"},
+    {"name": "claims", "type": "Array<ResourceClaim>", "required": false, "description": "Resource claims"}
+  ]],
+  ["ResourceClaim", [
+    {"name": "name", "type": "String", "required": true, "description": "Claim name"},
+    {"name": "request", "type": "String", "required": false, "description": "Request amount"}
+  ]],
+  ["EnvVar", [
+    {"name": "name", "type": "String", "required": true, "description": "Env var name"},
+    {"name": "value", "type": "String", "required": false, "description": "Env var value"},
+    {"name": "valueFrom", "type": "EnvVarSource", "required": false, "description": "Value source"}
+  ]],
+  ["EnvVarSource", [
+    {"name": "configMapKeyRef", "type": "ConfigMapKeySelector", "required": false, "description": "ConfigMap reference"},
+    {"name": "secretKeyRef", "type": "SecretKeySelector", "required": false, "description": "Secret reference"}
+  ]],
+  ["ConfigMapKeySelector", [
+    {"name": "name", "type": "String", "required": true, "description": "ConfigMap name"},
+    {"name": "key", "type": "String", "required": true, "description": "Key in ConfigMap"},
+    {"name": "optional", "type": "Bool", "required": false, "description": "Whether optional"}
+  ]],
+  ["SecretKeySelector", [
+    {"name": "name", "type": "String", "required": true, "description": "Secret name"},
+    {"name": "key", "type": "String", "required": true, "description": "Key in secret"},
+    {"name": "optional", "type": "Bool", "required": false, "description": "Whether optional"}
+  ]]
+]

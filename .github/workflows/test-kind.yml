@@ -1,0 +1,59 @@
+name: Kind Integration Tests
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'kubernetes/modules/**'
+      - 'scripts/generate_terraform_types.py'
+      - 'tests/kind/**'
+      - '.github/workflows/test-kind.yml'
+
+jobs:
+  test:
+    name: Run Kind Integration Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "0.9.17"
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.9.0"
+          terraform_wrapper: false
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: "v3.16.0"
+
+      - name: Install kind
+        run: |
+          curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.24.0/kind-linux-amd64
+          chmod +x ./kind
+          sudo mv ./kind /usr/local/bin/kind
+
+      - name: Run integration tests
+        env:
+          MATERIALIZE_LICENSE_KEY: ${{ secrets.MATERIALIZE_LICENSE_KEY }}
+        run: uv run pytest tests/test_kind_integration.py -v --kind
+
+      - name: Debug on failure
+        if: failure()
+        run: |
+          echo "=== Pods ==="
+          kubectl get pods -A
+          echo "=== Events ==="
+          kubectl get events -A --sort-by='.lastTimestamp' | tail -50
+          echo "=== Materialize Instance ==="
+          kubectl get materialize -A -o yaml || true
+          echo "=== Operator Logs ==="
+          kubectl logs -n materialize -l app.kubernetes.io/name=materialize-operator --tail=100 || true

@@ -29,6 +29,9 @@ tests/.terraform.lock.hcl
 # macOS
 .DS_Store
 
+# Python
+__pycache__/
+
 # IDE
 .idea/
 .vscode/
@@ -44,3 +47,4 @@ tests/.terraform.lock.hcl
 test/*/t[0-9]*-*/
 .github/setup/*/terraform.tfstate
 .github/setup/*/backend-override.tf
+tests/kind/logs/
