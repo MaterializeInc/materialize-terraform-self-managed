@@ -227,8 +227,7 @@ The Karpenter Materialize nodepool is configured to use `r7gd.2xlarge` instances
 
 ### Supported Cluster Sizes
 
-With the default `r7gd.2xlarge` instance type, you can create Materialize clusters up to approximately **300cc**. Larger cluster sizes (e.g., `600cc`) require more resources than a single `r7gd.2xlarge` can provide.
-
+With the default `r7gd.2xlarge` instance type, you can create Materialize clusters up to approximately **300cc**. Larger cluster sizes (e.g., `600cc`) require more resources than a single `r7gd.2xlarge` can provide. Checkout [materialize self-managed documentation](https://materialize.com/docs/self-managed-deployments/appendix/appendix-cluster-sizes/#default-cluster-sizes) for more information about supported cluster sizes.
 ### Configuring Larger Instance Types
 
 To support larger cluster sizes, modify the `instance_types_materialize` variable in `main.tf`:
@@ -246,12 +245,12 @@ instance_types_materialize = ["r7gd.8xlarge"]
 
 **Instance Type Reference:**
 
-| Instance Type | vCPUs | Memory | Max Cluster Size (approx, RF=2) |
+| Instance Type | vCPUs | Memory | Max Cluster Size               |
 |---------------|-------|--------|--------------------------------|
 | r7gd.2xlarge  | 8     | 64 GiB | ~300cc                         |
 | r7gd.4xlarge  | 16    | 128 GiB| ~600cc                         |
 | r7gd.8xlarge  | 32    | 256 GiB| ~1200cc                        |
-| r7gd.16xlarge | 64    | 512 GiB| ~2400cc                        |
+| r7gd.16xlarge | 64    | 512 GiB| ~3200cc                        |
 
 **Important Notes:**
 - All `r7gd` instances include local NVMe SSD storage required for swap
