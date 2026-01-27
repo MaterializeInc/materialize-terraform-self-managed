@@ -233,13 +233,13 @@ With the default `r7gd.2xlarge` instance type, you can create Materialize cluste
 To support larger cluster sizes, modify the `instance_types_materialize` variable in `main.tf`:
 
 ```hcl
-# Default (supports up to ~300cc with RF=2)
+# Default (supports up to ~300cc)
 instance_types_materialize = ["r7gd.2xlarge"]
 
-# For larger clusters (supports up to ~600cc with RF=2)
+# For larger clusters (supports up to ~600cc)
 instance_types_materialize = ["r7gd.4xlarge"]
 
-# For very large clusters (supports up to ~1200cc with RF=2)
+# For very large clusters (supports up to ~1200cc)
 instance_types_materialize = ["r7gd.8xlarge"]
 ```
 
