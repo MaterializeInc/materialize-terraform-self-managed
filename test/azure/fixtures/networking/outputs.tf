@@ -13,6 +13,11 @@ output "vnet_name" {
   value       = module.networking.vnet_name
 }
 
+output "api_server_subnet_id" {
+  description = "The ID of the API server subnet"
+  value       = module.networking.api_server_subnet_id
+}
+
 output "aks_subnet_id" {
   description = "The ID of the AKS subnet"
   value       = module.networking.aks_subnet_id
@@ -47,4 +52,3 @@ output "vnet_address_space" {
   description = "The address space of the virtual network"
   value       = module.networking.vnet_address_space
 }
-
