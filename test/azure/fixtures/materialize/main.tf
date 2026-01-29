@@ -233,6 +233,7 @@ module "load_balancer" {
   depends_on = [module.materialize_instance]
 }
 
+
 # Local values for backend URLs
 locals {
   metadata_backend_url = format(
