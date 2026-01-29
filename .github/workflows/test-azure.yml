@@ -57,6 +57,7 @@ jobs:
       - name: List all changed files
         run: |
           echo "Changed files: ${{ steps.ignored-files-changed.outputs.all_changed_files }}"
+          echo "Are ignored Files Only modified: ${{ steps.ignored-files-changed.outputs.only_modified }}"
 
   test-azure:
     name: Azure Infrastructure Tests
