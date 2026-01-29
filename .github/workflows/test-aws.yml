@@ -55,12 +55,16 @@ jobs:
       - name: List all changed files
         run: |
           echo "Changed files: ${{ steps.ignored-files-changed.outputs.all_changed_files }}"
+          echo "Are ignored Files Only modified: ${{ steps.ignored-files-changed.outputs.only_modified }}"
+
 
   test-aws:
     name: AWS Infrastructure Tests
     runs-on: ubuntu-latest
     needs: ignored_files
-    if: needs.ignored_files.outputs.only_modified == 'false'
+    # only_modified seems to be inverted, doc says it should be false but it's true when other files instead of ignored files are modified
+    # https://github.com/tj-actions/changed-files?tab=readme-ov-file#output_only_modified 
+    if: needs.ignored_files.outputs.only_modified == 'true'
     # Note: Triggered automatically when approved PRs enter GitHub's merge queue
     # Smart path filtering ensures tests run only when AWS infrastructure changes
     env:
