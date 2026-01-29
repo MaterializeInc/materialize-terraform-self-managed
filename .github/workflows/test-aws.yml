@@ -15,7 +15,6 @@ on:
           - network-only
           - full-test
 
-
   # Future enhancement: Add scheduled runs for nightly testing
   # schedule:
   #   - cron: '30 4 * * *'  # 10 AM IST (4:30 AM UTC) for nightly infrastructure validation
