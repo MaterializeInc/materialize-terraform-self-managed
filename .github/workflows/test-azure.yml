@@ -39,6 +39,7 @@ jobs:
         id: ignored-files-changed
         uses: tj-actions/changed-files@v47
         with:
+          since_last_remote_commit: "false"
           files_ignore: |
             aws/**
             gcp/**
