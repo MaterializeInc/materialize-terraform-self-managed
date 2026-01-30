@@ -56,7 +56,6 @@ jobs:
         run: |
           echo "Changed files: ${{ steps.ignored-files-changed.outputs.all_changed_files }}"
           echo "Are ignored Files Only modified: ${{ steps.ignored-files-changed.outputs.only_modified }}"
-          echo "Any Modified Flag: ${{ steps.ignored-files-changed.outputs.any_modified }}"
 
 
   test-aws:
