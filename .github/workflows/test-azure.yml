@@ -54,16 +54,13 @@ jobs:
       - name: List all changed files
         run: |
           echo "Changed files: ${{ steps.ignored-files-changed.outputs.all_changed_files }}"
-          echo "Are ignored Files Only modified: ${{ steps.ignored-files-changed.outputs.only_modified }}"
-          echo "Any Modified Flag: ${{ steps.ignored-files-changed.outputs.any_modified }}"
+          echo "Are other files apart from ignored ones modified: ${{ steps.ignored-files-changed.outputs.any_modified }}"
 
   test-azure:
     name: Azure Infrastructure Tests
     runs-on: ubuntu-latest
     needs: ignored_files
-    # only_modified seems to be inverted, doc says it should be false but it's true when other files instead of ignored files are modified
-    # https://github.com/tj-actions/changed-files?tab=readme-ov-file#output_only_modified 
-    if: needs.ignored_files.outputs.only_modified == 'true'
+    if: needs.ignored_files.outputs.any_modified == 'true'
     env:
       DURATION_SECONDS: 14400 # 4 hours
 
