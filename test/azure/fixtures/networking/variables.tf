@@ -33,8 +33,17 @@ variable "postgres_subnet_cidr" {
   type        = string
 }
 
+variable "api_server_subnet_cidr" {
+  description = "The CIDR block for the API server subnet"
+  type        = string
+}
+
+variable "enable_api_server_vnet_integration" {
+  description = "Whether to enable API server VNet integration"
+  type        = bool
+}
+
 variable "tags" {
   description = "Tags to apply to resources created."
   type        = map(string)
 }
-

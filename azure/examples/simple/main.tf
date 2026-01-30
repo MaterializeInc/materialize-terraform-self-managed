@@ -375,11 +375,6 @@ module "load_balancers" {
   resource_id         = module.materialize_instance.instance_resource_id
   internal            = var.internal_load_balancer
   ingress_cidr_blocks = var.internal_load_balancer ? null : var.ingress_cidr_blocks
-  resource_group_name = azurerm_resource_group.materialize.name
-  location            = var.location
-  prefix              = var.name_prefix
-  tags                = var.tags
-  aks_subnet_id       = module.networking.aks_subnet_id
 
   depends_on = [
     module.materialize_instance,

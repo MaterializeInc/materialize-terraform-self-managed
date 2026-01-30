@@ -179,33 +179,32 @@ resource "azurerm_role_assignment" "github_actions_contributor" {
 # ---> Network Contributor and Storage Blob Data Contributor since we only assign those in az modules
 resource "azurerm_role_assignment" "github_actions_rbac_admin" {
   scope                = "/subscriptions/${data.azurerm_client_config.current.subscription_id}"
-  role_definition_name = "Role Based Access Control Administrator"  
+  role_definition_name = "Role Based Access Control Administrator"
   principal_id         = azuread_service_principal.github_actions.object_id
-  
+
   # ABAC condition to block assignment of high-privilege roles
   # Allows assignment of any role EXCEPT: Owner, User Access Administrator, RBAC Administrator
-  # Using data sources to get role GUIDs dynamically instead of hardcoding
-  # TODO: Test and validate this configuration, havent tested due to Perms issue.
-  condition = <<-EOT
+  # Using data sources to get role definition IDs dynamically instead of hardcoding
+  condition         = <<-EOT
     (
       (!(ActionMatches{'Microsoft.Authorization/roleAssignments/write'})) 
       OR 
-      (@Request[Microsoft.Authorization/roleAssignments:RoleDefinitionId] ForAllOfAllValues:GuidNotEquals {
-        ${data.azurerm_role_definition.owner.id}, 
-        ${data.azurerm_role_definition.user_access_administrator.id}, 
-        ${data.azurerm_role_definition.rbac_administrator.id}
+      (@Request[Microsoft.Authorization/roleAssignments:RoleDefinitionId] ForAllOfAllValues:StringNotEquals {
+        '${data.azurerm_role_definition.owner.id}', 
+        '${data.azurerm_role_definition.user_access_administrator.id}', 
+        '${data.azurerm_role_definition.rbac_administrator.id}'
       })
     ) 
     AND 
     (
       (!(ActionMatches{'Microsoft.Authorization/roleAssignments/delete'})) 
       OR 
-      (@Resource[Microsoft.Authorization/roleAssignments:RoleDefinitionId] ForAllOfAllValues:GuidNotEquals {
-        ${data.azurerm_role_definition.owner.id}, 
-        ${data.azurerm_role_definition.user_access_administrator.id}, 
-        ${data.azurerm_role_definition.rbac_administrator.id}
+      (@Resource[Microsoft.Authorization/roleAssignments:RoleDefinitionId] ForAllOfAllValues:StringNotEquals {
+        '${data.azurerm_role_definition.owner.id}', 
+        '${data.azurerm_role_definition.user_access_administrator.id}', 
+        '${data.azurerm_role_definition.rbac_administrator.id}'
       })
     )
   EOT
-  condition_version    = "2.0"
+  condition_version = "2.0"
 }

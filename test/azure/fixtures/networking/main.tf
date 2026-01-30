@@ -21,12 +21,13 @@ resource "azurerm_resource_group" "test" {
 module "networking" {
   source = "../../../../azure/modules/networking"
 
-  resource_group_name  = azurerm_resource_group.test.name
-  location             = var.location
-  prefix               = var.prefix
-  vnet_address_space   = var.vnet_address_space
-  aks_subnet_cidr      = var.aks_subnet_cidr
-  postgres_subnet_cidr = var.postgres_subnet_cidr
-  tags                 = var.tags
+  resource_group_name                = azurerm_resource_group.test.name
+  location                           = var.location
+  prefix                             = var.prefix
+  vnet_address_space                 = var.vnet_address_space
+  aks_subnet_cidr                    = var.aks_subnet_cidr
+  postgres_subnet_cidr               = var.postgres_subnet_cidr
+  api_server_subnet_cidr             = var.api_server_subnet_cidr
+  enable_api_server_vnet_integration = var.enable_api_server_vnet_integration
+  tags                               = var.tags
 }
-

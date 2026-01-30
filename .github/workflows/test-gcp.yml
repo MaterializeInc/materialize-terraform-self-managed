@@ -28,7 +28,7 @@ jobs:
     runs-on: ubuntu-latest
     name: Check for ignored files (GCP Tests)
     outputs:
-      only_modified: ${{ steps.ignored-files-changed.outputs.only_modified }}
+      any_modified: ${{ steps.ignored-files-changed.outputs.any_modified }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -55,12 +55,14 @@ jobs:
       - name: List all changed files
         run: |
           echo "Changed files: ${{ steps.ignored-files-changed.outputs.all_changed_files }}"
+          echo "Are other files apart from ignored ones modified: ${{ steps.ignored-files-changed.outputs.any_modified }}"
+
 
   test-gcp:
     name: GCP Infrastructure Tests
     runs-on: ubuntu-latest
     needs: ignored_files
-    if: needs.ignored_files.outputs.only_modified == 'false'
+    if: needs.ignored_files.outputs.any_modified == 'true'
     env:
       DURATION_SECONDS: 14400 # 4 hours
 
