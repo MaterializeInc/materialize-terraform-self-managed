@@ -139,4 +139,4 @@ jobs:
           echo ""
           echo "🧪 Starting Go tests..."
 
-        # go test -timeout ${{ env.DURATION_SECONDS }}s -run TestStagedDeploymentSuite -v
+          go test -timeout ${{ env.DURATION_SECONDS }}s -run TestStagedDeploymentSuite -v
