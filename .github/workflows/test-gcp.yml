@@ -28,7 +28,7 @@ jobs:
     runs-on: ubuntu-latest
     name: Check for ignored files (GCP Tests)
     outputs:
-      only_modified: ${{ steps.ignored-files-changed.outputs.only_modified }}
+      any_modified: ${{ steps.ignored-files-changed.outputs.any_modified }}
     steps:
       - uses: actions/checkout@v4
         with:
