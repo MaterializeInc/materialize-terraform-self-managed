@@ -194,12 +194,12 @@ module "nodepool_materialize" {
   # WARNING: setting this to any value other than Never may cause
   # downtime. Karpenter will remove nodes regardless of whether they
   # have pods with do-not-disrupt labels. If you set this to any duration
-  # you should ensure that you always gracefull roll nodes during a
+  # you should ensure that you always gracefully roll nodes during a
   # materialize rollout. To do this cordon the node, perform an upgrade or 
   # forced rollout of all materialize instances that may be using the node pool.
   # the node should have all pods removed from it and be consolidated. You may
   # also delete the node after all clusterd and environmentd pods have been moved off.
-  expire_after   = "Never"
+  expire_after = "Never"
 
   kubeconfig_data = local.kubeconfig_data
 
