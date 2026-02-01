@@ -98,6 +98,10 @@ resource "azurerm_kubernetes_cluster" "aks" {
     outbound_type = "userAssignedNATGateway"
   }
 
+  storage_profile {
+    disk_driver_enabled = var.disk_driver_enabled
+  }
+
   tags = var.tags
 
   depends_on = [
