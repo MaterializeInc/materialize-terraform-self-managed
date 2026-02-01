@@ -311,6 +311,19 @@ module "operator" {
   # node selector for operator and metrics-server workloads
   operator_node_selector = local.generic_node_labels
 
+
+  # Enable Prometheus scrape annotations when observability is enabled
+  helm_values = var.enable_observability ? {
+    observability = {
+      enabled : true
+      prometheus = {
+        scrapeAnnotations = {
+          enabled = true
+        }
+      }
+    }
+  } : {}
+
   depends_on = [
     module.gke,
     module.generic_nodepool,
@@ -331,6 +344,7 @@ module "prometheus" {
   depends_on = [
     module.operator,
     module.gke,
+    module.generic_nodepool,
     module.coredns,
   ]
 }
