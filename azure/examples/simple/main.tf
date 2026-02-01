@@ -324,6 +324,18 @@ module "operator" {
   # node selector for operator and metrics-server workloads
   operator_node_selector = local.generic_node_labels
 
+  # Enable Prometheus scrape annotations when observability is enabled
+  helm_values = var.enable_observability ? {
+    observability = {
+      enabled : true
+      prometheus = {
+        scrapeAnnotations = {
+          enabled = true
+        }
+      }
+    }
+  } : {}
+
   depends_on = [
     module.aks,
     module.database,
@@ -331,7 +343,6 @@ module "operator" {
     module.coredns,
   ]
 }
-
 
 module "prometheus" {
   count  = var.enable_observability ? 1 : 0
