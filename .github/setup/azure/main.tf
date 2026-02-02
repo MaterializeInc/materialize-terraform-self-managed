@@ -37,23 +37,32 @@ resource "azuread_service_principal" "github_actions" {
 # Azure requires specific branch patterns rather than wildcards
 
 # For main branch
-resource "azuread_application_federated_identity_credential" "github_actions_main" {
-  application_id = azuread_application.github_actions.id
-  display_name   = "mz-github-actions-oidc-main"
-  description    = "Federated credential for GitHub Actions on main branch"
-  audiences      = ["api://AzureADTokenExchange"]
-  issuer         = "https://token.actions.githubusercontent.com"
-  subject        = "repo:${var.github_repository}:ref:refs/heads/main"
-}
+# resource "azuread_application_federated_identity_credential" "github_actions_main" {
+#   application_id = azuread_application.github_actions.id
+#   display_name   = "mz-github-actions-oidc-main"
+#   description    = "Federated credential for GitHub Actions on main branch"
+#   audiences      = ["api://AzureADTokenExchange"]
+#   issuer         = "https://token.actions.githubusercontent.com"
+#   subject        = "repo:${var.github_repository}:ref:refs/heads/main"
+# }
 
-# For pull requests
-resource "azuread_application_federated_identity_credential" "github_actions_pr" {
-  application_id = azuread_application.github_actions.id
-  display_name   = "mz-github-actions-oidc-pr"
-  description    = "Federated credential for GitHub Actions on pull requests"
-  audiences      = ["api://AzureADTokenExchange"]
-  issuer         = "https://token.actions.githubusercontent.com"
-  subject        = "repo:${var.github_repository}:pull_request"
+# # For pull requests
+# resource "azuread_application_federated_identity_credential" "github_actions" {
+#   application_id = azuread_application.github_actions.id
+#   display_name   = "mz-github-actions-oidc-pr"
+#   description    = "Federated credential for GitHub Actions on pull requests"
+#   audiences      = ["api://AzureADTokenExchange"]
+#   issuer         = "https://token.actions.githubusercontent.com"
+#   subject        = "repo:${var.github_repository}:pull_request"
+# }
+
+resource "azuread_application_flexible_federated_identity_credential" "github_actions" {
+  application_id             = azuread_application.github_actions.id
+  claims_matching_expression = "claims['sub'] matches 'repo:${var.github_repository}:ref:refs/heads/*' and claims['job_workflow_ref'] matches '${var.github_repository}/.github/workflows/test-azure.yml@refs/heads/*'"
+  display_name               = "mz-github-actions-oidc"
+  description                = "Federated credential for GitHub Actions"
+  audience                   = "api://AzureADTokenExchange"
+  issuer                     = "https://token.actions.githubusercontent.com"
 }
 
 # Get current Azure AD configuration
