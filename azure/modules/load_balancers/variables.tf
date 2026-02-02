@@ -10,58 +10,21 @@ variable "namespace" {
   nullable    = false
 }
 
-variable "resource_group_name" {
-  description = "The name of the resource group."
+variable "resource_id" {
+  description = "The resource_id in the Materialize status."
   type        = string
   nullable    = false
 }
 
-variable "location" {
-  description = "The location of the resource group."
-  type        = string
-  nullable    = true
-
-  validation {
-    condition     = var.internal || var.location != null
-    error_message = "location must be provided when creating a public load balancer (internal = false)."
-  }
-}
-
-variable "prefix" {
-  description = "The prefix for the resource group."
-  type        = string
-  nullable    = true
-
-  validation {
-    condition     = var.internal || var.prefix != null
-    error_message = "prefix must be provided when creating a public load balancer (internal = false)."
-  }
-}
-
-variable "tags" {
-  description = "The tags for the resource group."
-  type        = map(string)
-  nullable    = true
-
-  validation {
-    condition     = var.internal || var.tags != null
-    error_message = "tags must be provided when creating a public load balancer (internal = false)."
-  }
-}
-
-variable "aks_subnet_id" {
-  description = "The ID of the AKS subnet."
-  type        = string
-  nullable    = true
-
-  validation {
-    condition     = var.internal || var.aks_subnet_id != null
-    error_message = "aks_subnet_id must be provided when creating a public load balancer (internal = false)."
-  }
+variable "internal" {
+  description = "Whether the load balancer is internal to the VNet. Defaults to true (internal) to allow internal access to Materialize. Set to false for public access."
+  type        = bool
+  default     = true
+  nullable    = false
 }
 
 variable "ingress_cidr_blocks" {
-  description = "CIDR blocks that are allowed to reach the Azure LoadBalancers."
+  description = "CIDR blocks that are allowed to reach the Azure LoadBalancers (used for load_balancer_source_ranges on public LBs)."
   type        = list(string)
   default     = ["0.0.0.0/0"]
   nullable    = true
@@ -74,19 +37,6 @@ variable "ingress_cidr_blocks" {
     )
     error_message = "ingress_cidr_blocks must be provided and contain valid CIDR notation when creating a public load balancer (internal = false)."
   }
-}
-
-variable "resource_id" {
-  description = "The resource_id in the Materialize status."
-  type        = string
-  nullable    = false
-}
-
-variable "internal" {
-  description = "Whether the load balancer is internal to the VNet. Defaults to true (internal) to allow internal access to Materialize. Set to false for public access."
-  type        = bool
-  default     = true
-  nullable    = false
 }
 
 variable "materialize_console_port" {

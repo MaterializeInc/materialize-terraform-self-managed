@@ -28,6 +28,7 @@ No modules.
 | [kubernetes_config_map.dashboards](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/config_map) | resource |
 | [kubernetes_namespace.grafana](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/namespace) | resource |
 | [random_password.grafana_admin](https://registry.terraform.io/providers/hashicorp/random/latest/docs/resources/password) | resource |
+| [kubernetes_storage_class.grafana](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/data-sources/storage_class) | data source |
 
 ## Inputs
 
