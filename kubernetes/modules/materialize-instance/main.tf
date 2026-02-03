@@ -1,3 +1,127 @@
+locals {
+  secret_name      = "${var.instance_name}-materialize-backend"
+  mz_resource_id   = data.kubernetes_resource.materialize_instance.object.status.resourceId
+  create_superuser = contains(["Password", "Sasl"], var.authenticator_kind) && var.superuser_credentials != null
+
+  use_provided_password = trimspace(try(var.superuser_credentials.password, "")) != ""
+  superuser_password    = local.create_superuser ? (local.use_provided_password ? var.superuser_credentials.password : random_password.superuser_password[0].result) : ""
+}
+
+resource "random_password" "superuser_password" {
+  count            = local.create_superuser ? 1 : 0
+  length           = 16
+  special          = true
+  override_special = "!#$%&*()-_=+[]{}<>:?"
+}
+
+# Secret to store superuser credentials (avoids exposing password in pod spec)
+resource "kubernetes_secret" "superuser_credentials" {
+  count = local.create_superuser ? 1 : 0
+
+  metadata {
+    name      = "${var.instance_name}-superuser-credentials"
+    namespace = var.instance_namespace
+  }
+
+  data = {
+    username = var.superuser_credentials.username
+    password = local.superuser_password
+  }
+
+}
+
+# Create a job to create the user with superuser privileges
+# https://materialize.com/docs/security/self-managed/access-control/manage-roles/#create-individual-userservice-account-roles
+resource "kubernetes_job" "create_superuser" {
+  count = local.create_superuser ? 1 : 0
+  metadata {
+    generate_name = "${var.instance_name}-create-superuser-"
+    namespace     = var.instance_namespace
+  }
+
+  spec {
+    ttl_seconds_after_finished = 600
+    backoff_limit              = 3
+
+    template {
+      metadata {
+        labels = {
+          app = "${var.instance_name}-create-role"
+        }
+      }
+
+      spec {
+        restart_policy = "Never"
+
+        container {
+          name  = "psql"
+          image = "postgres:18-alpine"
+
+          command = [
+            "sh", "-c",
+            <<-EOT
+            ROLE_EXISTS=$(PGPASSWORD=$MZ_PASSWORD psql -h $MZ_HOST -p 6875 -U mz_system -d materialize -tAc "SELECT 1 FROM mz_roles WHERE name = '$SUPERUSER_USERNAME';")
+            if [ -z "$ROLE_EXISTS" ]; then
+              PGPASSWORD=$MZ_PASSWORD psql -h $MZ_HOST -p 6875 -U mz_system -d materialize \
+                -c "CREATE ROLE $SUPERUSER_USERNAME WITH SUPERUSER LOGIN PASSWORD '$SUPERUSER_PASSWORD';"
+            else
+              PGPASSWORD=$MZ_PASSWORD psql -h $MZ_HOST -p 6875 -U mz_system -d materialize \
+                -c "ALTER ROLE $SUPERUSER_USERNAME PASSWORD '$SUPERUSER_PASSWORD';"
+            fi
+            EOT
+          ]
+
+          env {
+            name  = "MZ_HOST"
+            value = "mz${local.mz_resource_id}-balancerd.${var.instance_namespace}.svc.cluster.local"
+          }
+
+          env {
+            name = "MZ_PASSWORD"
+            value_from {
+              secret_key_ref {
+                name = local.secret_name
+                key  = "external_login_password_mz_system"
+              }
+            }
+          }
+
+          env {
+            name = "SUPERUSER_USERNAME"
+            value_from {
+              secret_key_ref {
+                name = kubernetes_secret.superuser_credentials[0].metadata[0].name
+                key  = "username"
+              }
+            }
+          }
+
+          env {
+            name = "SUPERUSER_PASSWORD"
+            value_from {
+              secret_key_ref {
+                name = kubernetes_secret.superuser_credentials[0].metadata[0].name
+                key  = "password"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  wait_for_completion = true
+
+  timeouts {
+    create = "5m"
+    update = "5m"
+  }
+
+  depends_on = [
+    kubectl_manifest.materialize_instance
+  ]
+}
+
 # Create a namespace for this Materialize instance
 resource "kubernetes_namespace" "instance" {
   count = var.create_namespace ? 1 : 0
@@ -21,7 +145,7 @@ resource "kubectl_manifest" "materialize_instance" {
     }
     spec = {
       environmentdImageRef      = "materialize/environmentd:${var.environmentd_version}"
-      backendSecretName         = "${var.instance_name}-materialize-backend"
+      backendSecretName         = local.secret_name
       authenticatorKind         = var.authenticator_kind
       serviceAccountAnnotations = var.service_account_annotations
       podLabels                 = var.pod_labels
@@ -93,7 +217,7 @@ resource "kubectl_manifest" "materialize_instance" {
 # Create a secret with connection information for the Materialize instance
 resource "kubernetes_secret" "materialize_backend" {
   metadata {
-    name      = "${var.instance_name}-materialize-backend"
+    name      = local.secret_name
     namespace = var.instance_namespace
   }
 

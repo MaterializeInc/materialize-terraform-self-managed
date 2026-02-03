@@ -339,6 +339,9 @@ module "materialize_instance" {
   # The password for the external login to the Materialize instance
   authenticator_kind                = "Password"
   external_login_password_mz_system = random_password.external_login_password_mz_system.result
+  superuser_credentials = {
+    username = "materialize_admin"
+  }
 
   # Azure workload identity annotations for service account
   service_account_annotations = {
