@@ -32,11 +32,11 @@ output "mz_system_credentials" {
   sensitive = true
 }
 
-output "service_account_credentials" {
-  description = "Credentials for the default service account with superuser privileges, Login to materialize using these credentials"
-  value = contains(["Password", "Sasl"], var.authenticator_kind) ? {
-    username = local.service_account_name
-    password = random_password.service_account_password[0].result
+output "superuser_credentials" {
+  description = "Credentials for the superuser, Login to materialize using these credentials"
+  value = local.create_superuser ? {
+    username = var.superuser_credentials.username
+    password = local.superuser_password
   } : {}
   sensitive = true
 }

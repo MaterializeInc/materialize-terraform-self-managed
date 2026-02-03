@@ -134,12 +134,12 @@ To get the NLB DNS name:
 terraform output -json | jq -r .nlb_dns_name.value
 ```
 
-Connect using psql with the default service account credentials:
+Connect using psql with the superuser credentials:
 ```bash
 # Get the password (use jq -r to decode JSON-escaped characters)
-terraform output -json mz_instance_service_account_credentials | jq -r '.password'
+terraform output -json mz_instance_superuser_credentials | jq -r '.password'
 
-psql -h <NLB_DNS> -p 6875 -U default
+psql -h <NLB_DNS> -p 6875 -U <username>
 ```
 
 **If using a private (internal) NLB:**

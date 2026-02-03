@@ -1,32 +1,47 @@
 locals {
-  secret_name          = "${var.instance_name}-materialize-backend"
-  mz_resource_id       = data.kubernetes_resource.materialize_instance.object.status.resourceId
-  service_account_name = "default"
+  secret_name      = "${var.instance_name}-materialize-backend"
+  mz_resource_id   = data.kubernetes_resource.materialize_instance.object.status.resourceId
+  create_superuser = contains(["Password", "Sasl"], var.authenticator_kind) && var.superuser_credentials != null
 
-  # Hash of password - job only recreates when password changes
-  service_account_password_hash = contains(["Password", "Sasl"], var.authenticator_kind) ? substr(sha256(random_password.service_account_password[0].result), 0, 8) : ""
+  use_provided_password = trimspace(try(var.superuser_credentials.password, "")) != ""
+  superuser_password    = local.create_superuser ? (local.use_provided_password ? var.superuser_credentials.password : random_password.superuser_password[0].result) : ""
 }
 
-resource "random_password" "service_account_password" {
-  count            = contains(["Password", "Sasl"], var.authenticator_kind) ? 1 : 0
+resource "random_password" "superuser_password" {
+  count            = local.create_superuser ? 1 : 0
   length           = 16
   special          = true
   override_special = "!#$%&*()-_=+[]{}<>:?"
 }
 
-# Create a job to create the default service account with superuser privileges
-# https://materialize.com/docs/security/self-managed/access-control/manage-roles/#create-individual-userservice-account-roles
-resource "kubernetes_job" "create_service_account" {
-  count = contains(["Password", "Sasl"], var.authenticator_kind) ? 1 : 0
+# Secret to store superuser credentials (avoids exposing password in pod spec)
+resource "kubernetes_secret" "superuser_credentials" {
+  count = local.create_superuser ? 1 : 0
+
   metadata {
-    # Hash in name ensures job only recreates when password changes
-    name      = "${var.instance_name}-create-role-${local.service_account_password_hash}"
+    name      = "${var.instance_name}-superuser-credentials"
     namespace = var.instance_namespace
   }
 
+  data = {
+    username = var.superuser_credentials.username
+    password = local.superuser_password
+  }
+
+}
+
+# Create a job to create the user with superuser privileges
+# https://materialize.com/docs/security/self-managed/access-control/manage-roles/#create-individual-userservice-account-roles
+resource "kubernetes_job" "create_superuser" {
+  count = local.create_superuser ? 1 : 0
+  metadata {
+    generate_name = "${var.instance_name}-create-superuser-"
+    namespace     = var.instance_namespace
+  }
+
   spec {
-    # No TTL - job stays so Terraform doesn't see drift and recreate on every apply
-    backoff_limit = 3
+    ttl_seconds_after_finished = 600
+    backoff_limit              = 3
 
     template {
       metadata {
@@ -40,18 +55,18 @@ resource "kubernetes_job" "create_service_account" {
 
         container {
           name  = "psql"
-          image = "postgres:16-alpine"
+          image = "postgres:18-alpine"
 
           command = [
             "sh", "-c",
             <<-EOT
-            ROLE_EXISTS=$(PGPASSWORD=$MZ_PASSWORD psql -h $MZ_HOST -p 6875 -U mz_system -d materialize -tAc "SELECT 1 FROM mz_roles WHERE name = '${local.service_account_name}';")
+            ROLE_EXISTS=$(PGPASSWORD=$MZ_PASSWORD psql -h $MZ_HOST -p 6875 -U mz_system -d materialize -tAc "SELECT 1 FROM mz_roles WHERE name = '$SUPERUSER_USERNAME';")
             if [ -z "$ROLE_EXISTS" ]; then
               PGPASSWORD=$MZ_PASSWORD psql -h $MZ_HOST -p 6875 -U mz_system -d materialize \
-                -c "CREATE ROLE ${local.service_account_name} WITH SUPERUSER LOGIN PASSWORD '${random_password.service_account_password[0].result}';"
+                -c "CREATE ROLE $SUPERUSER_USERNAME WITH SUPERUSER LOGIN PASSWORD '$SUPERUSER_PASSWORD';"
             else
               PGPASSWORD=$MZ_PASSWORD psql -h $MZ_HOST -p 6875 -U mz_system -d materialize \
-                -c "ALTER ROLE ${local.service_account_name} PASSWORD '${random_password.service_account_password[0].result}';"
+                -c "ALTER ROLE $SUPERUSER_USERNAME PASSWORD '$SUPERUSER_PASSWORD';"
             fi
             EOT
           ]
@@ -70,6 +85,26 @@ resource "kubernetes_job" "create_service_account" {
               }
             }
           }
+
+          env {
+            name = "SUPERUSER_USERNAME"
+            value_from {
+              secret_key_ref {
+                name = kubernetes_secret.superuser_credentials[0].metadata[0].name
+                key  = "username"
+              }
+            }
+          }
+
+          env {
+            name = "SUPERUSER_PASSWORD"
+            value_from {
+              secret_key_ref {
+                name = kubernetes_secret.superuser_credentials[0].metadata[0].name
+                key  = "password"
+              }
+            }
+          }
         }
       }
     }
@@ -79,6 +114,7 @@ resource "kubernetes_job" "create_service_account" {
 
   timeouts {
     create = "5m"
+    update = "5m"
   }
 
   depends_on = [

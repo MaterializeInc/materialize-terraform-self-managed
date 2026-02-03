@@ -111,9 +111,9 @@ output "nlb_dns_name" {
   value       = module.materialize_nlb.nlb_dns_name
 }
 
-output "mz_instance_service_account_credentials" {
-  description = "Credentials for the default service account with superuser privileges, Login to materialize using these credentials"
-  value       = module.materialize_instance.service_account_credentials
+output "mz_instance_superuser_credentials" {
+  description = "Credentials for the superuser, Login to materialize using these credentials"
+  value       = module.materialize_instance.superuser_credentials
   sensitive   = true
 }
 

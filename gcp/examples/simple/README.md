@@ -160,12 +160,12 @@ To get the Load Balancer IP:
 kubectl get svc -n materialize-environment -o jsonpath='{.items[?(@.spec.type=="LoadBalancer")].status.loadBalancer.ingress[0].ip}'
 ```
 
-Connect using psql with the default service account credentials:
+Connect using psql with the superuser credentials:
 ```bash
 # Get the password (use jq -r to decode JSON-escaped characters)
-terraform output -json mz_instance_service_account_credentials | jq -r '.password'
+terraform output -json mz_instance_superuser_credentials | jq -r '.password'
 
-psql -h <LoadBalancerIP> -p 6875 -U default
+psql -h <LoadBalancerIP> -p 6875 -U <username>
 ```
 
 **If using a private (internal) Load Balancer:**
