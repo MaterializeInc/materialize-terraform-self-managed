@@ -1,0 +1,57 @@
+# =============================================================================
+# Migration Configuration Example
+# =============================================================================
+#
+# IMPORTANT: Before running terraform commands:
+#   1. Copy this file: cp terraform.tfvars.example terraform.tfvars
+#   2. Update the values below to match your existing infrastructure
+#   3. The values MUST match your current setup to ensure successful migration
+#
+# =============================================================================
+
+# ------------------------------------------------------------------------------
+# REQUIRED: These must be set
+# ------------------------------------------------------------------------------
+
+# AWS profile for authentication (from your ~/.aws/credentials)
+aws_profile = "default"
+
+# Prefix used for resource names - MUST MATCH your existing resources
+# Example: if your VPC is named "mycompany-vpc", use "mycompany"
+name_prefix = "your-prefix-here"
+
+# Materialize license key
+# Get from: https://materialize.com/register
+license_key = "your-license-key-here"
+
+# ------------------------------------------------------------------------------
+# OPTIONAL: These have defaults but you may want to customize
+# ------------------------------------------------------------------------------
+
+# AWS region - MUST MATCH where your current resources are deployed
+aws_region = "us-east-1"
+
+# Tags applied to all resources - should match your existing tags
+tags = {
+  Environment = "production"
+  ManagedBy   = "terraform"
+  Project     = "materialize"
+}
+
+# CIDR blocks allowed to access Materialize load balancers
+# Default allows all - restrict for production!
+ingress_cidr_blocks = ["0.0.0.0/0"]
+
+# CIDR blocks allowed to access EKS API server
+# Default allows all - restrict for production!
+k8s_apiserver_authorized_networks = ["0.0.0.0/0"]
+
+# Whether the NLB should be internal (true) or internet-facing (false)
+internal_load_balancer = true
+
+# ------------------------------------------------------------------------------
+# ADVANCED: Rollout configuration (usually leave as defaults)
+# ------------------------------------------------------------------------------
+
+# force_rollout = "00000000-0000-0000-0000-000000000001"
+# request_rollout = "00000000-0000-0000-0000-000000000001"
