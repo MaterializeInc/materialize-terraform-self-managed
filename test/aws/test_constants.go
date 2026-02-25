@@ -9,7 +9,7 @@ const (
 	TestEKSDiskDisabledInstanceType = "r7g.2xlarge"
 
 	// Kubernetes version
-	TestKubernetesVersion = "1.32"
+	TestKubernetesVersion = "1.33"
 
 	// RDS instance classes that are reliably available
 	TestRDSInstanceClassSmall = "db.t3.micro" // 2 vCPU, 1 GB RAM

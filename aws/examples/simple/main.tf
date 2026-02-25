@@ -63,7 +63,7 @@ module "networking" {
 module "eks" {
   source                                   = "../../modules/eks"
   name_prefix                              = var.name_prefix
-  cluster_version                          = "1.32"
+  cluster_version                          = "1.33"
   vpc_id                                   = module.networking.vpc_id
   private_subnet_ids                       = module.networking.private_subnet_ids
   cluster_enabled_log_types                = ["api", "audit"]

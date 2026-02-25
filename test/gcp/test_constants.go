@@ -24,7 +24,7 @@ const (
 	TestGKEDiskDisabledMachineType = "n2-standard-4" // Standard for disk-disabled scenarios
 
 	// Kubernetes version
-	TestKubernetesVersion = "1.32" // Stable Kubernetes version
+	TestKubernetesVersion = "1.33" // Stable Kubernetes version
 
 	// Database tier
 	TestDatabaseVersion = "POSTGRES_15"
