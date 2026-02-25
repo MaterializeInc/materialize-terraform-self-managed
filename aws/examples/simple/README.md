@@ -15,7 +15,7 @@ This example provisions the following infrastructure:
 - **Internet Gateway**: For public subnet connectivity
 
 ### Compute
-- **EKS Cluster**: Version 1.32 with CloudWatch logging (API, audit)
+- **EKS Cluster**: Version 1.33 with CloudWatch logging (API, audit)
 - **Base Node Group**: 2 nodes (t4g.medium) for Karpenter and CoreDNS
 - **Karpenter**: Auto-scaling controller with two node classes:
   - Generic nodepool: t4g.xlarge instances for general workloads

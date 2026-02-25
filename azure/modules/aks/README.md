@@ -45,7 +45,7 @@ No modules.
 | <a name="input_enable_azure_ad_rbac"></a> [enable\_azure\_ad\_rbac](#input\_enable\_azure\_ad\_rbac) | Enable Azure Active Directory integration for RBAC | `bool` | `false` | no |
 | <a name="input_enable_azure_monitor"></a> [enable\_azure\_monitor](#input\_enable\_azure\_monitor) | Enable Azure Monitor for the AKS cluster | `bool` | `false` | no |
 | <a name="input_k8s_apiserver_authorized_networks"></a> [k8s\_apiserver\_authorized\_networks](#input\_k8s\_apiserver\_authorized\_networks) | List of authorized IP ranges that can access the Kubernetes API server when public access is available. Defaults to ['0.0.0.0/0'] (allow all). For production, restrict to specific IPs (e.g., ['203.0.113.0/24']) | `list(string)` | <pre>[<br/>  "0.0.0.0/0"<br/>]</pre> | no |
-| <a name="input_kubernetes_version"></a> [kubernetes\_version](#input\_kubernetes\_version) | Version of Kubernetes to use for the AKS cluster | `string` | `"1.32"` | no |
+| <a name="input_kubernetes_version"></a> [kubernetes\_version](#input\_kubernetes\_version) | Version of Kubernetes to use for the AKS cluster | `string` | `"1.33"` | no |
 | <a name="input_load_balancer_sku"></a> [load\_balancer\_sku](#input\_load\_balancer\_sku) | SKU of the Load Balancer used for this Kubernetes Cluster | `string` | `"standard"` | no |
 | <a name="input_location"></a> [location](#input\_location) | The location where resources will be created | `string` | n/a | yes |
 | <a name="input_log_analytics_workspace_id"></a> [log\_analytics\_workspace\_id](#input\_log\_analytics\_workspace\_id) | Log Analytics workspace ID for Azure Monitor (required if enable\_azure\_monitor is true) | `string` | `null` | no |

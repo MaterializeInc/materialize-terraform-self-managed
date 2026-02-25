@@ -20,7 +20,7 @@ const (
 	TestAKSDiskDisabledVMSize = "Standard_D4s_v3" // 4 vCPU, 16 GB RAM, no local SSD
 
 	// Kubernetes version
-	TestKubernetesVersion = "1.32" // Stable Kubernetes version
+	TestKubernetesVersion = "1.33" // Stable Kubernetes version
 
 	// Database SKUs that are reliably available
 	TestDBSKUSmall  = "GP_Standard_D2s_v3" // 2 vCPU, 8 GB RAM

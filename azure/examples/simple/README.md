@@ -19,7 +19,7 @@ This example provisions the following infrastructure:
 - **Private DNS Zone**: For PostgreSQL private endpoint resolution with VNet link
 
 ### Compute
-- **AKS Cluster**: Version 1.32 with Cilium networking (network plugin: azure, data plane: cilium, policy: cilium)
+- **AKS Cluster**: Version 1.33 with Cilium networking (network plugin: azure, data plane: cilium, policy: cilium)
 - **Default Node Pool**: Standard_D4pds_v6 VMs, autoscaling 2-5 nodes, labeled for generic workloads
 - **Materialize Node Pool**: Standard_E4pds_v6 VMs with 100GB disk, autoscaling 2-5 nodes, swap enabled, dedicated taints for Materialize workloads
 - **Managed Identities**:
