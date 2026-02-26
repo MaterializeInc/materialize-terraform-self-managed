@@ -479,84 +479,42 @@ class StateMigrator:
             self.log(f"Error during key normalization: {e}", 'WARN')
             self.log("This is non-fatal - you may need to manually normalize keys")
 
-    def cleanup_corrupted_resources(self):
+    def validate_migrated_state(self):
         """
-        Remove corrupted or problematic resources from state that will cause apply failures.
+        Validate migrated resources in new state.
 
-        Common issues after terraform state mv:
-        1. EKS access entries - often corrupted or cause ResourceInUseException during apply
-        2. Security group rules that already exist in AWS but not in old state
-        3. Other resources with null required attributes
-
-        These will be recreated on terraform apply.
+        Only inspects resources that we moved - never touches anything else.
+        Reports issues but does NOT delete anything from state.
         """
         try:
             state = json.loads((self.work_dir / 'new.tfstate').read_text())
-            resources_to_remove = []
+            issues = []
 
             for resource in state.get('resources', []):
                 resource_path = f"{resource.get('module', '')}.{resource['type']}.{resource['name']}" if resource.get('module') else f"{resource['type']}.{resource['name']}"
 
-                # Check EKS access entries for null/corrupted attributes
-                # Only remove if corrupted - valid entries should be kept
-                if resource['type'] == 'aws_eks_access_entry':
-                    for instance in resource.get('instances', []):
-                        attrs = instance.get('attributes', {})
-                        # Only remove if attributes are missing or null
-                        if not attrs or attrs.get('cluster_name') is None or attrs.get('principal_arn') is None:
-                            index_key = instance.get('index_key')
-                            full_path = f"{resource_path}[{json.dumps(index_key)}]" if index_key else resource_path
-                            resources_to_remove.append((resource, instance, full_path))
-                            self.log(f"⚠ Removing corrupted EKS access entry: {full_path}")
-                            self.log(f"  Attributes are null - you'll need to import manually after migration")
+                for instance in resource.get('instances', []):
+                    attrs = instance.get('attributes', {})
+                    index_key = instance.get('index_key')
+                    full_path = f"{resource_path}[{json.dumps(index_key)}]" if index_key else resource_path
 
-                # Check EKS access policy associations for null/corrupted attributes
-                if resource['type'] == 'aws_eks_access_policy_association':
-                    for instance in resource.get('instances', []):
-                        attrs = instance.get('attributes', {})
-                        if not attrs or attrs.get('cluster_name') is None or attrs.get('principal_arn') is None:
-                            index_key = instance.get('index_key')
-                            full_path = f"{resource_path}[{json.dumps(index_key)}]" if index_key else resource_path
-                            resources_to_remove.append((resource, instance, full_path))
-                            self.log(f"⚠ Removing corrupted EKS access policy association: {full_path}")
-                            self.log(f"  Attributes are null - you'll need to import manually after migration")
+                    # Check for null attributes on resources we migrated
+                    # This can happen when terraform state mv crosses module boundaries
+                    if not attrs or attrs.get('id') is None:
+                        issues.append(full_path)
+                        self.log(f"⚠ Resource may have null attributes after state mv: {full_path}")
+                        self.log(f"  This can happen when moving resources across module boundaries.")
+                        self.log(f"  If terraform apply fails for this resource, import it manually:")
+                        self.log(f"    terraform import '{full_path}' '<resource-id>'")
 
-                # Remove database security group rules that commonly already exist in AWS
-                # These rules weren't in old state but exist in AWS, causing duplicate errors
-                if resource['type'] == 'aws_security_group_rule' and 'module.database' in resource_path:
-                    rule_names = ['allow_all_egress', 'eks_cluster_postgres_ingress', 'eks_nodes_postgres_ingress']
-                    if resource['name'] in rule_names:
-                        for instance in resource.get('instances', []):
-                            index_key = instance.get('index_key')
-                            full_path = f"{resource_path}[{json.dumps(index_key)}]" if index_key else resource_path
-                            resources_to_remove.append((resource, instance, full_path))
-                            self.log(f"⚠ Removing security group rule: {full_path}")
-                            self.log(f"  Will be recreated on apply (often already exists in AWS)")
-
-            if resources_to_remove:
-                if not self.dry_run:
-                    # Remove corrupted instances from their resources
-                    for resource, instance, full_path in resources_to_remove:
-                        self.log(f"Removing corrupted resource: {full_path}")
-                        if 'instances' in resource:
-                            resource['instances'] = [i for i in resource['instances'] if i != instance]
-
-                    # Remove resources with no instances left
-                    state['resources'] = [r for r in state['resources'] if len(r.get('instances', [])) > 0 or 'instances' not in r]
-
-                    # Save cleaned state
-                    state['serial'] += 1
-                    (self.work_dir / 'new.tfstate').write_text(json.dumps(state, indent=2))
-                    self.log(f"✓ Removed {len(resources_to_remove)} corrupted resource(s)")
-                    self.log("  These will be recreated with correct attributes on terraform apply")
-                else:
-                    self.log(f"Would remove {len(resources_to_remove)} corrupted resource(s) (dry-run)")
+            if issues:
+                self.log(f"\nFound {len(issues)} resource(s) that may need attention after apply.")
+                self.log(f"These were NOT removed from state - review terraform apply output.")
             else:
-                self.log("✓ No corrupted resources found")
+                self.log("✓ All migrated resources look valid")
 
         except Exception as e:
-            self.log(f"Error during state cleanup: {e}", 'WARN')
-            self.log("This is non-fatal - you may need to manually remove corrupted resources")
+            self.log(f"Error during state validation: {e}", 'WARN')
 
     def pull_state(self, tf_dir: Path, output_file: Path):
         """Pull Terraform state to local file"""
@@ -706,11 +664,11 @@ class StateMigrator:
 
             self.normalize_instance_namespace_keys()
 
-            # Step 3.6: Validate and clean state
+            # Step 3.6: Validate migrated state (read-only, never deletes from state)
             self.log_section("Step 3.6: Validating Migrated State")
-            self.log("Checking for corrupted resources...")
+            self.log("Checking migrated resources for potential issues...")
 
-            self.cleanup_corrupted_resources()
+            self.validate_migrated_state()
 
             # Step 4: Push states
             if not self.dry_run:
@@ -751,21 +709,14 @@ class StateMigrator:
                 print(f"    1. cd {self.new_dir}")
                 print(f"    2. terraform plan")
                 print(f"    3. Review the plan carefully")
-                print(f"       - Expect 6 recreations (cert-manager + NLB target bindings - safe)")
-                print(f"       - Expect 7 replacements (IAM/EKS access - safe state resyncs)")
-                print(f"       - If corrupted resources were removed, terraform will recreate them")
+                print(f"       - Expect 6 recreations (cert-manager + NLB target bindings due to provider change)")
                 print(f"    4. terraform apply")
                 print(f"  ")
-                print(f"  ⚠️  If terraform apply fails with 'ResourceInUseException' for EKS access entries:")
-                print(f"      This means they exist in AWS but weren't in your old state.")
-                print(f"      Run terraform plan to see the resource path, then import them:")
-                print(f"        terraform import 'module.eks.module.eks.aws_eks_access_entry.this[\"<key>\"]' '<cluster>:<principal-arn>'")
-                print(f"      The error message will show you the exact cluster and principal ARN to use.")
-                print(f"  ")
-                print(f"  ⚠️  If terraform apply fails with 'InvalidPermission.Duplicate' for security group rules:")
-                print(f"      These rules exist in AWS but weren't in your old state.")
-                print(f"      Import them with: terraform import '<resource-path>' '<rule-id>'")
-                print(f"      The error message will show you the resource path.")
+                print(f"  ℹ️  Some resources may already exist in AWS but weren't in your old state.")
+                print(f"     If terraform apply fails with 'already exists' errors, import them:")
+                print(f"       terraform import '<resource-path>' '<resource-id>'")
+                print(f"     The error message shows the exact resource path and ID to use.")
+                print(f"     See README.md troubleshooting section for examples.")
 
         finally:
             # Keep work directory for transparency and debugging
