@@ -84,13 +84,14 @@ class StateMigrator:
                 description="Rename certificates module to cert_manager"
             ),
 
-            # Move self-signed cert-manager resources to new module
-            # These will be recreated due to provider change (kubernetes_manifest → kubectl_manifest)
-            # but this transformation ensures they're tracked in the new location
+            # Skip self-signed cert-manager resources (kubernetes_manifest → kubectl_manifest type change)
+            # The old module uses kubernetes_manifest, new uses kubectl_manifest in a different module.
+            # Cross-type state mv is unreliable, so we skip these and let kubectl_manifest create
+            # via kubectl apply, which adopts the existing K8s resources with zero disruption.
             MigrationRule(
                 pattern=r'^module\.cert_manager\.kubernetes_manifest\.(self_signed_cluster_issuer|self_signed_root_ca_certificate|root_ca_cluster_issuer)\[0\]$',
-                transform=lambda m: f'module.self_signed_cluster_issuer.kubectl_manifest.{m.group(1)}',
-                description="Move self-signed cert resources to self_signed_cluster_issuer module"
+                transform=lambda m: None,
+                description="Skip self-signed cert resources (type change kubernetes_manifest→kubectl_manifest)"
             ),
 
             # Move root-level IAM roles to storage module
@@ -165,6 +166,16 @@ class StateMigrator:
                 pattern=r'^module\.operator\.kubernetes_job\.db_init_job(\[.+?\])$',
                 transform=lambda m: f'kubernetes_job.db_init_job{m.group(1)}',
                 description="Move db init jobs from operator to root"
+            ),
+
+            # Skip NLB TargetGroupBinding resources (kubernetes_manifest → kubectl_manifest type change)
+            # The old module uses kubernetes_manifest, new uses kubectl_manifest.
+            # Skipping lets kubectl_manifest create via kubectl apply, which adopts the existing
+            # K8s resource with zero disruption (no delete + recreate).
+            MigrationRule(
+                pattern=r'^module\.nlb\[.+?\]\.module\.target_.+\.kubernetes_manifest\.target_group_binding$',
+                transform=lambda m: None,
+                description="Skip NLB target group binding (type change kubernetes_manifest→kubectl_manifest)"
             ),
 
             # Keep NLB resources (handles both indexed and nested submodules)
@@ -516,6 +527,199 @@ class StateMigrator:
         except Exception as e:
             self.log(f"Error during state validation: {e}", 'WARN')
 
+    def prepare_imports(self) -> List[dict]:
+        """
+        Prepare resources for import: discover SG IDs, strip IPv6 from AWS,
+        and return a list of imports to execute AFTER state push.
+
+        This method runs BEFORE state push so it can read the local state files
+        to discover SG IDs. AWS API calls (IPv6 stripping) happen here too.
+
+        Returns a list of dicts: [{'addr': ..., 'import_id': ..., 'desc': ...}, ...]
+        """
+        imports_to_run = []
+
+        try:
+            new_state = json.loads((self.work_dir / 'new.tfstate').read_text())
+        except Exception as e:
+            self.log(f"Error reading state files: {e}", 'WARN')
+            return imports_to_run
+
+        # --- Discover Security Group IDs from state ---
+        db_sg_id = None
+        cluster_sg_id = None
+        node_sg_id = None
+
+        for resource in new_state.get('resources', []):
+            module = resource.get('module', '')
+
+            # Find DB security group from the database module
+            if ('database' in module and resource['type'] == 'aws_db_instance'
+                    and resource['name'] == 'this'):
+                for inst in resource.get('instances', []):
+                    vpc_sgs = inst.get('attributes', {}).get('vpc_security_group_ids', [])
+                    if vpc_sgs:
+                        db_sg_id = vpc_sgs[0]
+
+            # Find module-created cluster SG from EKS (aws_security_group.cluster[0])
+            # This is the SG used by the database module for ingress rules.
+            # NOT the EKS-managed primary SG from vpc_config.cluster_security_group_id.
+            if (module == 'module.eks.module.eks' and resource['type'] == 'aws_security_group'
+                    and resource['name'] == 'cluster'):
+                for inst in resource.get('instances', []):
+                    cluster_sg_id = inst.get('attributes', {}).get('id')
+
+            # Find node SG from EKS
+            if (module == 'module.eks.module.eks' and resource['type'] == 'aws_security_group'
+                    and resource['name'] == 'node'):
+                for inst in resource.get('instances', []):
+                    node_sg_id = inst.get('attributes', {}).get('id')
+
+        # --- Database Security Group Rules ---
+        # The old module used inline SG rules on the DB security group.
+        # The new module uses standalone aws_security_group_rule resources.
+        # These rules exist in AWS but NOT as separate resources in state.
+        if db_sg_id:
+            self.log(f"Found DB security group: {db_sg_id}")
+
+            # Egress rule (all traffic to 0.0.0.0/0)
+            imports_to_run.append({
+                'addr': 'module.database.aws_security_group_rule.allow_all_egress',
+                'import_id': f'{db_sg_id}_egress_-1_0_0_0.0.0.0/0',
+                'desc': 'DB SG egress all',
+            })
+
+            # Ingress from cluster SG (PostgreSQL 5432)
+            if cluster_sg_id:
+                imports_to_run.append({
+                    'addr': 'module.database.aws_security_group_rule.eks_cluster_postgres_ingress',
+                    'import_id': f'{db_sg_id}_ingress_tcp_5432_5432_{cluster_sg_id}',
+                    'desc': f'DB SG ingress TCP 5432 from cluster SG',
+                })
+
+            # Ingress from node SG (PostgreSQL 5432)
+            if node_sg_id:
+                imports_to_run.append({
+                    'addr': 'module.database.aws_security_group_rule.eks_nodes_postgres_ingress',
+                    'import_id': f'{db_sg_id}_ingress_tcp_5432_5432_{node_sg_id}',
+                    'desc': f'DB SG ingress TCP 5432 from node SG',
+                })
+        else:
+            self.log("Could not find DB security group ID - skipping DB SG rule import", 'WARN')
+
+        # --- EKS Node Security Group Rules ---
+        # The old module's rules have both cidr_blocks AND ipv6_cidr_blocks in AWS,
+        # but the new config only has cidr_blocks. State mv doesn't reliably transfer
+        # these rules (they end up missing from new state).
+        # Fix: strip the IPv6 ranges from AWS (IPv4 stays intact), then import after push.
+        mz_sg_rules = {
+            'mz_ingress_pgwire': 6875,
+            'mz_ingress_http': 6876,
+            'mz_ingress_nlb_health_checks': 8080,
+        }
+
+        if node_sg_id:
+            self.log(f"Found node security group: {node_sg_id}")
+            self.log("Stripping IPv6 ranges from materialize SG rules (IPv4 rules stay intact)")
+
+            # Only revoke the IPv6 part - IPv4 rules are NOT touched
+            for rule_key, port in mz_sg_rules.items():
+                ipv6_perm = {'IpProtocol': 'tcp', 'FromPort': port, 'ToPort': port,
+                             'Ipv6Ranges': [{'CidrIpv6': '::/0'}]}
+                self.log(f"  Revoking: TCP {port} IPv6 ::/0 on {node_sg_id}")
+                if not self.dry_run:
+                    result = subprocess.run(
+                        ['aws', 'ec2', 'revoke-security-group-ingress',
+                         '--group-id', node_sg_id,
+                         '--ip-permissions', json.dumps([ipv6_perm])],
+                        capture_output=True, text=True, check=False
+                    )
+                    if result.returncode == 0:
+                        self.log(f"    ✓ Revoked")
+                    else:
+                        stderr = result.stderr.strip()
+                        if 'InvalidPermission.NotFound' in stderr:
+                            self.log(f"    ⊘ Already gone")
+                        else:
+                            self.log(f"    ✗ Failed: {stderr}", 'WARN')
+
+            # Remove the mz SG rules from the local state file.
+            # State mv transferred them with stale attributes (ipv6_cidr_blocks)
+            # that don't match AWS after IPv6 stripping. If left in state,
+            # terraform refresh fails to reconcile and plans a create (which
+            # fails with "already exists"). Removing and re-importing gives
+            # terraform clean, accurate attributes from AWS.
+            self.log("Removing stale mz SG rule instances from local state (will re-import after push)")
+            if not self.dry_run:
+                try:
+                    state = json.loads((self.work_dir / 'new.tfstate').read_text())
+                    for resource in state.get('resources', []):
+                        if (resource.get('module', '') == 'module.eks.module.eks'
+                                and resource['type'] == 'aws_security_group_rule'
+                                and resource['name'] == 'node'):
+                            original_count = len(resource.get('instances', []))
+                            resource['instances'] = [
+                                inst for inst in resource.get('instances', [])
+                                if inst.get('index_key') not in mz_sg_rules
+                            ]
+                            removed = original_count - len(resource['instances'])
+                            if removed > 0:
+                                self.log(f"  Removed {removed} stale mz SG rule instance(s) from state")
+                                state['serial'] += 1
+                                (self.work_dir / 'new.tfstate').write_text(json.dumps(state, indent=2))
+                            break
+                except Exception as e:
+                    self.log(f"  Warning: could not remove stale instances: {e}", 'WARN')
+
+            # Queue EKS node SG rules for fresh import after push
+            for rule_key, port in mz_sg_rules.items():
+                resource_addr = f'module.eks.module.eks.aws_security_group_rule.node["{rule_key}"]'
+                import_id = f"{node_sg_id}_ingress_tcp_{port}_{port}_0.0.0.0/0"
+                imports_to_run.append({
+                    'addr': resource_addr,
+                    'import_id': import_id,
+                    'desc': f'EKS node SG {rule_key}',
+                })
+        else:
+            self.log("Could not find node security group ID - skipping EKS SG rule cleanup", 'WARN')
+
+        self.log(f"Queued {len(imports_to_run)} resource(s) for import after state push")
+        return imports_to_run
+
+    def run_imports(self, imports: List[dict]):
+        """
+        Run terraform import for resources that exist in AWS but aren't in state.
+
+        IMPORTANT: This must run AFTER state push so that imports go directly
+        to the remote backend. The -state flag is NOT used because it is silently
+        ignored when a remote backend (S3, etc.) is configured.
+        """
+        if not imports:
+            self.log("No imports to run")
+            return
+
+        self.log(f"Importing {len(imports)} resource(s) into remote state")
+
+        for item in imports:
+            self.log(f"  Importing: {item['desc']} ({item['import_id']})")
+            if not self.dry_run:
+                result = self.run_terraform(
+                    ['import', item['addr'], item['import_id']],
+                    cwd=self.new_dir,
+                    capture=True
+                )
+                if result.returncode == 0:
+                    self.log(f"    ✓ Imported")
+                else:
+                    stderr = result.stderr.strip()
+                    # Resource already in state is not an error
+                    if 'Resource already managed' in stderr:
+                        self.log(f"    ⊘ Already in state")
+                    else:
+                        self.log(f"    ✗ Failed: {stderr}", 'WARN')
+
+        self.log("Import phase complete")
+
     def pull_state(self, tf_dir: Path, output_file: Path):
         """Pull Terraform state to local file"""
         result = self.run_terraform(['state', 'pull'], cwd=tf_dir)
@@ -670,6 +874,12 @@ class StateMigrator:
 
             self.validate_migrated_state()
 
+            # Step 3.7: Prepare imports (discover SG IDs, strip IPv6, queue imports)
+            self.log_section("Step 3.7: Preparing Resource Imports")
+            self.log("Discovering AWS resources that need importing after state push...")
+
+            pending_imports = self.prepare_imports()
+
             # Step 4: Push states
             if not self.dry_run:
                 self.log_section("Step 4: Updating States")
@@ -692,6 +902,13 @@ class StateMigrator:
                 self.log("Pushing new state...")
                 self.push_state(self.work_dir / 'new.tfstate', self.new_dir)
 
+                # Step 4.5: Run imports AFTER push
+                # terraform import without -state flag goes directly to remote backend.
+                # This MUST happen after push so the migrated state is already in the backend.
+                if pending_imports:
+                    self.log_section("Step 4.5: Importing Resources into Remote State")
+                    self.run_imports(pending_imports)
+
             # Summary
             self.log_section("Summary")
 
@@ -709,7 +926,7 @@ class StateMigrator:
                 print(f"    1. cd {self.new_dir}")
                 print(f"    2. terraform plan")
                 print(f"    3. Review the plan carefully")
-                print(f"       - Expect 6 recreations (cert-manager + NLB target bindings due to provider change)")
+                print(f"       - Expect 6 additions (cert-manager + NLB target bindings: kubectl_manifest adopts existing K8s resources)")
                 print(f"    4. terraform apply")
                 print(f"  ")
                 print(f"  ℹ️  Some resources may already exist in AWS but weren't in your old state.")

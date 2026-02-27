@@ -120,3 +120,9 @@ variable "iam_role_use_name_prefix" {
   type        = bool
   default     = true
 }
+
+variable "launch_template_name" {
+  description = "Explicit name for the launch template. If null, the upstream module generates a name based on the node group. Set this to control the exact launch template name, e.g., to preserve existing launch templates during infrastructure changes."
+  type        = string
+  default     = null
+}

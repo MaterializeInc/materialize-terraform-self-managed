@@ -37,13 +37,13 @@ variable "license_key" {
 variable "force_rollout" {
   description = "UUID to force a rollout"
   type        = string
-  default     = "00000000-0000-0000-0000-000000000001"
+  default     = "00000000-0000-0000-0000-000000000003"
 }
 
 variable "request_rollout" {
   description = "UUID to request a rollout"
   type        = string
-  default     = "00000000-0000-0000-0000-000000000001"
+  default     = "00000000-0000-0000-0000-000000000003"
 }
 
 variable "ingress_cidr_blocks" {
@@ -72,6 +72,29 @@ variable "k8s_apiserver_authorized_networks" {
 
 variable "internal_load_balancer" {
   description = "Whether to use an internal load balancer"
+  type        = bool
+  default     = true
+}
+
+variable "old_db_password" {
+  description = "Existing database password (used for migration)"
+  type        = string
+  sensitive   = true
+}
+
+variable "external_login_password_mz_system" {
+  description = "Password for mz_system user (used for migration)"
+  type        = string
+  sensitive   = true
+}
+
+variable "environment" {
+  description = "Environment name from the old module (e.g., 'dev', 'staging', 'prod'). Used to construct the S3 persist path to match existing data."
+  type        = string
+}
+
+variable "use_self_signed_cluster_issuer" {
+  description = "Whether to enable TLS using the self-signed cluster issuer. Must match your old module's setting to preserve TLS configuration."
   type        = bool
   default     = true
 }

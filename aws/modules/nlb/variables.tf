@@ -70,6 +70,19 @@ variable "enable_cross_zone_load_balancing" {
   nullable    = false
 }
 
+variable "nlb_name" {
+  description = "Explicit name for the NLB. If set, uses this instead of name_prefix. Use when a specific, predictable NLB name is required."
+  type        = string
+  default     = null
+}
+
+variable "create_security_group" {
+  description = "Whether to create a dedicated security group for the NLB with ingress rules for Materialize ports. Set to false if security groups are managed externally or not needed."
+  type        = bool
+  default     = true
+  nullable    = false
+}
+
 variable "tags" {
   description = "Tags to apply to all resources"
   type        = map(string)
