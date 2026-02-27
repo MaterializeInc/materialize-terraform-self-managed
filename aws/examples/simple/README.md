@@ -136,8 +136,8 @@ terraform output -json | jq -r .nlb_dns_name.value
 
 Connect using psql with the superuser credentials:
 ```bash
-# Get the password (use jq -r to decode JSON-escaped characters)
-terraform output -json mz_instance_superuser_credentials | jq -r '.password'
+# Get credentials (use jq -r to decode JSON-escaped characters)
+terraform output -json mz_instance_superuser_credentials | jq -r '"Username: \(.username)\nPassword: \(.password)"'
 
 psql -h <NLB_DNS> -p 6875 -U <username>
 ```

@@ -183,7 +183,7 @@ variable "issuer_ref" {
 }
 
 variable "superuser_credentials" {
-  description = "Username and password for superuser. If null, no superuser will be created. If password is not provided, one will be generated."
+  description = "Username and password for superuser. If null, no superuser will be created. If password is not provided, one will be generated. Only effective when authenticator_kind is 'Password' or 'Sasl'."
   type = object({
     username = string
     password = optional(string, "")

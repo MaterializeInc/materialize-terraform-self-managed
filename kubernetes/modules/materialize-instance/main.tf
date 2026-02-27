@@ -7,6 +7,13 @@ locals {
   superuser_password    = local.create_superuser ? (local.use_provided_password ? var.superuser_credentials.password : random_password.superuser_password[0].result) : ""
 }
 
+check "superuser_credentials_warning" {
+  assert {
+    condition     = !(var.superuser_credentials != null && var.authenticator_kind == "None")
+    error_message = "Warning: superuser_credentials is set but authenticator_kind is 'None'. Superuser will not be created. Set authenticator_kind to 'Password' or 'Sasl' for superuser creation to take effect."
+  }
+}
+
 resource "random_password" "superuser_password" {
   count            = local.create_superuser ? 1 : 0
   length           = 16
