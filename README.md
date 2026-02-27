@@ -4,7 +4,7 @@
 
 ## About Materialize
 
-Materialize is the Operational Data Warehouse that delivers the speed of streaming with the ease and reliability of a cloud data warehouse. It enables real-time data transformations, analytics, and operational workloads.
+Materialize is the context engine for AI agents and applications. It lets engineering teams use SQL to transform siloed operational data into up-to-the-second, trustworthy views into any element of their business. Use Materialize to deliver fresh context to AI agents, power data-intensive UIs, and create low-latency, event-driven architectures that drive microservices and core business processes.
 
 **Resources:**
 - [Materialize Website](https://materialize.com)
