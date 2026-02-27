@@ -181,3 +181,18 @@ variable "issuer_ref" {
   })
   default = null
 }
+
+variable "superuser_credentials" {
+  description = "Username and password for superuser. If null, no superuser will be created. If password is not provided, one will be generated."
+  type = object({
+    username = string
+    password = optional(string, "")
+  })
+  default   = null
+  sensitive = true
+
+  validation {
+    condition     = (var.superuser_credentials != null ? trimspace(var.superuser_credentials.username) != "" : true)
+    error_message = "When superuser_credentials is provided, username must be a non-empty string (not blank or whitespace only)."
+  }
+}

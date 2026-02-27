@@ -5,6 +5,7 @@
 | <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | >= 1.0 |
 | <a name="requirement_kubectl"></a> [kubectl](#requirement\_kubectl) | ~> 2.0 |
 | <a name="requirement_kubernetes"></a> [kubernetes](#requirement\_kubernetes) | >= 2.10.0 |
+| <a name="requirement_random"></a> [random](#requirement\_random) | >= 3.0 |
 
 ## Providers
 
@@ -12,6 +13,7 @@
 |------|---------|
 | <a name="provider_kubectl"></a> [kubectl](#provider\_kubectl) | ~> 2.0 |
 | <a name="provider_kubernetes"></a> [kubernetes](#provider\_kubernetes) | >= 2.10.0 |
+| <a name="provider_random"></a> [random](#provider\_random) | >= 3.0 |
 
 ## Modules
 
@@ -22,8 +24,11 @@ No modules.
 | Name | Type |
 |------|------|
 | [kubectl_manifest.materialize_instance](https://registry.terraform.io/providers/alekc/kubectl/latest/docs/resources/manifest) | resource |
+| [kubernetes_job.create_superuser](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/job) | resource |
 | [kubernetes_namespace.instance](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/namespace) | resource |
 | [kubernetes_secret.materialize_backend](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/secret) | resource |
+| [kubernetes_secret.superuser_credentials](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/secret) | resource |
+| [random_password.superuser_password](https://registry.terraform.io/providers/hashicorp/random/latest/docs/resources/password) | resource |
 | [kubernetes_resource.materialize_instance](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/data-sources/resource) | data source |
 
 ## Inputs
@@ -53,6 +58,7 @@ No modules.
 | <a name="input_request_rollout"></a> [request\_rollout](#input\_request\_rollout) | UUID to request a rollout | `string` | `"00000000-0000-0000-0000-000000000001"` | no |
 | <a name="input_rollout_strategy"></a> [rollout\_strategy](#input\_rollout\_strategy) | Strategy to use for rollouts | `string` | `"WaitUntilReady"` | no |
 | <a name="input_service_account_annotations"></a> [service\_account\_annotations](#input\_service\_account\_annotations) | Annotations for the service account associated with the materialize instance. Useful for IAM roles assigned to the service account. | `map(string)` | `{}` | no |
+| <a name="input_superuser_credentials"></a> [superuser\_credentials](#input\_superuser\_credentials) | Username and password for superuser. If null, no superuser will be created. If password is not provided, one will be generated. | <pre>object({<br/>    username = string<br/>    password = optional(string, "")<br/>  })</pre> | `null` | no |
 
 ## Outputs
 
@@ -62,4 +68,6 @@ No modules.
 | <a name="output_instance_namespace"></a> [instance\_namespace](#output\_instance\_namespace) | Namespace of the Materialize instance |
 | <a name="output_instance_resource_id"></a> [instance\_resource\_id](#output\_instance\_resource\_id) | Resource ID of the Materialize instance |
 | <a name="output_metadata_backend_url"></a> [metadata\_backend\_url](#output\_metadata\_backend\_url) | Metadata backend URL used by the Materialize instance |
+| <a name="output_mz_system_credentials"></a> [mz\_system\_credentials](#output\_mz\_system\_credentials) | Credentials for the mz\_system user, not to be used by applications |
 | <a name="output_persist_backend_url"></a> [persist\_backend\_url](#output\_persist\_backend\_url) | Persist backend URL used by the Materialize instance |
+| <a name="output_superuser_credentials"></a> [superuser\_credentials](#output\_superuser\_credentials) | Credentials for the superuser, Login to materialize using these credentials |
