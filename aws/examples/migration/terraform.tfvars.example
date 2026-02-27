@@ -46,6 +46,15 @@ ingress_cidr_blocks = ["0.0.0.0/0"]
 # Default allows all - restrict for production!
 k8s_apiserver_authorized_networks = ["0.0.0.0/0"]
 
+# Database Password
+database_password = "your-existing-db-password-here"  # This should be set to your existing database password (e.g., from Terraform Cloud variable or secrets manager)
+
+# The existing mz_system user password - used for external login
+external_login_password_mz_system = "your-existing-mz-system-password-here"  # This should be set to your existing mz_system user password (e.g., from Terraform Cloud variable or secrets manager)
+
+# The environment value from the old module - used for naming and tagging
+environment = "production"
+
 # Whether the NLB should be internal (true) or internet-facing (false)
 internal_load_balancer = true
 

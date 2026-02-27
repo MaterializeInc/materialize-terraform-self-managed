@@ -118,6 +118,6 @@ output "nlb_dns_name" {
 
 output "external_login_password_mz_system" {
   description = "Password for external login to Materialize"
-  value       = random_password.external_login_password_mz_system.result
+  value       = var.external_login_password_mz_system
   sensitive   = true
 }

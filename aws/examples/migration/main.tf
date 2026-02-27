@@ -35,9 +35,11 @@ provider "aws" {
   region  = var.aws_region
   profile = var.aws_profile
 
-  default_tags {
-    tags = var.tags
-  }
+  # MIGRATION: default_tags omitted to match old module (which didn't use them).
+  # After migration is verified, uncomment to apply tags to all resources:
+  # default_tags {
+  #   tags = var.tags
+  # }
 }
 
 provider "kubernetes" {
@@ -99,7 +101,7 @@ module "networking" {
   # After migration, you can set to true to reduce costs
   single_nat_gateway = false
 
-  enable_vpc_endpoints = true
+  enable_vpc_endpoints = false  # Your existing setting for VPC endpoints (true/false)
 
   tags = var.tags
 }
@@ -120,12 +122,9 @@ module "eks" {
   cluster_version                          = "1.32"  # Your existing K8s version
   vpc_id                                   = module.networking.vpc_id
   private_subnet_ids                       = module.networking.private_subnet_ids
-  cluster_enabled_log_types                = ["api", "audit"]
+  cluster_enabled_log_types                = ["api", "audit", "authenticator", "controllerManager", "scheduler"]  # MIGRATION: Match old module defaults
   enable_cluster_creator_admin_permissions = true
-  # MIGRATION: Preserve old security group rules to avoid replacement
-  # Old module included both IPv4 and IPv6. Set ipv6 to [] to remove after migration.
   materialize_node_ingress_cidrs           = var.ingress_cidr_blocks
-  materialize_node_ingress_ipv6_cidrs      = ["::/0"]  # Matches old module - remove after migration if not using IPv6
   k8s_apiserver_authorized_networks        = var.k8s_apiserver_authorized_networks
 
   tags = var.tags
@@ -146,12 +145,17 @@ module "base_node_group" {
 
   cluster_name                      = module.eks.cluster_name
   subnet_ids                        = module.networking.private_subnet_ids
-  node_group_name                   = "${var.name_prefix}-base"
-  instance_types                    = ["t4g.medium"]  # MIGRATION: Match your existing instance types
+  # MIGRATION: The old EKS module used name_prefix as the node group name.
+  # This ensures node_group_name_prefix and IAM role name_prefix match old state.
+  node_group_name                   = var.name_prefix
+  # MIGRATION: The old EKS module used "${name_prefix}-system" as the launch template name.
+  # This avoids launch template replacement which would cascade to node group replacement.
+  launch_template_name              = "${var.name_prefix}-system"
+  instance_types                    = ["r7g.xlarge"]   # MIGRATION: Match your existing instance types (old default: r7g.xlarge)
   swap_enabled                      = false
-  min_size                          = 2   # MIGRATION: Match your existing min_size
-  max_size                          = 3   # MIGRATION: Match your existing max_size
-  desired_size                      = 2   # MIGRATION: Match your existing desired_size
+  min_size                          = 1   # MIGRATION: Match your existing min_size (old default: 1)
+  max_size                          = 4   # MIGRATION: Match your existing max_size (old default: 4)
+  desired_size                      = 2   # MIGRATION: Match your existing desired_size (old default: 2)
   labels                            = local.base_node_labels
   cluster_service_cidr              = module.eks.cluster_service_cidr
   cluster_primary_security_group_id = module.eks.node_security_group_id
@@ -159,15 +163,19 @@ module "base_node_group" {
   tags = var.tags
 }
 
-module "coredns" {
-  source = "../../../kubernetes/modules/coredns"
-
-  node_selector                      = local.base_node_labels
-  disable_default_coredns_autoscaler = false
-  kubeconfig_data                    = local.kubeconfig_data
-
-  depends_on = [module.eks, module.base_node_group, module.networking]
-}
+# MIGRATION: CoreDNS module is commented out during migration because it's a NEW
+# module that didn't exist in the old setup. EKS manages CoreDNS by default.
+# After migration is verified, uncomment this to manage CoreDNS via Terraform.
+#
+# module "coredns" {
+#   source = "../../../kubernetes/modules/coredns"
+#
+#   node_selector                      = local.base_node_labels
+#   disable_default_coredns_autoscaler = false
+#   kubeconfig_data                    = local.kubeconfig_data
+#
+#   depends_on = [module.eks, module.base_node_group, module.networking]
+# }
 
 # -----------------------------------------------------------------------------
 # Materialize Node Group
@@ -185,15 +193,19 @@ module "mz_node_group" {
   node_group_name                   = "${var.name_prefix}-mz-swap"  # MIGRATION: Match your existing node group name
   instance_types                    = ["r7gd.2xlarge"]              # MIGRATION: Match your existing instance types
   swap_enabled                      = true
-  min_size                          = 1   # MIGRATION: Match your existing min_size
-  max_size                          = 10  # MIGRATION: Match your existing max_size
-  desired_size                      = 1   # MIGRATION: Match your existing desired_size
+  min_size                          = 1   # MIGRATION: Match your existing min_size (old default: 1)
+  max_size                          = 4   # MIGRATION: Match your existing max_size (old default: 4)
+  desired_size                      = 1   # MIGRATION: Match your existing desired_size (old default: 1)
   labels                            = local.materialize_node_labels
-  node_taints                       = local.materialize_node_taints
+  # MIGRATION: Taints commented out - the old module didn't set EKS-level taints.
+  # After migration is verified, uncomment to enable taints.
+  # node_taints                       = local.materialize_node_taints
   cluster_service_cidr              = module.eks.cluster_service_cidr
   cluster_primary_security_group_id = module.eks.node_security_group_id
 
-  tags = var.tags
+  tags = merge(var.tags, {
+    Swap = "true"  # MIGRATION: Match old module tag on materialize node group
+  })
 
   depends_on = [module.eks, module.base_node_group]
 }
@@ -301,7 +313,7 @@ module "aws_lbc" {
   region            = var.aws_region
   node_selector     = local.generic_node_labels
 
-  depends_on = [module.eks, module.base_node_group, module.coredns]
+  depends_on = [module.eks, module.base_node_group]
 }
 
 # -----------------------------------------------------------------------------
@@ -313,7 +325,7 @@ module "cert_manager" {
 
   node_selector = local.generic_node_labels
 
-  depends_on = [module.networking, module.eks, module.base_node_group, module.aws_lbc, module.coredns]
+  depends_on = [module.networking, module.eks, module.base_node_group, module.aws_lbc]
 }
 
 module "self_signed_cluster_issuer" {
@@ -347,7 +359,7 @@ module "database" {
 
   database_name     = "materialize"                           # Your existing database name
   database_username = "materialize"                           # Your existing username
-  database_password = random_password.database_password.result
+  database_password = var.old_db_password  # This should be set to your existing database password
 
   multi_az            = false  # Your existing multi-AZ setting
   database_subnet_ids = module.networking.private_subnet_ids
@@ -413,12 +425,38 @@ module "operator" {
   instance_node_selector   = local.materialize_node_labels
   operator_node_selector   = local.generic_node_labels
 
-  depends_on = [module.eks, module.networking, module.mz_node_group, module.coredns]
+  depends_on = [module.eks, module.networking, module.mz_node_group]
 
   install_metrics_server = true
 
-  # MIGRATION NOTE: The operator module now includes instance namespace, secret,
-  # manifest, and db_init_job resources via custom additions below
+  # MIGRATION: Pass TLS configuration via helm_values to match old module behavior.
+  # The old module configured TLS via defaultCertificateSpecs in the operator Helm values.
+  helm_values = var.use_self_signed_cluster_issuer ? {
+    tls = {
+      defaultCertificateSpecs = {
+        balancerdExternal = {
+          dnsNames = ["balancerd"]
+          issuerRef = {
+            name = "${var.name_prefix}-root-ca"
+            kind = "ClusterIssuer"
+          }
+        }
+        consoleExternal = {
+          dnsNames = ["console"]
+          issuerRef = {
+            name = "${var.name_prefix}-root-ca"
+            kind = "ClusterIssuer"
+          }
+        }
+        internal = {
+          issuerRef = {
+            name = "${var.name_prefix}-root-ca"
+            kind = "ClusterIssuer"
+          }
+        }
+      }
+    }
+  } : {}
 }
 
 # -----------------------------------------------------------------------------
@@ -453,22 +491,28 @@ resource "kubernetes_secret" "materialize_backends" {
   }
 
   data = {
+    # MIGRATION: Must match old module's metadata_backend_url exactly.
+    # Old module used: postgres://user:pass@host/{database_name}?sslmode=require
+    # where database_name = coalesce(instance.database_name, instance.name)
     metadata_backend_url = format(
-      "postgres://%s:%s@%s/%s?sslmode=require&options=-c%%20statement_timeout%%3D%s",
+      "postgres://%s:%s@%s/%s?sslmode=require",
       module.database.db_instance_username,
-      urlencode(random_password.database_password.result),
+      urlencode(var.old_db_password),
       module.database.db_instance_endpoint,
-      module.database.db_instance_name,
-      local.database_statement_timeout
+      each.value.database_name
     )
+    # MIGRATION: Must match old module's persist_backend_url exactly.
+    # Old module used: s3://bucket/{environment}-{instance_name}:serviceaccount:{namespace}:{instance_name}
     persist_backend_url = format(
-      "s3://%s/system:serviceaccount:%s:%s",
+      "s3://%s/%s-%s:serviceaccount:%s:%s",
       module.storage.bucket_name,
+      var.environment,
+      each.key,
       each.value.namespace,
       each.key
     )
     license_key = var.license_key
-    external_login_password_mz_system = random_password.external_login_password_mz_system.result
+    external_login_password_mz_system = var.external_login_password_mz_system  # This should be set to your existing mz_system user passwordß
   }
 
   depends_on = [
@@ -503,7 +547,7 @@ resource "kubernetes_manifest" "materialize_instances" {
     spec = {
       backendSecretName    = "${each.key}-materialize-backend"
       authenticatorKind    = "Password"
-      environmentdImageRef = "materialize/environmentd:v26.7.0"
+      environmentdImageRef = "materialize/environmentd:v26.5.1" # MIGRATION: Match your existing image version
       forceRollout         = var.force_rollout
       requestRollout       = var.request_rollout
 
@@ -692,6 +736,9 @@ module "nlb" {
   mz_resource_id                   = data.kubernetes_resource.materialize_instances[each.key].object.status.resourceId
   node_security_group_id           = module.eks.node_security_group_id
   ingress_cidr_blocks              = var.ingress_cidr_blocks
+  # MIGRATION: Old NLBs didn't have security groups. Adding one forces NLB recreation.
+  # After migration is verified, set to true to enable NLB security groups.
+  create_security_group            = false
 
   depends_on = [module.operator]
 }
@@ -708,19 +755,26 @@ locals {
   materialize_instance_name      = "analytics"                # CHANGE THIS to your existing instance name!
 
   # Map of materialize instances for for_each loops
-  # MIGRATION: If you have multiple instances, add them here
+  # MIGRATION: If you have multiple instances, add them here.
+  # database_name: The database name used in the old module's metadata_backend_url.
+  #   Old module used: coalesce(instance.database_name, instance.name)
+  #   If you didn't set database_name explicitly, it defaults to the instance name.
   materialize_instances = {
     (local.materialize_instance_name) = {
-      namespace = local.materialize_instance_namespace
+      namespace     = local.materialize_instance_namespace
+      database_name = local.materialize_instance_name  # Defaults to instance name (old module behavior)
     }
   }
 
   base_node_labels = {
-    "workload" = "base"
+    "workload" = "system"  # MIGRATION: Match old module label. Change to "base" after migration.
   }
 
+  # MIGRATION: Set to "system" to match old node labels. The old module didn't set
+  # nodeSelectors on helm releases, so pods ran on system nodes. After migration,
+  # change to "generic" and add dedicated generic nodes (or use Karpenter).
   generic_node_labels = {
-    "workload" = "generic"
+    "workload" = "system"
   }
 
   materialize_node_labels = {
@@ -748,17 +802,18 @@ locals {
   database_statement_timeout = "15min"
 
   metadata_backend_url = format(
-    "postgres://%s:%s@%s/%s?sslmode=require&options=-c%%20statement_timeout%%3D%s",
+    "postgres://%s:%s@%s/%s?sslmode=require",
     module.database.db_instance_username,
-    urlencode(random_password.database_password.result),
+    urlencode(var.old_db_password),
     module.database.db_instance_endpoint,
-    module.database.db_instance_name,
-    local.database_statement_timeout
+    local.materialize_instance_name
   )
 
   persist_backend_url = format(
-    "s3://%s/system:serviceaccount:%s:%s",
+    "s3://%s/%s-%s:serviceaccount:%s:%s",
     module.storage.bucket_name,
+    var.environment,
+    local.materialize_instance_name,
     local.materialize_instance_namespace,
     local.materialize_instance_name
   )
@@ -807,22 +862,6 @@ locals {
       },
     ],
   })
-}
-
-# -----------------------------------------------------------------------------
-# Random Resources
-# -----------------------------------------------------------------------------
-
-resource "random_password" "database_password" {
-  length           = 16
-  special          = true
-  override_special = "!#$%&*()-_=+[]{}<>:?"
-}
-
-resource "random_password" "external_login_password_mz_system" {
-  length           = 16
-  special          = true
-  override_special = "!#$%&*()-_=+[]{}<>:?"
 }
 
 # -----------------------------------------------------------------------------
