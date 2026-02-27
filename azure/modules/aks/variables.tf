@@ -208,6 +208,7 @@ variable "disk_driver_enabled" {
   default     = true
   nullable    = false
 }
+
 variable "dns_service_ip" {
   description = "IP address within the service CIDR that will be used by cluster service discovery (kube-dns). If not specified, will be calculated automatically."
   type        = string

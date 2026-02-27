@@ -67,7 +67,6 @@ variable "internal_load_balancer" {
   default     = true
 }
 
-
 variable "enable_observability" {
   description = "Enable Prometheus and Grafana monitoring stack for Materialize"
   type        = bool
