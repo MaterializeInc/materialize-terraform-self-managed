@@ -91,17 +91,12 @@ module "networking" {
   source      = "../../modules/networking"
   name_prefix = var.name_prefix
 
-  # MIGRATION: Update these to match your existing VPC
-  vpc_cidr             = "10.0.0.0/16"                                         # Your existing VPC CIDR
-  availability_zones   = ["us-east-1a", "us-east-1b", "us-east-1c"]            # Your existing AZs
-  private_subnet_cidrs = ["10.0.1.0/24", "10.0.2.0/24", "10.0.3.0/24"]         # Your existing private subnets
-  public_subnet_cidrs  = ["10.0.101.0/24", "10.0.102.0/24", "10.0.103.0/24"]   # Your existing public subnets
-
-  # MIGRATION: Keep 3 NAT gateways (one per AZ) to match existing setup
-  # After migration, you can set to true to reduce costs
-  single_nat_gateway = false
-
-  enable_vpc_endpoints = false  # Your existing setting for VPC endpoints (true/false)
+  vpc_cidr             = var.vpc_cidr
+  availability_zones   = var.availability_zones
+  private_subnet_cidrs = var.private_subnet_cidrs
+  public_subnet_cidrs  = var.public_subnet_cidrs
+  single_nat_gateway   = var.single_nat_gateway
+  enable_vpc_endpoints = var.enable_vpc_endpoints
 
   tags = var.tags
 }
@@ -118,8 +113,7 @@ module "eks" {
   source      = "../../modules/eks"
   name_prefix = var.name_prefix
 
-  # MIGRATION: Update these to match your existing EKS cluster
-  cluster_version                          = "1.32"  # Your existing K8s version
+  cluster_version                          = var.cluster_version
   vpc_id                                   = module.networking.vpc_id
   private_subnet_ids                       = module.networking.private_subnet_ids
   cluster_enabled_log_types                = ["api", "audit", "authenticator", "controllerManager", "scheduler"]  # MIGRATION: Match old module defaults
@@ -145,17 +139,16 @@ module "base_node_group" {
 
   cluster_name                      = module.eks.cluster_name
   subnet_ids                        = module.networking.private_subnet_ids
-  # MIGRATION: The old EKS module used name_prefix as the node group name.
-  # This ensures node_group_name_prefix and IAM role name_prefix match old state.
+  # MIGRATION: The old EKS module used name_prefix as the node group name
+  # and "${name_prefix}-system" as the launch template name. Keeping these
+  # ensures no replacement of node groups or launch templates.
   node_group_name                   = var.name_prefix
-  # MIGRATION: The old EKS module used "${name_prefix}-system" as the launch template name.
-  # This avoids launch template replacement which would cascade to node group replacement.
   launch_template_name              = "${var.name_prefix}-system"
-  instance_types                    = ["r7g.xlarge"]   # MIGRATION: Match your existing instance types (old default: r7g.xlarge)
+  instance_types                    = var.base_instance_types
   swap_enabled                      = false
-  min_size                          = 1   # MIGRATION: Match your existing min_size (old default: 1)
-  max_size                          = 4   # MIGRATION: Match your existing max_size (old default: 4)
-  desired_size                      = 2   # MIGRATION: Match your existing desired_size (old default: 2)
+  min_size                          = var.base_node_min_size
+  max_size                          = var.base_node_max_size
+  desired_size                      = var.base_node_desired_size
   labels                            = local.base_node_labels
   cluster_service_cidr              = module.eks.cluster_service_cidr
   cluster_primary_security_group_id = module.eks.node_security_group_id
@@ -190,12 +183,12 @@ module "mz_node_group" {
 
   cluster_name                      = module.eks.cluster_name
   subnet_ids                        = module.networking.private_subnet_ids
-  node_group_name                   = "${var.name_prefix}-mz-swap"  # MIGRATION: Match your existing node group name
-  instance_types                    = ["r7gd.2xlarge"]              # MIGRATION: Match your existing instance types
+  node_group_name                   = "${var.name_prefix}-mz-swap"
+  instance_types                    = var.mz_instance_types
   swap_enabled                      = true
-  min_size                          = 1   # MIGRATION: Match your existing min_size (old default: 1)
-  max_size                          = 4   # MIGRATION: Match your existing max_size (old default: 4)
-  desired_size                      = 1   # MIGRATION: Match your existing desired_size (old default: 1)
+  min_size                          = var.mz_node_min_size
+  max_size                          = var.mz_node_max_size
+  desired_size                      = var.mz_node_desired_size
   labels                            = local.materialize_node_labels
   # MIGRATION: Taints commented out - the old module didn't set EKS-level taints.
   # After migration is verified, uncomment to enable taints.
@@ -351,17 +344,16 @@ module "database" {
 
   name_prefix = var.name_prefix
 
-  # MIGRATION: Match your existing database configuration
-  postgres_version      = "17"           # Your existing PostgreSQL version
-  instance_class        = "db.m6i.large"  # Your existing instance class
-  allocated_storage     = 20             # Your existing allocated storage
-  max_allocated_storage = 100            # Your existing max storage
+  postgres_version      = var.postgres_version
+  instance_class        = var.db_instance_class
+  allocated_storage     = var.db_allocated_storage
+  max_allocated_storage = var.db_max_allocated_storage
 
-  database_name     = "materialize"                           # Your existing database name
-  database_username = "materialize"                           # Your existing username
-  database_password = var.old_db_password  # This should be set to your existing database password
+  database_name     = "materialize"
+  database_username = "materialize"
+  database_password = var.old_db_password
 
-  multi_az            = false  # Your existing multi-AZ setting
+  multi_az            = var.db_multi_az
   database_subnet_ids = module.networking.private_subnet_ids
   vpc_id              = module.networking.vpc_id
 
@@ -547,7 +539,7 @@ resource "kubernetes_manifest" "materialize_instances" {
     spec = {
       backendSecretName    = "${each.key}-materialize-backend"
       authenticatorKind    = "Password"
-      environmentdImageRef = "materialize/environmentd:v26.5.1" # MIGRATION: Match your existing image version
+      environmentdImageRef = var.environmentd_image_ref
       forceRollout         = var.force_rollout
       requestRollout       = var.request_rollout
 
@@ -748,11 +740,8 @@ module "nlb" {
 # -----------------------------------------------------------------------------
 
 locals {
-  # MIGRATION: CRITICAL - Update these to match your existing Materialize instance!
-  # Run: kubectl get materialize -A to see your current instances
-  # Example: If you have instance "analytics" in namespace "materialize-environment", use those values
-  materialize_instance_namespace = "materialize-environment"  # Your existing namespace
-  materialize_instance_name      = "analytics"                # CHANGE THIS to your existing instance name!
+  materialize_instance_namespace = var.materialize_instance_namespace
+  materialize_instance_name      = var.materialize_instance_name
 
   # Map of materialize instances for for_each loops
   # MIGRATION: If you have multiple instances, add them here.

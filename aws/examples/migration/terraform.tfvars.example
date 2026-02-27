@@ -24,12 +24,75 @@ name_prefix = "your-prefix-here"
 # Get from: https://materialize.com/register
 license_key = "your-license-key-here"
 
+# Environment name from the old module - used for S3 persist path
+# Check your old terraform.tfvars for the "environment" value
+environment = "production"
+
+# Your existing Materialize instance name
+# Run: kubectl get materialize -A
+materialize_instance_name = "analytics"
+
+# Your existing database password
+# From your old terraform.tfvars, Terraform Cloud, or secrets manager
+old_db_password = "your-existing-db-password-here"
+
+# Your existing mz_system user password
+# Get from old config: terraform output -raw external_login_password_mz_system
+external_login_password_mz_system = "your-existing-mz-system-password-here"
+
 # ------------------------------------------------------------------------------
-# OPTIONAL: These have defaults but you may want to customize
+# INFRASTRUCTURE: Match your existing setup
 # ------------------------------------------------------------------------------
 
 # AWS region - MUST MATCH where your current resources are deployed
 aws_region = "us-east-1"
+
+# VPC configuration - MUST MATCH existing VPC
+vpc_cidr             = "10.0.0.0/16"
+availability_zones   = ["us-east-1a", "us-east-1b", "us-east-1c"]
+private_subnet_cidrs = ["10.0.1.0/24", "10.0.2.0/24", "10.0.3.0/24"]
+public_subnet_cidrs  = ["10.0.101.0/24", "10.0.102.0/24", "10.0.103.0/24"]
+
+# NAT gateway configuration
+# Old module default: false (one per AZ). Set to true after migration to save costs.
+single_nat_gateway = false
+
+# VPC endpoints
+enable_vpc_endpoints = false
+
+# EKS cluster version - MUST MATCH existing cluster
+# Run: aws eks describe-cluster --name <prefix>-eks --query cluster.version
+cluster_version = "1.32"
+
+# Materialize environmentd image version - MUST MATCH existing
+# Run: kubectl get materialize -A -o jsonpath='{.items[0].spec.environmentdImageRef}'
+environmentd_image_ref = "materialize/environmentd:v26.5.1"
+
+# Base/system node group sizing
+# Run: aws eks describe-nodegroup --cluster-name <prefix>-eks --nodegroup-name <prefix>
+base_instance_types    = ["r7g.xlarge"]
+base_node_min_size     = 1
+base_node_max_size     = 4
+base_node_desired_size = 2
+
+# Materialize node group sizing
+# Run: aws eks describe-nodegroup --cluster-name <prefix>-eks --nodegroup-name <prefix>-mz-swap
+mz_instance_types    = ["r7gd.2xlarge"]
+mz_node_min_size     = 1
+mz_node_max_size     = 4
+mz_node_desired_size = 1
+
+# Database configuration - MUST MATCH existing RDS
+# Run: aws rds describe-db-instances --db-instance-identifier <prefix>-materialize
+postgres_version         = "17"
+db_instance_class        = "db.m6i.large"
+db_allocated_storage     = 20
+db_max_allocated_storage = 100
+db_multi_az              = false
+
+# ------------------------------------------------------------------------------
+# OPTIONAL: These have good defaults
+# ------------------------------------------------------------------------------
 
 # Tags applied to all resources - should match your existing tags
 tags = {
@@ -37,6 +100,12 @@ tags = {
   ManagedBy   = "terraform"
   Project     = "materialize"
 }
+
+# TLS configuration - must match old module setting (default: true)
+use_self_signed_cluster_issuer = true
+
+# Materialize instance namespace (default: "materialize-environment")
+# materialize_instance_namespace = "materialize-environment"
 
 # CIDR blocks allowed to access Materialize load balancers
 # Default allows all - restrict for production!
@@ -46,15 +115,6 @@ ingress_cidr_blocks = ["0.0.0.0/0"]
 # Default allows all - restrict for production!
 k8s_apiserver_authorized_networks = ["0.0.0.0/0"]
 
-# Database Password
-database_password = "your-existing-db-password-here"  # This should be set to your existing database password (e.g., from Terraform Cloud variable or secrets manager)
-
-# The existing mz_system user password - used for external login
-external_login_password_mz_system = "your-existing-mz-system-password-here"  # This should be set to your existing mz_system user password (e.g., from Terraform Cloud variable or secrets manager)
-
-# The environment value from the old module - used for naming and tagging
-environment = "production"
-
 # Whether the NLB should be internal (true) or internet-facing (false)
 internal_load_balancer = true
 
@@ -62,5 +122,5 @@ internal_load_balancer = true
 # ADVANCED: Rollout configuration (usually leave as defaults)
 # ------------------------------------------------------------------------------
 
-# force_rollout = "00000000-0000-0000-0000-000000000001"
-# request_rollout = "00000000-0000-0000-0000-000000000001"
+# force_rollout = "00000000-0000-0000-0000-000000000003"
+# request_rollout = "00000000-0000-0000-0000-000000000003"

@@ -2,9 +2,11 @@
 
 Migrate from the old `terraform-aws-materialize` module to the new `materialize-terraform-self-managed` modular approach.
 
+> **Important:** This migration example is a **starting point**, not a turnkey solution. Every deployment is different — your VPC layout, node group sizing, instance types, database configuration, and custom modifications all affect the migration. **You are expected to review and adapt both `main.tf` and `auto-migrate.py` to match your specific infrastructure before running anything.** Always use `--dry-run` first, carefully inspect `terraform plan` output, and never apply changes you don't understand. The migration script modifies Terraform state, which is difficult to undo if done incorrectly.
+
 ## Quick Start
 
-**Prerequisites:** Terraform CLI, Python 3.7+, access to your old Terraform state
+**Prerequisites:** Terraform CLI, Python 3.7+, AWS CLI, access to your old Terraform state
 
 ```bash
 # CRITICAL: Verify old state access first
@@ -17,9 +19,14 @@ cp -r aws/examples/migration /path/to/new/terraform
 cd /path/to/new/terraform
 chmod +x auto-migrate.py
 
-# Generate config from old setup
-./auto-migrate.py /path/to/old/terraform . --generate-tfvars
-# Edit terraform.tfvars - add license_key, review detected values and customize as needed to match your existing infrastructure
+# Configure: copy and edit terraform.tfvars
+cp terraform.tfvars.example terraform.tfvars
+# Edit terraform.tfvars to match your existing infrastructure:
+#   - REQUIRED: name_prefix, license_key, environment, materialize_instance_name
+#   - REQUIRED: old_db_password, external_login_password_mz_system
+#   - INFRA: vpc_cidr, availability_zones, subnet CIDRs, cluster_version
+#   - SIZING: node group instance types and min/max/desired sizes
+#   - DATABASE: postgres_version, db_instance_class, storage settings
 
 # Test migration (dry-run)
 ./auto-migrate.py /path/to/old/terraform . --dry-run
@@ -38,9 +45,9 @@ terraform output nlb_dns_name
 ```
 
 **Expected Results:**
-- **Dry-run**: ~120 resources total, ~117 moved, ~3 skipped (data sources), 0 failed
-- **Terraform plan**: Mostly safe recreations (cert-manager resources, target group bindings, IAM policy attachments, EKS access entries)
-- **Preserved**: NLB, listeners, target groups, security group rules, EKS cluster, RDS database, VPC, all Materialize instances
+- **Dry-run**: ~120 resources total, ~110+ moved, ~6 skipped (data sources, cert-manager/NLB bindings due to provider type change), 0 failed
+- **Terraform plan**: ~6 additions (cert-manager + NLB target bindings as `kubectl_manifest`), some IAM/EKS access updates
+- **Preserved**: NLB, listeners, target groups, security group rules, EKS cluster, RDS database, VPC, S3 bucket, all Materialize instances
 
 ## Migration Checklist
 
@@ -48,9 +55,10 @@ Track your progress:
 
 - [ ] **Prerequisites** - Verify Terraform version, state access, backup current state
 - [ ] **Prepare** - Copy migration example, generate terraform.tfvars
-- [ ] **Customize** - Update main.tf to match your infrastructure (search for `# MIGRATION:`)
-- [ ] **Dry Run** - Test with `--dry-run`, verify 0 failures
-- [ ] **Migrate State** - Run auto-migrate.py
+- [ ] **Customize terraform.tfvars** - Set all required variables (see `terraform.tfvars.example`)
+- [ ] **Review main.tf and auto-migrate.py** - Verify they match your infrastructure; adapt if you have custom modifications
+- [ ] **Dry Run** - Test with `--dry-run`, review output carefully, verify 0 failures
+- [ ] **Migrate State** - Run auto-migrate.py (handles state moves, IPv6 cleanup, SG imports)
 - [ ] **Verify Plan** - Check terraform plan shows only safe changes
 - [ ] **Apply** - Run terraform apply
 - [ ] **Health Check** - Verify Materialize is running and accessible
@@ -80,6 +88,42 @@ terraform state pull | jq '.resources | length'
 - If bypassed, terraform apply attempts to create all resources
 - Results in "already exists" errors everywhere
 
+## Configuring terraform.tfvars
+
+All migration configuration is done via `terraform.tfvars`. Copy `terraform.tfvars.example` and update the values to match your existing infrastructure. You should **not** need to edit `main.tf`.
+
+See `terraform.tfvars.example` for the full list with inline documentation and `aws` CLI commands to discover each value.
+
+**Required variables** (no defaults - must be set):
+
+| Variable | Description | How to Find |
+|----------|-------------|-------------|
+| `name_prefix` | Prefix used for all resource names | Check your old `terraform.tfvars` or `main.tf` |
+| `aws_profile` | AWS CLI profile for authentication | Your existing AWS profile name |
+| `license_key` | Materialize license key | From your old config or Materialize team |
+| `environment` | Environment name from old module (e.g., `production`) | Check your old module's `environment` variable |
+| `materialize_instance_name` | Your Materialize instance name | `kubectl get materialize -A` |
+| `old_db_password` | Existing RDS database password | From your old `terraform.tfvars`, Terraform Cloud, or secrets manager |
+| `external_login_password_mz_system` | Existing mz_system user password | `terraform output -raw external_login_password_mz_system` (in old directory) |
+
+**Infrastructure variables** (have defaults matching old module - verify they match yours):
+
+| Variable | Default | How to Verify |
+|----------|---------|---------------|
+| `vpc_cidr` | `10.0.0.0/16` | `aws ec2 describe-vpcs` |
+| `availability_zones` | `["us-east-1a", "us-east-1b", "us-east-1c"]` | Must match your region |
+| `cluster_version` | `1.32` | `aws eks describe-cluster --name <prefix>-eks --query cluster.version` |
+| `environmentd_image_ref` | `materialize/environmentd:v26.5.1` | `kubectl get materialize -A -o jsonpath='{.items[0].spec.environmentdImageRef}'` |
+| `base_instance_types` | `["r7g.xlarge"]` | `aws eks describe-nodegroup --cluster-name <prefix>-eks --nodegroup-name <prefix>` |
+| `mz_instance_types` | `["r7gd.2xlarge"]` | `aws eks describe-nodegroup --cluster-name <prefix>-eks --nodegroup-name <prefix>-mz-swap` |
+| `postgres_version` | `17` | `aws rds describe-db-instances` |
+| `db_instance_class` | `db.m6i.large` | `aws rds describe-db-instances` |
+
+**Data-path critical variables** - getting these wrong means Materialize won't find its existing data:
+- `old_db_password` - used in `metadata_backend_url` to connect to the correct RDS database
+- `environment` - used in `persist_backend_url` to locate existing S3 data (format: `s3://bucket/{environment}-{instance}:...`)
+- `materialize_instance_name` - used as the database name in `metadata_backend_url` and as part of the S3 path
+
 ## What Changed: Old vs New Module
 
 | Aspect | Old Module | New Module | Migration Impact |
@@ -88,11 +132,15 @@ terraform state pull | jq '.resources | length'
 | **Module Names** | `certificates`, `materialize_node_group` | `cert_manager`, `mz_node_group` | Automated rename |
 | **Operator Resources** | All in `module.operator[0].*` | Split: operator module + root-level instances | Moved blocks handle this |
 | **NLB Naming** | Explicit: `${prefix}-${instance}` | name_prefix (generates unique) | Migration preserves via `nlb_name` param |
-| **Provider** | `kubernetes_manifest` | `kubectl_manifest` (cert-manager + bindings) | 6 resources recreated |
+| **NLB Security Groups** | None | Optional SG per NLB | `create_security_group = false` during migration |
+| **Provider** | `kubernetes_manifest` | `kubectl_manifest` (cert-manager + bindings) | Skipped in state mv, created fresh |
 | **IAM Roles** | Root level | In `storage` module | State path changes |
 | **Node Groups** | In EKS module | Separate `eks-node-group` module | Better modularity |
+| **TLS Config** | In operator Helm values | Passed via `helm_values` variable | Configured in migration `main.tf` |
+| **DB Password** | `random_password` resource | Explicit variable (`old_db_password`) | Must provide existing password |
+| **S3 Persist Path** | `{env}-{instance}:serviceaccount:{ns}:{instance}` | Same format via `environment` variable | Must set `environment` variable |
 
-Most changes are state path updates (no infrastructure changes). Only 6 resources recreated due to provider change, which is safe.
+Most changes are state path updates (no infrastructure changes). Resources with provider type changes (`kubernetes_manifest` to `kubectl_manifest`) are skipped during state migration and created fresh - `kubectl apply` adopts the existing Kubernetes resources with zero disruption.
 
 ## How Auto-Migration Works
 
@@ -106,11 +154,16 @@ The `auto-migrate.py` script:
    - Moves operator resources: `module.operator.kubernetes_manifest.materialize_instances` → `kubernetes_manifest.materialize_instances`
    - Preserves helm releases: operator, AWS LBC, cert-manager
    - Skips data sources (automatically recreated)
-4. **Cleans problematic resources**:
-   - Removes EKS access entries (recreated to avoid conflicts)
-   - Removes database security group rules (often already exist in AWS)
-5. **Migrates resources** - Uses `terraform state mv` between state files
-6. **Pushes updated states** - Updates both old and new backends
+   - Skips cert-manager and NLB target group bindings (provider type change; recreated safely)
+4. **Validates migrated state** (read-only check for potential issues)
+5. **Prepares resource imports**:
+   - Discovers security group IDs from the migrated state
+   - Strips IPv6 CIDR ranges from EKS node SG rules in AWS (IPv4 rules untouched)
+   - Removes stale SG rule instances from local state (they have outdated attributes after state mv)
+   - Queues database SG rules and EKS node SG rules for import
+6. **Migrates resources** - Uses `terraform state mv` between local state files
+7. **Pushes updated states** - Updates both old and new remote backends
+8. **Imports resources** - Runs `terraform import` directly against remote backend for queued SG rules
 
 **Work files** (in `.migration-work/`):
 - `old-state-backup-TIMESTAMP.tfstate` - Original backup for emergency restore
@@ -119,18 +172,21 @@ The `auto-migrate.py` script:
 
 ## Expected Changes After Migration
 
-**Safe recreations** (unavoidable due to provider/module changes):
-1. **3 cert-manager resources** - Provider change: `kubernetes_manifest` → `kubectl_manifest`
-2. **3 NLB target group bindings** - Same provider change, brief reconnection during apply
-3. **5 IAM policy attachments** - Terraform state quirk, no functional impact
-4. **2 EKS access entries** - Configuration change, brief access resync
-5. **3 database security group rules** - Weren't in old state, creating new ones
+**Additions** (new resources that adopt existing Kubernetes objects):
+1. **3 cert-manager resources** (`kubectl_manifest`) - Adopts existing cert-manager K8s resources
+2. **3 NLB target group bindings** (`kubectl_manifest`) - Adopts existing target group binding K8s resources
+
+**Safe updates** (no infrastructure replacement):
+1. **IAM policy attachments** - Terraform state quirk, no functional impact
+2. **EKS access entries** - Configuration change, brief access resync
 
 **Preserved** (no replacement):
-- NLB (explicit naming via `nlb_name` parameter)
-- Listeners and target groups (via NLB preservation)
-- Security group rules with IPv6 (via `materialize_node_ingress_ipv6_cidrs`)
+- NLB (explicit naming via `nlb_name` parameter, no security group added)
+- Listeners and target groups
+- EKS node security group rules (IPv6 stripped, IPv4 preserved, imported fresh)
+- Database security group rules (imported by script)
 - EKS cluster, RDS database, VPC, NAT gateways
+- S3 bucket and persist data
 - All Materialize instances and helm releases
 
 **STOP if you see these being destroyed:**
@@ -139,56 +195,21 @@ The `auto-migrate.py` script:
 - Materialize instances (`kubernetes_manifest.materialize_instances`)
 - EKS Cluster
 - NLB (should show "has moved" instead)
+- Node groups or launch templates
 
-If critical infrastructure is being destroyed, check [Customizing main.tf](#customizing-maintf-for-your-infrastructure).
+If critical infrastructure is being destroyed, verify your `terraform.tfvars` values match your existing infrastructure.
 
-## Customizing main.tf for Your Infrastructure
+## Post-Migration: Optional Improvements
 
-Before running terraform apply, update `main.tf` to match your existing setup. Search for `# MIGRATION:` comments.
+After migration is verified and stable, you can make these optional changes to `main.tf` and `terraform.tfvars`:
 
-**Key customizations:**
-```hcl
-# Line 34-35: Match your existing prefix
-variable "name_prefix" {
-  default = "your-prefix"  # CHANGE THIS
-}
-
-# Line 47-48: Match your instance name
-locals {
-  materialize_instance_name = "analytics"  # CHANGE THIS
-}
-
-# Line 98: Preserve 3 NAT gateways (prevents replacement)
-single_nat_gateway = false
-
-# Line 120: Match your EKS version
-cluster_version = "1.32"
-
-# Line 128: Preserve IPv6 rules (or set to [] to remove)
-materialize_node_ingress_ipv6_cidrs = ["::/0"]
-
-# Line 150-154: Match base node group settings
-instance_types = ["t4g.medium"]
-min_size       = 2
-max_size       = 3
-desired_size   = 2
-
-# Line 185-189: Match Materialize node group settings
-node_group_name = "${var.name_prefix}-mz-swap"
-instance_types  = ["r7gd.2xlarge"]
-min_size        = 1
-max_size        = 10
-desired_size    = 1
-
-# Line 684: Preserve existing NLB name
-nlb_name = "${var.name_prefix}-${each.key}"
-```
-
-**After successful migration**, you can optionally:
-- Remove `nlb_name` to adopt name_prefix-based naming
-- Set `materialize_node_ingress_ipv6_cidrs = []` to remove IPv6
-- Set `single_nat_gateway = true` for cost savings
-- Enable Karpenter for autoscaling (currently commented out)
+- Set `single_nat_gateway = true` to reduce costs (from 3 NAT gateways to 1)
+- Set `create_security_group = true` in NLB module to add NLB security groups
+- Remove the `nlb_name` override to adopt the new name_prefix-based naming
+- Change node labels from `"system"` to `"base"`/`"generic"` and add dedicated generic nodes
+- Uncomment the `coredns` module to manage CoreDNS via Terraform
+- Uncomment `node_taints` on the Materialize node group
+- Enable Karpenter for autoscaling (currently commented out in `main.tf`)
 
 ## Troubleshooting
 
@@ -196,21 +217,48 @@ nlb_name = "${var.name_prefix}-${each.key}"
 |---------|----------|
 | State pull fails | Check AWS credentials, backend config, run `terraform init` in old directory |
 | "Only X resources" error (X < 10) | Old state not accessible - verify backend configuration |
-| "ResourceInUseException" on EKS access entries | **These weren't in your old state but exist in AWS.** Import them: `terraform import 'module.eks.module.eks.aws_eks_access_entry.this["KEY"]' 'CLUSTER:PRINCIPAL_ARN'` (error message shows exact KEY, CLUSTER, and PRINCIPAL_ARN to use) |
-| "InvalidPermission.Duplicate" on security group rules | **These weren't in your old state but exist in AWS.** Import them: `terraform import 'RESOURCE_PATH' 'RULE_ID'` (see [Security Group Import Guide](#importing-security-group-rules) below) |
-| Helm releases timing out during apply | **They're already installed and working.** Remove from state to stop Terraform managing them: `terraform state rm 'module.operator.helm_release.metrics_server[0]'` `terraform state rm 'module.operator.helm_release.materialize_operator'` `terraform state rm 'module.aws_lbc.helm_release.aws_load_balancer_controller'` `terraform state rm 'module.cert_manager.helm_release.cert_manager[0]'` - Then re-run `terraform apply` |
-| NAT gateways being destroyed | Set `single_nat_gateway = false` in main.tf line 98 |
-| NLB being replaced | Already fixed via `nlb_name` parameter in main.tf line 684 |
-| Materialize instances being created | Uncommented in latest main.tf - they should be migrated, not created |
-| Plan shows too many destroys | Review `# MIGRATION:` comments in main.tf, ensure settings match existing infrastructure |
+| "ResourceInUseException" on EKS access entries | Import them: `terraform import 'module.eks.module.eks.aws_eks_access_entry.this["KEY"]' 'CLUSTER:PRINCIPAL_ARN'` (error message shows values) |
+| "InvalidPermission.Duplicate" on security group rules | Script should handle this automatically. If it persists, see [Security Group Import Guide](#importing-security-group-rules) |
+| Helm releases timing out | Remove from state: `terraform state rm 'module.operator.helm_release.materialize_operator'` etc. See [Helm Releases](#helm-releases-timing-out) |
+| NAT gateways being destroyed | Set `single_nat_gateway = false` in `terraform.tfvars` |
+| NLB being replaced | These are managed in `main.tf` - verify `nlb_name` and `create_security_group = false` |
+| Launch template being replaced | These are managed in `main.tf` - verify `launch_template_name` matches old naming |
+| Node group being replaced | These are managed in `main.tf` - verify `node_group_name` matches old naming |
+| Materialize can't find data | Verify `environment`, `old_db_password`, and `materialize_instance_name` in `terraform.tfvars` |
+| TLS errors after migration | Verify `use_self_signed_cluster_issuer` matches old module setting |
+| Plan shows too many destroys | Review `terraform.tfvars` values, ensure they match existing infrastructure |
 
 **If script fails with "No transformation rule":**
 - Your setup has custom resources not in standard module
 - Add custom transformation rules to `auto-migrate.py` (see [Manual Migration](#manual-migration-for-custom-setups))
 
+### Data Path Matching
+
+The most critical part of migration is ensuring Materialize connects to the same data. Three values must match exactly:
+
+**metadata_backend_url** (RDS connection):
+```
+postgres://user:password@host/DATABASE_NAME?sslmode=require
+```
+- `DATABASE_NAME` = `coalesce(instance.database_name, instance.name)` from the old module
+- If you didn't set `database_name` explicitly, it defaults to the instance name (e.g., `analytics`)
+- Set via `database_name` field in `materialize_instances` local in `main.tf`
+
+**persist_backend_url** (S3 path):
+```
+s3://bucket/ENVIRONMENT-INSTANCE:serviceaccount:NAMESPACE:INSTANCE
+```
+- `ENVIRONMENT` comes from the `environment` variable (e.g., `production`)
+- This must match the old module's `environment` variable exactly
+- Check your S3 bucket to verify: `aws s3 ls s3://your-bucket/ --recursive | head`
+
+**external_login_password_mz_system** (login password):
+- Must be your existing password, not a new random one
+- Get from old config: `terraform output -raw external_login_password_mz_system`
+
 ### Importing Resources Not in Old State
 
-Some resources may exist in AWS but weren't tracked in your old Terraform state (created manually or by AWS). You need to import them manually.
+Some resources may exist in AWS but weren't tracked in your old Terraform state. The migration script handles most of these automatically (database SG rules, EKS node SG rules). If you still encounter issues:
 
 #### Importing EKS Access Entries
 
@@ -225,19 +273,17 @@ Error: creating EKS Access Entry (cluster-name:arn:...): ResourceInUseException
 
 **Example:**
 ```bash
-# Error shows: your-prefix-eks:arn:aws:iam::400121260767:role/.../Administrator_...
-# And resource: module.eks.module.eks.aws_eks_access_entry.this["cluster_creator"]
-
 terraform import \
   'module.eks.module.eks.aws_eks_access_entry.this["cluster_creator"]' \
-  'your-prefix-eks:arn:aws:iam::400121260767:role/aws-reserved/sso.amazonaws.com/AWSReservedSSO_Administrator_8f776055d1b2f7d4'
+  'your-prefix-eks:arn:aws:iam::123456789012:role/aws-reserved/sso.amazonaws.com/AWSReservedSSO_Administrator_abc123'
 ```
 
 **After importing, run `terraform apply` again.**
 
 #### Importing Security Group Rules
 
-If `terraform apply` fails with:
+The migration script automatically imports database and EKS node SG rules. If you still see errors:
+
 ```
 Error: ... InvalidPermission.Duplicate: the specified rule "..." already exists
 ```
@@ -261,7 +307,7 @@ terraform import \
 # Database security group rule: allow all egress
 terraform import \
   'module.database.aws_security_group_rule.allow_all_egress' \
-  'sg-070853f83fabc8fde_egress_all_0_0_0.0.0.0/0'
+  'sg-070853f83fabc8fde_egress_-1_0_0_0.0.0.0/0'
 ```
 
 **After importing all rules, run `terraform apply` again.**
@@ -290,20 +336,6 @@ terraform apply
 - Removing from state doesn't delete them from Kubernetes
 - They'll continue running independently
 - You can manage them manually via `helm upgrade` if needed
-
-**Alternative - Increase timeout:**
-If you want Terraform to keep managing them, set longer timeout in provider config:
-```hcl
-# In main.tf, add to helm provider
-provider "helm" {
-  kubernetes {
-    # ... existing config
-  }
-
-  # Increase timeout for slow helm operations
-  timeout = 600  # 10 minutes instead of default 5
-}
-```
 
 ## Rollback Procedure
 
@@ -343,13 +375,13 @@ kubectl get pods -n materialize-environment
 
 # 4. Test connectivity
 terraform output nlb_dns_name
-terraform output -raw external_login_password_mz_system
 psql -h <nlb-dns> -p 6875 -U mz_system -d materialize
 # Should connect and allow queries
+# Use: terraform output -raw external_login_password_mz_system
 
 # 5. Verify S3 bucket
 aws s3 ls s3://$(terraform output -raw s3_bucket_name)/
-# Should show persist data
+# Should show persist data under {environment}-{instance}:serviceaccount:... prefix
 
 # 6. Check RDS
 aws rds describe-db-instances --db-instance-identifier $(terraform output -raw database_endpoint | cut -d: -f1)
@@ -358,11 +390,11 @@ aws rds describe-db-instances --db-instance-identifier $(terraform output -raw d
 
 **Success criteria:**
 - Auto-migrate.py shows 0 failures
-- Terraform plan shows only expected changes
+- Terraform plan shows only expected changes (additions for kubectl_manifest, minor updates)
 - Terraform apply succeeds
 - `kubectl get materialize -A` shows STATUS: running
 - Can connect via psql to NLB endpoint
-- Test queries return expected data
+- Test queries return expected data (verify your tables/views are present)
 
 ## Manual Migration (For Custom Setups)
 
@@ -403,7 +435,7 @@ MigrationRule(
 ```
 
 Check output for:
-- `⚠️ No transformation rule` - Add rules for these
+- `No transformation rule` - Add rules for these
 - Incorrect transformations - Adjust regex patterns
 - Resources that should skip but aren't - Add skip rules
 
@@ -461,6 +493,8 @@ terraform plan
 - `module.operator.kubernetes_namespace.instance_namespaces[X]` → `kubernetes_namespace.instance_namespaces[X]`
 - `module.operator.kubernetes_secret.materialize_backends[X]` → `kubernetes_secret.materialize_backends[X]`
 - Skip all data sources (recreated automatically)
+- Skip cert-manager `kubernetes_manifest` resources (recreated as `kubectl_manifest`)
+- Skip NLB target group binding `kubernetes_manifest` resources (recreated as `kubectl_manifest`)
 
 ## Cleanup
 
