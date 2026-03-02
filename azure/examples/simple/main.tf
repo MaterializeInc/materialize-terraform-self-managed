@@ -123,6 +123,9 @@ locals {
       effect   = "NoSchedule"
     }
   ]
+
+  # https://learn.microsoft.com/en-us/azure/aks/concepts-storage#storage-classes
+  storage_class = "managed-csi"
 }
 
 
@@ -321,11 +324,55 @@ module "operator" {
   # node selector for operator and metrics-server workloads
   operator_node_selector = local.generic_node_labels
 
+  # Enable Prometheus scrape annotations when observability is enabled
+  helm_values = var.enable_observability ? {
+    observability = {
+      enabled = true
+      prometheus = {
+        scrapeAnnotations = {
+          enabled = true
+        }
+      }
+    }
+  } : {}
+
   depends_on = [
     module.aks,
     module.database,
     module.storage,
     module.coredns,
+  ]
+}
+
+module "prometheus" {
+  count  = var.enable_observability ? 1 : 0
+  source = "../../../kubernetes/modules/prometheus"
+
+  namespace        = "monitoring"
+  create_namespace = false # operator creates the "monitoring" namespace
+  node_selector    = local.generic_node_labels
+  storage_class    = local.storage_class
+
+  depends_on = [
+    module.operator,
+    module.aks,
+    module.coredns,
+  ]
+}
+
+module "grafana" {
+  count  = var.enable_observability ? 1 : 0
+  source = "../../../kubernetes/modules/grafana"
+
+  namespace     = "monitoring"
+  storage_class = local.storage_class
+  # operator creates the "monitoring" namespace
+  create_namespace = false
+  prometheus_url   = module.prometheus[0].prometheus_url
+  node_selector    = local.generic_node_labels
+
+  depends_on = [
+    module.prometheus,
   ]
 }
 

@@ -202,6 +202,13 @@ variable "network_data_plane" {
   }
 }
 
+variable "disk_driver_enabled" {
+  description = "Whether Disk CSI Driver is enabled"
+  type        = bool
+  default     = true
+  nullable    = false
+}
+
 variable "dns_service_ip" {
   description = "IP address within the service CIDR that will be used by cluster service discovery (kube-dns). If not specified, will be calculated automatically."
   type        = string

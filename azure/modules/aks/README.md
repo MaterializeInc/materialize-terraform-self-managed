@@ -40,6 +40,7 @@ No modules.
 | <a name="input_default_node_pool_node_labels"></a> [default\_node\_pool\_node\_labels](#input\_default\_node\_pool\_node\_labels) | Node labels for the default node pool | `map(string)` | `{}` | no |
 | <a name="input_default_node_pool_os_disk_size_gb"></a> [default\_node\_pool\_os\_disk\_size\_gb](#input\_default\_node\_pool\_os\_disk\_size\_gb) | OS disk size in GB for the default node pool | `number` | `100` | no |
 | <a name="input_default_node_pool_vm_size"></a> [default\_node\_pool\_vm\_size](#input\_default\_node\_pool\_vm\_size) | VM size for the default node pool (system node pool) | `string` | `"Standard_D2s_v3"` | no |
+| <a name="input_disk_driver_enabled"></a> [disk\_driver\_enabled](#input\_disk\_driver\_enabled) | Whether Disk CSI Driver is enabled | `bool` | `true` | no |
 | <a name="input_dns_service_ip"></a> [dns\_service\_ip](#input\_dns\_service\_ip) | IP address within the service CIDR that will be used by cluster service discovery (kube-dns). If not specified, will be calculated automatically. | `string` | `null` | no |
 | <a name="input_enable_api_server_vnet_integration"></a> [enable\_api\_server\_vnet\_integration](#input\_enable\_api\_server\_vnet\_integration) | Enable API Server VNet Integration. Projects the API server into a delegated subnet in your VNet. Requires api\_server\_subnet\_id to be provided. | `bool` | `true` | no |
 | <a name="input_enable_azure_ad_rbac"></a> [enable\_azure\_ad\_rbac](#input\_enable\_azure\_ad\_rbac) | Enable Azure Active Directory integration for RBAC | `bool` | `false` | no |

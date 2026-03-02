@@ -152,3 +152,20 @@ output "external_login_password_mz_system" {
   value       = random_password.external_login_password_mz_system.result
   sensitive   = true
 }
+
+# Observability outputs (only when enabled)
+output "prometheus_url" {
+  description = "Internal URL for Prometheus server"
+  value       = var.enable_observability ? module.prometheus[0].prometheus_url : null
+}
+
+output "grafana_url" {
+  description = "Internal URL for Grafana"
+  value       = var.enable_observability ? module.grafana[0].grafana_url : null
+}
+
+output "grafana_admin_password" {
+  description = "`admin` password for Grafana"
+  value       = var.enable_observability ? module.grafana[0].admin_password : null
+  sensitive   = true
+}
