@@ -96,6 +96,25 @@ module "base_node_group" {
   tags                              = var.tags
 }
 
+# 2.1.1 Install VPC CNI with Network Policy support
+module "vpc_cni" {
+  source = "../../modules/vpc-cni"
+
+  name_prefix       = var.name_prefix
+  oidc_provider_arn = module.eks.oidc_provider_arn
+  oidc_issuer_url   = module.eks.cluster_oidc_issuer_url
+
+  enable_network_policy    = true
+  enable_policy_event_logs = true
+
+  tags = var.tags
+
+  depends_on = [
+    module.eks,
+    module.base_node_group,
+  ]
+}
+
 module "coredns" {
   source = "../../../kubernetes/modules/coredns"
 
@@ -108,6 +127,7 @@ module "coredns" {
     module.eks,
     module.base_node_group,
     module.networking,
+    module.vpc_cni,
   ]
 }
 
@@ -306,6 +326,21 @@ module "operator" {
     module.networking,
     module.nodepool_generic,
     module.coredns,
+    module.vpc_cni,
+  ]
+}
+
+# 6.1 Supplementary Network Policies (default-deny, DNS egress, operator-to-instance)
+module "network_policies" {
+  source = "../../../kubernetes/modules/network-policies"
+
+  operator_namespace  = module.operator.operator_namespace
+  instance_namespaces = [local.materialize_instance_namespace]
+  enable_default_deny = true
+
+  depends_on = [
+    module.operator,
+    module.vpc_cni,
   ]
 }
 

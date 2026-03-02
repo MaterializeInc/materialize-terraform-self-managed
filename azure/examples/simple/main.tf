@@ -344,6 +344,19 @@ module "operator" {
   ]
 }
 
+# Supplementary Network Policies (default-deny, DNS egress, operator-to-instance)
+module "network_policies" {
+  source = "../../../kubernetes/modules/network-policies"
+
+  operator_namespace  = module.operator.operator_namespace
+  instance_namespaces = [local.materialize_instance_namespace]
+  enable_default_deny = true
+
+  depends_on = [
+    module.operator,
+  ]
+}
+
 module "prometheus" {
   count  = var.enable_observability ? 1 : 0
   source = "../../../kubernetes/modules/prometheus"
