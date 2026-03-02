@@ -153,9 +153,15 @@ output "resource_group_name" {
   value = azurerm_resource_group.materialize.name
 }
 
-output "external_login_password_mz_system" {
-  description = "Password for external login to the Materialize instance"
-  value       = random_password.external_login_password_mz_system.result
+output "mz_instance_superuser_credentials" {
+  description = "Credentials for the superuser, Login to materialize using these credentials"
+  value       = module.materialize_instance.superuser_credentials
+  sensitive   = true
+}
+
+output "mz_system_credentials" {
+  description = "Credentials for the mz_system user, not to be used by applications"
+  value       = module.materialize_instance.mz_system_credentials
   sensitive   = true
 }
 

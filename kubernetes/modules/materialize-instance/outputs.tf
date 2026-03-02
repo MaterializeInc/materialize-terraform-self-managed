@@ -22,3 +22,21 @@ output "persist_backend_url" {
   description = "Persist backend URL used by the Materialize instance"
   value       = var.persist_backend_url
 }
+
+output "mz_system_credentials" {
+  description = "Credentials for the mz_system user, not to be used by applications"
+  value = contains(["Password", "Sasl"], var.authenticator_kind) ? {
+    username = "mz_system"
+    password = var.external_login_password_mz_system
+  } : {}
+  sensitive = true
+}
+
+output "superuser_credentials" {
+  description = "Credentials for the superuser, Login to materialize using these credentials"
+  value = local.create_superuser ? {
+    username = var.superuser_credentials.username
+    password = local.superuser_password
+  } : {}
+  sensitive = true
+}
