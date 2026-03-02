@@ -2,6 +2,20 @@
 
 locals {
   default_helm_values = {
+    networkPolicies = {
+      enabled = true
+      internal = {
+        enabled = true
+      }
+      ingress = {
+        enabled = true
+        cidrs   = ["0.0.0.0/0"]
+      }
+      egress = {
+        enabled = true
+        cidrs   = ["0.0.0.0/0"]
+      }
+    }
     operator = {
       args = {
         enableLicenseKeyChecks = var.enable_license_key_checks
