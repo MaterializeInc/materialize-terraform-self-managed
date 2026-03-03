@@ -126,3 +126,57 @@ data "kubernetes_resource" "materialize_instance" {
     kubectl_manifest.materialize_instance
   ]
 }
+
+# Allow egress to kube-system (DNS, metrics-server, etc.)
+resource "kubernetes_network_policy_v1" "allow_kube_system_egress" {
+  count = var.enable_network_policies ? 1 : 0
+
+  metadata {
+    name      = "allow-kube-system-egress"
+    namespace = var.instance_namespace
+  }
+
+  spec {
+    pod_selector {}
+    policy_types = ["Egress"]
+
+    egress {
+      to {
+        namespace_selector {
+          match_labels = {
+            "kubernetes.io/metadata.name" = "kube-system"
+          }
+        }
+      }
+    }
+  }
+
+  depends_on = [kubernetes_namespace.instance]
+}
+
+# Allow ingress from monitoring namespace (Prometheus scraping)
+resource "kubernetes_network_policy_v1" "allow_monitoring_ingress" {
+  count = var.enable_network_policies ? 1 : 0
+
+  metadata {
+    name      = "allow-monitoring-ingress"
+    namespace = var.instance_namespace
+  }
+
+  spec {
+    pod_selector {}
+    policy_types = ["Ingress"]
+
+    ingress {
+      from {
+        namespace_selector {
+          match_labels = {
+            "kubernetes.io/metadata.name" = var.monitoring_namespace
+          }
+        }
+      }
+    }
+  }
+
+  depends_on = [kubernetes_namespace.instance]
+}

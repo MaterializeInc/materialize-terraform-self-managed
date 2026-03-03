@@ -309,6 +309,10 @@ module "operator" {
   # node selector for operator and metrics-server workloads
   operator_node_selector = local.generic_node_labels
 
+  enable_network_policies = true
+  operator_namespace      = local.operator_namespace
+  monitoring_namespace    = local.monitoring_namespace
+
   # Enable Prometheus scrape annotations when observability is enabled
   helm_values = var.enable_observability ? {
     observability = {
@@ -326,20 +330,6 @@ module "operator" {
     module.networking,
     module.nodepool_generic,
     module.coredns,
-    module.vpc_cni,
-  ]
-}
-
-# 6.1 Supplementary Network Policies (default-deny, DNS egress, operator-to-instance)
-module "network_policies" {
-  source = "../../../kubernetes/modules/network-policies"
-
-  operator_namespace  = module.operator.operator_namespace
-  instance_namespaces = [local.materialize_instance_namespace]
-  enable_default_deny = true
-
-  depends_on = [
-    module.operator,
     module.vpc_cni,
   ]
 }
@@ -406,6 +396,9 @@ module "materialize_instance" {
   metadata_backend_url = local.metadata_backend_url
   persist_backend_url  = local.persist_backend_url
 
+  enable_network_policies = true
+  monitoring_namespace    = local.monitoring_namespace
+
   # Rollout configuration
   force_rollout   = var.force_rollout
   request_rollout = var.request_rollout
@@ -444,7 +437,7 @@ module "prometheus" {
   count  = var.enable_observability ? 1 : 0
   source = "../../../kubernetes/modules/prometheus"
 
-  namespace        = "monitoring"
+  namespace        = local.monitoring_namespace
   create_namespace = false # operator creates the "monitoring" namespace
   node_selector    = local.generic_node_labels
   storage_class    = module.ebs_csi_driver.storage_class_name
@@ -461,7 +454,7 @@ module "grafana" {
   count  = var.enable_observability ? 1 : 0
   source = "../../../kubernetes/modules/grafana"
 
-  namespace = "monitoring"
+  namespace = local.monitoring_namespace
   # operator creates the "monitoring" namespace
   create_namespace = false
   storage_class    = module.ebs_csi_driver.storage_class_name
@@ -497,7 +490,10 @@ module "materialize_nlb" {
 
 locals {
   materialize_instance_namespace = "materialize-environment"
+  operator_namespace             = "materialize"
   materialize_instance_name      = "main"
+
+  monitoring_namespace = "monitoring"
 
   # Common node scheduling configuration
   base_node_labels = {
