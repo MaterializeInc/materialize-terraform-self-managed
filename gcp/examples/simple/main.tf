@@ -308,7 +308,7 @@ module "operator" {
   instance_pod_tolerations = local.materialize_tolerations
   instance_node_selector   = local.materialize_node_labels
 
-  # node selector for operator and metrics-server workloads
+  # node selector for operator workloads
   operator_node_selector = local.generic_node_labels
 
 
@@ -333,12 +333,31 @@ module "operator" {
   ]
 }
 
+# Note: GKE provides metrics-server by default, so we don't need to install it separately.
+# If you need to install a custom metrics-server (e.g., when metrics collection is disabled
+# in the cluster), use the kubernetes/modules/metrics-server module:
+# https://cloud.google.com/kubernetes-engine/docs/how-to/configure-metrics
+#
+# module "metrics_server" {
+#   source = "../../../kubernetes/modules/metrics-server"
+#
+#   namespace        = "monitoring"
+#   create_namespace = false
+#   node_selector    = local.generic_node_labels
+#
+#   depends_on = [
+#     module.operator,
+#     module.generic_nodepool,
+#     module.coredns,
+#   ]
+# }
+
 module "prometheus" {
   count  = var.enable_observability ? 1 : 0
   source = "../../../kubernetes/modules/prometheus"
 
   namespace        = "monitoring"
-  create_namespace = false # operator creates the "monitoring" namespace
+  create_namespace = true
   node_selector    = local.generic_node_labels
   storage_class    = local.storage_class
   depends_on = [
@@ -355,7 +374,7 @@ module "grafana" {
 
   namespace     = "monitoring"
   storage_class = local.storage_class
-  # operator creates the "monitoring" namespace
+  # metrics-server creates the "monitoring" namespace
   create_namespace = false
   prometheus_url   = module.prometheus[0].prometheus_url
   node_selector    = local.generic_node_labels

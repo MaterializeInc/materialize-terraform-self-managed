@@ -4,12 +4,6 @@ resource "kubernetes_namespace" "materialize" {
   }
 }
 
-resource "kubernetes_namespace" "monitoring" {
-  metadata {
-    name = var.monitoring_namespace
-  }
-}
-
 locals {
   default_helm_values = {
     observability = {

@@ -306,7 +306,7 @@ module "operator" {
   instance_pod_tolerations = local.materialize_tolerations
   instance_node_selector   = local.materialize_node_labels
 
-  # node selector for operator and metrics-server workloads
+  # node selector for operator workloads
   operator_node_selector = local.generic_node_labels
 
   enable_network_policies = true
