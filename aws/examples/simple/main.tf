@@ -334,6 +334,22 @@ module "operator" {
   ]
 }
 
+# 6.1 Install Metrics Server
+module "metrics_server" {
+  source = "../../../kubernetes/modules/metrics-server"
+
+  namespace        = local.monitoring_namespace
+  create_namespace = true
+  node_selector    = local.generic_node_labels
+
+  depends_on = [
+    module.operator,
+    module.nodepool_generic,
+    module.coredns,
+    module.vpc_cni,
+  ]
+}
+
 resource "random_password" "database_password" {
   length           = 16
   special          = true
@@ -447,6 +463,7 @@ module "prometheus" {
     module.nodepool_generic,
     module.coredns,
     module.ebs_csi_driver,
+    module.metrics_server,
   ]
 }
 
