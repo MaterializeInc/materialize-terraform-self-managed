@@ -23,7 +23,6 @@ No modules.
 | Name | Type |
 |------|------|
 | [helm_release.materialize_operator](https://registry.terraform.io/providers/hashicorp/helm/latest/docs/resources/release) | resource |
-| [helm_release.metrics_server](https://registry.terraform.io/providers/hashicorp/helm/latest/docs/resources/release) | resource |
 | [kubernetes_namespace.materialize](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/namespace) | resource |
 | [kubernetes_namespace.monitoring](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/namespace) | resource |
 | [kubernetes_network_policy_v1.allow_api_server_egress](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/network_policy_v1) | resource |
@@ -42,6 +41,7 @@ No modules.
 | <a name="input_instance_node_selector"></a> [instance\_node\_selector](#input\_instance\_node\_selector) | Node selector for Materialize workloads (environmentd, clusterd, balancerd, console). | `map(string)` | `{}` | no |
 | <a name="input_instance_pod_tolerations"></a> [instance\_pod\_tolerations](#input\_instance\_pod\_tolerations) | Tolerations for Materialize instance workloads (environmentd, clusterd, balancerd, console). | <pre>list(object({<br/>    key      = string<br/>    value    = optional(string)<br/>    operator = optional(string, "Equal")<br/>    effect   = string<br/>  }))</pre> | `[]` | no |
 | <a name="input_location"></a> [location](#input\_location) | The location of the Azure subscription | `string` | n/a | yes |
+| <a name="input_monitoring_namespace"></a> [monitoring\_namespace](#input\_monitoring\_namespace) | Namespace for monitoring resources | `string` | `"monitoring"` | no |
 | <a name="input_name_prefix"></a> [name\_prefix](#input\_name\_prefix) | Prefix for all resource names (replaces separate namespace and environment variables) | `string` | n/a | yes |
 | <a name="input_operator_namespace"></a> [operator\_namespace](#input\_operator\_namespace) | Namespace for the Materialize operator | `string` | `"materialize"` | no |
 | <a name="input_operator_node_selector"></a> [operator\_node\_selector](#input\_operator\_node\_selector) | Node selector for operator pods. | `map(string)` | `{}` | no |

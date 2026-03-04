@@ -51,6 +51,13 @@ variable "operator_namespace" {
   nullable    = false
 }
 
+variable "monitoring_namespace" {
+  description = "Namespace for monitoring resources"
+  type        = string
+  default     = "monitoring"
+  nullable    = false
+}
+
 variable "region" {
   description = "Region/Zone for the operator Helm values."
   type        = string
