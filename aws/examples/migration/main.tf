@@ -116,7 +116,7 @@ module "eks" {
   cluster_version                          = var.cluster_version
   vpc_id                                   = module.networking.vpc_id
   private_subnet_ids                       = module.networking.private_subnet_ids
-  cluster_enabled_log_types                = ["api", "audit", "authenticator", "controllerManager", "scheduler"]  # MIGRATION: Match old module defaults
+  cluster_enabled_log_types                = ["api", "audit", "authenticator", "controllerManager", "scheduler"] # MIGRATION: Match old module defaults
   enable_cluster_creator_admin_permissions = true
   materialize_node_ingress_cidrs           = var.ingress_cidr_blocks
   k8s_apiserver_authorized_networks        = var.k8s_apiserver_authorized_networks
@@ -137,8 +137,8 @@ module "eks" {
 module "base_node_group" {
   source = "../../modules/eks-node-group"
 
-  cluster_name                      = module.eks.cluster_name
-  subnet_ids                        = module.networking.private_subnet_ids
+  cluster_name = module.eks.cluster_name
+  subnet_ids   = module.networking.private_subnet_ids
   # MIGRATION: The old EKS module used name_prefix as the node group name
   # and "${name_prefix}-system" as the launch template name. Keeping these
   # ensures no replacement of node groups or launch templates.
@@ -181,15 +181,15 @@ module "base_node_group" {
 module "mz_node_group" {
   source = "../../modules/eks-node-group"
 
-  cluster_name                      = module.eks.cluster_name
-  subnet_ids                        = module.networking.private_subnet_ids
-  node_group_name                   = "${var.name_prefix}-mz-swap"
-  instance_types                    = var.mz_instance_types
-  swap_enabled                      = true
-  min_size                          = var.mz_node_min_size
-  max_size                          = var.mz_node_max_size
-  desired_size                      = var.mz_node_desired_size
-  labels                            = local.materialize_node_labels
+  cluster_name    = module.eks.cluster_name
+  subnet_ids      = module.networking.private_subnet_ids
+  node_group_name = "${var.name_prefix}-mz-swap"
+  instance_types  = var.mz_instance_types
+  swap_enabled    = true
+  min_size        = var.mz_node_min_size
+  max_size        = var.mz_node_max_size
+  desired_size    = var.mz_node_desired_size
+  labels          = local.materialize_node_labels
   # MIGRATION: Taints commented out - the old module didn't set EKS-level taints.
   # After migration is verified, uncomment to enable taints.
   # node_taints                       = local.materialize_node_taints
@@ -197,7 +197,7 @@ module "mz_node_group" {
   cluster_primary_security_group_id = module.eks.node_security_group_id
 
   tags = merge(var.tags, {
-    Swap = "true"  # MIGRATION: Match old module tag on materialize node group
+    Swap = "true" # MIGRATION: Match old module tag on materialize node group
   })
 
   depends_on = [module.eks, module.base_node_group]
@@ -387,9 +387,9 @@ module "storage" {
       noncurrent_version_expiration_days = 90
     }
   ]
-  bucket_force_destroy = true  # Set to false for production!
+  bucket_force_destroy = true # Set to false for production!
 
-  enable_bucket_versioning = true  # MIGRATION: Match your existing setting
+  enable_bucket_versioning = true # MIGRATION: Match your existing setting
   enable_bucket_encryption = true
 
   # IRSA configuration
@@ -503,8 +503,8 @@ resource "kubernetes_secret" "materialize_backends" {
       each.value.namespace,
       each.key
     )
-    license_key = var.license_key
-    external_login_password_mz_system = var.external_login_password_mz_system  # This should be set to your existing mz_system user passwordß
+    license_key                       = var.license_key
+    external_login_password_mz_system = var.external_login_password_mz_system # This should be set to your existing mz_system user passwordß
   }
 
   depends_on = [
@@ -714,8 +714,8 @@ module "nlb" {
   for_each = local.materialize_instances
   source   = "../../modules/nlb"
 
-  instance_name                    = each.key
-  name_prefix                      = var.name_prefix
+  instance_name = each.key
+  name_prefix   = var.name_prefix
   # MIGRATION: Preserve old NLB naming pattern: ${name_prefix}-${instance_name}
   # This avoids NLB recreation during migration. After migration is verified,
   # you can remove this line to use the new name_prefix-based naming.
@@ -730,7 +730,7 @@ module "nlb" {
   ingress_cidr_blocks              = var.ingress_cidr_blocks
   # MIGRATION: Old NLBs didn't have security groups. Adding one forces NLB recreation.
   # After migration is verified, set to true to enable NLB security groups.
-  create_security_group            = false
+  create_security_group = false
 
   depends_on = [module.operator]
 }
@@ -751,12 +751,12 @@ locals {
   materialize_instances = {
     (local.materialize_instance_name) = {
       namespace     = local.materialize_instance_namespace
-      database_name = local.materialize_instance_name  # Defaults to instance name (old module behavior)
+      database_name = local.materialize_instance_name # Defaults to instance name (old module behavior)
     }
   }
 
   base_node_labels = {
-    "workload" = "system"  # MIGRATION: Match old module label. Change to "base" after migration.
+    "workload" = "system" # MIGRATION: Match old module label. Change to "base" after migration.
   }
 
   # MIGRATION: Set to "system" to match old node labels. The old module didn't set
