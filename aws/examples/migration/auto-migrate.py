@@ -724,19 +724,12 @@ class StateMigrator:
         """Pull Terraform state to local file"""
         result = self.run_terraform(['state', 'pull'], cwd=tf_dir)
 
-        if result.returncode == 0:
-            output_file.write_text(result.stdout)
-        else:
-            # Create empty state
-            empty_state = {
-                "version": 4,
-                "terraform_version": "1.5.0",
-                "serial": 1,
-                "lineage": "",
-                "outputs": {},
-                "resources": []
-            }
-            output_file.write_text(json.dumps(empty_state))
+        if result.returncode != 0:
+            self.log(f"Failed to pull state from {tf_dir}: {result.stderr}", 'ERROR')
+            self.log(f"Ensure the directory is initialized (terraform init) and the backend is accessible.", 'ERROR')
+            sys.exit(1)
+
+        output_file.write_text(result.stdout)
 
     def push_state(self, state_file: Path, tf_dir: Path):
         """Push local state file to Terraform backend"""
