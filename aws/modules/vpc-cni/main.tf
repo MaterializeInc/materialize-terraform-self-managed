@@ -43,15 +43,20 @@ resource "helm_release" "vpc_cni" {
   version    = var.chart_version
   namespace  = local.namespace
 
-  # Service account - don't create, use existing aws-node
+  # Service account
   set {
     name  = "serviceAccount.create"
-    value = "false"
+    value = "true"
   }
 
   set {
     name  = "serviceAccount.name"
     value = local.service_account_name
+  }
+
+  set {
+    name  = "serviceAccount.annotations.eks\\.amazonaws\\.com/role-arn"
+    value = aws_iam_role.vpc_cni.arn
   }
 
   # Network Policy configuration
@@ -111,23 +116,4 @@ resource "helm_release" "vpc_cni" {
   depends_on = [
     aws_iam_role_policy_attachment.vpc_cni
   ]
-}
-
-# Patch the existing aws-node service account with the IAM role annotation
-resource "kubernetes_annotations" "vpc_cni_service_account" {
-  api_version = "v1"
-  kind        = "ServiceAccount"
-
-  metadata {
-    name      = local.service_account_name
-    namespace = local.namespace
-  }
-
-  annotations = {
-    "eks.amazonaws.com/role-arn" = aws_iam_role.vpc_cni.arn
-  }
-
-  force = true
-
-  depends_on = [helm_release.vpc_cni]
 }
