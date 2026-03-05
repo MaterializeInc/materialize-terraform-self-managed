@@ -14,6 +14,9 @@ locals {
       args = {
         enableLicenseKeyChecks = var.enable_license_key_checks
       }
+      image = var.orchestratord_version == null ? {} : {
+        tag = var.orchestratord_version
+      },
       cloudProvider = {
         type   = "gcp"
         region = var.region

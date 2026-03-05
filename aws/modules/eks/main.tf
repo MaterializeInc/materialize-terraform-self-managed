@@ -40,6 +40,14 @@ module "eks" {
       type        = "ingress"
       cidr_blocks = var.materialize_node_ingress_cidrs
     }
+    orchestratord_ingress_conversion_webhooks = {
+      description                   = "Ingress to materialize orchestratord for conversion webhooks"
+      protocol                      = "tcp"
+      from_port                     = 8001
+      to_port                       = 8001
+      type                          = "ingress"
+      source_cluster_security_group = true
+    }
   }
 
   # Cluster access entry

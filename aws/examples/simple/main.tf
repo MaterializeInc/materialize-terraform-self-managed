@@ -306,6 +306,7 @@ module "operator" {
     module.networking,
     module.nodepool_generic,
     module.coredns,
+    module.cert_manager,
   ]
 }
 
