@@ -1,7 +1,49 @@
-
 locals {
   service_account_name = "aws-node"
   namespace            = "kube-system"
+
+  helm_annotations = {
+    "meta.helm.sh/release-name"      = "aws-vpc-cni"
+    "meta.helm.sh/release-namespace" = "kube-system"
+  }
+}
+
+# Annotate existing VPC CNI resources for Helm adoption
+# EKS creates these resources by default, and Helm needs ownership annotations to manage them
+resource "terraform_data" "annotate_existing_resources" {
+  count = var.adopt_existing_resources ? 1 : 0
+
+  input = {
+    ROLE_ARN = aws_iam_role.vpc_cni.arn
+  }
+
+  provisioner "local-exec" {
+    interpreter   = ["/usr/bin/env", "bash", "-c"]
+    environment   = self.input
+    command       = <<-EOF
+      set -euo pipefail
+
+      helm_annotate() {
+        kubectl annotate "$@" meta.helm.sh/release-name=aws-vpc-cni meta.helm.sh/release-namespace=kube-system --overwrite
+        kubectl label "$@" app.kubernetes.io/managed-by=Helm --overwrite
+      }
+
+      # Namespaced resources
+      helm_annotate daemonset aws-node -n kube-system
+      helm_annotate serviceaccount aws-node -n kube-system
+      helm_annotate configmap amazon-vpc-cni -n kube-system
+
+      # Cluster-scoped resources
+      helm_annotate clusterrole aws-node
+      helm_annotate clusterrolebinding aws-node
+
+      # Add IRSA annotation to service account
+      kubectl annotate serviceaccount aws-node -n kube-system \
+        eks.amazonaws.com/role-arn="$${ROLE_ARN}" --overwrite
+
+      echo "VPC CNI resources annotated for Helm adoption."
+    EOF
+  }
 }
 
 # IAM role for VPC CNI with OIDC trust
@@ -43,20 +85,15 @@ resource "helm_release" "vpc_cni" {
   version    = var.chart_version
   namespace  = local.namespace
 
-  # Service account
+  # Use existing service account (annotated by terraform_data.annotate_existing_resources)
   set {
     name  = "serviceAccount.create"
-    value = "true"
+    value = "false"
   }
 
   set {
     name  = "serviceAccount.name"
     value = local.service_account_name
-  }
-
-  set {
-    name  = "serviceAccount.annotations.eks\\.amazonaws\\.com/role-arn"
-    value = aws_iam_role.vpc_cni.arn
   }
 
   # Network Policy configuration
@@ -114,6 +151,7 @@ resource "helm_release" "vpc_cni" {
   }
 
   depends_on = [
-    aws_iam_role_policy_attachment.vpc_cni
+    aws_iam_role_policy_attachment.vpc_cni,
+    terraform_data.annotate_existing_resources
   ]
 }
