@@ -1,11 +1,6 @@
 locals {
   service_account_name = "aws-node"
   namespace            = "kube-system"
-
-  helm_annotations = {
-    "meta.helm.sh/release-name"      = "aws-vpc-cni"
-    "meta.helm.sh/release-namespace" = "kube-system"
-  }
 }
 
 # Annotate existing VPC CNI resources for Helm adoption
