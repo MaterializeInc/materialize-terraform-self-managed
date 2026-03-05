@@ -18,9 +18,9 @@ resource "terraform_data" "annotate_existing_resources" {
   }
 
   provisioner "local-exec" {
-    interpreter   = ["/usr/bin/env", "bash", "-c"]
-    environment   = self.input
-    command       = <<-EOF
+    interpreter = ["/usr/bin/env", "bash", "-c"]
+    environment = self.input
+    command     = <<-EOF
       set -euo pipefail
 
       helm_annotate() {
