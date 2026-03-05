@@ -18,16 +18,16 @@ locals {
       }
     }
     networkPolicies = {
-      enabled = true
+      enabled = var.enable_network_policies
       internal = {
-        enabled = true
+        enabled = var.enable_network_policies
       }
       ingress = {
-        enabled = true
+        enabled = var.enable_network_policies
         cidrs   = ["0.0.0.0/0"]
       }
       egress = {
-        enabled = true
+        enabled = var.enable_network_policies
         cidrs   = ["0.0.0.0/0"]
       }
     }
