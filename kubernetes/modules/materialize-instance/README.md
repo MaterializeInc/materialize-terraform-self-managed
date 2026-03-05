@@ -23,6 +23,9 @@ No modules.
 |------|------|
 | [kubectl_manifest.materialize_instance](https://registry.terraform.io/providers/alekc/kubectl/latest/docs/resources/manifest) | resource |
 | [kubernetes_namespace.instance](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/namespace) | resource |
+| [kubernetes_network_policy_v1.allow_api_server_egress](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/network_policy_v1) | resource |
+| [kubernetes_network_policy_v1.allow_kube_system_egress](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/network_policy_v1) | resource |
+| [kubernetes_network_policy_v1.allow_monitoring_ingress](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/network_policy_v1) | resource |
 | [kubernetes_secret.materialize_backend](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/secret) | resource |
 | [kubernetes_resource.materialize_instance](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/data-sources/resource) | data source |
 
@@ -36,6 +39,7 @@ No modules.
 | <a name="input_balancer_memory_request"></a> [balancer\_memory\_request](#input\_balancer\_memory\_request) | Memory request for balancer | `string` | `"256Mi"` | no |
 | <a name="input_cpu_request"></a> [cpu\_request](#input\_cpu\_request) | CPU request for environmentd | `string` | `"1"` | no |
 | <a name="input_create_namespace"></a> [create\_namespace](#input\_create\_namespace) | Whether to create the Kubernetes namespace. Set to false if the namespace already exists. | `bool` | `true` | no |
+| <a name="input_enable_network_policies"></a> [enable\_network\_policies](#input\_enable\_network\_policies) | Enable default-deny-ingress network policy for the instance namespace. Helm chart creates specific allow policies. | `bool` | `true` | no |
 | <a name="input_environmentd_extra_args"></a> [environmentd\_extra\_args](#input\_environmentd\_extra\_args) | Extra command line arguments for environmentd | `list(string)` | `[]` | no |
 | <a name="input_environmentd_extra_env"></a> [environmentd\_extra\_env](#input\_environmentd\_extra\_env) | Extra environment variables for environmentd | <pre>list(object({<br/>    name  = string<br/>    value = string<br/>  }))</pre> | `[]` | no |
 | <a name="input_environmentd_version"></a> [environmentd\_version](#input\_environmentd\_version) | Version of environmentd to use | `string` | `"v26.13.0"` | no |
@@ -48,6 +52,7 @@ No modules.
 | <a name="input_memory_limit"></a> [memory\_limit](#input\_memory\_limit) | Memory limit for environmentd | `string` | `"4Gi"` | no |
 | <a name="input_memory_request"></a> [memory\_request](#input\_memory\_request) | Memory request for environmentd | `string` | `"4095Mi"` | no |
 | <a name="input_metadata_backend_url"></a> [metadata\_backend\_url](#input\_metadata\_backend\_url) | PostgreSQL connection URL for metadata backend | `string` | n/a | yes |
+| <a name="input_monitoring_namespace"></a> [monitoring\_namespace](#input\_monitoring\_namespace) | Namespace where monitoring resources (Prometheus) are installed. Used for network policy to allow metrics scraping. | `string` | `"monitoring"` | no |
 | <a name="input_persist_backend_url"></a> [persist\_backend\_url](#input\_persist\_backend\_url) | S3 connection URL for persist backend | `string` | n/a | yes |
 | <a name="input_pod_labels"></a> [pod\_labels](#input\_pod\_labels) | Labels for the materialize instance pod | `map(string)` | `{}` | no |
 | <a name="input_request_rollout"></a> [request\_rollout](#input\_request\_rollout) | UUID to request a rollout | `string` | `"00000000-0000-0000-0000-000000000001"` | no |

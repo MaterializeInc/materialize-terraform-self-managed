@@ -4,7 +4,6 @@
 |------|---------|
 | <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | >= 1.0.0 |
 | <a name="requirement_helm"></a> [helm](#requirement\_helm) | >= 2.5.0 |
-| <a name="requirement_http"></a> [http](#requirement\_http) | >= 3.0.0 |
 | <a name="requirement_kubernetes"></a> [kubernetes](#requirement\_kubernetes) | >= 2.10.0 |
 | <a name="requirement_random"></a> [random](#requirement\_random) | >= 3.0.0 |
 
