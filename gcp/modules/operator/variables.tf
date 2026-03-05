@@ -58,33 +58,6 @@ variable "monitoring_namespace" {
   nullable    = false
 }
 
-variable "metrics_server_version" {
-  description = "Version of metrics-server to install"
-  type        = string
-  default     = "3.12.2"
-  nullable    = false
-}
-
-variable "install_metrics_server" {
-  description = "Whether to install the metrics-server"
-  type        = bool
-  default     = false
-  nullable    = false
-}
-
-variable "metrics_server_values" {
-  description = "Configuration values for metrics-server"
-  type = object({
-    metrics_enabled       = string
-    skip_tls_verification = bool
-  })
-  default = {
-    metrics_enabled       = "true"
-    skip_tls_verification = true
-  }
-  nullable = false
-}
-
 variable "region" {
   description = "Region/Zone for the operator Helm values."
   type        = string
@@ -105,7 +78,7 @@ variable "swap_enabled" {
 }
 
 variable "tolerations" {
-  description = "Tolerations for operator pods and metrics-server."
+  description = "Tolerations for operator pods."
   type = list(object({
     key      = string
     value    = optional(string)
@@ -129,7 +102,7 @@ variable "instance_pod_tolerations" {
 }
 
 variable "operator_node_selector" {
-  description = "Node selector for operator pods and metrics-server."
+  description = "Node selector for operator pods."
   type        = map(string)
   default     = {}
   nullable    = false

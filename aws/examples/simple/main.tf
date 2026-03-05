@@ -306,7 +306,7 @@ module "operator" {
   instance_pod_tolerations = local.materialize_tolerations
   instance_node_selector   = local.materialize_node_labels
 
-  # node selector for operator and metrics-server workloads
+  # node selector for operator workloads
   operator_node_selector = local.generic_node_labels
 
   enable_network_policies = true
@@ -328,6 +328,22 @@ module "operator" {
   depends_on = [
     module.eks,
     module.networking,
+    module.nodepool_generic,
+    module.coredns,
+    module.vpc_cni,
+  ]
+}
+
+# 6.1 Install Metrics Server
+module "metrics_server" {
+  source = "../../../kubernetes/modules/metrics-server"
+
+  namespace        = local.monitoring_namespace
+  create_namespace = true
+  node_selector    = local.generic_node_labels
+
+  depends_on = [
+    module.operator,
     module.nodepool_generic,
     module.coredns,
     module.vpc_cni,
@@ -447,6 +463,7 @@ module "prometheus" {
     module.nodepool_generic,
     module.coredns,
     module.ebs_csi_driver,
+    module.metrics_server,
   ]
 }
 

@@ -321,7 +321,7 @@ module "operator" {
   instance_pod_tolerations = local.materialize_tolerations
   instance_node_selector   = local.materialize_node_labels
 
-  # node selector for operator and metrics-server workloads
+  # node selector for operator workloads
   operator_node_selector = local.generic_node_labels
 
   # Enable Prometheus scrape annotations when observability is enabled
@@ -344,12 +344,31 @@ module "operator" {
   ]
 }
 
+# Install the metrics-server for monitoring
+# Required for the Materialize Console to display cluster metrics
+# Disabled by default because AKS provides metrics-server by default
+# TODO: we should rather rely on AKS metrics-server instead of installing our own, confirm with team and get rid of this helm release
+# If you need to install a custom metrics-server, use the kubernetes/modules/metrics-server module:
+#
+# module "metrics_server" {
+#   source = "../../../kubernetes/modules/metrics-server"
+#
+#   namespace        = "monitoring"
+#   create_namespace = false
+#   node_selector    = local.generic_node_labels
+#
+#   depends_on = [
+#     module.operator,
+#     module.coredns,
+#   ]
+# }
+
 module "prometheus" {
   count  = var.enable_observability ? 1 : 0
   source = "../../../kubernetes/modules/prometheus"
 
   namespace        = "monitoring"
-  create_namespace = false # operator creates the "monitoring" namespace
+  create_namespace = true
   node_selector    = local.generic_node_labels
   storage_class    = local.storage_class
 
@@ -366,7 +385,7 @@ module "grafana" {
 
   namespace     = "monitoring"
   storage_class = local.storage_class
-  # operator creates the "monitoring" namespace
+  # prometheus creates the "monitoring" namespace
   create_namespace = false
   prometheus_url   = module.prometheus[0].prometheus_url
   node_selector    = local.generic_node_labels
