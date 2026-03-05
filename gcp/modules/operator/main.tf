@@ -116,6 +116,37 @@ resource "kubernetes_network_policy_v1" "allow_kube_system_egress" {
   }
 }
 
+# Allow egress to Kubernetes API server (required for CRD registration)
+# The API server in GKE is a managed service outside the cluster, so we need
+# to allow HTTPS egress to the control plane IP. Using 0.0.0.0/0 on port 443
+# allows the operator to reach the API server regardless of its IP since API 
+# Server IP might change dynamically, hence 0.0.0.0/0 is used
+resource "kubernetes_network_policy_v1" "allow_all_egress" {
+  count = var.enable_network_policies ? 1 : 0
+
+  metadata {
+    name      = "allow-api-server-egress"
+    namespace = kubernetes_namespace.materialize.metadata[0].name
+  }
+
+  spec {
+    pod_selector {}
+    policy_types = ["Egress"]
+
+    egress {
+      to {
+        ip_block {
+          cidr = "0.0.0.0/0"
+        }
+      }
+      ports {
+        protocol = "TCP"
+        port     = 443
+      }
+    }
+  }
+}
+
 # Allow ingress from monitoring namespace (Prometheus scraping)
 resource "kubernetes_network_policy_v1" "allow_monitoring_ingress" {
   count = var.enable_network_policies ? 1 : 0

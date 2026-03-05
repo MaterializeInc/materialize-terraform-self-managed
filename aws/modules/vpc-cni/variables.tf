@@ -7,7 +7,7 @@ variable "name_prefix" {
 variable "chart_version" {
   description = "Version of the AWS VPC CNI Helm chart"
   type        = string
-  default     = "1.19.0"
+  default     = "v1.21.1"
   nullable    = false
 }
 
@@ -68,4 +68,11 @@ variable "warm_ip_target" {
   description = "Number of free IP addresses to maintain per node"
   type        = number
   default     = null
+}
+
+variable "adopt_existing_resources" {
+  description = "Annotate existing VPC CNI resources (aws-node daemonset, serviceaccount, etc.) for Helm adoption. Set to true when installing on a cluster that already has the default VPC CNI installed."
+  type        = bool
+  default     = true
+  nullable    = false
 }
