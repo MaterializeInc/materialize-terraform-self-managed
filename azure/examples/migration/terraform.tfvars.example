@@ -1,0 +1,142 @@
+# =============================================================================
+# Migration Configuration Example
+# =============================================================================
+#
+# IMPORTANT: Before running terraform commands:
+#   1. Copy this file: cp terraform.tfvars.example terraform.tfvars
+#   2. Update the values below to match your existing infrastructure
+#   3. The values MUST match your current setup to ensure successful migration
+#
+# =============================================================================
+
+# ------------------------------------------------------------------------------
+# REQUIRED: These must be set
+# ------------------------------------------------------------------------------
+
+# Azure subscription ID
+# Run: az account show --query id -o tsv
+subscription_id = "your-subscription-id-here"
+
+# Existing resource group name - MUST MATCH your current setup
+# Run: az group list --query "[?tags.module=='materialize'].name" -o tsv
+resource_group_name = "your-resource-group-name"
+
+# Prefix used for resource names - MUST MATCH your existing resources
+# Example: if your AKS cluster is named "mycompany-aks", use "mycompany"
+name_prefix = "your-prefix-here"
+
+# Materialize license key
+# Get from: https://materialize.com/register
+license_key = "your-license-key-here"
+
+# Your existing Materialize instance name
+# Run: kubectl get materialize -A -o jsonpath='{.items[0].metadata.name}'
+materialize_instance_name = "your-instance-name"
+
+# Your existing database password
+# From your old terraform.tfvars (database_config.password)
+old_db_password = "your-existing-db-password-here"
+
+# Your existing mz_system user password
+# Get from old config: look for external_login_password_mz_system in your old terraform.tfvars
+external_login_password_mz_system = "your-existing-mz-system-password-here"
+
+# ------------------------------------------------------------------------------
+# INFRASTRUCTURE: Match your existing setup
+# ------------------------------------------------------------------------------
+
+# Azure region - MUST MATCH where your current resources are deployed
+# Run: az aks show --name <prefix>-aks --resource-group <rg> --query location -o tsv
+location = "eastus2"
+
+# VNet configuration - MUST MATCH existing VNet
+# Run: az network vnet show --name <prefix>-vnet --resource-group <rg> --query addressSpace.addressPrefixes[0] -o tsv
+vnet_address_space = "10.0.0.0/16"
+
+# Subnet CIDRs - MUST MATCH existing subnets
+# Run: az network vnet subnet show --name <prefix>-aks-subnet --vnet-name <prefix>-vnet --resource-group <rg> --query addressPrefix -o tsv
+aks_subnet_cidr = "10.0.0.0/22"
+
+# Run: az network vnet subnet show --name <prefix>-pg-subnet --vnet-name <prefix>-vnet --resource-group <rg> --query addressPrefix -o tsv
+postgres_subnet_cidr = "10.0.4.0/24"
+
+# Kubernetes service CIDR - MUST MATCH existing AKS cluster
+# Run: az aks show --name <prefix>-aks --resource-group <rg> --query networkProfile.serviceCidr -o tsv
+service_cidr = "10.1.0.0/16"
+
+# AKS cluster version - MUST MATCH existing cluster
+# Run: az aks show --name <prefix>-aks --resource-group <rg> --query kubernetesVersion -o tsv
+# kubernetes_version = "1.32"
+
+# Default node pool VM size
+# Run: az aks show --name <prefix>-aks --resource-group <rg> --query agentPoolProfiles[0].vmSize -o tsv
+default_node_pool_vm_size = "Standard_D2s_v3"
+
+# System node pool sizing (the "materialize" pool in the old AKS module)
+# Run: az aks nodepool show --cluster-name <prefix>-aks --resource-group <rg> --name <poolname> --query '{vmSize:vmSize,minCount:minCount,maxCount:maxCount}'
+system_node_pool_vm_size      = "Standard_D2ps_v6"
+system_node_pool_disk_size_gb = 100
+system_node_pool_min_nodes    = 2
+system_node_pool_max_nodes    = 4
+
+# Materialize node pool sizing
+# Run: az aks nodepool show --cluster-name <prefix>-aks --resource-group <rg> --name <poolname> --query '{vmSize:vmSize,minCount:minCount,maxCount:maxCount}'
+materialize_node_pool_vm_size      = "Standard_E4pds_v6"
+materialize_node_pool_disk_size_gb = 100
+materialize_node_pool_min_nodes    = 1
+materialize_node_pool_max_nodes    = 4
+
+# Database configuration - MUST MATCH existing PostgreSQL Flexible Server
+# Run: az postgres flexible-server show --name <server-name> --resource-group <rg> --query '{version:version,sku:sku.name,storageMb:storage.storageSizeGb}'
+database_username   = "materialize"
+database_name       = "materialize"
+postgres_version    = "15"
+database_sku_name   = "GP_Standard_D2s_v3"
+database_storage_mb = 32768
+
+# ------------------------------------------------------------------------------
+# OPTIONAL: These defaults should match your existing setup, update if needed
+# ------------------------------------------------------------------------------
+
+# Tags applied to all resources - should match your existing tags
+tags = {
+  managed_by = "terraform"
+  module     = "materialize"
+}
+
+# TLS configuration - must match old module setting (default: true)
+use_self_signed_cluster_issuer = true
+
+# Materialize instance namespace (default: "materialize-environment")
+# materialize_instance_namespace = "materialize-environment"
+
+# Materialize environmentd version tag - MUST MATCH existing
+# Run: kubectl get materialize -A -o jsonpath='{.items[0].spec.environmentdImageRef}'
+# Then extract just the version tag (e.g., from "materialize/environmentd:v0.130.0" use "v0.130.0")
+# If not set, defaults to the module's built-in version which may not match yours!
+# environmentd_version = "v0.130.0"
+
+# Materialize operator Helm chart version - MUST MATCH existing
+# Run: helm list -n materialize -o json | jq -r '.[0].chart'
+# Extract version from chart name (e.g., "materialize-operator-v26.13.0" → "v26.13.0")
+# If not set, defaults to the module's built-in version which may downgrade your operator!
+# operator_version = "v26.13.0"
+
+# Disk setup image version - should match existing daemonset to avoid unnecessary updates
+# Run: kubectl get daemonset -n disk-setup -o jsonpath='{.items[0].spec.template.spec.initContainers[0].image}'
+# Default: "materialize/ephemeral-storage-setup-image:v0.4.0" (matches old module)
+# disk_setup_image = "materialize/ephemeral-storage-setup-image:v0.4.0"
+
+# Whether the load balancers should be internal (true) or internet-facing (false)
+internal_load_balancer = true
+
+# CIDR blocks allowed to access Materialize load balancers
+# Default allows all - restrict for production!
+# ingress_cidr_blocks = ["0.0.0.0/0"]
+
+# ------------------------------------------------------------------------------
+# ADVANCED: Rollout configuration (usually leave as defaults)
+# ------------------------------------------------------------------------------
+
+# force_rollout = "00000000-0000-0000-0000-000000000003"
+# request_rollout = "00000000-0000-0000-0000-000000000003"
