@@ -75,3 +75,15 @@ variable "service_account_name" {
   type        = string
   nullable    = false
 }
+
+variable "network_rules_default_action" {
+  description = "The default action for storage account network rules when subnets are configured. Use 'Allow' to permit access from all networks (with subnet rules as additions), or 'Deny' to restrict access to only the configured subnets."
+  type        = string
+  default     = "Deny"
+  nullable    = false
+
+  validation {
+    condition     = contains(["Allow", "Deny"], var.network_rules_default_action)
+    error_message = "Valid values for network_rules_default_action are: Allow, Deny."
+  }
+}
