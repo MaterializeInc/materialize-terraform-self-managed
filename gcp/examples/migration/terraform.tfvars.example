@@ -1,0 +1,126 @@
+# =============================================================================
+# GCP Migration — Terraform Variables
+# =============================================================================
+# Copy this file to terraform.tfvars and fill in the values.
+# Use the gcloud/kubectl commands below to discover values from your cluster.
+# =============================================================================
+
+# GCP Project ID
+# Run: gcloud config get-value project
+project_id = "your-project-id"
+
+# GCP Region
+# Run: gcloud container clusters list --format="value(location)"
+region = "us-central1"
+
+# Resource name prefix — MUST match your existing deployment
+# Run: gcloud container clusters list --format="value(name)" | sed 's/-gke$//'
+prefix = "materialize"
+
+# =============================================================================
+# Materialize Instance
+# =============================================================================
+
+# Materialize instance name
+# Run: kubectl get materialize -A -o jsonpath='{.items[0].metadata.name}'
+materialize_instance_name = "your-instance-name"
+
+# Materialize instance namespace
+# Run: kubectl get materialize -A -o jsonpath='{.items[0].metadata.namespace}'
+materialize_instance_namespace = "your-instance-namespace"
+
+# Materialize license key from https://materialize.com/register
+license_key = "your-license-key-here"
+
+# Materialize environmentd version — MUST match your current deployment
+# Run: kubectl get materialize -A -o jsonpath='{.items[0].spec.environmentdImageRef}' | sed 's|materialize/environmentd:||'
+# Then extract just the version tag (e.g., from "materialize/environmentd:v0.130.0" use "v0.130.0")
+# If not set, defaults to the module's built-in version which may not match yours!
+# environmentd_version = "v0.130.0"
+
+# =============================================================================
+# Database
+# =============================================================================
+
+# Existing database password — MUST match your current deployment
+# This is the password you set in database_config.password in the old module
+database_password = "your-database-password"
+
+# Database tier
+# Run: gcloud sql instances describe <prefix>-pg --format="value(settings.tier)"
+# database_tier = "db-custom-2-4096"
+
+# Database version
+# Run: gcloud sql instances describe <prefix>-pg --format="value(databaseVersion)"
+# database_version = "POSTGRES_15"
+
+# Database username (default: materialize)
+# database_username = "materialize"
+
+# Database name (default: materialize)
+# database_name = "materialize"
+
+# =============================================================================
+# Authentication
+# =============================================================================
+
+# Authenticator kind — must match your existing configuration
+# authenticator_kind = "None"
+
+# Password for the mz_system user (required if authenticator_kind is "Password" or "Sasl")
+# external_login_password_mz_system = "your-mz-system-password"
+
+# =============================================================================
+# Network Configuration
+# =============================================================================
+# These must match your existing VPC/subnet CIDRs.
+# Run: gcloud compute networks subnets describe <prefix>-subnet --region=<region> --format="value(ipCidrRange,secondaryIpRanges)"
+
+# subnet_cidr   = "10.0.0.0/20"
+# pods_cidr     = "10.4.0.0/14"
+# services_cidr = "10.8.0.0/20"
+
+# =============================================================================
+# Node Pool Configuration
+# =============================================================================
+
+# System node pool
+# Run: gcloud container node-pools describe <prefix>-system-node-pool --cluster=<prefix>-gke --region=<region> --format="value(config.machineType,config.diskSizeGb,autoscaling.minNodeCount,autoscaling.maxNodeCount)"
+# system_node_pool_machine_type = "n2-highmem-8"
+# system_node_pool_disk_size_gb = 100
+# system_node_pool_min_nodes    = 1
+# system_node_pool_max_nodes    = 2
+
+# Materialize node pool
+# Run: gcloud container node-pools describe <prefix>-mz-swap-nodepool --cluster=<prefix>-gke --region=<region> --format="value(config.machineType,config.diskSizeGb,autoscaling.minNodeCount,autoscaling.maxNodeCount)"
+# materialize_node_pool_machine_type    = "n2-highmem-8"
+# materialize_node_pool_disk_size_gb    = 100
+# materialize_node_pool_min_nodes       = 1
+# materialize_node_pool_max_nodes       = 2
+# materialize_node_pool_local_ssd_count = 1
+
+# =============================================================================
+# Operator
+# =============================================================================
+
+# Materialize operator Helm chart version — MUST match your existing operator version
+# Run: helm list -n materialize -o json | jq -r '.[0].chart'
+# Extract version from chart name (e.g., "materialize-operator-v26.13.0" → "v26.13.0")
+# If not set, defaults to the module's built-in version which may downgrade your operator!
+# operator_version = "v26.13.0"
+
+# =============================================================================
+# TLS & Load Balancer
+# =============================================================================
+
+# use_self_signed_cluster_issuer = true
+# cert_manager_chart_version     = "v1.17.1"
+# internal_load_balancer         = true
+
+# =============================================================================
+# Labels
+# =============================================================================
+# These are ADDITIONAL labels beyond managed_by and module which are added
+# automatically. Only add custom labels you had in the old module.
+
+labels = {}
