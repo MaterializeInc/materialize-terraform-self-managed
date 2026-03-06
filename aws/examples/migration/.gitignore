@@ -1,0 +1,35 @@
+# Terraform state files
+*.tfstate
+*.tfstate.*
+*.tfstate.backup
+
+# Terraform directory
+.terraform/
+.terraform.lock.hcl
+
+# Crash log files
+crash.log
+crash.*.log
+
+# Override files
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# CLI configuration files
+.terraformrc
+terraform.rc
+
+# Variable files that may contain secrets
+*.tfvars
+*.tfvars.json
+!terraform.tfvars.example
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Migration work directory (contains state backups and working files)
+.migration-work/

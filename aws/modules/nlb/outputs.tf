@@ -15,5 +15,5 @@ output "nlb_arn" {
 
 output "security_group_id" {
   description = "The ID of the security group attached to the NLB"
-  value       = aws_security_group.nlb.id
+  value       = var.create_security_group ? aws_security_group.nlb[0].id : null
 }
