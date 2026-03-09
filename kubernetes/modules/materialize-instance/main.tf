@@ -7,6 +7,24 @@ resource "kubernetes_namespace" "instance" {
   }
 }
 
+# Create a ConfigMap for system parameters
+resource "kubernetes_config_map" "system_params" {
+  count = var.system_parameters != null ? 1 : 0
+
+  metadata {
+    name      = "${var.instance_name}-system-params"
+    namespace = var.instance_namespace
+  }
+
+  data = {
+    "system-params.json" = jsonencode(var.system_parameters)
+  }
+
+  depends_on = [
+    kubernetes_namespace.instance
+  ]
+}
+
 # Create the Materialize instance using the kubernetes_manifest resource
 resource "kubectl_manifest" "materialize_instance" {
   field_manager   = "terraform"
@@ -20,14 +38,15 @@ resource "kubectl_manifest" "materialize_instance" {
       namespace = var.instance_namespace
     }
     spec = {
-      environmentdImageRef      = "materialize/environmentd:${var.environmentd_version}"
-      backendSecretName         = "${var.instance_name}-materialize-backend"
-      authenticatorKind         = var.authenticator_kind
-      serviceAccountAnnotations = var.service_account_annotations
-      podLabels                 = var.pod_labels
-      rolloutStrategy           = var.rollout_strategy
-      requestRollout            = var.request_rollout
-      forceRollout              = var.force_rollout
+      environmentdImageRef         = "materialize/environmentd:${var.environmentd_version}"
+      backendSecretName            = "${var.instance_name}-materialize-backend"
+      authenticatorKind            = var.authenticator_kind
+      serviceAccountAnnotations    = var.service_account_annotations
+      podLabels                    = var.pod_labels
+      rolloutStrategy              = var.rollout_strategy
+      requestRollout               = var.request_rollout
+      forceRollout                 = var.force_rollout
+      systemParameterConfigmapName = var.system_parameters != null ? "${var.instance_name}-system-params" : null
 
       environmentdExtraEnv = length(var.environmentd_extra_env) > 0 ? [{
         name = "MZ_SYSTEM_PARAMETER_DEFAULT"
@@ -87,6 +106,7 @@ resource "kubectl_manifest" "materialize_instance" {
   depends_on = [
     kubernetes_secret.materialize_backend,
     kubernetes_namespace.instance,
+    kubernetes_config_map.system_params,
   ]
 }
 
