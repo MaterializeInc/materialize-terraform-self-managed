@@ -94,10 +94,10 @@ locals {
           cpu    = var.resources.requests.cpu
           memory = var.resources.requests.memory
         }
-        limits = {
-          cpu    = var.resources.limits.cpu
-          memory = var.resources.limits.memory
-        }
+        limits = merge(
+          { memory = var.resources.limits.memory },
+          var.resources.limits.cpu != null ? { cpu = var.resources.limits.cpu } : {}
+        )
       }
 
       nodeSelector = var.node_selector
@@ -122,12 +122,12 @@ locals {
       public = {
         enabled = true
         type    = "ClusterIP"
-        port    = 80
+        port    = 4433
       }
       admin = {
         enabled = true
         type    = "ClusterIP"
-        port    = 80
+        port    = 4434
       }
     }
   }

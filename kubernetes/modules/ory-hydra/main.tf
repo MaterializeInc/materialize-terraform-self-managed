@@ -30,9 +30,9 @@ locals {
         issuer = var.issuer_url
       }
     },
-    var.login_url != "" ? { login = var.login_url } : {},
-    var.consent_url != "" ? { consent = var.consent_url } : {},
-    var.logout_url != "" ? { logout = var.logout_url } : {},
+    var.login_url != null ? { login = var.login_url } : {},
+    var.consent_url != null ? { consent = var.consent_url } : {},
+    var.logout_url != null ? { logout = var.logout_url } : {},
   )
 
   default_helm_values = {
@@ -79,10 +79,10 @@ locals {
           cpu    = var.resources.requests.cpu
           memory = var.resources.requests.memory
         }
-        limits = {
-          cpu    = var.resources.limits.cpu
-          memory = var.resources.limits.memory
-        }
+        limits = merge(
+          { memory = var.resources.limits.memory },
+          var.resources.limits.cpu != null ? { cpu = var.resources.limits.cpu } : {}
+        )
       }
 
       nodeSelector = var.node_selector

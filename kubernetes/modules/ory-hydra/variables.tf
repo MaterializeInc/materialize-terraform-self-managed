@@ -63,21 +63,19 @@ variable "issuer_url" {
 variable "login_url" {
   description = "The URL of the login UI. Hydra redirects users here for authentication. Example: https://login.example.com/login"
   type        = string
-  default     = ""
-  nullable    = false
+  default     = null
 }
 
 variable "consent_url" {
   description = "The URL of the consent UI. Hydra redirects users here for consent. Example: https://login.example.com/consent"
   type        = string
-  default     = ""
-  nullable    = false
+  default     = null
 }
 
 variable "logout_url" {
   description = "The URL of the logout UI. Example: https://login.example.com/logout"
   type        = string
-  default     = ""
+  default     = null
   nullable    = false
 }
 
@@ -108,15 +106,15 @@ variable "replica_count" {
 }
 
 variable "resources" {
-  description = "Resource requests and limits for Hydra pods."
+  description = "Resource requests and limits for Hydra pods. By default, CPU has a request but no limit (to allow bursting), and memory request equals memory limit (to avoid OOM issues from overcommit)."
   type = object({
     requests = optional(object({
       cpu    = optional(string, "250m")
       memory = optional(string, "256Mi")
     }))
     limits = optional(object({
-      cpu    = optional(string, "1000m")
-      memory = optional(string, "1Gi")
+      cpu    = optional(string)
+      memory = optional(string, "256Mi")
     }))
   })
   default = {

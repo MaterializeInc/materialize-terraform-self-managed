@@ -102,15 +102,15 @@ variable "replica_count" {
 }
 
 variable "resources" {
-  description = "Resource requests and limits for Kratos pods."
+  description = "Resource requests and limits for Kratos pods. By default, CPU has a request but no limit (to allow bursting), and memory request equals memory limit (to avoid OOM issues from overcommit)."
   type = object({
     requests = optional(object({
       cpu    = optional(string, "250m")
       memory = optional(string, "256Mi")
     }))
     limits = optional(object({
-      cpu    = optional(string, "500m")
-      memory = optional(string, "512Mi")
+      cpu    = optional(string)
+      memory = optional(string, "256Mi")
     }))
   })
   default = {

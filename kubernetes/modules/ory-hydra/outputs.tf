@@ -1,10 +1,10 @@
 output "public_url" {
-  description = "Internal URL for Hydra public API (OAuth2 endpoints)"
+  description = "Internal URL for Hydra public API (user-facing: OAuth2 authorize, token, OIDC discovery)"
   value       = "http://${var.release_name}-public.${local.namespace}.svc.cluster.local:4444"
 }
 
 output "admin_url" {
-  description = "Internal URL for Hydra admin API"
+  description = "Internal URL for Hydra admin API (privileged: OAuth2 client management, consent/login flow management)"
   value       = "http://${var.release_name}-admin.${local.namespace}.svc.cluster.local:4445"
 }
 

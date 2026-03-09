@@ -49,7 +49,7 @@ No modules.
 | <a name="input_pdb_min_available"></a> [pdb\_min\_available](#input\_pdb\_min\_available) | Minimum number of available pods during disruptions. | `number` | `1` | no |
 | <a name="input_release_name"></a> [release\_name](#input\_release\_name) | Name of the Helm release. | `string` | `"kratos"` | no |
 | <a name="input_replica_count"></a> [replica\_count](#input\_replica\_count) | Number of Kratos replicas. | `number` | `2` | no |
-| <a name="input_resources"></a> [resources](#input\_resources) | Resource requests and limits for Kratos pods. | <pre>object({<br/>    requests = optional(object({<br/>      cpu    = optional(string, "250m")<br/>      memory = optional(string, "256Mi")<br/>    }))<br/>    limits = optional(object({<br/>      cpu    = optional(string, "500m")<br/>      memory = optional(string, "512Mi")<br/>    }))<br/>  })</pre> | <pre>{<br/>  "limits": {},<br/>  "requests": {}<br/>}</pre> | no |
+| <a name="input_resources"></a> [resources](#input\_resources) | Resource requests and limits for Kratos pods. By default, CPU has a request but no limit (to allow bursting), and memory request equals memory limit (to avoid OOM issues from overcommit). | <pre>object({<br/>    requests = optional(object({<br/>      cpu    = optional(string, "250m")<br/>      memory = optional(string, "256Mi")<br/>    }))<br/>    limits = optional(object({<br/>      cpu    = optional(string)<br/>      memory = optional(string, "256Mi")<br/>    }))<br/>  })</pre> | <pre>{<br/>  "limits": {},<br/>  "requests": {}<br/>}</pre> | no |
 | <a name="input_secrets_cipher"></a> [secrets\_cipher](#input\_secrets\_cipher) | Secret for cipher encryption. If not set, a random 32-character secret will be generated. | `string` | `null` | no |
 | <a name="input_secrets_cookie"></a> [secrets\_cookie](#input\_secrets\_cookie) | Secret for cookie signing. If not set, a random 32-character secret will be generated. | `string` | `null` | no |
 | <a name="input_secrets_default"></a> [secrets\_default](#input\_secrets\_default) | Default secret for signing and encryption. If not set, a random 32-character secret will be generated. | `string` | `null` | no |
@@ -62,9 +62,9 @@ No modules.
 
 | Name | Description |
 |------|-------------|
-| <a name="output_admin_url"></a> [admin\_url](#output\_admin\_url) | Internal URL for Kratos admin API |
+| <a name="output_admin_url"></a> [admin\_url](#output\_admin\_url) | Internal URL for Kratos admin API (privileged: identity CRUD, session management) |
 | <a name="output_namespace"></a> [namespace](#output\_namespace) | Namespace where Ory Kratos is deployed |
-| <a name="output_public_url"></a> [public\_url](#output\_public\_url) | Internal URL for Kratos public API |
+| <a name="output_public_url"></a> [public\_url](#output\_public\_url) | Internal URL for Kratos public API (user-facing: login, registration, session checks) |
 | <a name="output_release_name"></a> [release\_name](#output\_release\_name) | Name of the Ory Kratos Helm release |
 | <a name="output_release_status"></a> [release\_status](#output\_release\_status) | Status of the Ory Kratos Helm release |
 | <a name="output_secrets_cipher"></a> [secrets\_cipher](#output\_secrets\_cipher) | Cipher secret used by Kratos |

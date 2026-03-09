@@ -1,11 +1,11 @@
 output "public_url" {
-  description = "Internal URL for Kratos public API"
-  value       = "http://${var.release_name}-public.${local.namespace}.svc.cluster.local"
+  description = "Internal URL for Kratos public API (user-facing: login, registration, session checks)"
+  value       = "http://${var.release_name}-public.${local.namespace}.svc.cluster.local:4433"
 }
 
 output "admin_url" {
-  description = "Internal URL for Kratos admin API"
-  value       = "http://${var.release_name}-admin.${local.namespace}.svc.cluster.local"
+  description = "Internal URL for Kratos admin API (privileged: identity CRUD, session management)"
+  value       = "http://${var.release_name}-admin.${local.namespace}.svc.cluster.local:4434"
 }
 
 output "namespace" {
