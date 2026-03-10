@@ -47,4 +47,7 @@ const (
 	TestBackupRetentionPeriod = 7
 
 	TestCertManagerVersion = "v1.18.0"
+
+	// Public TLS short suffix for resource naming
+	PublicTLSShortSuffix = "ptls"
 )

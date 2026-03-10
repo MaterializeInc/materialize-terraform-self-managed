@@ -88,6 +88,10 @@ module "cert_manager" {
   chart_version   = var.cert_manager_chart_version
   namespace       = var.cert_manager_namespace
 
+  service_account_annotations = var.enable_public_tls ? {
+    "iam.gke.io/gcp-service-account" = module.cert_manager_wi[0].service_account_email
+  } : {}
+
   depends_on = [
     module.gke,
     module.nodepool,
@@ -104,6 +108,56 @@ module "self_signed_cluster_issuer" {
   depends_on = [
     module.cert_manager,
   ]
+}
+
+module "static_ips" {
+  count  = var.enable_public_tls ? 1 : 0
+  source = "../../../../gcp/modules/static_ips"
+
+  project_id = var.project_id
+  region     = var.region
+  prefix     = var.prefix
+}
+
+module "cert_manager_wi" {
+  count  = var.enable_public_tls ? 1 : 0
+  source = "../../../../gcp/modules/cert_manager_wi"
+
+  project_id           = var.project_id
+  dns_zone_name        = var.dns_zone_name
+  service_account_name = "${var.prefix}-cert-manager"
+
+  depends_on = [module.cert_manager]
+}
+
+module "acme_cluster_issuer" {
+  count  = var.enable_public_tls ? 1 : 0
+  source = "../../../../kubernetes/modules/acme-cluster-issuer"
+
+  name_prefix = var.prefix
+  acme_email  = var.acme_email
+  acme_server = var.acme_server
+  solver_config = {
+    dns01 = {
+      cloudDNS = {
+        project = var.project_id
+      }
+    }
+  }
+
+  depends_on = [module.cert_manager]
+}
+
+module "dns_records" {
+  count  = var.enable_public_tls ? 1 : 0
+  source = "../../../../gcp/modules/dns_records"
+
+  project_id         = var.project_id
+  dns_zone_name      = var.dns_zone_name
+  balancerd_hostname = var.balancerd_hostname
+  console_hostname   = var.console_hostname
+  balancerd_ip       = module.static_ips[0].balancerd_ip
+  console_ip         = module.static_ips[0].console_ip
 }
 
 # Materialize Operator
@@ -155,10 +209,21 @@ module "materialize_instance" {
     "iam.gke.io/gcp-service-account" = module.gke.workload_identity_sa_email
   }
 
-  issuer_ref = {
+  issuer_ref = var.enable_public_tls ? {
+    name = module.acme_cluster_issuer[0].issuer_name
+    kind = "ClusterIssuer"
+    } : {
     name = module.self_signed_cluster_issuer.issuer_name
     kind = "ClusterIssuer"
   }
+
+  internal_issuer_ref = var.enable_public_tls ? {
+    name = module.self_signed_cluster_issuer.issuer_name
+    kind = "ClusterIssuer"
+  } : null
+
+  balancerd_dns_names = var.enable_public_tls ? [var.balancerd_hostname] : ["balancerd"]
+  console_dns_names   = var.enable_public_tls ? [var.console_hostname] : ["console"]
 
   depends_on = [
     module.gke,
@@ -182,6 +247,8 @@ module "load_balancer" {
   instance_name              = var.instance_name
   namespace                  = var.instance_namespace
   resource_id                = module.materialize_instance.instance_resource_id
+  balancerd_load_balancer_ip = var.enable_public_tls ? module.static_ips[0].balancerd_ip : null
+  console_load_balancer_ip   = var.enable_public_tls ? module.static_ips[0].console_ip : null
 
   depends_on = [module.materialize_instance]
 }

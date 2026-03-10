@@ -40,6 +40,8 @@ func (suite *StagedDeploymentSuite) SetupSuite() {
 func (suite *StagedDeploymentSuite) TearDownSuite() {
 	t := suite.T()
 	t.Logf("🧹 Starting cleanup stages for: %s", suite.SuiteName)
+	suite.testPublicTLSCleanup()
+
 	suite.testDiskDisabledCleanup()
 
 	suite.testDiskEnabledCleanup()
@@ -243,6 +245,9 @@ func (suite *StagedDeploymentSuite) TestFullDeployment() {
 
 	// Stage 3: testDiskDisabled (AKS + Database + Materialize)
 	suite.testDiskDisabled(subscriptionID, testRegion)
+
+	// Stage 4: testPublicTLS (only if DNS_ZONE_NAME is set)
+	suite.testPublicTLS(subscriptionID, testRegion)
 }
 
 // testDiskEnabled deploys the complete Materialize stack with disk enabled
@@ -557,6 +562,164 @@ func (suite *StagedDeploymentSuite) setupMaterializeConsolidatedStage(stage, sta
 	// Certificate Outputs
 	t.Logf("🔐 CERTIFICATE OUTPUTS:")
 	t.Logf("  📜 Cluster Issuer Name: %s", clusterIssuerName)
+}
+
+// testPublicTLS deploys the complete Materialize stack with public TLS enabled
+func (suite *StagedDeploymentSuite) testPublicTLS(subscriptionID, testRegion string) {
+	t := suite.T()
+
+	dnsZoneName := os.Getenv("DNS_ZONE_NAME")
+	if dnsZoneName == "" {
+		t.Log("⏭️ Skipping testPublicTLS: DNS_ZONE_NAME not set")
+		return
+	}
+
+	t.Log("🚀 Running testPublicTLS (Complete Materialize Stack with Public TLS)")
+
+	test_structure.RunTestStage(t, "testPublicTLS", func() {
+		if suite.workingDir == "" {
+			t.Fatal("❌ Cannot create Materialize stack: Working directory not set.")
+		}
+
+		networkStageDir := filepath.Join(suite.workingDir, utils.NetworkingDir)
+		resourceGroupName := test_structure.LoadString(t, networkStageDir, "resource_group_name")
+		vnetName := test_structure.LoadString(t, networkStageDir, "vnet_name")
+		aksSubnetId := test_structure.LoadString(t, networkStageDir, "aks_subnet_id")
+		aksSubnetName := test_structure.LoadString(t, networkStageDir, "aks_subnet_name")
+		apiServerSubnetId := test_structure.LoadString(t, networkStageDir, "api_server_subnet_id")
+		postgresSubnetId := test_structure.LoadString(t, networkStageDir, "postgres_subnet_id")
+		privateDNSZoneId := test_structure.LoadString(t, networkStageDir, "private_dns_zone_id")
+
+		if resourceGroupName == "" || vnetName == "" || aksSubnetId == "" {
+			t.Fatal("❌ Missing network data.")
+		}
+
+		materializePath := helpers.SetupTestWorkspace(t, utils.Azure, suite.uniqueId, utils.MaterializeFixture, utils.MaterializePublicTLSDir)
+
+		expectedInstanceNamespace := fmt.Sprintf("mz-instance-%s", PublicTLSShortSuffix)
+		expectedOperatorNamespace := fmt.Sprintf("mz-operator-%s", PublicTLSShortSuffix)
+		expectedCertManagerNamespace := fmt.Sprintf("cert-manager-%s", PublicTLSShortSuffix)
+		shortId := strings.Split(suite.uniqueId, "-")[1]
+		resourceName := fmt.Sprintf("%s%s", shortId, PublicTLSShortSuffix)
+
+		balancerdHostname := os.Getenv("BALANCERD_HOSTNAME")
+		consoleHostname := os.Getenv("CONSOLE_HOSTNAME")
+		acmeEmail := os.Getenv("ACME_EMAIL")
+
+		tfvarsPath := filepath.Join(materializePath, "terraform.tfvars.json")
+		variables := map[string]interface{}{
+			"subscription_id":                       subscriptionID,
+			"location":                              testRegion,
+			"resource_group_name":                   resourceGroupName,
+			"prefix":                                resourceName,
+			"vnet_name":                             vnetName,
+			"subnet_name":                           aksSubnetName,
+			"subnet_id":                             aksSubnetId,
+			"api_server_subnet_id":                  apiServerSubnetId,
+			"enable_api_server_vnet_integration":    EnableAPIServerVNetIntegration,
+			"database_subnet_id":                    postgresSubnetId,
+			"private_dns_zone_id":                   privateDNSZoneId,
+			"kubernetes_version":                    TestKubernetesVersion,
+			"service_cidr":                          TestServiceCIDR,
+			"default_node_pool_vm_size":             TestVMSizeSmall,
+			"default_node_pool_enable_auto_scaling": false,
+			"default_node_pool_node_count":          1,
+			"default_node_pool_min_count":           0,
+			"default_node_pool_max_count":           0,
+			"nodepool_vm_size":                      TestAKSDiskEnabledVMSize,
+			"auto_scaling_enabled":                  true,
+			"min_nodes":                             TestNodePoolMinNodes,
+			"max_nodes":                             TestNodePoolMaxNodes,
+			"node_count":                            TestNodePoolNodeCount,
+			"disk_size_gb":                          TestDiskSizeMedium,
+			"swap_enabled":                          true,
+			"enable_azure_monitor":                  false,
+			"log_analytics_workspace_id":            "",
+			"k8s_apiserver_authorized_networks":     []string{"0.0.0.0/0"},
+			"node_labels": map[string]string{
+				"environment": helpers.GetEnvironment(),
+				"project":     utils.ProjectName,
+				"test-run":    suite.uniqueId,
+				"public-tls":  "true",
+			},
+			"databases": []map[string]interface{}{
+				{"name": "materialize_test_tls", "charset": "UTF8", "collation": "en_US.utf8"},
+			},
+			"administrator_login":           TestDBUsername,
+			"administrator_password":        TestPassword,
+			"sku_name":                      TestDBSKUSmall,
+			"postgres_version":              TestPostgreSQLVersion,
+			"storage_mb":                    TestStorageSizeSmall,
+			"backup_retention_days":         TestBackupRetentionDays,
+			"public_network_access_enabled": false,
+			"container_name":                TestStorageContainerName,
+			"container_access_type":         TestStorageContainerAccessType,
+			"cert_manager_namespace":        expectedCertManagerNamespace,
+			"cert_manager_install_timeout":  300,
+			"cert_manager_chart_version":    TestCertManagerVersion,
+			"operator_namespace":            expectedOperatorNamespace,
+			"instance_name":                 TestMaterializeInstanceName,
+			"instance_namespace":            expectedInstanceNamespace,
+			"license_key":                   os.Getenv("MATERIALIZE_LICENSE_KEY"),
+			"external_login_password_mz_system": TestPassword,
+			"ingress_cidr_blocks":               []string{"0.0.0.0/0"},
+			"internal":                          false,
+			// Public TLS configuration
+			"enable_public_tls":    true,
+			"dns_zone_name":        dnsZoneName,
+			"balancerd_domain_name": balancerdHostname,
+			"console_domain_name":   consoleHostname,
+			"acme_email":            acmeEmail,
+			"tags": map[string]string{
+				"environment": helpers.GetEnvironment(),
+				"project":     utils.ProjectName,
+				"test-run":    suite.uniqueId,
+				"public-tls":  "true",
+			},
+		}
+
+		helpers.CreateTfvarsFile(t, tfvarsPath, variables)
+
+		if err := suite.s3Manager.UploadTfvars(t, utils.MaterializePublicTLSDir, tfvarsPath); err != nil {
+			t.Logf("⚠️ Failed to upload tfvars to S3 (non-fatal): %v", err)
+		}
+
+		materializeOptions := &terraform.Options{
+			TerraformDir: materializePath,
+			VarFiles:     []string{"terraform.tfvars.json"},
+			RetryableTerraformErrors: map[string]string{
+				"RequestError": "Request failed",
+			},
+			MaxRetries:         TestMaxRetries,
+			TimeBetweenRetries: TestRetryDelay,
+			NoColor:            true,
+		}
+
+		materializeOptions.BackendConfig = suite.s3Manager.GetBackendConfig(utils.MaterializePublicTLSDir)
+
+		stageDirPath := filepath.Join(suite.workingDir, utils.MaterializePublicTLSDir)
+		test_structure.SaveTerraformOptions(t, stageDirPath, materializeOptions)
+
+		terraform.InitAndApply(t, materializeOptions)
+
+		instanceResourceId := terraform.Output(t, materializeOptions, "instance_resource_id")
+		suite.NotEmpty(instanceResourceId, "Materialize instance resource ID should not be empty")
+
+		t.Logf("✅ Public TLS Materialize stack created successfully")
+	})
+
+	t.Logf("✅ testPublicTLS completed successfully")
+}
+
+func (suite *StagedDeploymentSuite) testPublicTLSCleanup() {
+	t := suite.T()
+	t.Log("🧹 Running testPublicTLS Cleanup")
+
+	test_structure.RunTestStage(t, "cleanup_testPublicTLS", func() {
+		suite.cleanupStage("cleanup_testPublicTLS", utils.MaterializePublicTLSDir)
+	})
+
+	t.Logf("✅ testPublicTLS Cleanup completed successfully")
 }
 
 func (suite *StagedDeploymentSuite) useExistingNetwork() string {

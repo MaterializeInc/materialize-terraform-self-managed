@@ -36,4 +36,8 @@ const (
 	MaterializeDir             = "materialize"
 	MaterializeDiskEnabledDir  = MaterializeDir + DiskEnabledSuffix
 	MaterializeDiskDisabledDir = MaterializeDir + DiskDisabledSuffix
+
+	// Public TLS configuration
+	PublicTLSSuffix    = "-public-tls"
+	MaterializePublicTLSDir = MaterializeDir + PublicTLSSuffix
 )

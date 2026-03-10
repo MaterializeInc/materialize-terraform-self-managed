@@ -68,5 +68,23 @@ func getRequiredGCPConfigurations() []config.Configuration {
 		{
 			Key: "SKIP_cleanup_testDiskDisabled",
 		},
+		{
+			Key: "DNS_ZONE_NAME",
+		},
+		{
+			Key: "BALANCERD_HOSTNAME",
+		},
+		{
+			Key: "CONSOLE_HOSTNAME",
+		},
+		{
+			Key: "ACME_EMAIL",
+		},
+		{
+			Key: "SKIP_testPublicTLS",
+		},
+		{
+			Key: "SKIP_cleanup_testPublicTLS",
+		},
 	}
 }

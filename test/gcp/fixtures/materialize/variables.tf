@@ -206,3 +206,39 @@ variable "internal" {
   type        = bool
   nullable    = false
 }
+
+variable "enable_public_tls" {
+  description = "Enable public TLS with ACME certificates and Cloud DNS"
+  type        = bool
+  default     = false
+}
+
+variable "dns_zone_name" {
+  description = "Name of the Cloud DNS managed zone"
+  type        = string
+  default     = null
+}
+
+variable "balancerd_hostname" {
+  description = "Hostname for the balancerd service"
+  type        = string
+  default     = null
+}
+
+variable "console_hostname" {
+  description = "Hostname for the console service"
+  type        = string
+  default     = null
+}
+
+variable "acme_email" {
+  description = "Email address for ACME certificate registration"
+  type        = string
+  default     = null
+}
+
+variable "acme_server" {
+  description = "ACME server URL for certificate issuance"
+  type        = string
+  default     = "https://dv.acme-v02.api.pki.goog/directory"
+}

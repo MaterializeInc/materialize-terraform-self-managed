@@ -40,6 +40,8 @@ func (suite *StagedDeploymentSuite) SetupSuite() {
 func (suite *StagedDeploymentSuite) TearDownSuite() {
 	t := suite.T()
 	t.Logf("🧹 Starting cleanup stages for: %s", suite.SuiteName)
+	suite.testPublicTLSCleanup()
+
 	suite.testDiskDisabledCleanup()
 
 	suite.testDiskEnabledCleanup()
@@ -247,6 +249,9 @@ func (suite *StagedDeploymentSuite) TestFullDeployment() {
 
 	// Stage 3: testDiskDisabled (GKE + Database + Materialize)
 	suite.testDiskDisabled(projectID)
+
+	// Stage 4: testPublicTLS (only if DNS_ZONE_NAME is set)
+	suite.testPublicTLS(projectID)
 }
 
 // testDiskEnabled deploys the complete Materialize stack with disk enabled
@@ -486,6 +491,152 @@ func (suite *StagedDeploymentSuite) setupMaterializeConsolidatedStage(stage, sta
 	t.Logf("  📜 Cert Manager Namespace: %s", expectedCertManagerNamespace)
 	t.Logf("  🎛️ Operator Namespace: %s", expectedOperatorNamespace)
 	t.Logf("  🏠 Instance Namespace: %s", expectedInstanceNamespace)
+}
+
+// testPublicTLS deploys the complete Materialize stack with public TLS enabled
+func (suite *StagedDeploymentSuite) testPublicTLS(projectID string) {
+	t := suite.T()
+
+	// Only run if DNS_ZONE_NAME is set
+	dnsZoneName := os.Getenv("DNS_ZONE_NAME")
+	if dnsZoneName == "" {
+		t.Log("⏭️ Skipping testPublicTLS: DNS_ZONE_NAME not set")
+		return
+	}
+
+	t.Log("🚀 Running testPublicTLS (Complete Materialize Stack with Public TLS)")
+
+	test_structure.RunTestStage(t, "testPublicTLS", func() {
+		// Ensure workingDir is set
+		if suite.workingDir == "" {
+			t.Fatal("❌ Cannot create Materialize stack: Working directory not set. Run network setup stage first.")
+		}
+
+		// Load saved network data
+		networkStageDir := filepath.Join(suite.workingDir, utils.NetworkingDir)
+		networkName := test_structure.LoadString(t, networkStageDir, "network_name")
+		networkId := test_structure.LoadString(t, networkStageDir, "network_id")
+		subnetNamesStr := test_structure.LoadString(t, networkStageDir, "subnets_names")
+		subnetNames := strings.Split(subnetNamesStr, ",")
+
+		if networkName == "" || networkId == "" || len(subnetNames) == 0 || subnetNames[0] == "" || suite.uniqueId == "" {
+			t.Fatal("❌ Cannot create Materialize stack: Missing network data. Run network setup stage first.")
+		}
+
+		// Set up consolidated Materialize fixture
+		materializePath := helpers.SetupTestWorkspace(t, utils.GCP, suite.uniqueId, utils.MaterializeFixture, utils.MaterializePublicTLSDir)
+
+		expectedInstanceNamespace := fmt.Sprintf("mz-instance-%s", PublicTLSShortSuffix)
+		expectedOperatorNamespace := fmt.Sprintf("mz-operator-%s", PublicTLSShortSuffix)
+		expectedCertManagerNamespace := fmt.Sprintf("cert-manager-%s", PublicTLSShortSuffix)
+		shortId := strings.Split(suite.uniqueId, "-")[1]
+		resourceName := fmt.Sprintf("%s%s", shortId, PublicTLSShortSuffix)
+
+		balancerdHostname := os.Getenv("BALANCERD_HOSTNAME")
+		consoleHostname := os.Getenv("CONSOLE_HOSTNAME")
+		acmeEmail := os.Getenv("ACME_EMAIL")
+
+		tfvarsPath := filepath.Join(materializePath, "terraform.tfvars.json")
+		variables := map[string]interface{}{
+			"project_id":   projectID,
+			"region":       TestRegion,
+			"prefix":       resourceName,
+			"network_name": networkName,
+			"network_id":   networkId,
+			"subnet_name":  subnetNames[0],
+			"namespace":    TestGKENamespace,
+			"k8s_apiserver_authorized_networks": []map[string]interface{}{
+				{
+					"cidr_block":   TestMasterAuthorizedNetworksCIDRBlock,
+					"display_name": "Authorized networks",
+				},
+			},
+			"materialize_node_type": TestGKEDiskEnabledMachineType,
+			"min_nodes":             TestGKEMinNodes,
+			"max_nodes":             TestGKEMaxNodes,
+			"enable_private_nodes":  true,
+			"swap_enabled":          true,
+			"disk_size":             TestGKEDiskEnabledDiskSize,
+			"local_ssd_count":       TestGKEDiskEnabledLocalSSDCount,
+			"labels": map[string]string{
+				"environment": helpers.GetEnvironment(),
+				"project":     utils.ProjectName,
+				"test-run":    suite.uniqueId,
+				"public-tls":  "true",
+			},
+			"database_tier": TestDatabaseTier,
+			"db_version":    TestDatabaseVersion,
+			"databases": []map[string]interface{}{
+				{"name": "materialize-test-tls"},
+			},
+			"users": []map[string]interface{}{
+				{"name": TestDBUsername, "password": TestPassword},
+			},
+			"storage_bucket_versioning":  TestStorageBucketVersioning,
+			"storage_bucket_version_ttl": TestStorageBucketVersionTTL,
+			"cert_manager_install_timeout": TestCertManagerInstallTimeout,
+			"cert_manager_chart_version":   TestCertManagerVersion,
+			"cert_manager_namespace":       expectedCertManagerNamespace,
+			"operator_namespace":           expectedOperatorNamespace,
+			"ingress_cidr_blocks":          []string{"0.0.0.0/0"},
+			"internal":                     false,
+			"instance_name":                TestMaterializeInstanceName,
+			"instance_namespace":           expectedInstanceNamespace,
+			"user":                         map[string]interface{}{"name": TestDBUsername, "password": TestPassword},
+			"external_login_password_mz_system": TestPassword,
+			"license_key":                       os.Getenv("MATERIALIZE_LICENSE_KEY"),
+			// Public TLS configuration
+			"enable_public_tls":  true,
+			"dns_zone_name":      dnsZoneName,
+			"balancerd_hostname": balancerdHostname,
+			"console_hostname":   consoleHostname,
+			"acme_email":         acmeEmail,
+		}
+
+		helpers.CreateTfvarsFile(t, tfvarsPath, variables)
+
+		if err := suite.s3Manager.UploadTfvars(t, utils.MaterializePublicTLSDir, tfvarsPath); err != nil {
+			t.Logf("⚠️ Failed to upload tfvars to S3 (non-fatal): %v", err)
+		}
+
+		materializeOptions := &terraform.Options{
+			TerraformDir: materializePath,
+			VarFiles:     []string{"terraform.tfvars.json"},
+			RetryableTerraformErrors: map[string]string{
+				"RequestError": "Request failed",
+			},
+			MaxRetries:         TestMaxRetries,
+			TimeBetweenRetries: TestRetryDelay,
+			NoColor:            true,
+		}
+
+		materializeOptions.BackendConfig = suite.s3Manager.GetBackendConfig(utils.MaterializePublicTLSDir)
+
+		stageDirPath := filepath.Join(suite.workingDir, utils.MaterializePublicTLSDir)
+		test_structure.SaveTerraformOptions(t, stageDirPath, materializeOptions)
+
+		terraform.InitAndApply(t, materializeOptions)
+
+		// Validate outputs
+		t.Log("🔍 Validating public TLS outputs...")
+		instanceResourceId := terraform.Output(t, materializeOptions, "instance_resource_id")
+		suite.NotEmpty(instanceResourceId, "Materialize instance resource ID should not be empty")
+
+		t.Logf("✅ Public TLS Materialize stack created successfully")
+	})
+
+	t.Logf("✅ testPublicTLS completed successfully")
+}
+
+func (suite *StagedDeploymentSuite) testPublicTLSCleanup() {
+	t := suite.T()
+	t.Log("🧹 Running testPublicTLS Cleanup")
+
+	test_structure.RunTestStage(t, "cleanup_testPublicTLS", func() {
+		suite.cleanupStage("cleanup_testPublicTLS", utils.MaterializePublicTLSDir)
+	})
+
+	t.Logf("✅ testPublicTLS Cleanup completed successfully")
 }
 
 func (suite *StagedDeploymentSuite) useExistingNetwork() string {

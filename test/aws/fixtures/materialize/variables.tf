@@ -248,3 +248,39 @@ variable "tags" {
   description = "Tags to apply to all resources"
   type        = map(string)
 }
+
+variable "enable_public_tls" {
+  description = "Enable public TLS with ACME certificates and Route53 DNS"
+  type        = bool
+  default     = false
+}
+
+variable "route53_hosted_zone_id" {
+  description = "Route53 hosted zone ID"
+  type        = string
+  default     = null
+}
+
+variable "balancerd_domain_name" {
+  description = "Domain name for the balancerd service"
+  type        = string
+  default     = null
+}
+
+variable "console_domain_name" {
+  description = "Domain name for the console service"
+  type        = string
+  default     = null
+}
+
+variable "acme_email" {
+  description = "Email address for ACME certificate registration"
+  type        = string
+  default     = null
+}
+
+variable "acme_server" {
+  description = "ACME server URL for certificate issuance"
+  type        = string
+  default     = "https://acme-v02.api.letsencrypt.org/directory"
+}

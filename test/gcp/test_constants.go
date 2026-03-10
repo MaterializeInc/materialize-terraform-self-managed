@@ -90,4 +90,7 @@ const (
 	// Storage configuration
 	TestStorageBucketVersioning = false
 	TestStorageBucketVersionTTL = 7
+
+	// Public TLS short suffix for resource naming
+	PublicTLSShortSuffix = "ptls"
 )

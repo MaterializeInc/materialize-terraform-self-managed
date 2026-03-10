@@ -155,3 +155,13 @@ output "cluster_issuer_name" {
   description = "Name of the cluster issuer"
   value       = module.self_signed_cluster_issuer.issuer_name
 }
+
+output "balancerd_hostname" {
+  description = "Public hostname for the balancerd service"
+  value       = var.enable_public_tls ? var.balancerd_hostname : null
+}
+
+output "console_hostname" {
+  description = "Public hostname for the console service"
+  value       = var.enable_public_tls ? var.console_hostname : null
+}

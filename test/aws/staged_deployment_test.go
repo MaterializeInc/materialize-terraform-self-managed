@@ -40,6 +40,8 @@ func (suite *StagedDeploymentTestSuite) SetupSuite() {
 func (suite *StagedDeploymentTestSuite) TearDownSuite() {
 	t := suite.T()
 	t.Logf("🧹 Starting cleanup stages for: %s", suite.SuiteName)
+	suite.testPublicTLSCleanup()
+
 	suite.testDiskDisabledCleanup()
 
 	suite.testDiskEnabledCleanup()
@@ -240,6 +242,9 @@ func (suite *StagedDeploymentTestSuite) TestFullDeployment() {
 
 	// Stage 3: testDiskDisabled (EKS + Database + Materialize)
 	suite.testDiskDisabled(awsProfile, awsRegion)
+
+	// Stage 4: testPublicTLS (only if ROUTE53_HOSTED_ZONE_ID is set)
+	suite.testPublicTLS(awsProfile, awsRegion)
 }
 
 // testDiskEnabled deploys the complete Materialize stack with disk enabled
@@ -581,6 +586,157 @@ func (suite *StagedDeploymentTestSuite) setupMaterializeConsolidatedStage(stage,
 	t.Logf("🔐 CERTIFICATE OUTPUTS:")
 	t.Logf("  📜 Cluster Issuer Name: %s", clusterIssuerName)
 
+}
+
+// testPublicTLS deploys the complete Materialize stack with public TLS enabled
+func (suite *StagedDeploymentTestSuite) testPublicTLS(awsProfile, awsRegion string) {
+	t := suite.T()
+
+	hostedZoneID := os.Getenv("ROUTE53_HOSTED_ZONE_ID")
+	if hostedZoneID == "" {
+		t.Log("⏭️ Skipping testPublicTLS: ROUTE53_HOSTED_ZONE_ID not set")
+		return
+	}
+
+	t.Log("🚀 Running testPublicTLS (Complete Materialize Stack with Public TLS)")
+
+	test_structure.RunTestStage(t, "testPublicTLS", func() {
+		if suite.workingDir == "" {
+			t.Fatal("❌ Cannot create Materialize stack: Working directory not set.")
+		}
+
+		networkStageDir := filepath.Join(suite.workingDir, utils.NetworkingDir)
+		vpcId := test_structure.LoadString(t, networkStageDir, "vpc_id")
+		privateSubnetIdsStr := test_structure.LoadString(t, networkStageDir, "private_subnet_ids")
+		publicSubnetIdsStr := test_structure.LoadString(t, networkStageDir, "public_subnet_ids")
+		privateSubnetIds := strings.Split(privateSubnetIdsStr, ",")
+		publicSubnetIds := strings.Split(publicSubnetIdsStr, ",")
+
+		if vpcId == "" || len(privateSubnetIds) == 0 || privateSubnetIds[0] == "" {
+			t.Fatal("❌ Missing network data.")
+		}
+
+		materializePath := helpers.SetupTestWorkspace(t, utils.AWS, suite.uniqueId, utils.MaterializeFixture, utils.MaterializePublicTLSDir)
+
+		expectedInstanceNamespace := fmt.Sprintf("mz-instance-%s", PublicTLSShortSuffix)
+		expectedOperatorNamespace := fmt.Sprintf("mz-operator-%s", PublicTLSShortSuffix)
+		expectedCertManagerNamespace := fmt.Sprintf("cert-manager-%s", PublicTLSShortSuffix)
+		resourceName := fmt.Sprintf("%s%s", suite.uniqueId, PublicTLSShortSuffix)
+
+		balancerdHostname := os.Getenv("BALANCERD_HOSTNAME")
+		consoleHostname := os.Getenv("CONSOLE_HOSTNAME")
+		acmeEmail := os.Getenv("ACME_EMAIL")
+
+		tfvarsPath := filepath.Join(materializePath, "terraform.tfvars.json")
+		variables := map[string]interface{}{
+			"region":      awsRegion,
+			"vpc_id":      vpcId,
+			"subnet_ids":  privateSubnetIds,
+			"name_prefix": resourceName,
+			"cluster_version":                          TestKubernetesVersion,
+			"cluster_enabled_log_types":                []string{"api", "audit"},
+			"enable_cluster_creator_admin_permissions": true,
+			"min_nodes":                                1,
+			"max_nodes":                                3,
+			"desired_nodes":                            2,
+			"instance_types":                           []string{TestEKSDiskEnabledInstanceType},
+			"capacity_type":                            "ON_DEMAND",
+			"swap_enabled":                             true,
+			"iam_role_use_name_prefix":                 false,
+			"materialize_node_ingress_cidrs":           []string{TestVPCCIDR},
+			"k8s_apiserver_authorized_networks":        []string{"0.0.0.0/0"},
+			"node_labels": map[string]string{
+				"environment": helpers.GetEnvironment(),
+				"project":     utils.ProjectName,
+				"public-tls":  "true",
+			},
+			"postgres_version":        TestPostgreSQLVersion,
+			"instance_class":          TestRDSInstanceClassSmall,
+			"allocated_storage":       TestAllocatedStorageSmall,
+			"max_allocated_storage":   TestMaxAllocatedStorageSmall,
+			"multi_az":                false,
+			"database_name":           "materialize_test_tls",
+			"database_username":       TestDBUsername,
+			"database_password":       TestPassword,
+			"maintenance_window":      TestMaintenanceWindow,
+			"backup_window":           TestBackupWindow,
+			"backup_retention_period": TestBackupRetentionPeriod,
+			"bucket_lifecycle_rules":   []interface{}{},
+			"bucket_force_destroy":     true,
+			"enable_bucket_versioning": false,
+			"enable_bucket_encryption": false,
+			"cert_manager_install_timeout": 600,
+			"cert_manager_chart_version":   TestCertManagerVersion,
+			"cert_manager_namespace":       expectedCertManagerNamespace,
+			"operator_namespace":           expectedOperatorNamespace,
+			"instance_name":                fmt.Sprintf("%s-%s", suite.uniqueId, PublicTLSShortSuffix),
+			"instance_namespace":           expectedInstanceNamespace,
+			"external_login_password_mz_system": TestPassword,
+			"license_key":                       os.Getenv("MATERIALIZE_LICENSE_KEY"),
+			"enable_cross_zone_load_balancing":   true,
+			"internal":                           false,
+			"ingress_cidr_blocks":                []string{"0.0.0.0/0"},
+			"nlb_subnet_ids":                     publicSubnetIds,
+			// Public TLS configuration
+			"enable_public_tls":        true,
+			"route53_hosted_zone_id":   hostedZoneID,
+			"balancerd_domain_name":    balancerdHostname,
+			"console_domain_name":      consoleHostname,
+			"acme_email":               acmeEmail,
+			"tags": map[string]string{
+				"environment": helpers.GetEnvironment(),
+				"project":     utils.ProjectName,
+				"test-run":    suite.uniqueId,
+				"public-tls":  "true",
+			},
+		}
+
+		if awsProfile != "" {
+			variables["profile"] = awsProfile
+		}
+
+		helpers.CreateTfvarsFile(t, tfvarsPath, variables)
+
+		if err := suite.s3Manager.UploadTfvars(t, utils.MaterializePublicTLSDir, tfvarsPath); err != nil {
+			t.Logf("⚠️ Failed to upload tfvars to S3 (non-fatal): %v", err)
+		}
+
+		materializeOptions := &terraform.Options{
+			TerraformDir: materializePath,
+			VarFiles:     []string{"terraform.tfvars.json"},
+			RetryableTerraformErrors: map[string]string{
+				"RequestError": "Request failed",
+			},
+			MaxRetries:         TestMaxRetries,
+			TimeBetweenRetries: TestRetryDelay,
+			NoColor:            true,
+		}
+
+		materializeOptions.BackendConfig = suite.s3Manager.GetBackendConfig(utils.MaterializePublicTLSDir)
+
+		stageDirPath := filepath.Join(suite.workingDir, utils.MaterializePublicTLSDir)
+		test_structure.SaveTerraformOptions(t, stageDirPath, materializeOptions)
+
+		terraform.InitAndApply(t, materializeOptions)
+
+		instanceResourceId := terraform.Output(t, materializeOptions, "instance_resource_id")
+		suite.NotEmpty(instanceResourceId, "Materialize instance resource ID should not be empty")
+
+		t.Logf("✅ Public TLS Materialize stack created successfully")
+	})
+
+	t.Logf("✅ testPublicTLS completed successfully")
+}
+
+func (suite *StagedDeploymentTestSuite) testPublicTLSCleanup() {
+	t := suite.T()
+	t.Log("🧹 Running testPublicTLS Cleanup")
+
+	test_structure.RunTestStage(t, "cleanup_testPublicTLS", func() {
+		suite.cleanupStage("cleanup_testPublicTLS", utils.MaterializePublicTLSDir)
+	})
+
+	t.Logf("✅ testPublicTLS Cleanup completed successfully")
 }
 
 func (suite *StagedDeploymentTestSuite) useExistingNetwork() string {

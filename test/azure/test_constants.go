@@ -88,4 +88,7 @@ const (
 
 	// Materialize instance defaults
 	TestMaterializeInstanceName = "materialize-test"
+
+	// Public TLS short suffix for resource naming
+	PublicTLSShortSuffix = "ptls"
 )

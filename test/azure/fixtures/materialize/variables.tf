@@ -265,3 +265,39 @@ variable "external_login_password_mz_system" {
   type        = string
   sensitive   = true
 }
+
+variable "enable_public_tls" {
+  description = "Enable public TLS with ACME certificates and Azure DNS"
+  type        = bool
+  default     = false
+}
+
+variable "dns_zone_name" {
+  description = "Name of the Azure DNS zone"
+  type        = string
+  default     = null
+}
+
+variable "balancerd_domain_name" {
+  description = "Domain name for the balancerd service"
+  type        = string
+  default     = null
+}
+
+variable "console_domain_name" {
+  description = "Domain name for the console service"
+  type        = string
+  default     = null
+}
+
+variable "acme_email" {
+  description = "Email address for ACME certificate registration"
+  type        = string
+  default     = null
+}
+
+variable "acme_server" {
+  description = "ACME server URL for certificate issuance"
+  type        = string
+  default     = "https://acme-v02.api.letsencrypt.org/directory"
+}
