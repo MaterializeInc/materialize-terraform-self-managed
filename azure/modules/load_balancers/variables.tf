@@ -39,6 +39,18 @@ variable "ingress_cidr_blocks" {
   }
 }
 
+variable "console_load_balancer_ip" {
+  description = "Optional static IP address for the console load balancer. If null, an ephemeral IP is assigned."
+  type        = string
+  default     = null
+}
+
+variable "balancerd_load_balancer_ip" {
+  description = "Optional static IP address for the balancerd load balancer. If null, an ephemeral IP is assigned."
+  type        = string
+  default     = null
+}
+
 variable "materialize_console_port" {
   description = "Port configuration for Materialize console service"
   type        = number

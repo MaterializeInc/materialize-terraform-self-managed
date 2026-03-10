@@ -10,6 +10,7 @@ resource "kubernetes_service" "console_load_balancer" {
   spec {
     type                        = "LoadBalancer"
     external_traffic_policy     = "Local"
+    load_balancer_ip            = var.console_load_balancer_ip
     load_balancer_source_ranges = var.internal ? null : var.ingress_cidr_blocks
     selector = {
       "materialize.cloud/name" = "mz${var.resource_id}-console"
@@ -47,6 +48,7 @@ resource "kubernetes_service" "balancerd_load_balancer" {
   spec {
     type                        = "LoadBalancer"
     external_traffic_policy     = "Local"
+    load_balancer_ip            = var.balancerd_load_balancer_ip
     load_balancer_source_ranges = var.internal ? null : var.ingress_cidr_blocks
     selector = {
       "materialize.cloud/name" = "mz${var.resource_id}-balancerd"
