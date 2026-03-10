@@ -35,13 +35,13 @@ locals {
     identitySchemas = var.identity_schemas
   } : {}
 
-  smtp_config = var.smtp_connection_uri != "" ? {
+  smtp_config = var.smtp_connection_uri != null ? {
     courier = {
-      smtp = {
-        connection_uri = var.smtp_connection_uri
-        from_address   = var.smtp_from_address
-        from_name      = var.smtp_from_name
-      }
+      smtp = merge(
+        { connection_uri = var.smtp_connection_uri },
+        var.smtp_from_address != null ? { from_address = var.smtp_from_address } : {},
+        var.smtp_from_name != null ? { from_name = var.smtp_from_name } : {},
+      )
     }
   } : {}
 

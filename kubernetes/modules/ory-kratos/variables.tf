@@ -156,23 +156,20 @@ variable "pdb_min_available" {
 variable "smtp_connection_uri" {
   description = "SMTP connection URI for sending emails. Example: smtp://user:password@smtp.example.com:587/"
   type        = string
-  default     = ""
+  default     = null
   sensitive   = true
-  nullable    = false
 }
 
 variable "smtp_from_address" {
   description = "Email address used as the sender for Kratos emails."
   type        = string
-  default     = ""
-  nullable    = false
+  default     = null
 }
 
 variable "smtp_from_name" {
   description = "Name used as the sender for Kratos emails."
   type        = string
-  default     = ""
-  nullable    = false
+  default     = null
 }
 
 variable "helm_values" {

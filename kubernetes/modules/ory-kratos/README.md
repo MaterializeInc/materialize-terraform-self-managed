@@ -53,9 +53,9 @@ No modules.
 | <a name="input_secrets_cipher"></a> [secrets\_cipher](#input\_secrets\_cipher) | Secret for cipher encryption. If not set, a random 32-character secret will be generated. | `string` | `null` | no |
 | <a name="input_secrets_cookie"></a> [secrets\_cookie](#input\_secrets\_cookie) | Secret for cookie signing. If not set, a random 32-character secret will be generated. | `string` | `null` | no |
 | <a name="input_secrets_default"></a> [secrets\_default](#input\_secrets\_default) | Default secret for signing and encryption. If not set, a random 32-character secret will be generated. | `string` | `null` | no |
-| <a name="input_smtp_connection_uri"></a> [smtp\_connection\_uri](#input\_smtp\_connection\_uri) | SMTP connection URI for sending emails. Example: smtp://user:password@smtp.example.com:587/ | `string` | `""` | no |
-| <a name="input_smtp_from_address"></a> [smtp\_from\_address](#input\_smtp\_from\_address) | Email address used as the sender for Kratos emails. | `string` | `""` | no |
-| <a name="input_smtp_from_name"></a> [smtp\_from\_name](#input\_smtp\_from\_name) | Name used as the sender for Kratos emails. | `string` | `""` | no |
+| <a name="input_smtp_connection_uri"></a> [smtp\_connection\_uri](#input\_smtp\_connection\_uri) | SMTP connection URI for sending emails. Example: smtp://user:password@smtp.example.com:587/ | `string` | `null` | no |
+| <a name="input_smtp_from_address"></a> [smtp\_from\_address](#input\_smtp\_from\_address) | Email address used as the sender for Kratos emails. | `string` | `null` | no |
+| <a name="input_smtp_from_name"></a> [smtp\_from\_name](#input\_smtp\_from\_name) | Name used as the sender for Kratos emails. | `string` | `null` | no |
 | <a name="input_tolerations"></a> [tolerations](#input\_tolerations) | Tolerations for Kratos pods. | <pre>list(object({<br/>    key      = string<br/>    value    = optional(string)<br/>    operator = optional(string, "Equal")<br/>    effect   = string<br/>  }))</pre> | `[]` | no |
 
 ## Outputs
