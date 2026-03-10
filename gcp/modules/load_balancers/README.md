@@ -30,6 +30,8 @@ No modules.
 
 | Name | Description | Type | Default | Required |
 |------|-------------|------|---------|:--------:|
+| <a name="input_balancerd_load_balancer_ip"></a> [balancerd\_load\_balancer\_ip](#input\_balancerd\_load\_balancer\_ip) | Optional static IP address for the balancerd load balancer. If null, an ephemeral IP is assigned. | `string` | `null` | no |
+| <a name="input_console_load_balancer_ip"></a> [console\_load\_balancer\_ip](#input\_console\_load\_balancer\_ip) | Optional static IP address for the console load balancer. If null, an ephemeral IP is assigned. | `string` | `null` | no |
 | <a name="input_ingress_cidr_blocks"></a> [ingress\_cidr\_blocks](#input\_ingress\_cidr\_blocks) | List of external IP CIDR blocks to allow ingress to External Load Balancer. Required when internal = false, must be null when internal = true. | `list(string)` | `null` | no |
 | <a name="input_instance_name"></a> [instance\_name](#input\_instance\_name) | The name of the Materialize instance. | `string` | n/a | yes |
 | <a name="input_internal"></a> [internal](#input\_internal) | Whether the load balancer is internal to the VPC. Defaults to true (private) to allow internal access to Materialize. Set to false for public access. | `bool` | `true` | no |
