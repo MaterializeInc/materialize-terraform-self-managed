@@ -17,3 +17,8 @@ output "security_group_id" {
   description = "The ID of the security group attached to the NLB"
   value       = aws_security_group.nlb.id
 }
+
+output "nlb_zone_id" {
+  description = "The hosted zone ID of the NLB (for Route53 ALIAS records)."
+  value       = aws_lb.nlb.zone_id
+}
