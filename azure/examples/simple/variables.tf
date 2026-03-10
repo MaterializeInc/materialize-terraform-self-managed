@@ -68,3 +68,39 @@ variable "internal_load_balancer" {
   type        = bool
   default     = true
 }
+
+variable "enable_public_tls" {
+  description = "Enable public TLS with ACME certificates and Azure DNS"
+  type        = bool
+  default     = false
+}
+
+variable "dns_zone_name" {
+  description = "Name of the Azure DNS zone (required when enable_public_tls is true)"
+  type        = string
+  default     = null
+}
+
+variable "balancerd_domain_name" {
+  description = "Domain name for the balancerd service (required when enable_public_tls is true)"
+  type        = string
+  default     = null
+}
+
+variable "console_domain_name" {
+  description = "Domain name for the console service (required when enable_public_tls is true)"
+  type        = string
+  default     = null
+}
+
+variable "acme_email" {
+  description = "Email address for ACME certificate registration (required when enable_public_tls is true)"
+  type        = string
+  default     = null
+}
+
+variable "acme_server" {
+  description = "ACME server URL for certificate issuance"
+  type        = string
+  default     = "https://acme-v02.api.letsencrypt.org/directory"
+}

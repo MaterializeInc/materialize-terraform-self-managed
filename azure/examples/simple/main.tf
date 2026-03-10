@@ -292,6 +292,14 @@ module "cert_manager" {
 
   node_selector = local.generic_node_labels
 
+  service_account_annotations = var.enable_public_tls ? {
+    "azure.workload.identity/client-id" = module.cert_manager_identity[0].client_id
+  } : {}
+
+  pod_labels = var.enable_public_tls ? {
+    "azure.workload.identity/use" = "true"
+  } : {}
+
   depends_on = [
     module.aks,
     module.networking,
@@ -307,6 +315,66 @@ module "self_signed_cluster_issuer" {
   depends_on = [
     module.cert_manager,
   ]
+}
+
+module "static_ips" {
+  count  = var.enable_public_tls ? 1 : 0
+  source = "../../modules/static_ips"
+
+  prefix              = var.name_prefix
+  resource_group_name = azurerm_resource_group.materialize.name
+  location            = var.location
+  tags                = var.tags
+}
+
+module "cert_manager_identity" {
+  count  = var.enable_public_tls ? 1 : 0
+  source = "../../modules/cert_manager_identity"
+
+  prefix              = var.name_prefix
+  resource_group_name = azurerm_resource_group.materialize.name
+  location            = var.location
+  oidc_issuer_url     = module.aks.cluster_oidc_issuer_url
+  dns_zone_name       = var.dns_zone_name
+  tags                = var.tags
+
+  depends_on = [module.aks]
+}
+
+module "acme_cluster_issuer" {
+  count  = var.enable_public_tls ? 1 : 0
+  source = "../../../kubernetes/modules/acme-cluster-issuer"
+
+  name_prefix = var.name_prefix
+  acme_email  = var.acme_email
+  acme_server = var.acme_server
+  solver_config = {
+    dns01 = {
+      azureDNS = {
+        subscriptionID    = var.subscription_id
+        resourceGroupName = azurerm_resource_group.materialize.name
+        hostedZoneName    = var.dns_zone_name
+        managedIdentity = {
+          clientID = module.cert_manager_identity[0].client_id
+        }
+      }
+    }
+  }
+
+  depends_on = [module.cert_manager]
+}
+
+module "dns_records" {
+  count  = var.enable_public_tls ? 1 : 0
+  source = "../../modules/dns_records"
+
+  resource_group_name   = azurerm_resource_group.materialize.name
+  dns_zone_name         = var.dns_zone_name
+  balancerd_domain_name = var.balancerd_domain_name
+  console_domain_name   = var.console_domain_name
+  balancerd_ip          = module.static_ips[0].balancerd_ip_address
+  console_ip            = module.static_ips[0].console_ip_address
+  tags                  = var.tags
 }
 
 module "operator" {
@@ -350,10 +418,21 @@ module "materialize_instance" {
 
   license_key = var.license_key
 
-  issuer_ref = {
+  issuer_ref = var.enable_public_tls ? {
+    name = module.acme_cluster_issuer[0].issuer_name
+    kind = "ClusterIssuer"
+    } : {
     name = module.self_signed_cluster_issuer.issuer_name
     kind = "ClusterIssuer"
   }
+
+  internal_issuer_ref = var.enable_public_tls ? {
+    name = module.self_signed_cluster_issuer.issuer_name
+    kind = "ClusterIssuer"
+  } : null
+
+  balancerd_dns_names = var.enable_public_tls ? [var.balancerd_domain_name] : ["balancerd"]
+  console_dns_names   = var.enable_public_tls ? [var.console_domain_name] : ["console"]
 
   depends_on = [
     module.aks,
@@ -364,6 +443,7 @@ module "materialize_instance" {
     module.operator,
     module.materialize_nodepool,
     module.coredns,
+    module.acme_cluster_issuer,
   ]
 }
 
@@ -375,6 +455,9 @@ module "load_balancers" {
   resource_id         = module.materialize_instance.instance_resource_id
   internal            = var.internal_load_balancer
   ingress_cidr_blocks = var.internal_load_balancer ? null : var.ingress_cidr_blocks
+
+  balancerd_load_balancer_ip = var.enable_public_tls ? module.static_ips[0].balancerd_ip_address : null
+  console_load_balancer_ip   = var.enable_public_tls ? module.static_ips[0].console_ip_address : null
 
   depends_on = [
     module.materialize_instance,

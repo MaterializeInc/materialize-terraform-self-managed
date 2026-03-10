@@ -255,6 +255,10 @@ module "cert_manager" {
 
   node_selector = local.generic_node_labels
 
+  service_account_annotations = var.enable_public_tls ? {
+    "eks.amazonaws.com/role-arn" = module.cert_manager_irsa[0].role_arn
+  } : {}
+
   depends_on = [
     module.networking,
     module.eks,
@@ -272,6 +276,38 @@ module "self_signed_cluster_issuer" {
   depends_on = [
     module.cert_manager,
   ]
+}
+
+module "cert_manager_irsa" {
+  count  = var.enable_public_tls ? 1 : 0
+  source = "../../modules/cert_manager_irsa"
+
+  name_prefix             = var.name_prefix
+  oidc_provider_arn       = module.eks.oidc_provider_arn
+  cluster_oidc_issuer_url = module.eks.cluster_oidc_issuer_url
+  hosted_zone_id          = var.route53_hosted_zone_id
+  tags                    = var.tags
+
+  depends_on = [module.eks]
+}
+
+module "acme_cluster_issuer" {
+  count  = var.enable_public_tls ? 1 : 0
+  source = "../../../kubernetes/modules/acme-cluster-issuer"
+
+  name_prefix = var.name_prefix
+  acme_email  = var.acme_email
+  acme_server = var.acme_server
+  solver_config = {
+    dns01 = {
+      route53 = {
+        region       = var.aws_region
+        hostedZoneID = var.route53_hosted_zone_id
+      }
+    }
+  }
+
+  depends_on = [module.cert_manager]
 }
 
 # 6. Install Materialize Operator
@@ -386,10 +422,21 @@ module "materialize_instance" {
 
   license_key = var.license_key
 
-  issuer_ref = {
+  issuer_ref = var.enable_public_tls ? {
+    name = module.acme_cluster_issuer[0].issuer_name
+    kind = "ClusterIssuer"
+    } : {
     name = module.self_signed_cluster_issuer.issuer_name
     kind = "ClusterIssuer"
   }
+
+  internal_issuer_ref = var.enable_public_tls ? {
+    name = module.self_signed_cluster_issuer.issuer_name
+    kind = "ClusterIssuer"
+  } : null
+
+  balancerd_dns_names = var.enable_public_tls ? [var.balancerd_domain_name] : ["balancerd"]
+  console_dns_names   = var.enable_public_tls ? [var.console_domain_name] : ["console"]
 
   depends_on = [
     module.eks,
@@ -401,6 +448,7 @@ module "materialize_instance" {
     module.aws_lbc,
     module.nodepool_materialize,
     module.coredns,
+    module.acme_cluster_issuer,
   ]
 }
 
@@ -458,6 +506,19 @@ module "materialize_nlb" {
   depends_on = [
     module.materialize_instance
   ]
+}
+
+module "route53_dns" {
+  count  = var.enable_public_tls ? 1 : 0
+  source = "../../modules/route53_dns"
+
+  hosted_zone_id        = var.route53_hosted_zone_id
+  nlb_dns_name          = module.materialize_nlb.nlb_dns_name
+  nlb_zone_id           = module.materialize_nlb.nlb_zone_id
+  balancerd_domain_name = var.balancerd_domain_name
+  console_domain_name   = var.console_domain_name
+
+  depends_on = [module.materialize_nlb]
 }
 
 locals {

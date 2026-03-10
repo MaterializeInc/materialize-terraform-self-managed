@@ -117,6 +117,16 @@ output "external_login_password_mz_system" {
   sensitive   = true
 }
 
+output "balancerd_hostname" {
+  description = "Public hostname for the balancerd service"
+  value       = var.enable_public_tls ? var.balancerd_domain_name : null
+}
+
+output "console_hostname" {
+  description = "Public hostname for the console service"
+  value       = var.enable_public_tls ? var.console_domain_name : null
+}
+
 output "rds_kms_key_alias" {
   description = "KMS Key used to encrypt the RDS instance"
   value       = module.database.kms_key_alias

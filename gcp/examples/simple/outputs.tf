@@ -152,3 +152,13 @@ output "external_login_password_mz_system" {
   value       = random_password.external_login_password_mz_system.result
   sensitive   = true
 }
+
+output "balancerd_hostname" {
+  description = "Public hostname for the balancerd service"
+  value       = var.enable_public_tls ? var.balancerd_hostname : null
+}
+
+output "console_hostname" {
+  description = "Public hostname for the console service"
+  value       = var.enable_public_tls ? var.console_hostname : null
+}
