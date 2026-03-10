@@ -390,6 +390,16 @@ module "materialize_instance" {
     kind = "ClusterIssuer"
   }
 
+  # System parameters for the Materialize instance
+  # See: https://materialize.com/docs/self-managed-deployments/configuration-system-parameters/
+  # Example settings:
+  #   max_connections               = "1000"
+  #   allowed_cluster_replica_sizes = "'25cc', '50cc', '100cc', '200cc', '400cc', '800cc', '1600cc', '3200cc'"
+  #   max_clusters                  = "10"
+  #   max_sources                   = "50"
+  #   max_sinks                     = "50"
+  system_parameters = {}
+
   depends_on = [
     module.gke,
     module.database,

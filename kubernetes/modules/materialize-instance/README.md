@@ -22,6 +22,7 @@ No modules.
 | Name | Type |
 |------|------|
 | [kubectl_manifest.materialize_instance](https://registry.terraform.io/providers/alekc/kubectl/latest/docs/resources/manifest) | resource |
+| [kubernetes_config_map.system_params](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/config_map) | resource |
 | [kubernetes_namespace.instance](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/namespace) | resource |
 | [kubernetes_secret.materialize_backend](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/secret) | resource |
 | [kubernetes_resource.materialize_instance](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/data-sources/resource) | data source |
@@ -53,6 +54,7 @@ No modules.
 | <a name="input_request_rollout"></a> [request\_rollout](#input\_request\_rollout) | UUID to request a rollout | `string` | `"00000000-0000-0000-0000-000000000001"` | no |
 | <a name="input_rollout_strategy"></a> [rollout\_strategy](#input\_rollout\_strategy) | Strategy to use for rollouts | `string` | `"WaitUntilReady"` | no |
 | <a name="input_service_account_annotations"></a> [service\_account\_annotations](#input\_service\_account\_annotations) | Annotations for the service account associated with the materialize instance. Useful for IAM roles assigned to the service account. | `map(string)` | `{}` | no |
+| <a name="input_system_parameters"></a> [system\_parameters](#input\_system\_parameters) | System parameters to configure for the Materialize instance. These are passed via a ConfigMap. Common parameters include max\_connections, allowed\_cluster\_replica\_sizes, max\_clusters, max\_sources, max\_sinks. Set to null to skip creating the ConfigMap. | `map(string)` | `{}` | no |
 
 ## Outputs
 

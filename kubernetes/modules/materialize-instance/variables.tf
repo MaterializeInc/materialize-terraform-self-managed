@@ -181,3 +181,9 @@ variable "issuer_ref" {
   })
   default = null
 }
+
+variable "system_parameters" {
+  description = "System parameters to configure for the Materialize instance. These are passed via a ConfigMap. Common parameters include max_connections, allowed_cluster_replica_sizes, max_clusters, max_sources, max_sinks. Set to null to skip creating the ConfigMap."
+  type        = map(string)
+  default     = {}
+}
