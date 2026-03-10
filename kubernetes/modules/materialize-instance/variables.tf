@@ -181,3 +181,33 @@ variable "issuer_ref" {
   })
   default = null
 }
+
+variable "internal_issuer_ref" {
+  description = "Separate issuer for internal certificates. Falls back to issuer_ref if not set."
+  type = object({
+    name = string
+    kind = string
+  })
+  default = null
+}
+
+variable "balancerd_dns_names" {
+  description = "DNS names for the balancerd external certificate."
+  type        = list(string)
+  default     = ["balancerd"]
+  nullable    = false
+}
+
+variable "console_dns_names" {
+  description = "DNS names for the console external certificate."
+  type        = list(string)
+  default     = ["console"]
+  nullable    = false
+}
+
+variable "system_parameters" {
+  description = "System parameters to configure via a ConfigMap."
+  type        = map(string)
+  default     = {}
+  nullable    = false
+}

@@ -37,3 +37,17 @@ variable "tolerations" {
   default  = []
   nullable = false
 }
+
+variable "service_account_annotations" {
+  description = "Annotations for the cert-manager service account (e.g., for GCP Workload Identity, AWS IRSA, or Azure Workload Identity)."
+  type        = map(string)
+  default     = {}
+  nullable    = false
+}
+
+variable "pod_labels" {
+  description = "Additional labels for cert-manager pods (e.g., for Azure Workload Identity)."
+  type        = map(string)
+  default     = {}
+  nullable    = false
+}

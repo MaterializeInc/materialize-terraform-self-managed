@@ -59,20 +59,18 @@ resource "kubectl_manifest" "materialize_instance" {
       }
 
       balancerdExternalCertificateSpec = var.issuer_ref == null ? null : {
-        dnsNames = [
-          "balancerd",
-        ]
+        dnsNames  = var.balancerd_dns_names
         issuerRef = var.issuer_ref
       }
       consoleExternalCertificateSpec = var.issuer_ref == null ? null : {
-        dnsNames = [
-          "console",
-        ]
+        dnsNames  = var.console_dns_names
         issuerRef = var.issuer_ref
       }
       internalCertificateSpec = var.issuer_ref == null ? null : {
-        issuerRef = var.issuer_ref
+        issuerRef = var.internal_issuer_ref != null ? var.internal_issuer_ref : var.issuer_ref
       }
+
+      systemParameterConfigmapName = length(var.system_parameters) > 0 ? "${var.instance_name}-system-parameters" : null
     }
   })
 
@@ -110,6 +108,22 @@ resource "kubernetes_secret" "materialize_backend" {
 
   depends_on = [
     kubernetes_namespace.instance
+  ]
+}
+
+# Optional ConfigMap for system parameters
+resource "kubernetes_config_map" "system_parameters" {
+  count = length(var.system_parameters) > 0 ? 1 : 0
+
+  metadata {
+    name      = "${var.instance_name}-system-parameters"
+    namespace = var.instance_namespace
+  }
+
+  data = var.system_parameters
+
+  depends_on = [
+    kubernetes_namespace.instance,
   ]
 }
 

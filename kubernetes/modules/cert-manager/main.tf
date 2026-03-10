@@ -78,6 +78,24 @@ resource "helm_release" "cert_manager" {
     }
   }
 
+  # Add service account annotations (for GCP WI, AWS IRSA, Azure WI)
+  dynamic "set" {
+    for_each = var.service_account_annotations
+    content {
+      name  = "serviceAccount.annotations.${replace(set.key, ".", "\\.")}"
+      value = set.value
+    }
+  }
+
+  # Add pod labels (for Azure Workload Identity)
+  dynamic "set" {
+    for_each = var.pod_labels
+    content {
+      name  = "podLabels.${replace(set.key, ".", "\\.")}"
+      value = set.value
+    }
+  }
+
   depends_on = [
     kubernetes_namespace.cert_manager,
   ]
