@@ -1,9 +1,7 @@
 name: AWS Tests
 
 on:
-  # Primary trigger: GitHub merge queue with smart path filtering
-  merge_group:
-  # Manual trigger: For testing and debugging purposes
+  workflow_call:
   workflow_dispatch:
     inputs:
       test_stage:
@@ -14,10 +12,6 @@ on:
         options:
           - network-only
           - full-test
-
-  # Future enhancement: Add scheduled runs for nightly testing
-  # schedule:
-  #   - cron: '30 4 * * *'  # 10 AM IST (4:30 AM UTC) for nightly infrastructure validation
 
 permissions:
   id-token: write # Required for OIDC
@@ -57,12 +51,11 @@ jobs:
           echo "Changed files: ${{ steps.ignored-files-changed.outputs.all_changed_files }}"
           echo "Are other files apart from ignored ones modified: ${{ steps.ignored-files-changed.outputs.any_modified }}"
 
-
   test-aws:
     name: AWS Infrastructure Tests
     runs-on: ubuntu-latest
     needs: ignored_files
-    if: needs.ignored_files.outputs.any_modified == 'true'
+    if: needs.ignored_files.outputs.any_modified == 'true' || github.event_name == 'workflow_dispatch'
     # Note: Triggered automatically when approved PRs enter GitHub's merge queue
     # Smart path filtering ensures tests run only when AWS infrastructure changes
     env:

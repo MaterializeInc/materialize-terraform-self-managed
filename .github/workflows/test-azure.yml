@@ -1,8 +1,7 @@
 name: Azure Tests
 
 on:
-  merge_group:
-  # Manual trigger: For testing and debugging purposes (ONLY trigger until issues are resolved)
+  workflow_call:
   workflow_dispatch:
     inputs:
       test_stage:
@@ -13,10 +12,6 @@ on:
         options:
           - network-only
           - full-test
-
-  # Future enhancement: Add scheduled runs for nightly testing
-  # schedule:
-  #   - cron: '30 4 * * *'  # 10 AM IST (4:30 AM UTC) for nightly infrastructure validation
 
 permissions:
   id-token: write # Required for OIDC
@@ -60,7 +55,7 @@ jobs:
     name: Azure Infrastructure Tests
     runs-on: ubuntu-latest
     needs: ignored_files
-    if: needs.ignored_files.outputs.any_modified == 'true'
+    if: needs.ignored_files.outputs.any_modified == 'true' || github.event_name == 'workflow_dispatch'
     env:
       DURATION_SECONDS: 14400 # 4 hours
 

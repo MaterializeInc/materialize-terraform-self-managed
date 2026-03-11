@@ -1,39 +1,66 @@
 # Infrastructure Testing Workflows
 
-## 🛡️ **Merge Queue Integration**
+## Workflow Structure
+
+```
+pr.yml (pull_request)
+  └── lint.yml
+  └── ci-success (gates on lint)
+
+merge_queue.yml (merge_group)
+  └── lint.yml
+  └── test-aws.yml
+  └── test-gcp.yml
+  └── test-azure.yml
+  └── ci-success (gates on all above)
+```
+
+## Merge Queue Integration
 
 Infrastructure tests **integrate with GitHub's merge queue** to ensure only approved, tested code reaches `main`.
 
-### **How It Works**
-1. **Create PR** → Request review
-2. **Get approval** → PR enters merge queue automatically
-3. **Tests run** → Only affected cloud providers tested (smart path filtering)
-4. **Auto-merge** → When tests pass, code merges to `main`
-5. **Manual trigger** → Use `gh workflow run test-<cloud>.yml` if needed
+### How It Works
 
+1. **Create PR** - `pr.yml` runs lint checks, `ci-success` passes when lint passes
+2. **Get approval** - PR enters merge queue automatically
+3. **Tests run** - `merge_queue.yml` runs full infrastructure tests (AWS, GCP, Azure)
+4. **Auto-merge** - When `ci-success` passes, code merges to `main`
+5. **Manual trigger** - Use `gh workflow run test-<cloud>.yml` if needed
 
-### **What Gets Tested**
+### PR vs Merge Queue Behavior
+
+| Event | Workflow | What Runs | ci-success gates on |
+|-------|----------|-----------|---------------------|
+| `pull_request` | `pr.yml` | Lint only | Lint |
+| `merge_group` | `merge_queue.yml` | Lint + all cloud tests | Lint + AWS + GCP + Azure |
+| `workflow_dispatch` | `test-*.yml` | Individual cloud test | N/A |
+
+### What Gets Tested (Merge Queue Only)
 
 | Path Changes | Tests Triggered |
 |-------------|----------------|
-| `*/modules/**/*.tf`, `kubernetes/modules/**/*.{tf,yaml,yml}` | ✅ Relevant cloud tests |
-| `test/aws/**/*.{go,tf}`, `test/gcp/**/*.{go,tf}`, `test/azure/**/*.{go,tf}` | ✅ Relevant cloud tests |
-| `test/utils/**`, `test/shared/**`, `test/*.go` | ✅ **All cloud tests** |
-| `*/examples/**`, `README.md`, `.env`, docs | ❌ No tests |
+| `*/modules/**/*.tf`, `kubernetes/modules/**/*.{tf,yaml,yml}` | Relevant cloud tests |
+| `test/aws/**/*.{go,tf}`, `test/gcp/**/*.{go,tf}`, `test/azure/**/*.{go,tf}` | Relevant cloud tests |
+| `test/utils/**`, `test/shared/**`, `test/*.go` | **All cloud tests** |
+| `*/examples/**`, `README.md`, `.env`, docs | No tests (skipped) |
 
-### **Features**
-- ✅ **Granular path filtering** - Only tests infrastructure changes (excludes docs/README)
-- ✅ **Smart cloud detection** - Tests only affected clouds, or all clouds for shared changes  
-- ✅ **Merge queue integration** - Automatic testing on approved PRs
-- ✅ **Conflict resolution** - Auto-retests when merge conflicts occur
-- ✅ **Parallel cloud testing** - AWS/GCP/Azure run simultaneously when needed
+### Features
 
-## **Setup Requirements**
+- **Fast PR feedback** - PRs only run lint, cloud tests run in merge queue
+- **Single required check** - Only `ci-success` needs to be required in branch protection
+- **Granular path filtering** - Cloud tests skip when no relevant files changed
+- **Smart cloud detection** - Tests only affected clouds, or all clouds for shared changes
+- **Parallel cloud testing** - AWS/GCP/Azure run simultaneously in merge queue
 
-**Branch Protection + Merge Queue:**
+## Setup Requirements
+
+**Branch Protection:**
 - Enable merge queue for `main` branch
-- Require PR approvals (dismisses stale approvals)  
-- Add required status checks: `AWS Tests`, `GCP Tests`, `Azure Tests`
+- Require PR approvals
+- Add required status check: `PR / ci-success`
+
+**Merge Queue:**
+- Add required status check: `Merge Queue / ci-success`
 
 
 **Repository Secrets:**

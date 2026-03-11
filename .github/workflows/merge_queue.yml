@@ -1,0 +1,39 @@
+name: Merge Queue
+
+on:
+  merge_group:
+
+jobs:
+  lint:
+    uses: ./.github/workflows/lint.yml
+    secrets: inherit
+
+  test-aws:
+    uses: ./.github/workflows/test-aws.yml
+    secrets: inherit
+
+  test-gcp:
+    uses: ./.github/workflows/test-gcp.yml
+    secrets: inherit
+
+  test-azure:
+    uses: ./.github/workflows/test-azure.yml
+    secrets: inherit
+
+  ci-success:
+    runs-on: ubuntu-latest
+    if: always()
+    needs:
+      - lint
+      - test-aws
+      - test-gcp
+      - test-azure
+    steps:
+      - uses: technote-space/workflow-conclusion-action@v3
+      - name: Verify all checks passed
+        if: env.WORKFLOW_CONCLUSION != 'success'
+        run: |
+          echo "Checks failed: ${{ env.WORKFLOW_CONCLUSION }}"
+          exit 1
+      - name: Success
+        run: echo "All merge queue checks passed"
