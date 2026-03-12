@@ -7,6 +7,10 @@ locals {
     "provisioned-by" = "materialize"
   }
 
+  # Stable trigger for kube-dns scale commands. Re-runs only when the cluster
+  # itself changes (e.g. recreation), not on every apply due to token rotation.
+  scale_trigger = coalesce(var.cluster_identifier, var.kubeconfig_data)
+
   # Corefile with TTL 0 first in the kubernetes plugin block (required for correct parsing)
   corefile = <<-EOF
     .:53 {
@@ -257,7 +261,7 @@ resource "terraform_data" "scale_down_kube_dns_autoscaler" {
     DEPLOYMENT_NAME = var.coredns_autoscaler_deployment_to_scale_down
     NAMESPACE       = local.namespace
   }
-  triggers_replace = [var.kubeconfig_data, var.coredns_autoscaler_deployment_to_scale_down, local.namespace]
+  triggers_replace = [local.scale_trigger, var.coredns_autoscaler_deployment_to_scale_down, local.namespace]
   provisioner "local-exec" {
     interpreter = ["/usr/bin/env", "bash", "-c"]
     when        = create
@@ -290,7 +294,7 @@ resource "terraform_data" "scale_down_kube_dns" {
     DEPLOYMENT_NAME = var.coredns_deployment_to_scale_down
     NAMESPACE       = local.namespace
   }
-  triggers_replace = [var.kubeconfig_data, var.coredns_deployment_to_scale_down, local.namespace]
+  triggers_replace = [local.scale_trigger, var.coredns_deployment_to_scale_down, local.namespace]
   provisioner "local-exec" {
     interpreter = ["/usr/bin/env", "bash", "-c"]
     when        = create
@@ -319,7 +323,11 @@ resource "terraform_data" "scale_down_kube_dns" {
   depends_on = [terraform_data.scale_down_kube_dns_autoscaler]
 }
 
-# Scale up the default CoreDNS during cleanup
+# Scale up the default CoreDNS during cleanup.
+# on_failure = continue: the scale-up is best-effort. If the cluster is also
+# being destroyed or the kubeconfig token has expired, failing here should not
+# block the operation. An operator removing only the CoreDNS module (without
+# destroying the cluster) should verify that kube-dns is running afterward.
 resource "terraform_data" "scale_up_kube_dns_autoscaler" {
   count = var.disable_default_coredns_autoscaler ? 1 : 0
   input = {
@@ -327,11 +335,11 @@ resource "terraform_data" "scale_up_kube_dns_autoscaler" {
     DEPLOYMENT_NAME = var.coredns_autoscaler_deployment_to_scale_down
     NAMESPACE       = local.namespace
   }
-  triggers_replace = [var.kubeconfig_data, var.coredns_autoscaler_deployment_to_scale_down, local.namespace]
+  triggers_replace = [local.scale_trigger, var.coredns_autoscaler_deployment_to_scale_down, local.namespace]
   provisioner "local-exec" {
     interpreter = ["/usr/bin/env", "bash", "-c"]
     when        = destroy
-    on_failure  = fail
+    on_failure  = continue
     environment = self.input
     command     = <<-EOT
       set -euo pipefail
@@ -345,7 +353,8 @@ resource "terraform_data" "scale_up_kube_dns_autoscaler" {
           echo "Deployment $${DEPLOYMENT_NAME} not found, skipping"
           exit 0
         fi
-        echo "Error scaling up $${DEPLOYMENT_NAME} deployment: $output"
+        echo "WARNING: Failed to scale up $${DEPLOYMENT_NAME}: $output"
+        echo "If the cluster still exists, manually run: kubectl scale deployment $${DEPLOYMENT_NAME} -n $${NAMESPACE} --replicas=1"
         exit 1
       }
       echo "Successfully scaled up $${DEPLOYMENT_NAME} to 1 replica"
@@ -362,11 +371,11 @@ resource "terraform_data" "scale_up_kube_dns" {
     DEPLOYMENT_NAME = var.coredns_deployment_to_scale_down
     NAMESPACE       = local.namespace
   }
-  triggers_replace = [var.kubeconfig_data, var.coredns_deployment_to_scale_down, local.namespace]
+  triggers_replace = [local.scale_trigger, var.coredns_deployment_to_scale_down, local.namespace]
   provisioner "local-exec" {
     interpreter = ["/usr/bin/env", "bash", "-c"]
     when        = destroy
-    on_failure  = fail
+    on_failure  = continue
     environment = self.input
     command     = <<-EOT
       set -euo pipefail
@@ -380,7 +389,8 @@ resource "terraform_data" "scale_up_kube_dns" {
           echo "Deployment $${DEPLOYMENT_NAME} not found, skipping"
           exit 0
         fi
-        echo "Error scaling up kube-dns deployment: $output"
+        echo "WARNING: Failed to scale up $${DEPLOYMENT_NAME}: $output"
+        echo "If the cluster still exists, manually run: kubectl scale deployment $${DEPLOYMENT_NAME} -n $${NAMESPACE} --replicas=2"
         exit 1
       }
       echo "Successfully scaled up $${DEPLOYMENT_NAME} to 2 replicas"
