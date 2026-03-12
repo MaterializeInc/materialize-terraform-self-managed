@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/MaterializeInc/materialize-terraform-self-managed/test/utils"
 	"github.com/MaterializeInc/materialize-terraform-self-managed/test/utils/basesuite"
@@ -196,7 +197,7 @@ func (suite *StagedDeploymentSuite) TestFullDeployment() {
 				"RequestError": "Request failed",
 			},
 			MaxRetries:         TestMaxRetries,
-			TimeBetweenRetries: TestRetryDelay,
+			TimeBetweenRetries: TestRetryDelay * time.Second,
 			NoColor:            true,
 		}
 
@@ -416,10 +417,11 @@ func (suite *StagedDeploymentSuite) setupMaterializeConsolidatedStage(stage, sta
 		TerraformDir: materializePath,
 		VarFiles:     []string{"terraform.tfvars.json"},
 		RetryableTerraformErrors: map[string]string{
-			"RequestError": "Request failed",
+			"RequestError":                      "Request failed",
+			"Error waiting for Create Instance": "Cloud SQL instance creation failed, retrying due to possible private network peering propagation delay",
 		},
 		MaxRetries:         TestMaxRetries,
-		TimeBetweenRetries: TestRetryDelay,
+		TimeBetweenRetries: TestRetryDelay * time.Second,
 		NoColor:            true,
 	}
 

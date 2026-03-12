@@ -68,8 +68,8 @@ const (
 	TestTimeoutLong   = 3600 // 1 hour
 
 	// Retry configuration
-	TestMaxRetries  = 1
-	TestRetryDelay  = 10 // seconds
+	TestMaxRetries  = 3
+	TestRetryDelay  = 30 // seconds
 	TestParallelism = 10
 
 	// Test environment variables
