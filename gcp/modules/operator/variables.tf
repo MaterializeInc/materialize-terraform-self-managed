@@ -141,3 +141,10 @@ variable "instance_node_selector" {
   default     = {}
   nullable    = false
 }
+
+variable "enable_network_policies" {
+  description = "Enable network policies for the operator namespace"
+  type        = bool
+  default     = true
+  nullable    = false
+}

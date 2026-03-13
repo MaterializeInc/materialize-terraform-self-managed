@@ -323,7 +323,7 @@ module "operator" {
       }
     }
   } : {}
-
+  enable_network_policies = true
   depends_on = [
     module.gke,
     module.generic_nodepool,
@@ -367,11 +367,12 @@ module "grafana" {
 
 # Deploy Materialize instance with configured backend connections
 module "materialize_instance" {
-  source               = "../../../kubernetes/modules/materialize-instance"
-  instance_name        = local.materialize_instance_name
-  instance_namespace   = local.materialize_instance_namespace
-  metadata_backend_url = local.metadata_backend_url
-  persist_backend_url  = local.persist_backend_url
+  source                  = "../../../kubernetes/modules/materialize-instance"
+  instance_name           = local.materialize_instance_name
+  instance_namespace      = local.materialize_instance_namespace
+  metadata_backend_url    = local.metadata_backend_url
+  persist_backend_url     = local.persist_backend_url
+  enable_network_policies = true
 
   # The password for the external login to the Materialize instance
   external_login_password_mz_system = random_password.external_login_password_mz_system.result

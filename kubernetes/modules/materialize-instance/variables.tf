@@ -187,3 +187,17 @@ variable "system_parameters" {
   type        = map(string)
   default     = {}
 }
+
+variable "enable_network_policies" {
+  description = "Enable default-deny-ingress network policy for the instance namespace. Helm chart creates specific allow policies."
+  type        = bool
+  default     = true
+  nullable    = false
+}
+
+variable "monitoring_namespace" {
+  description = "Namespace where monitoring resources (Prometheus) are installed. Used for network policy to allow metrics scraping."
+  type        = string
+  default     = "monitoring"
+  nullable    = false
+}

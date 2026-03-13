@@ -96,6 +96,25 @@ module "base_node_group" {
   tags                              = var.tags
 }
 
+# 2.1.1 Install VPC CNI with Network Policy support
+module "vpc_cni" {
+  source = "../../modules/vpc-cni"
+
+  name_prefix       = var.name_prefix
+  oidc_provider_arn = module.eks.oidc_provider_arn
+  oidc_issuer_url   = module.eks.cluster_oidc_issuer_url
+
+  enable_network_policy    = true
+  enable_policy_event_logs = true
+
+  tags = var.tags
+
+  depends_on = [
+    module.eks,
+    module.base_node_group,
+  ]
+}
+
 module "coredns" {
   source = "../../../kubernetes/modules/coredns"
 
@@ -108,6 +127,7 @@ module "coredns" {
     module.eks,
     module.base_node_group,
     module.networking,
+    module.vpc_cni,
   ]
 }
 
@@ -289,6 +309,10 @@ module "operator" {
   # node selector for operator and metrics-server workloads
   operator_node_selector = local.generic_node_labels
 
+  enable_network_policies = true
+  operator_namespace      = local.operator_namespace
+  monitoring_namespace    = local.monitoring_namespace
+
   # Enable Prometheus scrape annotations when observability is enabled
   helm_values = var.enable_observability ? {
     observability = {
@@ -306,6 +330,7 @@ module "operator" {
     module.networking,
     module.nodepool_generic,
     module.coredns,
+    module.vpc_cni,
   ]
 }
 
@@ -371,6 +396,9 @@ module "materialize_instance" {
   metadata_backend_url = local.metadata_backend_url
   persist_backend_url  = local.persist_backend_url
 
+  enable_network_policies = true
+  monitoring_namespace    = local.monitoring_namespace
+
   # Rollout configuration
   force_rollout   = var.force_rollout
   request_rollout = var.request_rollout
@@ -419,7 +447,7 @@ module "prometheus" {
   count  = var.enable_observability ? 1 : 0
   source = "../../../kubernetes/modules/prometheus"
 
-  namespace        = "monitoring"
+  namespace        = local.monitoring_namespace
   create_namespace = false # operator creates the "monitoring" namespace
   node_selector    = local.generic_node_labels
   storage_class    = module.ebs_csi_driver.storage_class_name
@@ -436,7 +464,7 @@ module "grafana" {
   count  = var.enable_observability ? 1 : 0
   source = "../../../kubernetes/modules/grafana"
 
-  namespace = "monitoring"
+  namespace = local.monitoring_namespace
   # operator creates the "monitoring" namespace
   create_namespace = false
   storage_class    = module.ebs_csi_driver.storage_class_name
@@ -472,7 +500,10 @@ module "materialize_nlb" {
 
 locals {
   materialize_instance_namespace = "materialize-environment"
+  operator_namespace             = "materialize"
   materialize_instance_name      = "main"
+
+  monitoring_namespace = "monitoring"
 
   # Common node scheduling configuration
   base_node_labels = {
