@@ -703,14 +703,6 @@ locals {
     "workload"               = "materialize-instance"
   }
 
-  # materialize_node_taints = [
-  #   {
-  #     key    = "materialize.cloud/workload"
-  #     value  = "materialize-instance"
-  #     effect = "NO_SCHEDULE"
-  #   }
-  # ]
-
   materialize_tolerations = [
     {
       key      = "materialize.cloud/workload"
@@ -719,8 +711,6 @@ locals {
       effect   = "NoSchedule"
     }
   ]
-
-  # database_statement_timeout = "15min"
 
   metadata_backend_url = format(
     "postgres://%s:%s@%s/%s?sslmode=require",
@@ -739,50 +729,6 @@ locals {
     local.materialize_instance_name
   )
 
-  # kubeconfig_data = jsonencode({
-  #   "apiVersion" : "v1",
-  #   "kind" : "Config",
-  #   "clusters" : [
-  #     {
-  #       "name" : module.eks.cluster_name,
-  #       "cluster" : {
-  #         "certificate-authority-data" : module.eks.cluster_certificate_authority_data,
-  #         "server" : module.eks.cluster_endpoint,
-  #       },
-  #     },
-  #   ],
-  #   "contexts" : [
-  #     {
-  #       "name" : module.eks.cluster_name,
-  #       "context" : {
-  #         "cluster" : module.eks.cluster_name,
-  #         "user" : module.eks.cluster_name,
-  #       },
-  #     },
-  #   ],
-  #   "current-context" : module.eks.cluster_name,
-  #   "users" : [
-  #     {
-  #       "name" : module.eks.cluster_name,
-  #       "user" : {
-  #         "exec" : {
-  #           "apiVersion" : "client.authentication.k8s.io/v1beta1",
-  #           "command" : "aws",
-  #           "args" : [
-  #             "eks",
-  #             "get-token",
-  #             "--cluster-name",
-  #             module.eks.cluster_name,
-  #             "--region",
-  #             var.aws_region,
-  #             "--profile",
-  #             var.aws_profile,
-  #           ]
-  #         }
-  #       },
-  #     },
-  #   ],
-  # })
 }
 
 # -----------------------------------------------------------------------------
