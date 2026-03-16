@@ -126,11 +126,11 @@ class AWSStateMigrator(BaseStateMigrator):
                 description="Move backend secrets from operator to root"
             ),
 
-            # Move db init jobs from operator module to root level
+            # Skip db init jobs — already ran during initial setup, not needed after migration
             MigrationRule(
-                pattern=r'^module\.operator\.kubernetes_job\.db_init_job(\[.+?\])$',
-                transform=lambda m: f'kubernetes_job.db_init_job{m.group(1)}',
-                description="Move db init jobs from operator to root"
+                pattern=r'^module\.operator\.kubernetes_job\.db_init_job\[.+?\]$',
+                transform=lambda m: None,
+                description="Skip completed db init job (one-time setup, already ran)"
             ),
 
             # Skip NLB TargetGroupBinding resources (kubernetes_manifest → kubectl_manifest type change)
