@@ -12,7 +12,7 @@ resource "azurerm_storage_account" "materialize" {
   dynamic "network_rules" {
     for_each = length(var.subnets) == 0 ? [] : ["has_subnets"]
     content {
-      default_action             = "Deny"
+      default_action             = var.network_rules_default_action
       bypass                     = ["AzureServices"]
       virtual_network_subnet_ids = var.subnets
     }
