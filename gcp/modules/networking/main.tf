@@ -64,7 +64,7 @@ module "cloud-nat" {
   # ALL_SUBNETWORKS_ALL_IP_RANGES, ALL_SUBNETWORKS_ALL_PRIMARY_IP_RANGES, LIST_OF_SUBNETWORKS.
   source_subnetwork_ip_ranges_to_nat = var.source_subnetwork_ip_ranges_to_nat
 
-  # Static IP allocation for deterministic egress IPs.
+  # Static IP allocation for stable egress IPs.
   # When nat_ips is non-empty, the cloud-nat module sets nat_ip_allocate_option = "MANUAL_ONLY".
   nat_ips = var.nat_ips
 }
