@@ -105,6 +105,13 @@ variable "swap_enabled" {
   default     = true
 }
 
+variable "disk_setup_name" {
+  description = "Name used for disk setup Kubernetes resources (namespace, daemonset, service account, cluster role, cluster role binding)"
+  type        = string
+  default     = "disk-setup"
+  nullable    = false
+}
+
 variable "disk_setup_image" {
   description = "Docker image for the disk setup script"
   type        = string
