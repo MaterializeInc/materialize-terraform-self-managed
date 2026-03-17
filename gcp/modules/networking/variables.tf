@@ -87,6 +87,12 @@ variable "router_asn" {
   nullable    = false
 }
 
+variable "nat_ips" {
+  description = "List of self_links of external IPs for Cloud NAT. When non-empty, NAT uses MANUAL_ONLY allocation with these static IPs instead of auto-allocated ephemeral IPs."
+  type        = list(string)
+  default     = []
+}
+
 variable "labels" {
   description = "Labels to apply to all resources"
   type        = map(string)

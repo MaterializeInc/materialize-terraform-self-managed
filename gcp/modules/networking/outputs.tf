@@ -63,6 +63,11 @@ output "nat_region" {
   value       = module.cloud-nat.region
 }
 
+output "nat_ips" {
+  description = "The self_links of external IPs assigned to Cloud NAT (empty when using auto-allocated IPs)"
+  value       = var.nat_ips
+}
+
 output "private_vpc_connection" {
   description = "The private VPC connection"
   value       = google_service_networking_connection.private_vpc_connection

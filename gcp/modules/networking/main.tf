@@ -63,6 +63,10 @@ module "cloud-nat" {
   # How NAT should be configured per Subnetwork. Valid values include:
   # ALL_SUBNETWORKS_ALL_IP_RANGES, ALL_SUBNETWORKS_ALL_PRIMARY_IP_RANGES, LIST_OF_SUBNETWORKS.
   source_subnetwork_ip_ranges_to_nat = var.source_subnetwork_ip_ranges_to_nat
+
+  # Static IP allocation for deterministic egress IPs.
+  # When nat_ips is non-empty, the cloud-nat module sets nat_ip_allocate_option = "MANUAL_ONLY".
+  nat_ips = var.nat_ips
 }
 
 resource "google_compute_global_address" "private_ip_address" {
