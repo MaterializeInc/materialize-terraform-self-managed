@@ -9,7 +9,8 @@ resource "terraform_data" "annotate_existing_resources" {
   count = var.adopt_existing_resources ? 1 : 0
 
   input = {
-    ROLE_ARN = aws_iam_role.vpc_cni.arn
+    ROLE_ARN        = aws_iam_role.vpc_cni.arn
+    KUBECONFIG_DATA = var.kubeconfig_data
   }
 
   provisioner "local-exec" {
@@ -18,9 +19,13 @@ resource "terraform_data" "annotate_existing_resources" {
     command     = <<-EOF
       set -euo pipefail
 
+      kubeconfig_file=$(mktemp)
+      trap "rm -f '$${kubeconfig_file}'" EXIT
+      echo "$${KUBECONFIG_DATA}" > "$${kubeconfig_file}"
+
       helm_annotate() {
-        kubectl annotate "$@" meta.helm.sh/release-name=aws-vpc-cni meta.helm.sh/release-namespace=kube-system --overwrite
-        kubectl label "$@" app.kubernetes.io/managed-by=Helm --overwrite
+        kubectl --kubeconfig "$${kubeconfig_file}" annotate "$@" meta.helm.sh/release-name=aws-vpc-cni meta.helm.sh/release-namespace=kube-system --overwrite
+        kubectl --kubeconfig "$${kubeconfig_file}" label "$@" app.kubernetes.io/managed-by=Helm --overwrite
       }
 
       # Namespaced resources
@@ -33,7 +38,7 @@ resource "terraform_data" "annotate_existing_resources" {
       helm_annotate clusterrolebinding aws-node
 
       # Add IRSA annotation to service account
-      kubectl annotate serviceaccount aws-node -n kube-system \
+      kubectl --kubeconfig "$${kubeconfig_file}" annotate serviceaccount aws-node -n kube-system \
         eks.amazonaws.com/role-arn="$${ROLE_ARN}" --overwrite
 
       echo "VPC CNI resources annotated for Helm adoption."

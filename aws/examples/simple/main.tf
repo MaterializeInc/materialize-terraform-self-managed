@@ -107,6 +107,8 @@ module "vpc_cni" {
   enable_network_policy    = true
   enable_policy_event_logs = true
 
+  kubeconfig_data = local.kubeconfig_data
+
   tags = var.tags
 
   depends_on = [
