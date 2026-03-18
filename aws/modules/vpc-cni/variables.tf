@@ -76,3 +76,9 @@ variable "adopt_existing_resources" {
   default     = true
   nullable    = false
 }
+
+variable "kubeconfig_data" {
+  description = "Contents of the kubeconfig used for kubectl commands during resource adoption."
+  type        = string
+  nullable    = false
+}
