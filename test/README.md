@@ -179,6 +179,40 @@ Test runs are stored under `test/runs/<id>/`. Each directory contains:
 - `kubeconfig` -- generated during verify
 - Terraform state and lock files
 
+## GitHub Actions workflows
+
+CI is split into six workflow files under `.github/workflows/`:
+
+### `pr.yml` -- Pull request checks
+
+Triggered on every pull request to `main`. Runs the lint workflow and gates the PR on a `ci-success` job that verifies all lint checks passed.
+
+### `merge_queue.yml` -- Merge queue checks
+
+Triggered when a PR enters GitHub's merge queue. Runs lint **and** the three provider test workflows (AWS, GCP, Azure) in parallel. The `ci-success` gate currently requires only lint to pass (provider tests are invoked but not yet blocking).
+
+### `lint.yml` -- Lint and validate (reusable)
+
+A reusable workflow (`workflow_call`) consumed by both `pr.yml` and `merge_queue.yml`. It runs three jobs:
+
+- **Terraform Lint** -- `terraform fmt -check -recursive` and `tflint --recursive`
+- **Validate Simple Examples** -- `terraform init -backend=false && terraform validate` for each example directory (`aws/examples/simple`, `azure/examples/simple`, `gcp/examples/simple`)
+- **Rust Tests Lint** -- `cargo fmt --check`, `cargo clippy -- -D warnings`, and `cargo deny check` on the test harness
+
+### `test-aws.yml` -- AWS integration tests
+
+Reusable workflow, also manually triggerable (`workflow_dispatch`). Authenticates via OIDC to assume an IAM role, then runs the full test lifecycle (`cargo run -- run --destroy-on-failure aws ...`) with remote S3 state. Smart path filtering skips the run if only GCP/Azure files changed.
+
+### `test-gcp.yml` -- GCP integration tests
+
+Same structure as AWS. Authenticates to GCP via Workload Identity Federation and to AWS via OIDC (for the S3 state backend). Skips if only AWS/Azure files changed.
+
+### `test-azure.yml` -- Azure integration tests
+
+Same structure as AWS. Authenticates to Azure via OIDC and to AWS via OIDC (for the S3 state backend). Skips if only AWS/GCP files changed.
+
+All three provider test workflows use `--destroy-on-failure` to ensure infrastructure is torn down even on test failure, and store Terraform state remotely in S3.
+
 ## Project layout
 
 ```
