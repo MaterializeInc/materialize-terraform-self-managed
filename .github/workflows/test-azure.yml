@@ -105,7 +105,7 @@ jobs:
         env:
           MATERIALIZE_LICENSE_KEY: ${{ secrets.MATERIALIZE_LICENSE_KEY }}
         run: |
-          cargo run -- run azure \
+          cargo run -- run --destroy-on-failure azure \
             --owner "github-actions" \
             --subscription-id "${{ secrets.AZURE_SUBSCRIPTION_ID }}" \
             --location "${{ vars.AZURE_LOCATION }}" \

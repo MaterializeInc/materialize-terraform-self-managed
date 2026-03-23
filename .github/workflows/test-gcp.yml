@@ -111,7 +111,7 @@ jobs:
         env:
           MATERIALIZE_LICENSE_KEY: ${{ secrets.MATERIALIZE_LICENSE_KEY }}
         run: |
-          cargo run -- run gcp \
+          cargo run -- run --destroy-on-failure gcp \
             --owner "github-actions" \
             --project-id "${{ vars.GOOGLE_PROJECT }}" \
             --region "${{ vars.GOOGLE_REGION }}" \

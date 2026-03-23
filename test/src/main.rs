@@ -41,13 +41,22 @@ async fn main() {
                 Err(e) => Err(e),
             }
         }
-        SubCommand::Run { provider } => {
+        SubCommand::Run {
+            provider,
+            destroy_on_failure,
+        } => {
             async {
                 let dir = phase_init(provider).await?;
-                phase_apply(&dir).await?;
-                phase_verify(&dir).await?;
-                phase_destroy(&dir, true).await?;
-                Ok(())
+                let result = async {
+                    phase_apply(&dir).await?;
+                    phase_verify(&dir).await?;
+                    Ok(())
+                }
+                .await;
+                if result.is_ok() || *destroy_on_failure {
+                    phase_destroy(&dir, true).await?;
+                }
+                result
             }
             .await
         }

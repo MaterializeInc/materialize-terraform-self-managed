@@ -101,7 +101,7 @@ jobs:
         env:
           MATERIALIZE_LICENSE_KEY: ${{ secrets.MATERIALIZE_LICENSE_KEY }}
         run: |
-          cargo run -- run aws \
+          cargo run -- run --destroy-on-failure aws \
             --owner "github-actions" \
             --aws-region "${{ vars.AWS_REGION }}" \
             --aws-profile "default" \

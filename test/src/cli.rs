@@ -50,6 +50,9 @@ pub enum SubCommand {
     Run {
         #[clap(subcommand)]
         provider: Box<InitProvider>,
+        /// Run `terraform destroy` even if apply or verify fails.
+        #[arg(long)]
+        destroy_on_failure: bool,
     },
 }
 
