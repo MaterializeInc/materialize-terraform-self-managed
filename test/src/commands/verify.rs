@@ -158,9 +158,9 @@ async fn verify_pods_running(kubeconfig: &Path, namespace: &str) -> Result<()> {
     retry(
         MAX_ATTEMPTS,
         INTERVAL,
-        |attempt, _| {
+        |attempt, err| {
             println!(
-                "  Attempt {attempt}/{MAX_ATTEMPTS}: not all pods running yet, retrying in {}s...",
+                "  Attempt {attempt}/{MAX_ATTEMPTS}: {err:#}, retrying in {}s...",
                 INTERVAL.as_secs()
             );
         },
