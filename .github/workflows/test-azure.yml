@@ -3,15 +3,6 @@ name: Azure Tests
 on:
   workflow_call:
   workflow_dispatch:
-    inputs:
-      test_stage:
-        description: "Test stage to run"
-        required: false
-        default: "full-test"
-        type: choice
-        options:
-          - network-only
-          - full-test
 
 permissions:
   id-token: write # Required for OIDC
@@ -34,11 +25,8 @@ jobs:
           files_ignore: |
             aws/**
             gcp/**
-            test/aws/**
-            test/gcp/**
             .github/setup/aws/**
             .github/setup/gcp/**
-            azure/examples/**
             **.md
             **.env
             .gitignore
@@ -68,7 +56,7 @@ jobs:
         with:
           role-to-assume: ${{ vars.GA_AWS_IAM_ROLE }}
           role-session-name: GitHubActions-Azure-S3Backend
-          aws-region: ${{ vars.TF_TEST_S3_REGION || 'us-east-1' }}
+          aws-region: ${{ vars.TF_TEST_S3_REGION }}
           # Max duration of the role is 8 hours as per IAM role configuration in .github/setup/aws/main.tf
           role-duration-seconds: ${{ env.DURATION_SECONDS }}
 
@@ -95,43 +83,31 @@ jobs:
         with:
           terraform_version: "1.9.0"
 
-      - name: Setup Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: "1.23.5"
-          cache-dependency-path: test/go.sum
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
 
-      - name: Install dependencies
+      - name: Cache Rust build artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            test/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('test/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-
+
+      - name: Build tests
         working-directory: test
-        run: go mod tidy
+        run: cargo build
 
       - name: Run Azure Tests
-        working-directory: test/azure
+        working-directory: test
         env:
-          AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
           MATERIALIZE_LICENSE_KEY: ${{ secrets.MATERIALIZE_LICENSE_KEY }}
-          TEST_REGION: westus2
-          GITHUB_ACTIONS: "true"
-          # S3 Remote Backend Configuration (for terraform state)
-          TF_TEST_REMOTE_BACKEND: "true"
-          TF_TEST_S3_BUCKET: ${{ vars.TF_TEST_S3_BUCKET }}
-          TF_TEST_S3_REGION: ${{ vars.TF_TEST_S3_REGION || 'us-east-1' }}
-          TF_TEST_S3_PREFIX: ${{ vars.TF_TEST_S3_PREFIX || 'github-actions-test-runs' }}
-          # Note: AWS credentials for S3 backend provided via OIDC above
-          # Azure credentials for Azure provider provided via OIDC above
-          # Terratest: Set env vars to SKIP stages, unset to RUN stages
-          SKIP_setup_materialize_disk_enabled: ${{ github.event.inputs.test_stage == 'network-only' && 'true' || '' }}
-          SKIP_setup_materialize_disk_disabled: ${{ github.event.inputs.test_stage == 'network-only' && 'true' || '' }}
         run: |
-          echo "🚀 Running tests for Azure..."
-          echo "📁 Current working directory: $(pwd)"
-          echo "🔧 Go version: $(go version)"
-          echo ""
-          echo "📋 Environment variables:"
-          env | sort
-          echo ""
-          echo "🧪 Starting Go tests..."
-
-          go test -timeout ${{ env.DURATION_SECONDS }}s -run TestStagedDeploymentSuite -v
+          cargo run -- run azure \
+            --owner "github-actions" \
+            --subscription-id "${{ secrets.AZURE_SUBSCRIPTION_ID }}" \
+            --location "${{ vars.AZURE_LOCATION }}" \
+            --backend-s3-bucket "${{ vars.TF_TEST_S3_BUCKET }}" \
+            --backend-s3-region "${{ vars.TF_TEST_S3_REGION }}"

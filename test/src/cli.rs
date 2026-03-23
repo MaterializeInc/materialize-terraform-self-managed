@@ -85,6 +85,22 @@ pub struct CommonInitArgs {
     /// Environmentd image version.
     #[arg(long)]
     pub environmentd_version: Option<String>,
+    /// S3 bucket for remote terraform state. If omitted, state is stored locally.
+    #[arg(long)]
+    pub backend_s3_bucket: Option<String>,
+    /// S3 region for the remote terraform state bucket. Required when --backend-s3-bucket is set.
+    #[arg(long, default_value = "us-east-1")]
+    pub backend_s3_region: String,
+    /// AWS profile for S3 backend authentication.
+    #[arg(long)]
+    pub backend_s3_profile: Option<String>,
+}
+
+/// Configuration for an S3 remote backend.
+pub struct S3BackendConfig<'a> {
+    pub bucket: &'a str,
+    pub region: &'a str,
+    pub profile: Option<&'a str>,
 }
 
 impl CommonInitArgs {
@@ -100,6 +116,16 @@ impl CommonInitArgs {
         }
         bail!("Either --license-key or --license-key-file must be provided")
     }
+
+    /// Returns the S3 backend configuration if `--backend-s3-bucket` is set.
+    pub fn s3_backend(&self) -> Option<S3BackendConfig<'_>> {
+        let bucket = self.backend_s3_bucket.as_deref()?;
+        Some(S3BackendConfig {
+            bucket,
+            region: &self.backend_s3_region,
+            profile: self.backend_s3_profile.as_deref(),
+        })
+    }
 }
 
 #[derive(Subcommand, Debug)]
@@ -114,9 +140,6 @@ pub enum InitProvider {
         /// AWS profile for authentication.
         #[arg(long)]
         aws_profile: String,
-        /// S3 bucket for remote terraform state. If omitted, state is stored locally.
-        #[arg(long)]
-        backend_bucket: Option<String>,
     },
     /// Initialize a test run on Azure.
     Azure {
@@ -125,18 +148,12 @@ pub enum InitProvider {
         /// Azure subscription ID.
         #[arg(long)]
         subscription_id: String,
-        /// Azure resource group name.
+        /// Azure resource group name. Defaults to the test run ID if omitted.
         #[arg(long)]
-        resource_group_name: String,
+        resource_group_name: Option<String>,
         /// Azure location.
         #[arg(long)]
         location: String,
-        /// Azure storage account name for remote terraform state.
-        #[arg(long)]
-        backend_storage_account: Option<String>,
-        /// Azure storage container name for remote terraform state.
-        #[arg(long, default_value = "tfstate")]
-        backend_container: String,
     },
     /// Initialize a test run on GCP.
     Gcp {
@@ -148,9 +165,6 @@ pub enum InitProvider {
         /// GCP region.
         #[arg(long)]
         region: String,
-        /// GCS bucket for remote terraform state. If omitted, state is stored locally.
-        #[arg(long)]
-        backend_bucket: Option<String>,
     },
 }
 
@@ -171,55 +185,25 @@ impl InitProvider {
         }
     }
 
-    /// Returns the content for a `backend.tf` file if remote state is
-    /// configured, or `None` for local state.
+    /// Returns the content for a `backend.tf` file if an S3 backend is
+    /// configured via `--backend-s3-bucket`, or `None` for local state.
     pub fn backend_config(&self, test_run_id: &str) -> Option<String> {
-        match self {
-            InitProvider::Aws {
-                backend_bucket: Some(bucket),
-                aws_region,
-                aws_profile,
-                ..
-            } => Some(format!(
-                r#"terraform {{
+        let cfg = self.common().s3_backend()?;
+        let bucket = cfg.bucket;
+        let region = cfg.region;
+        let profile_line = cfg
+            .profile
+            .map(|p| format!("\n    profile = \"{p}\""))
+            .unwrap_or_default();
+        Some(format!(
+            r#"terraform {{
   backend "s3" {{
     bucket  = "{bucket}"
     key     = "{test_run_id}/terraform.tfstate"
-    region  = "{aws_region}"
-    profile = "{aws_profile}"
+    region  = "{region}"{profile_line}
   }}
 }}
 "#
-            )),
-            InitProvider::Azure {
-                backend_storage_account: Some(account),
-                backend_container,
-                resource_group_name,
-                ..
-            } => Some(format!(
-                r#"terraform {{
-  backend "azurerm" {{
-    resource_group_name  = "{resource_group_name}"
-    storage_account_name = "{account}"
-    container_name       = "{backend_container}"
-    key                  = "{test_run_id}/terraform.tfstate"
-  }}
-}}
-"#
-            )),
-            InitProvider::Gcp {
-                backend_bucket: Some(bucket),
-                ..
-            } => Some(format!(
-                r#"terraform {{
-  backend "gcs" {{
-    bucket = "{bucket}"
-    prefix = "{test_run_id}"
-  }}
-}}
-"#
-            )),
-            _ => None,
-        }
+        ))
     }
 }

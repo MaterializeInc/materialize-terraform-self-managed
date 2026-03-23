@@ -167,7 +167,9 @@ fn build_tfvars(provider_args: &InitProvider, test_run_id: &str) -> Result<TfVar
         } => TfVars::Azure {
             common: common_tf,
             subscription_id: subscription_id.clone(),
-            resource_group_name: resource_group_name.clone(),
+            resource_group_name: resource_group_name
+                .clone()
+                .unwrap_or_else(|| test_run_id.to_string()),
             location: location.clone(),
             tags: HashMap::from([
                 ("Owner".into(), common.owner.clone()),

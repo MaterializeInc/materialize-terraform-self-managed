@@ -120,7 +120,6 @@ The Materialize license key can be provided in three ways (in order of precedenc
 |---|---|
 | `--aws-region` | AWS region (e.g. `us-east-1`) |
 | `--aws-profile` | AWS CLI profile for authentication |
-| `--backend-bucket` | S3 bucket for remote state (optional) |
 
 ### GCP
 
@@ -128,7 +127,6 @@ The Materialize license key can be provided in three ways (in order of precedenc
 |---|---|
 | `--project-id` | GCP project ID |
 | `--region` | GCP region (e.g. `us-central1`) |
-| `--backend-bucket` | GCS bucket for remote state (optional) |
 
 ### Azure
 
@@ -137,8 +135,6 @@ The Materialize license key can be provided in three ways (in order of precedenc
 | `--subscription-id` | Azure subscription ID |
 | `--resource-group-name` | Azure resource group name |
 | `--location` | Azure location (e.g. `westus2`) |
-| `--backend-storage-account` | Storage account for remote state (optional) |
-| `--backend-container` | Storage container name (default: `tfstate`) |
 
 ## Common arguments
 
@@ -150,37 +146,26 @@ The Materialize license key can be provided in three ways (in order of precedenc
 | `--use-local-chart` | Use local Helm chart | `false` |
 | `--orchestratord-version` | Orchestratord image version | (optional) |
 | `--environmentd-version` | Environmentd image version | (optional) |
+| `--backend-s3-bucket` | S3 bucket for remote terraform state | (optional) |
+| `--backend-s3-region` | S3 bucket region | `us-east-1` |
+| `--backend-s3-profile` | AWS profile for S3 backend auth | (optional) |
 
 ## Remote state
 
-By default, terraform state is stored locally in the test run directory. To store state remotely, pass the backend bucket/account option for your provider:
+By default, terraform state is stored locally in the test run directory. To store state remotely in S3, pass the `--backend-s3-bucket` option (works with any provider):
 
 ```sh
-# AWS — S3 backend
 cargo run -- run aws \
   --owner "Your Name" \
   --license-key-file key.txt \
   --aws-region us-east-1 \
   --aws-profile my-profile \
-  --backend-bucket my-terraform-state-bucket
-
-# GCP — GCS backend
-cargo run -- run gcp \
-  --owner "Your Name" \
-  --license-key-file key.txt \
-  --project-id my-project \
-  --region us-central1 \
-  --backend-bucket my-terraform-state-bucket
-
-# Azure — azurerm backend
-cargo run -- run azure \
-  --owner "Your Name" \
-  --license-key-file key.txt \
-  --subscription-id <id> \
-  --resource-group-name my-rg \
-  --location westus2 \
-  --backend-storage-account mystorageaccount
+  --backend-s3-bucket my-terraform-state-bucket \
+  --backend-s3-region us-east-1 \
+  --backend-s3-profile my-profile
 ```
+
+If `--backend-s3-profile` is omitted, Terraform will use ambient AWS credentials (e.g. environment variables from OIDC).
 
 The state key/prefix is automatically set to `{test-run-id}/terraform.tfstate`, keeping each test run's state isolated within the bucket.
 
