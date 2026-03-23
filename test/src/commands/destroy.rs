@@ -4,7 +4,7 @@ use anyhow::{Context, Result};
 use serde::Deserialize;
 use tokio::process::Command;
 
-use crate::helpers::{read_tfvars, run_cmd, run_cmd_output, write_lifecycle};
+use crate::helpers::{ci_log_group, read_tfvars, run_cmd, run_cmd_output, write_lifecycle};
 use crate::types::TfVars;
 
 const MAX_DESTROY_ATTEMPTS: u32 = 3;
@@ -15,55 +15,60 @@ const MAX_DESTROY_ATTEMPTS: u32 = 3;
 /// For AWS, if destroy fails (typically due to orphaned ENIs blocking
 /// security group deletion), we clean up the ENIs and retry.
 pub async fn phase_destroy(dir: &Path, rm: bool) -> Result<()> {
-    write_lifecycle(dir, "destroy", "started").await?;
-    println!("Destroying test run...");
-    println!("  Directory: {}", dir.display());
+    ci_log_group("Destroy", || async {
+        write_lifecycle(dir, "destroy", "started").await?;
+        println!("Destroying test run...");
+        println!("  Directory: {}", dir.display());
 
-    let tfvars = read_tfvars(dir)?;
+        let tfvars = read_tfvars(dir)?;
 
-    for attempt in 1..=MAX_DESTROY_ATTEMPTS {
-        let result = run_cmd(
-            Command::new("terraform")
-                .args(["destroy", "-auto-approve"])
-                .current_dir(dir),
-        )
-        .await;
+        for attempt in 1..=MAX_DESTROY_ATTEMPTS {
+            let result = run_cmd(
+                Command::new("terraform")
+                    .args(["destroy", "-auto-approve"])
+                    .current_dir(dir),
+            )
+            .await;
 
-        match result {
-            Ok(()) => break,
-            Err(_) if attempt < MAX_DESTROY_ATTEMPTS => {
-                println!("\nDestroy attempt {attempt}/{MAX_DESTROY_ATTEMPTS} failed.");
+            match result {
+                Ok(()) => break,
+                Err(_) if attempt < MAX_DESTROY_ATTEMPTS => {
+                    println!("\nDestroy attempt {attempt}/{MAX_DESTROY_ATTEMPTS} failed.");
 
-                if let TfVars::Aws {
-                    aws_region,
-                    aws_profile,
-                    ..
-                } = &tfvars
-                {
-                    println!("Cleaning up orphaned ENIs before retrying...");
-                    if let Err(cleanup_err) = cleanup_aws_enis(dir, aws_region, aws_profile).await {
-                        println!("  Warning: ENI cleanup failed: {cleanup_err:#}");
+                    if let TfVars::Aws {
+                        aws_region,
+                        aws_profile,
+                        ..
+                    } = &tfvars
+                    {
+                        println!("Cleaning up orphaned ENIs before retrying...");
+                        if let Err(cleanup_err) =
+                            cleanup_aws_enis(dir, aws_region, aws_profile).await
+                        {
+                            println!("  Warning: ENI cleanup failed: {cleanup_err:#}");
+                        }
                     }
+
+                    println!("Retrying destroy...\n");
                 }
-
-                println!("Retrying destroy...\n");
+                Err(e) => return Err(e).context("terraform destroy failed after all attempts"),
             }
-            Err(e) => return Err(e).context("terraform destroy failed after all attempts"),
         }
-    }
 
-    if rm {
-        tokio::fs::remove_dir_all(dir).await?;
-        println!(
-            "\nDestroy completed successfully. Removed {}",
-            dir.display()
-        );
-    } else {
-        write_lifecycle(dir, "destroy", "completed").await?;
-        println!("\nDestroy completed successfully.");
-        println!("Note: Test run directory preserved at {}", dir.display());
-    }
-    Ok(())
+        if rm {
+            tokio::fs::remove_dir_all(dir).await?;
+            println!(
+                "\nDestroy completed successfully. Removed {}",
+                dir.display()
+            );
+        } else {
+            write_lifecycle(dir, "destroy", "completed").await?;
+            println!("\nDestroy completed successfully.");
+            println!("Note: Test run directory preserved at {}", dir.display());
+        }
+        Ok(())
+    })
+    .await
 }
 
 /// Cleans up orphaned ENIs that block security group deletion during

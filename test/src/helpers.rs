@@ -105,6 +105,35 @@ pub fn generate_test_run_id() -> String {
 // Command execution
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// GitHub Actions log grouping
+// ---------------------------------------------------------------------------
+
+fn is_ci() -> bool {
+    std::env::var_os("CI").is_some()
+}
+
+/// Wraps an async block in GitHub Actions log grouping.
+/// Outside CI this is a no-op passthrough.
+pub async fn ci_log_group<F, Fut, T>(name: &str, f: F) -> Result<T>
+where
+    F: FnOnce() -> Fut,
+    Fut: std::future::Future<Output = Result<T>>,
+{
+    if is_ci() {
+        println!("::group::{name}");
+    }
+    let result = f().await;
+    if is_ci() {
+        println!("::endgroup::");
+    }
+    result
+}
+
+// ---------------------------------------------------------------------------
+// Command execution
+// ---------------------------------------------------------------------------
+
 pub async fn run_cmd(cmd: &mut Command) -> Result<()> {
     let status = cmd
         .stdout(Stdio::inherit())

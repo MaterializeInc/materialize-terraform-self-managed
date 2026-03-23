@@ -6,61 +6,65 @@ use tokio::process::Command;
 
 use crate::cli::InitProvider;
 use crate::helpers::{
-    example_dir, generate_test_run_id, project_root, run_cmd, runs_dir, write_lifecycle,
+    ci_log_group, example_dir, generate_test_run_id, project_root, run_cmd, runs_dir,
+    write_lifecycle,
 };
 use crate::types::{CloudProvider, CommonTfVars, TfVars};
 
 /// Initializes a new test run: copies example .tf files, writes tfvars,
 /// runs `terraform init`. Returns the path to the new test run directory.
 pub async fn phase_init(provider_args: &InitProvider) -> Result<PathBuf> {
-    let provider = provider_args.cloud_provider();
-    let test_run_id = generate_test_run_id();
-    let src = example_dir(provider)?;
-    let root = project_root()?;
-    let dest = runs_dir()?.join(&test_run_id);
+    ci_log_group("Init", || async {
+        let provider = provider_args.cloud_provider();
+        let test_run_id = generate_test_run_id();
+        let src = example_dir(provider)?;
+        let root = project_root()?;
+        let dest = runs_dir()?.join(&test_run_id);
 
-    println!("Initializing test run: {test_run_id}");
-    println!(
-        "  Source: {}",
-        src.strip_prefix(&root).unwrap_or(&src).display()
-    );
-    println!(
-        "  Dest:   {}",
-        dest.strip_prefix(&root).unwrap_or(&dest).display()
-    );
+        println!("Initializing test run: {test_run_id}");
+        println!(
+            "  Source: {}",
+            src.strip_prefix(&root).unwrap_or(&src).display()
+        );
+        println!(
+            "  Dest:   {}",
+            dest.strip_prefix(&root).unwrap_or(&dest).display()
+        );
 
-    tokio::fs::create_dir_all(&dest).await?;
-    write_lifecycle(&dest, "init", "started").await?;
+        tokio::fs::create_dir_all(&dest).await?;
+        write_lifecycle(&dest, "init", "started").await?;
 
-    println!("\nCopying terraform files...");
-    copy_example_files(&src, &dest, provider).await?;
+        println!("\nCopying terraform files...");
+        copy_example_files(&src, &dest, provider).await?;
 
-    println!("\nBuilding terraform.tfvars.json...");
-    let tfvars = build_tfvars(provider_args, &test_run_id)?;
-    let tfvars_path = dest.join("terraform.tfvars.json");
-    let tfvars_json = serde_json::to_string_pretty(&tfvars)?;
-    tokio::fs::write(&tfvars_path, &tfvars_json).await?;
-    println!("  Wrote {}", tfvars_path.display());
-    let mut redacted = tfvars.clone();
-    redacted.common_mut().license_key = "REDACTED".to_string();
-    println!("{}", serde_json::to_string_pretty(&redacted)?);
+        println!("\nBuilding terraform.tfvars.json...");
+        let tfvars = build_tfvars(provider_args, &test_run_id)?;
+        let tfvars_path = dest.join("terraform.tfvars.json");
+        let tfvars_json = serde_json::to_string_pretty(&tfvars)?;
+        tokio::fs::write(&tfvars_path, &tfvars_json).await?;
+        println!("  Wrote {}", tfvars_path.display());
+        let mut redacted = tfvars.clone();
+        redacted.common_mut().license_key = "REDACTED".to_string();
+        println!("{}", serde_json::to_string_pretty(&redacted)?);
 
-    if let Some(backend_tf) = provider_args.backend_config(&test_run_id) {
-        println!("\nConfiguring remote backend...");
-        let backend_path = dest.join("backend.tf");
-        tokio::fs::write(&backend_path, &backend_tf).await?;
-        println!("  Wrote {}", backend_path.display());
-        println!("{backend_tf}");
-    }
+        if let Some(backend_tf) = provider_args.backend_config(&test_run_id) {
+            println!("\nConfiguring remote backend...");
+            let backend_path = dest.join("backend.tf");
+            tokio::fs::write(&backend_path, &backend_tf).await?;
+            println!("  Wrote {}", backend_path.display());
+            println!("{backend_tf}");
+        }
 
-    println!("\nRunning terraform init...");
-    run_cmd(Command::new("terraform").arg("init").current_dir(&dest))
-        .await
-        .context("terraform init failed")?;
+        println!("\nRunning terraform init...");
+        run_cmd(Command::new("terraform").arg("init").current_dir(&dest))
+            .await
+            .context("terraform init failed")?;
 
-    write_lifecycle(&dest, "init", "completed").await?;
-    println!("\nTest run initialized successfully: {test_run_id}");
-    Ok(dest)
+        write_lifecycle(&dest, "init", "completed").await?;
+        println!("\nTest run initialized successfully: {test_run_id}");
+        Ok(dest)
+    })
+    .await
 }
 
 /// Copies .tf files from the example directory to the test run directory,

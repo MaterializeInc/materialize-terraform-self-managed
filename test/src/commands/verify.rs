@@ -3,49 +3,54 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result, bail};
 use tokio::process::Command;
 
-use crate::helpers::{kubectl, read_tfvars, retry, run_cmd, run_cmd_output, write_lifecycle};
+use crate::helpers::{
+    ci_log_group, kubectl, read_tfvars, retry, run_cmd, run_cmd_output, write_lifecycle,
+};
 use crate::types::{CloudProvider, TerraformOutputs, TfVars};
 
 /// Runs verification commands against an applied test environment.
 pub async fn phase_verify(dir: &Path) -> Result<()> {
-    write_lifecycle(dir, "verify", "started").await?;
-    let tfvars = read_tfvars(dir)?;
-    let provider = tfvars.cloud_provider();
-    println!("Verifying test run...");
+    ci_log_group("Verify", || async {
+        write_lifecycle(dir, "verify", "started").await?;
+        let tfvars = read_tfvars(dir)?;
+        let provider = tfvars.cloud_provider();
+        println!("Verifying test run...");
 
-    let outputs_raw = run_cmd_output(
-        Command::new("terraform")
-            .args(["output", "-json"])
-            .current_dir(dir),
-    )
+        let outputs_raw = run_cmd_output(
+            Command::new("terraform")
+                .args(["output", "-json"])
+                .current_dir(dir),
+        )
+        .await
+        .context("terraform output failed")?;
+
+        let outputs: TerraformOutputs =
+            serde_json::from_str(&outputs_raw).context("Failed to parse terraform output JSON")?;
+
+        let instance_namespace = &outputs.materialize_instance_namespace.value;
+        let instance_name = &outputs.materialize_instance_name.value;
+
+        println!("\nConfiguring kubectl...");
+        let kubeconfig = setup_kubeconfig(dir, provider, &tfvars, &outputs).await?;
+
+        println!("\nVerifying Materialize instance...");
+        verify_materialize_instance(&kubeconfig, instance_namespace, instance_name).await?;
+
+        println!("\nVerifying pods in namespace {instance_namespace}...");
+        verify_pods_running(&kubeconfig, instance_namespace).await?;
+
+        if let Some(endpoint) = outputs.load_balancer_endpoint() {
+            println!("\nVerifying Materialize SQL connectivity at {endpoint}...");
+            verify_sql_connection(endpoint, &outputs).await?;
+        } else {
+            println!("\nSkipping SQL connectivity check (no load balancer endpoint found).");
+        }
+
+        write_lifecycle(dir, "verify", "completed").await?;
+        println!("\nAll verifications passed!");
+        Ok(())
+    })
     .await
-    .context("terraform output failed")?;
-
-    let outputs: TerraformOutputs =
-        serde_json::from_str(&outputs_raw).context("Failed to parse terraform output JSON")?;
-
-    let instance_namespace = &outputs.materialize_instance_namespace.value;
-    let instance_name = &outputs.materialize_instance_name.value;
-
-    println!("\nConfiguring kubectl...");
-    let kubeconfig = setup_kubeconfig(dir, provider, &tfvars, &outputs).await?;
-
-    println!("\nVerifying Materialize instance...");
-    verify_materialize_instance(&kubeconfig, instance_namespace, instance_name).await?;
-
-    println!("\nVerifying pods in namespace {instance_namespace}...");
-    verify_pods_running(&kubeconfig, instance_namespace).await?;
-
-    if let Some(endpoint) = outputs.load_balancer_endpoint() {
-        println!("\nVerifying Materialize SQL connectivity at {endpoint}...");
-        verify_sql_connection(endpoint, &outputs).await?;
-    } else {
-        println!("\nSkipping SQL connectivity check (no load balancer endpoint found).");
-    }
-
-    write_lifecycle(dir, "verify", "completed").await?;
-    println!("\nAll verifications passed!");
-    Ok(())
 }
 
 async fn setup_kubeconfig(
