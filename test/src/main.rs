@@ -41,14 +41,16 @@ async fn main() {
                 Err(e) => Err(e),
             }
         }
-        SubCommand::Run { provider } => async {
-            let dir = phase_init(provider).await?;
-            phase_apply(&dir).await?;
-            phase_verify(&dir).await?;
-            phase_destroy(&dir, true).await?;
-            Ok(())
+        SubCommand::Run { provider } => {
+            async {
+                let dir = phase_init(provider).await?;
+                phase_apply(&dir).await?;
+                phase_verify(&dir).await?;
+                phase_destroy(&dir, true).await?;
+                Ok(())
+            }
+            .await
         }
-        .await,
     };
     if let Err(e) = result {
         eprintln!("\nError: {e:#}");

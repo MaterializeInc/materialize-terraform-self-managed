@@ -121,11 +121,7 @@ async fn setup_kubeconfig(
     Ok(kubeconfig)
 }
 
-async fn verify_materialize_instance(
-    kubeconfig: &Path,
-    namespace: &str,
-    name: &str,
-) -> Result<()> {
+async fn verify_materialize_instance(kubeconfig: &Path, namespace: &str, name: &str) -> Result<()> {
     run_cmd(kubectl(kubeconfig).args([
         "wait",
         "--for=jsonpath={.status.conditions[?(@.type==\"UpToDate\")].status}=True",
@@ -174,7 +170,11 @@ async fn verify_pods_running(kubeconfig: &Path, namespace: &str) -> Result<()> {
 
 async fn check_expected_pods(kubeconfig: &Path, namespace: &str) -> Result<()> {
     let output = run_cmd_output(kubectl(kubeconfig).args([
-        "get", "pods", "-n", namespace, "-o",
+        "get",
+        "pods",
+        "-n",
+        namespace,
+        "-o",
         "jsonpath={range .items[*]}{.metadata.name} {.status.phase}{'\\n'}{end}",
     ]))
     .await?;
@@ -197,9 +197,7 @@ async fn check_expected_pods(kubeconfig: &Path, namespace: &str) -> Result<()> {
             .filter(|(name, phase)| name.contains(pod_type) && *phase == "Running")
             .count();
         if running < min_count {
-            bail!(
-                "expected at least {min_count} running {pod_type} pod(s), found {running}"
-            );
+            bail!("expected at least {min_count} running {pod_type} pod(s), found {running}");
         }
     }
 
@@ -228,11 +226,16 @@ async fn verify_sql_connection(endpoint: &str, outputs: &TerraformOutputs) -> Re
             run_cmd_output(
                 Command::new("psql")
                     .args([
-                        "-h", endpoint,
-                        "-p", "6875",
-                        "-U", "mz_system",
-                        "-d", "materialize",
-                        "-c", "SELECT 1",
+                        "-h",
+                        endpoint,
+                        "-p",
+                        "6875",
+                        "-U",
+                        "mz_system",
+                        "-d",
+                        "materialize",
+                        "-c",
+                        "SELECT 1",
                     ])
                     .env("PGPASSWORD", password)
                     .env("PGCONNECT_TIMEOUT", "30")

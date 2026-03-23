@@ -41,9 +41,7 @@ pub async fn phase_destroy(dir: &Path, rm: bool) -> Result<()> {
                 } = &tfvars
                 {
                     println!("Cleaning up orphaned ENIs before retrying...");
-                    if let Err(cleanup_err) =
-                        cleanup_aws_enis(dir, aws_region, aws_profile).await
-                    {
+                    if let Err(cleanup_err) = cleanup_aws_enis(dir, aws_region, aws_profile).await {
                         println!("  Warning: ENI cleanup failed: {cleanup_err:#}");
                     }
                 }
@@ -114,55 +112,49 @@ async fn cleanup_aws_enis(dir: &Path, region: &str, profile: &str) -> Result<()>
 
     for eni in &enis {
         // Detach if currently attached
-        if let (Some(attachment_id), Some(status)) = (&eni.attachment_id, &eni.status) {
-            if status == "attached" {
-                println!("  Detaching {} (attachment {})...", eni.id, attachment_id);
-                let _ = run_cmd(
-                    Command::new("aws").args([
-                        "ec2",
-                        "detach-network-interface",
-                        "--attachment-id",
-                        attachment_id,
-                        "--force",
-                        "--region",
-                        region,
-                        "--profile",
-                        profile,
-                    ]),
-                )
-                .await;
-
-                // Wait for detachment to complete
-                let _ = run_cmd(
-                    Command::new("aws").args([
-                        "ec2",
-                        "wait",
-                        "network-interface-available",
-                        "--network-interface-ids",
-                        &eni.id,
-                        "--region",
-                        region,
-                        "--profile",
-                        profile,
-                    ]),
-                )
-                .await;
-            }
-        }
-
-        println!("  Deleting {}...", eni.id);
-        let result = run_cmd(
-            Command::new("aws").args([
+        if let (Some(attachment_id), Some(status)) = (&eni.attachment_id, &eni.status)
+            && status == "attached"
+        {
+            println!("  Detaching {} (attachment {})...", eni.id, attachment_id);
+            let _ = run_cmd(Command::new("aws").args([
                 "ec2",
-                "delete-network-interface",
-                "--network-interface-id",
+                "detach-network-interface",
+                "--attachment-id",
+                attachment_id,
+                "--force",
+                "--region",
+                region,
+                "--profile",
+                profile,
+            ]))
+            .await;
+
+            // Wait for detachment to complete
+            let _ = run_cmd(Command::new("aws").args([
+                "ec2",
+                "wait",
+                "network-interface-available",
+                "--network-interface-ids",
                 &eni.id,
                 "--region",
                 region,
                 "--profile",
                 profile,
-            ]),
-        )
+            ]))
+            .await;
+        }
+
+        println!("  Deleting {}...", eni.id);
+        let result = run_cmd(Command::new("aws").args([
+            "ec2",
+            "delete-network-interface",
+            "--network-interface-id",
+            &eni.id,
+            "--region",
+            region,
+            "--profile",
+            profile,
+        ]))
         .await;
 
         if let Err(e) = result {
@@ -181,7 +173,11 @@ async fn cleanup_aws_enis(dir: &Path, region: &str, profile: &str) -> Result<()>
 /// field, since `terraform state show` does not support `-json`.
 fn get_node_security_group_id(dir: &Path) -> Result<String> {
     let output = std::process::Command::new("terraform")
-        .args(["state", "show", "module.eks.module.eks.aws_security_group.node[0]"])
+        .args([
+            "state",
+            "show",
+            "module.eks.module.eks.aws_security_group.node[0]",
+        ])
         .current_dir(dir)
         .output()
         .context("Failed to read terraform state")?;

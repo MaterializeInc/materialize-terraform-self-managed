@@ -115,9 +115,17 @@ fn to_gcp_label(s: &str) -> String {
     let normalized: String = s
         .to_lowercase()
         .chars()
-        .map(|c| if c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '.' { c } else { '-' })
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '.' {
+                c
+            } else {
+                '-'
+            }
+        })
         .collect();
-    normalized.trim_matches(|c: char| !c.is_ascii_alphanumeric()).to_string()
+    normalized
+        .trim_matches(|c: char| !c.is_ascii_alphanumeric())
+        .to_string()
 }
 
 fn build_tfvars(provider_args: &InitProvider, test_run_id: &str) -> Result<TfVars> {
