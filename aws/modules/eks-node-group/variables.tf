@@ -121,6 +121,18 @@ variable "iam_role_use_name_prefix" {
   default     = true
 }
 
+variable "aws_region" {
+  description = "AWS region, used for destroy-time ENI cleanup."
+  type        = string
+  nullable    = false
+}
+
+variable "aws_profile" {
+  description = "AWS CLI profile, used for destroy-time ENI cleanup. If empty, the default credential chain is used."
+  type        = string
+  default     = ""
+}
+
 variable "launch_template_name" {
   description = "Explicit name for the launch template. If null, the upstream module generates a name based on the node group. Set this to control the exact launch template name, e.g., to preserve existing launch templates during infrastructure changes."
   type        = string
