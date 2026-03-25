@@ -73,33 +73,40 @@ jobs:
           cd ${{ matrix.example }}
           terraform validate
 
-  lint-go:
-    name: Go Tests Lint
+  lint-rust:
+    name: Rust Tests Lint
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Go
-        uses: actions/setup-go@v5
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
         with:
-          go-version: "1.23.5"
-          cache-dependency-path: test/go.sum
+          components: rustfmt, clippy
 
-      - name: Run go fmt
-        working-directory: test
-        run: |
-          if [ -n "$(gofmt -l .)" ]; then
-            echo "❌ Go files are not formatted. Run 'gofmt -w .' to fix:"
-            gofmt -l .
-            exit 1
-          fi
-          echo "✅ All Go files are properly formatted"
+      - name: Cache cargo registry and build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            test/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('test/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
 
-      - name: Run go vet
+      - name: Check formatting
         working-directory: test
-        run: go vet ./...
+        run: cargo fmt -- --check
 
-      - name: Run go mod verify
+      - name: Run clippy
         working-directory: test
-        run: go mod verify
+        run: cargo clippy -- -D warnings
+
+      - name: Install cargo-deny
+        run: cargo install cargo-deny
+
+      - name: Run cargo deny
+        working-directory: test
+        run: cargo deny check
