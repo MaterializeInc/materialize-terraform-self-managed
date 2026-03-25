@@ -147,6 +147,32 @@ resource "kubernetes_network_policy_v1" "allow_api_server_egress" {
   }
 }
 
+# Allow ingress from Kubernetes API server (required for CRD conversion)
+resource "kubernetes_network_policy_v1" "allow_api_server_ingress_to_conversion_webhook" {
+  count = var.enable_network_policies ? 1 : 0
+
+  metadata {
+    name      = "allow-api-server-ingress-to-conversion-webhook"
+    namespace = kubernetes_namespace.materialize.metadata[0].name
+  }
+
+  spec {
+    pod_selector {
+      match_labels = {
+        "app.kubernetes.io/name" = "materialize-operator"
+      }
+    }
+    policy_types = ["Ingress"]
+
+    ingress {
+      ports {
+        protocol = "TCP"
+        port     = 8001
+      }
+    }
+  }
+}
+
 # Allow ingress from monitoring namespace (Prometheus scraping)
 resource "kubernetes_network_policy_v1" "allow_monitoring_ingress" {
   count = var.enable_network_policies ? 1 : 0

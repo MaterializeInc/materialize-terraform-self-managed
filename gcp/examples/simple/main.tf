@@ -330,6 +330,7 @@ module "operator" {
     module.database,
     module.storage,
     module.coredns,
+    module.cert_manager,
   ]
 }
 

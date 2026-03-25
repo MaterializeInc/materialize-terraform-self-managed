@@ -333,6 +333,7 @@ module "operator" {
     module.nodepool_generic,
     module.coredns,
     module.vpc_cni,
+    module.cert_manager,
   ]
 }
 
