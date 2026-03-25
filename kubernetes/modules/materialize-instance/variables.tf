@@ -146,13 +146,13 @@ variable "authenticator_kind" {
   default     = "None"
   nullable    = false
   validation {
-    condition     = contains(["None", "Password", "Sasl"], var.authenticator_kind)
-    error_message = "Authenticator kind must be one of: 'None', 'Password', or 'Sasl'"
+    condition     = contains(["None", "Password", "Sasl", "Oidc"], var.authenticator_kind)
+    error_message = "Authenticator kind must be one of: 'None', 'Password', 'Sasl', or 'Oidc'"
   }
 }
 
 variable "external_login_password_mz_system" {
-  description = "Password for external login to mz_system. Must be set if authenticator_kind is 'Password' or 'Sasl'."
+  description = "Password for external login to mz_system. Must be set if authenticator_kind is 'Password', 'Sasl', or 'Oidc'."
   type        = string
   default     = null
   sensitive   = true
