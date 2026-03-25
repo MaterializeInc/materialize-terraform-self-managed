@@ -23,8 +23,8 @@ locals {
 
   # This range only needs to be the GKE control plane,
   # but the documented way of getting the CIDR seems to return null.
-  master_ipv4_cidr_block     = google_container_cluster.primary.private_cluster_config[0].master_ipv4_cidr_block
-  webhook_rule_source_ranges = (local.master_ipv4_cidr_block != "" && local.master_ipv4_cidr_block != null) ? local.master_ipv4_cidr_block : "0.0.0.0/0"
+  master_ipv4_cidr_block                = google_container_cluster.primary.private_cluster_config[0].master_ipv4_cidr_block
+  conversion_webhook_rule_source_ranges = (local.master_ipv4_cidr_block != "" && local.master_ipv4_cidr_block != null) ? local.master_ipv4_cidr_block : "0.0.0.0/0"
 }
 
 resource "google_container_cluster" "primary" {
@@ -109,9 +109,9 @@ resource "google_container_cluster" "primary" {
 # Firewall rule to allow traffic to nodes on port 8001 for conversion webhooks.
 # In private clusters, the GKE control plane needs to reach node ports for
 # webhook callbacks (e.g., CRD conversion webhooks).
-resource "google_compute_firewall" "webhook" {
+resource "google_compute_firewall" "conversion_webhook" {
   project     = var.project_id
-  name        = "${var.prefix}-gke-webhook"
+  name        = "${var.prefix}-gke-conversion-webhook"
   network     = var.network_name
   description = "Allow traffic to nodes on port 8001 for conversion webhooks"
   direction   = "INGRESS"
@@ -119,7 +119,7 @@ resource "google_compute_firewall" "webhook" {
     protocol = "tcp"
     ports    = ["8001"]
   }
-  source_ranges           = [local.webhook_rule_source_ranges]
+  source_ranges           = [local.conversion_webhook_rule_source_ranges]
   target_service_accounts = [google_service_account.gke_sa.email]
 }
 
