@@ -4,13 +4,15 @@
 
 ## About Materialize
 
-Materialize is the Operational Data Warehouse that delivers the speed of streaming with the ease and reliability of a cloud data warehouse. It enables real-time data transformations, analytics, and operational workloads.
+Materialize is a real-time data integration platform that creates and continually updates consistent views of transactional data from across your organization. Its SQL interface democratizes the ability to serve and access live data. Materialize can be deployed anywhere your infrastructure runs.
 
-**Resources:**
-- [Materialize Website](https://materialize.com)
-- [Self-Managed Community Edition Signup](https://materialize.com/self-managed/)
-- [Self-Managed Documentation](https://materialize.com/docs/self-managed/v25.2/)
-- [Materialize Documentation](https://materialize.com/docs/)
+Use Materialize to do things like deliver fresh context for AI/RAG pipelines, power operational dashboards, and create more dynamic customer experiences without building time-consuming custom data pipelines.
+
+The three most common patterns for adopting Materialize are the following:
+
+Query Offload (CQRS) - Scale complex read queries more efficiently than a read replica, and without the headaches of cache invalidation.
+Integration Hub (ODS) - Extract, load, and incrementally transform data from multiple sources. Create live views of your data that can be queried directly or pushed downstream.
+Operational Data Mesh (ODM) - Use SQL to create and deliver real-time, strongly consistent data products to streamline coordination across services and domains.
 
 ---
 
