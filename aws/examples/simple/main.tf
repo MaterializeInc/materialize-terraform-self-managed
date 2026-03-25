@@ -93,6 +93,8 @@ module "base_node_group" {
   labels                            = local.base_node_labels
   cluster_service_cidr              = module.eks.cluster_service_cidr
   cluster_primary_security_group_id = module.eks.node_security_group_id
+  aws_region                        = var.aws_region
+  aws_profile                       = var.aws_profile
   tags                              = var.tags
 }
 
