@@ -69,7 +69,11 @@ pub async fn phase_init(provider_args: &InitProvider) -> Result<PathBuf> {
 
 /// Copies .tf files from the example directory to the test run directory,
 /// rewriting relative module source paths to account for the new location.
-async fn copy_example_files(src: &Path, dest: &Path, provider: CloudProvider) -> Result<()> {
+pub(crate) async fn copy_example_files(
+    src: &Path,
+    dest: &Path,
+    provider: CloudProvider,
+) -> Result<()> {
     tokio::fs::create_dir_all(dest)
         .await
         .context("Failed to create test run directory")?;
