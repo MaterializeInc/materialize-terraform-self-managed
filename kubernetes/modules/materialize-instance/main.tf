@@ -123,7 +123,7 @@ resource "kubernetes_secret" "materialize_backend" {
       persist_backend_url  = var.persist_backend_url
       license_key          = var.license_key == null ? "" : var.license_key
     },
-    contains(["Password", "Sasl"], var.authenticator_kind) && var.external_login_password_mz_system != null ? {
+    contains(["Password", "Sasl", "Oidc"], var.authenticator_kind) && var.external_login_password_mz_system != null ? {
       external_login_password_mz_system = var.external_login_password_mz_system
     } : {}
   )
