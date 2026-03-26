@@ -12,7 +12,7 @@ variable "kubeconfig_data" {
 variable "cluster_identifier" {
   description = "Stable identifier for the cluster (e.g., cluster endpoint or name). Used to trigger re-provisioning when the cluster changes, without embedding ephemeral credentials in triggers."
   type        = string
-  default     = ""
+  default     = null
 }
 
 variable "disable_default_coredns" {
