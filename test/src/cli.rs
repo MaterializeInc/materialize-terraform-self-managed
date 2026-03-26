@@ -37,6 +37,13 @@ pub enum SubCommand {
         #[arg(long)]
         latest: bool,
     },
+    /// Re-copies example .tf files into an already initialized test run,
+    /// picking up any local changes to the terraform code.
+    Sync {
+        /// Which test run to sync.
+        #[arg(long)]
+        test_run: String,
+    },
     /// Runs `terraform destroy` against an already initialized test environment.
     Destroy {
         /// Which test run to destroy.

@@ -6,7 +6,7 @@ mod types;
 use clap::Parser;
 
 use cli::{Args, SubCommand};
-use commands::{list, phase_apply, phase_destroy, phase_init, phase_verify};
+use commands::{list, phase_apply, phase_destroy, phase_init, phase_sync, phase_verify};
 use helpers::test_run_dir;
 
 #[tokio::main]
@@ -30,6 +30,13 @@ async fn main() {
             let dir = test_run_dir(test_run);
             match dir {
                 Ok(dir) => phase_verify(&dir).await,
+                Err(e) => Err(e),
+            }
+        }
+        SubCommand::Sync { test_run } => {
+            let dir = test_run_dir(test_run);
+            match dir {
+                Ok(dir) => phase_sync(&dir).await,
                 Err(e) => Err(e),
             }
         }
