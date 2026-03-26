@@ -12,12 +12,13 @@ module "postgresql" {
   source  = "terraform-google-modules/sql-db/google//modules/postgresql"
   version = "26.1.1"
 
-  name                = "${var.prefix}-pg"
-  database_version    = var.db_version
-  project_id          = var.project_id
-  region              = var.region
-  tier                = var.tier
-  deletion_protection = false
+  name                 = "${var.prefix}-pg"
+  random_instance_name = var.random_instance_name
+  database_version     = var.db_version
+  project_id           = var.project_id
+  region               = var.region
+  tier                 = var.tier
+  deletion_protection  = false
 
   # Network configuration
   ip_configuration = {

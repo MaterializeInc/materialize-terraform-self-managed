@@ -19,6 +19,7 @@ No modules.
 
 | Name | Type |
 |------|------|
+| [google_compute_firewall.conversion_webhook](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/compute_firewall) | resource |
 | [google_container_cluster.primary](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/container_cluster) | resource |
 | [google_service_account.gke_sa](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/service_account) | resource |
 | [google_service_account.workload_identity_sa](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/service_account) | resource |
