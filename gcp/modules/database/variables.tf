@@ -188,6 +188,13 @@ variable "delete_timeout" {
   nullable    = false
 }
 
+variable "random_instance_name" {
+  description = "Append a random suffix to the instance name to avoid name collisions after deletion (GCP reserves deleted instance names for ~1 week)"
+  type        = bool
+  default     = false
+  nullable    = false
+}
+
 variable "database_deletion_policy" {
   description = "Deletion policy for databases"
   type        = string
