@@ -257,7 +257,7 @@ resource "terraform_data" "scale_down_kube_dns_autoscaler" {
     DEPLOYMENT_NAME = var.coredns_autoscaler_deployment_to_scale_down
     NAMESPACE       = local.namespace
   }
-  triggers_replace = [var.kubeconfig_data, var.coredns_autoscaler_deployment_to_scale_down, local.namespace]
+  triggers_replace = [var.cluster_identifier, var.coredns_autoscaler_deployment_to_scale_down, local.namespace]
   provisioner "local-exec" {
     interpreter = ["/usr/bin/env", "bash", "-c"]
     when        = create
@@ -290,7 +290,7 @@ resource "terraform_data" "scale_down_kube_dns" {
     DEPLOYMENT_NAME = var.coredns_deployment_to_scale_down
     NAMESPACE       = local.namespace
   }
-  triggers_replace = [var.kubeconfig_data, var.coredns_deployment_to_scale_down, local.namespace]
+  triggers_replace = [var.cluster_identifier, var.coredns_deployment_to_scale_down, local.namespace]
   provisioner "local-exec" {
     interpreter = ["/usr/bin/env", "bash", "-c"]
     when        = create
@@ -327,7 +327,7 @@ resource "terraform_data" "scale_up_kube_dns_autoscaler" {
     DEPLOYMENT_NAME = var.coredns_autoscaler_deployment_to_scale_down
     NAMESPACE       = local.namespace
   }
-  triggers_replace = [var.kubeconfig_data, var.coredns_autoscaler_deployment_to_scale_down, local.namespace]
+  triggers_replace = [var.cluster_identifier, var.coredns_autoscaler_deployment_to_scale_down, local.namespace]
   provisioner "local-exec" {
     interpreter = ["/usr/bin/env", "bash", "-c"]
     when        = destroy
@@ -362,7 +362,7 @@ resource "terraform_data" "scale_up_kube_dns" {
     DEPLOYMENT_NAME = var.coredns_deployment_to_scale_down
     NAMESPACE       = local.namespace
   }
-  triggers_replace = [var.kubeconfig_data, var.coredns_deployment_to_scale_down, local.namespace]
+  triggers_replace = [var.cluster_identifier, var.coredns_deployment_to_scale_down, local.namespace]
   provisioner "local-exec" {
     interpreter = ["/usr/bin/env", "bash", "-c"]
     when        = destroy
