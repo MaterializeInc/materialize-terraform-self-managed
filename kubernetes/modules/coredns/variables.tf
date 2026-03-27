@@ -8,6 +8,12 @@ variable "kubeconfig_data" {
   }
 }
 
+variable "cluster_identifier" {
+  description = "Stable identifier for the cluster (e.g. cluster endpoint or name). Used to trigger re-execution of kube-dns scale commands when the cluster is recreated. Defaults to kubeconfig_data, but should be set to a stable value to avoid unnecessary replacements caused by ephemeral access tokens embedded in the kubeconfig."
+  type        = string
+  default     = null
+}
+
 variable "disable_default_coredns" {
   description = "Whether to scale down the default kube-dns deployment"
   type        = bool
