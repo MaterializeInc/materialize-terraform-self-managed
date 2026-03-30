@@ -379,6 +379,7 @@ module "grafana" {
 
 module "materialize_instance" {
   source                  = "../../../kubernetes/modules/materialize-instance"
+  crd_version             = var.crd_version
   instance_name           = local.materialize_instance_name
   instance_namespace      = local.materialize_instance_namespace
   metadata_backend_url    = local.metadata_backend_url

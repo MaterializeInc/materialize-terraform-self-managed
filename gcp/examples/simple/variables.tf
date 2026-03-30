@@ -67,6 +67,12 @@ variable "internal_load_balancer" {
   default     = true
 }
 
+variable "crd_version" {
+  description = "CRD API version to use for the Materialize instance (v1alpha1 or v1alpha2)"
+  type        = string
+  default     = "v1alpha1"
+}
+
 variable "enable_observability" {
   description = "Enable Prometheus and Grafana monitoring stack for Materialize"
   type        = bool

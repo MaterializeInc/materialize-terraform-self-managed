@@ -31,68 +31,73 @@ resource "kubectl_manifest" "materialize_instance" {
   force_conflicts = true
 
   yaml_body = jsonencode({
-    apiVersion = "materialize.cloud/v1alpha1"
+    apiVersion = "materialize.cloud/${var.crd_version}"
     kind       = "Materialize"
     metadata = {
       name      = var.instance_name
       namespace = var.instance_namespace
     }
-    spec = {
-      environmentdImageRef         = "materialize/environmentd:${var.environmentd_version}"
-      backendSecretName            = "${var.instance_name}-materialize-backend"
-      authenticatorKind            = var.authenticator_kind
-      serviceAccountAnnotations    = var.service_account_annotations
-      podLabels                    = var.pod_labels
-      rolloutStrategy              = var.rollout_strategy
-      requestRollout               = var.request_rollout
-      forceRollout                 = var.force_rollout
-      systemParameterConfigmapName = var.system_parameters != null ? "${var.instance_name}-system-params" : null
+    spec = merge(
+      {
+        environmentdImageRef         = "materialize/environmentd:${var.environmentd_version}"
+        backendSecretName            = "${var.instance_name}-materialize-backend"
+        authenticatorKind            = var.authenticator_kind
+        serviceAccountAnnotations    = var.service_account_annotations
+        podLabels                    = var.pod_labels
+        rolloutStrategy              = var.rollout_strategy
+        forceRollout                 = var.force_rollout
+        systemParameterConfigmapName = var.system_parameters != null ? "${var.instance_name}-system-params" : null
 
-      environmentdExtraEnv = length(var.environmentd_extra_env) > 0 ? [{
-        name = "MZ_SYSTEM_PARAMETER_DEFAULT"
-        value = join(";", [
-          for item in var.environmentd_extra_env :
-          "${item.name}=${item.value}"
-        ])
-      }] : null
+        environmentdExtraEnv = length(var.environmentd_extra_env) > 0 ? [{
+          name = "MZ_SYSTEM_PARAMETER_DEFAULT"
+          value = join(";", [
+            for item in var.environmentd_extra_env :
+            "${item.name}=${item.value}"
+          ])
+        }] : null
 
-      environmentdExtraArgs = length(var.environmentd_extra_args) > 0 ? var.environmentd_extra_args : null
+        environmentdExtraArgs = length(var.environmentd_extra_args) > 0 ? var.environmentd_extra_args : null
 
-      environmentdResourceRequirements = {
-        limits = {
-          memory = var.memory_limit
+        environmentdResourceRequirements = {
+          limits = {
+            memory = var.memory_limit
+          }
+          requests = {
+            cpu    = var.cpu_request
+            memory = var.memory_request
+          }
         }
-        requests = {
-          cpu    = var.cpu_request
-          memory = var.memory_request
+        balancerdResourceRequirements = {
+          limits = {
+            memory = var.balancer_memory_limit
+          }
+          requests = {
+            cpu    = var.balancer_cpu_request
+            memory = var.balancer_memory_request
+          }
         }
-      }
-      balancerdResourceRequirements = {
-        limits = {
-          memory = var.balancer_memory_limit
-        }
-        requests = {
-          cpu    = var.balancer_cpu_request
-          memory = var.balancer_memory_request
-        }
-      }
 
-      balancerdExternalCertificateSpec = var.issuer_ref == null ? null : {
-        dnsNames = [
-          "balancerd",
-        ]
-        issuerRef = var.issuer_ref
-      }
-      consoleExternalCertificateSpec = var.issuer_ref == null ? null : {
-        dnsNames = [
-          "console",
-        ]
-        issuerRef = var.issuer_ref
-      }
-      internalCertificateSpec = var.issuer_ref == null ? null : {
-        issuerRef = var.issuer_ref
-      }
-    }
+        balancerdExternalCertificateSpec = var.issuer_ref == null ? null : {
+          dnsNames = [
+            "balancerd",
+          ]
+          issuerRef = var.issuer_ref
+        }
+        consoleExternalCertificateSpec = var.issuer_ref == null ? null : {
+          dnsNames = [
+            "console",
+          ]
+          issuerRef = var.issuer_ref
+        }
+        internalCertificateSpec = var.issuer_ref == null ? null : {
+          issuerRef = var.issuer_ref
+        }
+      },
+      # requestRollout only applies to v1alpha1
+      var.crd_version == "v1alpha1" ? {
+        requestRollout = var.request_rollout
+      } : {}
+    )
   })
 
   wait_for {
@@ -135,7 +140,7 @@ resource "kubernetes_secret" "materialize_backend" {
 
 # Retrieve the resource ID of the Materialize instance
 data "kubernetes_resource" "materialize_instance" {
-  api_version = "materialize.cloud/v1alpha1"
+  api_version = "materialize.cloud/${var.crd_version}"
   kind        = "Materialize"
   metadata {
     name      = var.instance_name
