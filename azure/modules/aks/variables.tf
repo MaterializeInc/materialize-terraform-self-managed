@@ -53,7 +53,7 @@ variable "tags" {
 variable "kubernetes_version" {
   description = "Version of Kubernetes to use for the AKS cluster"
   type        = string
-  default     = "1.33"
+  default     = "1.34"
   nullable    = false
 }
 
