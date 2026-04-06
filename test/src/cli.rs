@@ -83,12 +83,11 @@ pub struct CommonInitArgs {
     /// Path to a file containing the Materialize license key (conflicts with --license-key).
     #[arg(long, conflicts_with = "license_key")]
     pub license_key_file: Option<PathBuf>,
-    /// Path to Helm chart for the operator.
+    /// Path to a local orchestratord Helm chart directory. When set, automatically
+    /// injects helm_chart / use_local_chart into the operator module, creates
+    /// dev_variables.tf, and sets the corresponding tfvars values.
     #[arg(long)]
-    pub helm_chart: Option<String>,
-    /// Use a local Helm chart instead of a registry chart.
-    #[arg(long)]
-    pub use_local_chart: bool,
+    pub local_chart_path: Option<PathBuf>,
     /// Orchestratord image version.
     #[arg(long)]
     pub orchestratord_version: Option<String>,
