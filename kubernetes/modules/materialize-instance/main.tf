@@ -30,6 +30,8 @@ resource "kubectl_manifest" "materialize_instance" {
   field_manager   = "terraform"
   force_conflicts = true
 
+  upgrade_api_version = true
+
   yaml_body = jsonencode({
     apiVersion = "materialize.cloud/${var.crd_version}"
     kind       = "Materialize"

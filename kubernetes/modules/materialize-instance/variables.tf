@@ -1,5 +1,5 @@
 variable "crd_version" {
-  description = "CRD API version to use for the Materialize instance (v1alpha1 or v1alpha2)"
+  description = "CRD API version to use for the Materialize instance (v1alpha1 or v1alpha2). We recommend v1alpha2, but default to v1alpha1 for backwards compatibility. We will change this default in an upcoming major release."
   type        = string
   default     = "v1alpha1"
   nullable    = false
@@ -112,7 +112,7 @@ variable "request_rollout" {
   default     = "00000000-0000-0000-0000-000000000001"
 
   validation {
-    condition     = var.request_rollout == null || can(regex("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$", var.request_rollout))
+    condition     = (var.request_rollout == null && var.crd_version != "v1alpha1") || can(regex("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$", var.request_rollout))
     error_message = "Request rollout must be a valid UUID in the format xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
   }
 }
