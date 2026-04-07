@@ -223,8 +223,7 @@ pub fn read_s3_backend(dir: &Path) -> Result<Option<S3Backend>> {
         Err(e) => return Err(e).context("Failed to read backend.tf"),
     };
 
-    let body: hcl_edit::structure::Body =
-        content.parse().context("Failed to parse backend.tf")?;
+    let body: hcl_edit::structure::Body = content.parse().context("Failed to parse backend.tf")?;
 
     let terraform = body
         .get_blocks("terraform")
@@ -306,10 +305,7 @@ pub async fn delete_backend_state(dir: &Path) -> Result<()> {
         None => return Ok(()),
     };
 
-    let prefix = format!(
-        "s3://{}/{}/",
-        backend.bucket, backend.key_prefix
-    );
+    let prefix = format!("s3://{}/{}/", backend.bucket, backend.key_prefix);
 
     println!("Deleting remote state from {prefix}");
     let mut cmd = Command::new("aws");

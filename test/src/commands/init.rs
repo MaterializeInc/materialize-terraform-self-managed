@@ -354,10 +354,7 @@ fn find_module_mut<'a>(
 fn module_var_attr(name: &str) -> hcl_edit::structure::Attribute {
     use hcl_edit::Decorate;
 
-    let mut attr = hcl_edit::structure::Attribute::new(
-        hcl_edit::Ident::new(name),
-        var_ref(name),
-    );
+    let mut attr = hcl_edit::structure::Attribute::new(hcl_edit::Ident::new(name), var_ref(name));
     attr.decor_mut().set_prefix("  ");
     attr
 }
