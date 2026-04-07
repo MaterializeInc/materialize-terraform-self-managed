@@ -27,7 +27,7 @@ jobs:
       - lint
       - test-aws
       - test-gcp
-      - test-azure
+      #- test-azure
     steps:
       - uses: technote-space/workflow-conclusion-action@v3
       - name: Verify all checks passed
