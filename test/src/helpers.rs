@@ -286,3 +286,36 @@ pub async fn upload_tfvars_to_backend(dir: &Path) -> Result<()> {
 
     Ok(())
 }
+
+/// Deletes the remote state file and tfvars file from S3 for the given
+/// test run directory. No-ops if no S3 backend is configured.
+pub async fn delete_backend_state(dir: &Path) -> Result<()> {
+    let backend = match read_s3_backend(dir)? {
+        Some(b) => b,
+        None => return Ok(()),
+    };
+
+    let prefix = format!(
+        "s3://{}/{}/",
+        backend.bucket, backend.key_prefix
+    );
+
+    println!("Deleting remote state from {prefix}");
+    let mut cmd = Command::new("aws");
+    cmd.args([
+        "s3",
+        "rm",
+        &prefix,
+        "--recursive",
+        "--region",
+        &backend.region,
+    ]);
+    if let Some(profile) = &backend.profile {
+        cmd.args(["--profile", profile]);
+    }
+    run_cmd(&mut cmd)
+        .await
+        .context("Failed to delete remote state from S3")?;
+
+    Ok(())
+}

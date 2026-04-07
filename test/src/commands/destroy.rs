@@ -3,7 +3,7 @@ use std::path::Path;
 use anyhow::{Context, Result};
 use tokio::process::Command;
 
-use crate::helpers::{ci_log_group, run_cmd, write_lifecycle};
+use crate::helpers::{ci_log_group, delete_backend_state, run_cmd, write_lifecycle};
 
 const MAX_DESTROY_ATTEMPTS: u32 = 3;
 
@@ -38,6 +38,7 @@ pub async fn phase_destroy(dir: &Path, rm: bool) -> Result<()> {
         }
 
         if rm {
+            delete_backend_state(dir).await?;
             tokio::fs::remove_dir_all(dir).await?;
             println!(
                 "\nDestroy completed successfully. Removed {}",
