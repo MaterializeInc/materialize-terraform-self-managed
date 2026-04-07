@@ -199,3 +199,90 @@ pub fn kubectl(kubeconfig: &Path) -> Command {
     cmd.arg("--kubeconfig").arg(kubeconfig);
     cmd
 }
+
+// ---------------------------------------------------------------------------
+// S3 backend helpers
+// ---------------------------------------------------------------------------
+
+/// Parsed S3 backend configuration from a `backend.tf` file.
+pub struct S3Backend {
+    pub bucket: String,
+    pub region: String,
+    pub profile: Option<String>,
+    /// The key prefix (test run ID), extracted from the state key.
+    pub key_prefix: String,
+}
+
+/// Reads `backend.tf` from the given directory and extracts the S3
+/// configuration. Returns `None` if the file does not exist (local state).
+pub fn read_s3_backend(dir: &Path) -> Result<Option<S3Backend>> {
+    let path = dir.join("backend.tf");
+    let content = match std::fs::read_to_string(&path) {
+        Ok(c) => c,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(e) => return Err(e).context("Failed to read backend.tf"),
+    };
+
+    fn extract<'a>(content: &'a str, key: &str) -> Option<&'a str> {
+        content
+            .lines()
+            .find(|l| l.trim_start().starts_with(key))
+            .and_then(|l| l.split('"').nth(1))
+    }
+
+    let bucket = extract(&content, "bucket")
+        .context("backend.tf missing bucket")?
+        .to_string();
+    let region = extract(&content, "region")
+        .context("backend.tf missing region")?
+        .to_string();
+    let profile = extract(&content, "profile").map(|s| s.to_string());
+    let key = extract(&content, "key").context("backend.tf missing key")?;
+    let key_prefix = key
+        .split('/')
+        .next()
+        .context("backend.tf key has no prefix")?
+        .to_string();
+
+    Ok(Some(S3Backend {
+        bucket,
+        region,
+        profile,
+        key_prefix,
+    }))
+}
+
+/// Uploads `terraform.tfvars.json` to the S3 backend alongside the state
+/// file, so that other commands or CI jobs can discover the tfvars for a
+/// given test run.
+pub async fn upload_tfvars_to_backend(dir: &Path) -> Result<()> {
+    let backend = match read_s3_backend(dir)? {
+        Some(b) => b,
+        None => return Ok(()),
+    };
+
+    let src = dir.join("terraform.tfvars.json");
+    let s3_uri = format!(
+        "s3://{}/{}/terraform.tfvars.json",
+        backend.bucket, backend.key_prefix
+    );
+
+    println!("Uploading terraform.tfvars.json to {s3_uri}");
+    let mut cmd = Command::new("aws");
+    cmd.args([
+        "s3",
+        "cp",
+        &src.display().to_string(),
+        &s3_uri,
+        "--region",
+        &backend.region,
+    ]);
+    if let Some(profile) = &backend.profile {
+        cmd.args(["--profile", profile]);
+    }
+    run_cmd(&mut cmd)
+        .await
+        .context("Failed to upload terraform.tfvars.json to S3")?;
+
+    Ok(())
+}

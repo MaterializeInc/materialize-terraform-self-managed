@@ -7,7 +7,7 @@ use tokio::process::Command;
 use crate::cli::InitProvider;
 use crate::helpers::{
     ci_log_group, example_dir, generate_test_run_id, project_root, run_cmd, runs_dir,
-    write_lifecycle,
+    upload_tfvars_to_backend, write_lifecycle,
 };
 use crate::types::{CloudProvider, CommonTfVars, TfVars};
 
@@ -70,6 +70,8 @@ pub async fn phase_init(provider_args: &InitProvider) -> Result<PathBuf> {
             println!("  Wrote {}", backend_path.display());
             println!("{backend_tf}");
         }
+
+        upload_tfvars_to_backend(&dest).await?;
 
         println!("\nRunning terraform init...");
         run_cmd(Command::new("terraform").arg("init").current_dir(&dest))
