@@ -298,7 +298,7 @@ pub(crate) async fn inject_dev_overrides(dest: &Path, overrides: &DevOverrides) 
     .collect();
 
     if !operator_vars.is_empty() {
-        content = inject_into_module(&content, "operator", &operator_vars);
+        content = inject_into_module(&content, "operator", &operator_vars)?;
         changed = true;
         for var in &operator_vars {
             let name = var.split('=').next().unwrap().trim();
@@ -314,7 +314,7 @@ pub(crate) async fn inject_dev_overrides(dest: &Path, overrides: &DevOverrides) 
             &content,
             "materialize_instance",
             &["environmentd_version = var.environmentd_version"],
-        );
+        )?;
         changed = true;
         println!("  Injected environmentd_version into materialize_instance module in main.tf");
     }
@@ -328,7 +328,7 @@ pub(crate) async fn inject_dev_overrides(dest: &Path, overrides: &DevOverrides) 
 
 /// Finds `module "<name>"` in the content and injects the given lines after
 /// the `source = ` line inside that block.
-fn inject_into_module(content: &str, module_name: &str, vars: &[&str]) -> String {
+fn inject_into_module(content: &str, module_name: &str, vars: &[&str]) -> Result<String> {
     let target = format!("module \"{module_name}\"");
     let mut lines: Vec<&str> = content.lines().collect();
     let mut in_module = false;
@@ -344,17 +344,18 @@ fn inject_into_module(content: &str, module_name: &str, vars: &[&str]) -> String
         }
     }
 
-    if let Some(idx) = insert_after {
-        let mut offset = 1;
-        lines.insert(idx + offset, "");
+    let idx = insert_after.ok_or_else(|| {
+        anyhow::anyhow!("could not find `source` line in module \"{module_name}\" in main.tf")
+    })?;
+
+    let mut offset = 1;
+    lines.insert(idx + offset, "");
+    for var in vars {
         offset += 1;
-        for var in vars {
-            let line = format!("  {var}");
-            // Leak is fine here – this runs once during init.
-            lines.insert(idx + offset, Box::leak(line.into_boxed_str()));
-            offset += 1;
-        }
+        let line = format!("  {var}");
+        // Leak is fine here – this runs once during init.
+        lines.insert(idx + offset, Box::leak(line.into_boxed_str()));
     }
 
-    lines.join("\n") + "\n"
+    Ok(lines.join("\n") + "\n")
 }
