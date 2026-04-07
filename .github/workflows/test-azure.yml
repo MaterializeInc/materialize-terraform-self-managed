@@ -104,6 +104,13 @@ jobs:
         working-directory: test
         env:
           MATERIALIZE_LICENSE_KEY: ${{ secrets.MATERIALIZE_LICENSE_KEY }}
+          # Use OIDC directly with the AzureRM Terraform provider so it
+          # can request fresh tokens from GitHub's OIDC endpoint as needed,
+          # avoiding the short-lived Azure CLI token expiring mid-run.
+          ARM_USE_OIDC: "true"
+          ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
         run: |
           cargo run -- run --destroy-on-failure azure \
             --owner "github-actions" \
