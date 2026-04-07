@@ -82,6 +82,14 @@ impl TfVars {
         }
     }
 
+    pub fn common(&self) -> &CommonTfVars {
+        match self {
+            TfVars::Aws { common, .. }
+            | TfVars::Azure { common, .. }
+            | TfVars::Gcp { common, .. } => common,
+        }
+    }
+
     pub fn common_mut(&mut self) -> &mut CommonTfVars {
         match self {
             TfVars::Aws { common, .. }

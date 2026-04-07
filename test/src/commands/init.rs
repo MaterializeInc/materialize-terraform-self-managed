@@ -37,6 +37,22 @@ pub async fn phase_init(provider_args: &InitProvider) -> Result<PathBuf> {
         println!("\nCopying terraform files...");
         copy_example_files(&src, &dest, provider).await?;
 
+        // When any dev overrides are provided (--local-chart-path,
+        // --orchestratord-version, --environmentd-version), create
+        // dev_variables.tf and inject the corresponding variables into
+        // the relevant module blocks in main.tf.
+        let common = provider_args.common();
+        let overrides = DevOverrides {
+            local_chart: common.local_chart_path.is_some(),
+            orchestratord_version: common.orchestratord_version.is_some(),
+            environmentd_version: common.environmentd_version.is_some(),
+        };
+        if overrides.any() {
+            println!("\nApplying dev overrides...");
+            write_dev_variables_tf(&dest).await?;
+            inject_dev_overrides(&dest, &overrides).await?;
+        }
+
         println!("\nBuilding terraform.tfvars.json...");
         let tfvars = build_tfvars(provider_args, &test_run_id)?;
         let tfvars_path = dest.join("terraform.tfvars.json");
@@ -138,16 +154,21 @@ fn to_gcp_label(s: &str) -> String {
 
 fn build_tfvars(provider_args: &InitProvider, test_run_id: &str) -> Result<TfVars> {
     let common = provider_args.common();
+
+    let (helm_chart, use_local_chart) = if let Some(chart_path) = &common.local_chart_path {
+        let canonical =
+            std::fs::canonicalize(chart_path).context("Failed to resolve --local-chart-path")?;
+        (Some(canonical.to_string_lossy().into_owned()), Some(true))
+    } else {
+        (None, None)
+    };
+
     let common_tf = CommonTfVars {
         name_prefix: test_run_id.to_string(),
         license_key: common.resolve_license_key()?,
         internal_load_balancer: false,
-        helm_chart: common.helm_chart.clone(),
-        use_local_chart: if common.use_local_chart {
-            Some(true)
-        } else {
-            None
-        },
+        helm_chart,
+        use_local_chart,
         orchestratord_version: common.orchestratord_version.clone(),
         environmentd_version: common.environmentd_version.clone(),
     };
@@ -199,4 +220,142 @@ fn build_tfvars(provider_args: &InitProvider, test_run_id: &str) -> Result<TfVar
             ]),
         },
     })
+}
+
+/// Writes a `dev_variables.tf` file into the test run directory, defining
+/// optional override variables for local development.
+pub(crate) async fn write_dev_variables_tf(dest: &Path) -> Result<()> {
+    let content = r#"variable "helm_chart" {
+  description = "Chart name from repository or local path to chart. For local charts, set the path to the chart directory."
+  type        = string
+  default     = null
+}
+
+variable "use_local_chart" {
+  description = "Whether to use a local chart instead of one from a repository"
+  type        = bool
+  default     = null
+}
+
+variable "orchestratord_version" {
+  description = "Version of the Materialize orchestrator to install"
+  type        = string
+  default     = null
+}
+
+variable "environmentd_version" {
+  description = "Version of environmentd to use"
+  type        = string
+  default     = null
+}
+"#;
+    let path = dest.join("dev_variables.tf");
+    tokio::fs::write(&path, content).await?;
+    println!("  Wrote dev_variables.tf");
+    Ok(())
+}
+
+/// Flags that control which dev-override variables to inject into `main.tf`.
+pub(crate) struct DevOverrides {
+    pub local_chart: bool,
+    pub orchestratord_version: bool,
+    pub environmentd_version: bool,
+}
+
+impl DevOverrides {
+    /// Returns `true` if any override is active.
+    pub fn any(&self) -> bool {
+        self.local_chart || self.orchestratord_version || self.environmentd_version
+    }
+}
+
+/// Injects dev-override variable references into the appropriate module
+/// blocks in `main.tf`. Each injection is skipped if the variable reference
+/// is already present in the file.
+pub(crate) async fn inject_dev_overrides(dest: &Path, overrides: &DevOverrides) -> Result<()> {
+    let main_tf_path = dest.join("main.tf");
+    let mut content = tokio::fs::read_to_string(&main_tf_path)
+        .await
+        .context("Failed to read main.tf")?;
+
+    let mut changed = false;
+
+    // Operator module: helm_chart, use_local_chart, orchestratord_version
+    let operator_vars: Vec<&str> = [
+        (overrides.local_chart, "helm_chart      = var.helm_chart"),
+        (
+            overrides.local_chart,
+            "use_local_chart = var.use_local_chart",
+        ),
+        (
+            overrides.orchestratord_version,
+            "orchestratord_version = var.orchestratord_version",
+        ),
+    ]
+    .iter()
+    .filter(|(needed, var)| *needed && !content.contains(*var))
+    .map(|(_, var)| *var)
+    .collect();
+
+    if !operator_vars.is_empty() {
+        content = inject_into_module(&content, "operator", &operator_vars)?;
+        changed = true;
+        for var in &operator_vars {
+            let name = var.split('=').next().unwrap().trim();
+            println!("  Injected {name} into operator module in main.tf");
+        }
+    }
+
+    // Materialize instance module: environmentd_version
+    if overrides.environmentd_version
+        && !content.contains("environmentd_version = var.environmentd_version")
+    {
+        content = inject_into_module(
+            &content,
+            "materialize_instance",
+            &["environmentd_version = var.environmentd_version"],
+        )?;
+        changed = true;
+        println!("  Injected environmentd_version into materialize_instance module in main.tf");
+    }
+
+    if changed {
+        tokio::fs::write(&main_tf_path, &content).await?;
+    }
+
+    Ok(())
+}
+
+/// Finds `module "<name>"` in the content and injects the given lines after
+/// the `source = ` line inside that block.
+fn inject_into_module(content: &str, module_name: &str, vars: &[&str]) -> Result<String> {
+    let target = format!("module \"{module_name}\"");
+    let mut lines: Vec<&str> = content.lines().collect();
+    let mut in_module = false;
+    let mut insert_after = None;
+
+    for (i, line) in lines.iter().enumerate() {
+        if line.contains(&target) {
+            in_module = true;
+        }
+        if in_module && line.trim_start().starts_with("source") {
+            insert_after = Some(i);
+            break;
+        }
+    }
+
+    let idx = insert_after.ok_or_else(|| {
+        anyhow::anyhow!("could not find `source` line in module \"{module_name}\" in main.tf")
+    })?;
+
+    let mut offset = 1;
+    lines.insert(idx + offset, "");
+    for var in vars {
+        offset += 1;
+        let line = format!("  {var}");
+        // Leak is fine here – this runs once during init.
+        lines.insert(idx + offset, Box::leak(line.into_boxed_str()));
+    }
+
+    Ok(lines.join("\n") + "\n")
 }
