@@ -223,21 +223,32 @@ pub fn read_s3_backend(dir: &Path) -> Result<Option<S3Backend>> {
         Err(e) => return Err(e).context("Failed to read backend.tf"),
     };
 
-    fn extract<'a>(content: &'a str, key: &str) -> Option<&'a str> {
-        content
-            .lines()
-            .find(|l| l.trim_start().starts_with(key))
-            .and_then(|l| l.split('"').nth(1))
+    let body: hcl_edit::structure::Body =
+        content.parse().context("Failed to parse backend.tf")?;
+
+    let terraform = body
+        .get_blocks("terraform")
+        .next()
+        .context("backend.tf missing terraform block")?;
+
+    let backend = terraform
+        .body
+        .get_blocks("backend")
+        .find(|b| b.has_labels(&["s3"]))
+        .context("backend.tf missing backend \"s3\" block")?;
+
+    fn get_str<'a>(body: &'a hcl_edit::structure::Body, key: &str) -> Option<&'a str> {
+        body.get_attribute(key)?.value.as_str()
     }
 
-    let bucket = extract(&content, "bucket")
+    let bucket = get_str(&backend.body, "bucket")
         .context("backend.tf missing bucket")?
         .to_string();
-    let region = extract(&content, "region")
+    let region = get_str(&backend.body, "region")
         .context("backend.tf missing region")?
         .to_string();
-    let profile = extract(&content, "profile").map(|s| s.to_string());
-    let key = extract(&content, "key").context("backend.tf missing key")?;
+    let profile = get_str(&backend.body, "profile").map(|s| s.to_string());
+    let key = get_str(&backend.body, "key").context("backend.tf missing key")?;
     let key_prefix = key
         .split('/')
         .next()
