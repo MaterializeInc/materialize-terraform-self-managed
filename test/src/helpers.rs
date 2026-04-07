@@ -13,13 +13,19 @@ use crate::types::TfVars;
 // Paths
 // ---------------------------------------------------------------------------
 
-/// Returns the project root directory (parent of `test/`).
+/// Returns the project root directory (the git repo root).
 pub fn project_root() -> Result<PathBuf> {
-    let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
-    manifest_dir
-        .parent()
-        .map(|p| p.to_path_buf())
-        .context("Could not determine project root from CARGO_MANIFEST_DIR")
+    let output = std::process::Command::new("git")
+        .args(["rev-parse", "--show-toplevel"])
+        .output()
+        .context("Failed to run `git rev-parse --show-toplevel`")?;
+    if !output.status.success() {
+        bail!("Not inside a git repository");
+    }
+    let root = std::str::from_utf8(&output.stdout)
+        .context("git output was not valid UTF-8")?
+        .trim();
+    Ok(PathBuf::from(root))
 }
 
 pub fn example_dir(provider: crate::types::CloudProvider) -> Result<PathBuf> {
