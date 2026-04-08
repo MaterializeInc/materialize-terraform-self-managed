@@ -68,6 +68,7 @@ Deploys a Materialize instance as a Kubernetes custom resource managed by the Ma
 - Manages instance lifecycle (rollouts, upgrades)
 - Configurable resource requests and limits
 - Support for workload identity/IRSA annotations
+- Support for both v1alpha1 and v1alpha2 CRD API versions
 
 **Requirements:**
 - Materialize operator must be installed (via cloud-specific operator module)
@@ -127,6 +128,113 @@ module "materialize_instance" {
   
   depends_on = [module.self_signed_cluster_issuer]
 }
+```
+
+---
+
+## CRD API Versions and Upgrading Materialize Instances
+
+The materialize-instance module supports two CRD API versions, controlled by the `crd_version` variable:
+
+### v1alpha1 (default, before v26.19)
+
+The original CRD version. Rollouts are a two-step process:
+
+1. **Stage** changes by updating spec fields (e.g., `environmentdImageRef`).
+2. **Trigger** the rollout by setting `request_rollout` to a new UUID.
+
+This gives you explicit control over when rollouts happen.
+
+```hcl
+module "materialize_instance" {
+  source = "../kubernetes/modules/materialize-instance"
+
+  crd_version     = "v1alpha1"
+  request_rollout = "22222222-2222-2222-2222-222222222222"
+  # ...
+}
+```
+
+**Using kubectl (outside Terraform):**
+
+```bash
+# Stage a version change (does not trigger rollout)
+kubectl patch materialize <name> -n <namespace> --type='merge' \
+  -p '{"spec":{"environmentdImageRef":"materialize/environmentd:v26.19.0"}}'
+
+# Trigger the rollout
+kubectl patch materialize <name> -n <namespace> --type='merge' \
+  -p "{\"spec\":{\"requestRollout\":\"$(uuidgen)\"}}"
+
+# Or combine both in one command
+kubectl patch materialize <name> -n <namespace> --type='merge' \
+  -p "{\"spec\":{\"environmentdImageRef\":\"materialize/environmentd:v26.19.0\",\"requestRollout\":\"$(uuidgen)\"}}"
+```
+
+### v1alpha2 (v26.19+)
+
+The simplified CRD version. The `requestRollout` field is removed. The operator automatically computes a hash of the spec and triggers a rollout whenever it changes. Updating `environmentdImageRef` is all you need to do.
+
+```hcl
+module "materialize_instance" {
+  source = "../kubernetes/modules/materialize-instance"
+
+  crd_version     = "v1alpha2"
+  request_rollout = null  # not used in v1alpha2
+  # ...
+}
+```
+
+**Using kubectl (outside Terraform):**
+
+```bash
+# Update version (rollout triggers automatically)
+kubectl patch materialize <name> -n <namespace> --type='merge' \
+  -p '{"apiVersion":"materialize.cloud/v1alpha2","spec":{"environmentdImageRef":"materialize/environmentd:v26.19.0"}}'
+
+# Force rollout without spec changes
+kubectl patch materialize <name> -n <namespace> --type='merge' \
+  -p "{\"apiVersion\":\"materialize.cloud/v1alpha2\",\"spec\":{\"forceRollout\":\"$(uuidgen)\"}}"
+```
+
+### Switching from v1alpha1 to v1alpha2
+
+Switching to v1alpha2 is **opt-in**. Upgrading the operator to v26.19+ does not change existing v1alpha1 behavior.
+
+To opt in:
+
+1. Upgrade the Materialize Operator Helm chart to v26.19+ (the operator must support the v1alpha2 CRD and conversion webhooks).
+2. Set `crd_version = "v1alpha2"` and `request_rollout = null` in your Terraform configuration.
+3. Run `terraform apply`.
+
+The operator's conversion webhook handles the transition. The `requestRollout` field is no longer needed because the operator derives rollout triggers from a hash of the spec.
+
+> **Note:** Switching CRD versions requires the `alekc/kubectl` Terraform provider version that includes the [api_version update fix](https://github.com/alekc/terraform-provider-kubectl/pull/244). Without this fix, changing the `apiVersion` will force a resource recreation instead of an in-place update.
+
+### Rollout Strategies
+
+All rollout strategies are available for both CRD versions:
+
+| Strategy | Description |
+|----------|-------------|
+| `WaitUntilReady` (default) | Creates new generation pods and cuts over when ready. Temporarily doubles resources. |
+| `ManuallyPromote` | Creates new generation pods but waits for manual promotion. Set `forcePromote` to promote. |
+| `ImmediatelyPromoteCausingDowntime` | Tears down old pods immediately. Causes downtime but requires no extra resources. |
+
+### Cancelling an Upgrade
+
+**v1alpha1:** Retrieve the last completed rollout request and set `requestRollout` back to that value:
+
+```bash
+LAST=$(kubectl get materialize <name> -n <namespace> -o jsonpath='{.status.lastCompletedRolloutRequest}')
+kubectl patch materialize <name> -n <namespace> --type='merge' \
+  -p "{\"spec\":{\"requestRollout\":\"$LAST\"}}"
+```
+
+**v1alpha2:** Reapply the previous Materialize configuration:
+
+```bash
+kubectl apply -f previous_materialize_configuration.yaml
 ```
 
 ---

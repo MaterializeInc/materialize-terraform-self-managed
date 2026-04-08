@@ -1,3 +1,15 @@
+variable "crd_version" {
+  description = "CRD API version to use for the Materialize instance (v1alpha1 or v1alpha2). We recommend v1alpha2, but default to v1alpha1 for backwards compatibility. We will change this default in an upcoming major release."
+  type        = string
+  default     = "v1alpha1"
+  nullable    = false
+
+  validation {
+    condition     = contains(["v1alpha1", "v1alpha2"], var.crd_version)
+    error_message = "CRD version must be either 'v1alpha1' or 'v1alpha2'"
+  }
+}
+
 variable "instance_name" {
   description = "Name of the Materialize instance"
   type        = string
@@ -89,19 +101,18 @@ variable "rollout_strategy" {
   default     = "WaitUntilReady"
   nullable    = false
   validation {
-    condition     = contains(["WaitUntilReady", "ImmediatelyPromoteCausingDowntime"], var.rollout_strategy)
-    error_message = "Rollout strategy must be either 'WaitUntilReady' or 'ImmediatelyPromoteCausingDowntime'"
+    condition     = contains(["WaitUntilReady", "ImmediatelyPromoteCausingDowntime", "ManuallyPromote"], var.rollout_strategy)
+    error_message = "Rollout strategy must be 'WaitUntilReady', 'ImmediatelyPromoteCausingDowntime', or 'ManuallyPromote'"
   }
 }
 
 variable "request_rollout" {
-  description = "UUID to request a rollout"
+  description = "UUID to request a rollout (v1alpha1 only, ignored for v1alpha2)"
   type        = string
   default     = "00000000-0000-0000-0000-000000000001"
-  nullable    = false
 
   validation {
-    condition     = can(regex("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$", var.request_rollout))
+    condition     = (var.request_rollout == null && var.crd_version != "v1alpha1") || can(regex("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$", var.request_rollout))
     error_message = "Request rollout must be a valid UUID in the format xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
   }
 }
