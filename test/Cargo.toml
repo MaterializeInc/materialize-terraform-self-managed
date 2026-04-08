@@ -6,6 +6,8 @@ publish = false
 
 [dependencies]
 anyhow = "1"
+aws-config = { version = "1.8.15", features = ["behavior-version-latest"] }
+aws-sdk-s3 = { version = "1.129.0", default-features = false, features = ["sigv4a", "http-1x", "default-https-client", "rt-tokio"] }
 chrono = "0.4"
 clap = { version = "4.5.36", features = ["derive", "env"] }
 hcl-edit = "0.9"
