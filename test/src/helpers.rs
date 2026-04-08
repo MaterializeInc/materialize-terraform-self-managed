@@ -13,13 +13,19 @@ use crate::types::TfVars;
 // Paths
 // ---------------------------------------------------------------------------
 
-/// Returns the project root directory (parent of `test/`).
+/// Returns the project root directory (the git repo root).
 pub fn project_root() -> Result<PathBuf> {
-    let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
-    manifest_dir
-        .parent()
-        .map(|p| p.to_path_buf())
-        .context("Could not determine project root from CARGO_MANIFEST_DIR")
+    let output = std::process::Command::new("git")
+        .args(["rev-parse", "--show-toplevel"])
+        .output()
+        .context("Failed to run `git rev-parse --show-toplevel`")?;
+    if !output.status.success() {
+        bail!("Not inside a git repository");
+    }
+    let root = std::str::from_utf8(&output.stdout)
+        .context("git output was not valid UTF-8")?
+        .trim();
+    Ok(PathBuf::from(root))
 }
 
 pub fn example_dir(provider: crate::types::CloudProvider) -> Result<PathBuf> {
@@ -192,4 +198,131 @@ pub fn kubectl(kubeconfig: &Path) -> Command {
     let mut cmd = Command::new("kubectl");
     cmd.arg("--kubeconfig").arg(kubeconfig);
     cmd
+}
+
+// ---------------------------------------------------------------------------
+// S3 backend helpers
+// ---------------------------------------------------------------------------
+
+/// Parsed S3 backend configuration from a `backend.tf` file.
+pub struct S3Backend {
+    pub bucket: String,
+    pub region: String,
+    pub profile: Option<String>,
+    /// The key prefix (test run ID), extracted from the state key.
+    pub key_prefix: String,
+}
+
+/// Reads `backend.tf` from the given directory and extracts the S3
+/// configuration. Returns `None` if the file does not exist (local state).
+pub fn read_s3_backend(dir: &Path) -> Result<Option<S3Backend>> {
+    let path = dir.join("backend.tf");
+    let content = match std::fs::read_to_string(&path) {
+        Ok(c) => c,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(e) => return Err(e).context("Failed to read backend.tf"),
+    };
+
+    let body: hcl_edit::structure::Body = content.parse().context("Failed to parse backend.tf")?;
+
+    let terraform = body
+        .get_blocks("terraform")
+        .next()
+        .context("backend.tf missing terraform block")?;
+
+    let backend = terraform
+        .body
+        .get_blocks("backend")
+        .find(|b| b.has_labels(&["s3"]))
+        .context("backend.tf missing backend \"s3\" block")?;
+
+    fn get_str<'a>(body: &'a hcl_edit::structure::Body, key: &str) -> Option<&'a str> {
+        body.get_attribute(key)?.value.as_str()
+    }
+
+    let bucket = get_str(&backend.body, "bucket")
+        .context("backend.tf missing bucket")?
+        .to_string();
+    let region = get_str(&backend.body, "region")
+        .context("backend.tf missing region")?
+        .to_string();
+    let profile = get_str(&backend.body, "profile").map(|s| s.to_string());
+    let key = get_str(&backend.body, "key").context("backend.tf missing key")?;
+    let key_prefix = key
+        .split('/')
+        .next()
+        .context("backend.tf key has no prefix")?
+        .to_string();
+
+    Ok(Some(S3Backend {
+        bucket,
+        region,
+        profile,
+        key_prefix,
+    }))
+}
+
+/// Uploads `terraform.tfvars.json` to the S3 backend alongside the state
+/// file, so that other commands or CI jobs can discover the tfvars for a
+/// given test run.
+pub async fn upload_tfvars_to_backend(dir: &Path) -> Result<()> {
+    let backend = match read_s3_backend(dir)? {
+        Some(b) => b,
+        None => return Ok(()),
+    };
+
+    let src = dir.join("terraform.tfvars.json");
+    let s3_uri = format!(
+        "s3://{}/{}/terraform.tfvars.json",
+        backend.bucket, backend.key_prefix
+    );
+
+    println!("Uploading terraform.tfvars.json to {s3_uri}");
+    let mut cmd = Command::new("aws");
+    cmd.args([
+        "s3",
+        "cp",
+        &src.display().to_string(),
+        &s3_uri,
+        "--region",
+        &backend.region,
+    ]);
+    if let Some(profile) = &backend.profile {
+        cmd.args(["--profile", profile]);
+    }
+    run_cmd(&mut cmd)
+        .await
+        .context("Failed to upload terraform.tfvars.json to S3")?;
+
+    Ok(())
+}
+
+/// Deletes the remote state file and tfvars file from S3 for the given
+/// test run directory. No-ops if no S3 backend is configured.
+pub async fn delete_backend_state(dir: &Path) -> Result<()> {
+    let backend = match read_s3_backend(dir)? {
+        Some(b) => b,
+        None => return Ok(()),
+    };
+
+    let prefix = format!("s3://{}/{}/", backend.bucket, backend.key_prefix);
+
+    println!("Deleting remote state from {prefix}");
+    let mut cmd = Command::new("aws");
+    cmd.args([
+        "s3",
+        "rm",
+        &prefix,
+        "--recursive",
+        "--region",
+        &backend.region,
+    ]);
+    if let Some(profile) = &backend.profile {
+        cmd.args(["--profile", profile]);
+    }
+    run_cmd(&mut cmd)
+        .await
+        .context("Failed to delete remote state from S3")?;
+
+    Ok(())
 }

@@ -5,7 +5,9 @@ use anyhow::Result;
 use crate::commands::init::{
     DevOverrides, copy_example_files, inject_dev_overrides, write_dev_variables_tf,
 };
-use crate::helpers::{ci_log_group, example_dir, project_root, read_tfvars};
+use crate::helpers::{
+    ci_log_group, example_dir, project_root, read_tfvars, upload_tfvars_to_backend,
+};
 
 /// Re-copies example .tf files into an existing test run directory,
 /// overwriting the current versions. Useful for picking up local
@@ -45,6 +47,8 @@ pub async fn phase_sync(dir: &Path) -> Result<()> {
             write_dev_variables_tf(dir).await?;
             inject_dev_overrides(dir, &overrides).await?;
         }
+
+        upload_tfvars_to_backend(dir).await?;
 
         println!("\nSync completed successfully.");
         Ok(())

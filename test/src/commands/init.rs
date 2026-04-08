@@ -7,7 +7,7 @@ use tokio::process::Command;
 use crate::cli::InitProvider;
 use crate::helpers::{
     ci_log_group, example_dir, generate_test_run_id, project_root, run_cmd, runs_dir,
-    write_lifecycle,
+    upload_tfvars_to_backend, write_lifecycle,
 };
 use crate::types::{CloudProvider, CommonTfVars, TfVars};
 
@@ -71,6 +71,8 @@ pub async fn phase_init(provider_args: &InitProvider) -> Result<PathBuf> {
             println!("{backend_tf}");
         }
 
+        upload_tfvars_to_backend(&dest).await?;
+
         println!("\nRunning terraform init...");
         run_cmd(Command::new("terraform").arg("init").current_dir(&dest))
             .await
@@ -110,7 +112,7 @@ pub(crate) async fn copy_example_files(
         let file_type = entry.file_type().await?;
         if file_type.is_file() {
             let content = tokio::fs::read_to_string(entry.path()).await?;
-            let rewritten = rewrite_module_sources(&content, provider);
+            let rewritten = rewrite_module_sources(&content, provider)?;
             let dest_file = dest.join(&name);
             tokio::fs::write(&dest_file, rewritten).await?;
             println!("  Copied {}", name_str);
@@ -121,15 +123,31 @@ pub(crate) async fn copy_example_files(
 
 /// Rewrites module source paths from the example directory layout to the
 /// test/runs/{id}/ layout.
-fn rewrite_module_sources(content: &str, provider: CloudProvider) -> String {
+fn rewrite_module_sources(content: &str, provider: CloudProvider) -> Result<String> {
+    use hcl_edit::expr::Expression;
+
     let provider_dir = provider.dir_name();
-    // Provider-specific modules: ../../modules/ → ../../../{provider}/modules/
-    // (the original goes up 2 levels to {provider}/, we need up 3 to root then into {provider}/)
-    content.replace(
-        "\"../../modules/",
-        &format!("\"../../../{provider_dir}/modules/"),
-    )
-    // Kubernetes modules: ../../../kubernetes/ stays the same (already 3 levels up to root)
+    let old_prefix = "../../modules/";
+    let new_prefix = format!("../../../{provider_dir}/modules/");
+
+    let mut body: hcl_edit::structure::Body =
+        content.parse().context("Failed to parse terraform file")?;
+
+    for block in body.get_blocks_mut("module") {
+        if let Some(mut attr) = block.body.get_attribute_mut("source") {
+            let new_val = attr
+                .get()
+                .value
+                .as_str()
+                .filter(|s| s.starts_with(old_prefix))
+                .map(|s| s.replacen(old_prefix, &new_prefix, 1));
+            if let Some(new_val) = new_val {
+                *attr.value_mut() = Expression::from(new_val);
+            }
+        }
+    }
+
+    Ok(body.to_string())
 }
 
 /// Converts a string to a valid GCP label value: lowercase, replacing
@@ -274,88 +292,83 @@ impl DevOverrides {
 /// is already present in the file.
 pub(crate) async fn inject_dev_overrides(dest: &Path, overrides: &DevOverrides) -> Result<()> {
     let main_tf_path = dest.join("main.tf");
-    let mut content = tokio::fs::read_to_string(&main_tf_path)
+    let content = tokio::fs::read_to_string(&main_tf_path)
         .await
         .context("Failed to read main.tf")?;
+
+    let mut body: hcl_edit::structure::Body = content.parse().context("Failed to parse main.tf")?;
 
     let mut changed = false;
 
     // Operator module: helm_chart, use_local_chart, orchestratord_version
     let operator_vars: Vec<&str> = [
-        (overrides.local_chart, "helm_chart      = var.helm_chart"),
-        (
-            overrides.local_chart,
-            "use_local_chart = var.use_local_chart",
-        ),
-        (
-            overrides.orchestratord_version,
-            "orchestratord_version = var.orchestratord_version",
-        ),
+        (overrides.local_chart, "helm_chart"),
+        (overrides.local_chart, "use_local_chart"),
+        (overrides.orchestratord_version, "orchestratord_version"),
     ]
     .iter()
-    .filter(|(needed, var)| *needed && !content.contains(*var))
-    .map(|(_, var)| *var)
+    .filter(|(needed, _)| *needed)
+    .map(|(_, key)| *key)
     .collect();
 
     if !operator_vars.is_empty() {
-        content = inject_into_module(&content, "operator", &operator_vars)?;
-        changed = true;
-        for var in &operator_vars {
-            let name = var.split('=').next().unwrap().trim();
-            println!("  Injected {name} into operator module in main.tf");
+        let module = find_module_mut(&mut body, "operator")?;
+        for &key in &operator_vars {
+            if !module.body.has_attribute(key) {
+                module.body.push(module_var_attr(key));
+                changed = true;
+                println!("  Injected {key} into operator module in main.tf");
+            }
         }
     }
 
     // Materialize instance module: environmentd_version
-    if overrides.environmentd_version
-        && !content.contains("environmentd_version = var.environmentd_version")
-    {
-        content = inject_into_module(
-            &content,
-            "materialize_instance",
-            &["environmentd_version = var.environmentd_version"],
-        )?;
-        changed = true;
-        println!("  Injected environmentd_version into materialize_instance module in main.tf");
+    if overrides.environmentd_version {
+        let module = find_module_mut(&mut body, "materialize_instance")?;
+        if !module.body.has_attribute("environmentd_version") {
+            module.body.push(module_var_attr("environmentd_version"));
+            changed = true;
+            println!("  Injected environmentd_version into materialize_instance module in main.tf");
+        }
     }
 
     if changed {
-        tokio::fs::write(&main_tf_path, &content).await?;
+        tokio::fs::write(&main_tf_path, body.to_string()).await?;
     }
 
     Ok(())
 }
 
-/// Finds `module "<name>"` in the content and injects the given lines after
-/// the `source = ` line inside that block.
-fn inject_into_module(content: &str, module_name: &str, vars: &[&str]) -> Result<String> {
-    let target = format!("module \"{module_name}\"");
-    let mut lines: Vec<&str> = content.lines().collect();
-    let mut in_module = false;
-    let mut insert_after = None;
+/// Finds a `module "<name>"` block in the body, returning a mutable reference.
+fn find_module_mut<'a>(
+    body: &'a mut hcl_edit::structure::Body,
+    name: &str,
+) -> Result<&'a mut hcl_edit::structure::Block> {
+    body.get_blocks_mut("module")
+        .find(|b| b.has_labels(&[name]))
+        .with_context(|| format!("could not find module \"{name}\" in tf file"))
+}
 
-    for (i, line) in lines.iter().enumerate() {
-        if line.contains(&target) {
-            in_module = true;
-        }
-        if in_module && line.trim_start().starts_with("source") {
-            insert_after = Some(i);
-            break;
-        }
-    }
+/// Builds an `Attribute` like `key = var.key` with 2-space indentation to
+/// match the surrounding module block.
+fn module_var_attr(name: &str) -> hcl_edit::structure::Attribute {
+    use hcl_edit::Decorate;
 
-    let idx = insert_after.ok_or_else(|| {
-        anyhow::anyhow!("could not find `source` line in module \"{module_name}\" in main.tf")
-    })?;
+    let mut attr = hcl_edit::structure::Attribute::new(hcl_edit::Ident::new(name), var_ref(name));
+    attr.decor_mut().set_prefix("  ");
+    attr
+}
 
-    let mut offset = 1;
-    lines.insert(idx + offset, "");
-    for var in vars {
-        offset += 1;
-        let line = format!("  {var}");
-        // Leak is fine here – this runs once during init.
-        lines.insert(idx + offset, Box::leak(line.into_boxed_str()));
-    }
+/// Builds a `var.<name>` traversal expression.
+fn var_ref(name: &str) -> hcl_edit::expr::Expression {
+    use hcl_edit::Decorated;
+    use hcl_edit::expr::{Traversal, TraversalOperator};
 
-    Ok(lines.join("\n") + "\n")
+    Traversal::new(
+        hcl_edit::Ident::new("var"),
+        vec![Decorated::new(TraversalOperator::GetAttr(Decorated::new(
+            hcl_edit::Ident::new(name),
+        )))],
+    )
+    .into()
 }
