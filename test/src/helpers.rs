@@ -2,6 +2,8 @@ use std::path::{Path, PathBuf};
 use std::process::Stdio;
 
 use anyhow::{Context, Result, bail};
+use aws_sdk_s3::Client as S3Client;
+use aws_sdk_s3::primitives::ByteStream;
 use chrono::Utc;
 use rand::distr;
 use rand::distr::SampleString as _;
@@ -201,6 +203,20 @@ pub fn kubectl(kubeconfig: &Path) -> Command {
 }
 
 // ---------------------------------------------------------------------------
+// AWS SDK config
+// ---------------------------------------------------------------------------
+
+/// Builds an AWS SDK config with the given region and optional profile.
+pub async fn aws_sdk_config(region: &str, profile: Option<&str>) -> aws_config::SdkConfig {
+    let mut loader = aws_config::defaults(aws_config::BehaviorVersion::latest())
+        .region(aws_config::Region::new(region.to_owned()));
+    if let Some(p) = profile {
+        loader = loader.profile_name(p);
+    }
+    loader.load().await
+}
+
+// ---------------------------------------------------------------------------
 // S3 backend helpers
 // ---------------------------------------------------------------------------
 
@@ -272,25 +288,23 @@ pub async fn upload_tfvars_to_backend(dir: &Path) -> Result<()> {
     };
 
     let src = dir.join("terraform.tfvars.json");
-    let s3_uri = format!(
-        "s3://{}/{}/terraform.tfvars.json",
-        backend.bucket, backend.key_prefix
-    );
+    let key = format!("{}/terraform.tfvars.json", backend.key_prefix);
 
-    println!("Uploading terraform.tfvars.json to {s3_uri}");
-    let mut cmd = Command::new("aws");
-    cmd.args([
-        "s3",
-        "cp",
-        &src.display().to_string(),
-        &s3_uri,
-        "--region",
-        &backend.region,
-    ]);
-    if let Some(profile) = &backend.profile {
-        cmd.args(["--profile", profile]);
-    }
-    run_cmd(&mut cmd)
+    println!(
+        "Uploading terraform.tfvars.json to s3://{}/{key}",
+        backend.bucket
+    );
+    let config = aws_sdk_config(&backend.region, backend.profile.as_deref()).await;
+    let client = S3Client::new(&config);
+    let body = ByteStream::from_path(&src)
+        .await
+        .context("Failed to read terraform.tfvars.json")?;
+    client
+        .put_object()
+        .bucket(&backend.bucket)
+        .key(&key)
+        .body(body)
+        .send()
         .await
         .context("Failed to upload terraform.tfvars.json to S3")?;
 
@@ -305,24 +319,27 @@ pub async fn delete_backend_state(dir: &Path) -> Result<()> {
         None => return Ok(()),
     };
 
-    let prefix = format!("s3://{}/{}/", backend.bucket, backend.key_prefix);
+    println!(
+        "Deleting remote state from s3://{}/{}/",
+        backend.bucket, backend.key_prefix
+    );
+    let config = aws_sdk_config(&backend.region, backend.profile.as_deref()).await;
+    let client = S3Client::new(&config);
 
-    println!("Deleting remote state from {prefix}");
-    let mut cmd = Command::new("aws");
-    cmd.args([
-        "s3",
-        "rm",
-        &prefix,
-        "--recursive",
-        "--region",
-        &backend.region,
-    ]);
-    if let Some(profile) = &backend.profile {
-        cmd.args(["--profile", profile]);
+    let keys = [
+        format!("{}/terraform.tfstate", backend.key_prefix),
+        format!("{}/terraform.tfvars.json", backend.key_prefix),
+    ];
+    for key in &keys {
+        // S3 DeleteObject is a no-op if the key doesn't exist.
+        client
+            .delete_object()
+            .bucket(&backend.bucket)
+            .key(key)
+            .send()
+            .await
+            .with_context(|| format!("Failed to delete s3://{}/{key}", backend.bucket))?;
     }
-    run_cmd(&mut cmd)
-        .await
-        .context("Failed to delete remote state from S3")?;
 
     Ok(())
 }
