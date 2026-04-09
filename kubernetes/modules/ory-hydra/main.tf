@@ -24,6 +24,18 @@ locals {
   secrets_system = var.secrets_system != null ? var.secrets_system : random_password.secrets_system[0].result
   secrets_cookie = var.secrets_cookie != null ? var.secrets_cookie : random_password.secrets_cookie[0].result
 
+  image_config = var.image_registry != null || var.image_repository != null || var.image_tag != null ? {
+    image = merge(
+      var.image_registry != null ? { registry = var.image_registry } : {},
+      var.image_repository != null ? { repository = var.image_repository } : {},
+      var.image_tag != null ? { tag = var.image_tag } : {},
+    )
+  } : {}
+
+  image_pull_secrets_config = length(var.image_pull_secrets) > 0 ? {
+    imagePullSecrets = [for name in var.image_pull_secrets : { name = name }]
+  } : {}
+
   urls_config = merge(
     {
       self = {
@@ -35,7 +47,7 @@ locals {
     var.logout_url != null ? { logout = var.logout_url } : {},
   )
 
-  default_helm_values = {
+  default_helm_values = merge({
     replicaCount = var.replica_count
 
     secret = {
@@ -115,7 +127,7 @@ locals {
         port    = 4445
       }
     }
-  }
+  }, local.image_config, local.image_pull_secrets_config)
 }
 
 resource "helm_release" "hydra" {
