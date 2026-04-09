@@ -35,9 +35,8 @@ locals {
     identitySchemas = var.identity_schemas
   } : {}
 
-  image_config = var.image_registry != null || var.image_repository != null || var.image_tag != null ? {
+  image_config = var.image_repository != null || var.image_tag != null ? {
     image = merge(
-      var.image_registry != null ? { registry = var.image_registry } : {},
       var.image_repository != null ? { repository = var.image_repository } : {},
       var.image_tag != null ? { tag = var.image_tag } : {},
     )

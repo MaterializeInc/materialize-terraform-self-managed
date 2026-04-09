@@ -172,14 +172,8 @@ variable "smtp_from_name" {
   default     = null
 }
 
-variable "image_registry" {
-  description = "Override the Docker image registry for Kratos. Used for OEL (Ory Enterprise License) deployments. Example: europe-docker.pkg.dev"
-  type        = string
-  default     = null
-}
-
 variable "image_repository" {
-  description = "Override the Docker image repository for Kratos. Used for OEL deployments. Example: ory-artifacts/ory-enterprise-kratos/kratos-oel"
+  description = "Override the Docker image repository for Kratos. Must include the full registry path as the Ory Helm chart ignores image.registry. Example: europe-docker.pkg.dev/ory-artifacts/ory-enterprise-kratos/kratos-oel"
   type        = string
   default     = null
 }

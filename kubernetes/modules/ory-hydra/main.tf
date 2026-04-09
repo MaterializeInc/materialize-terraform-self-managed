@@ -24,9 +24,8 @@ locals {
   secrets_system = var.secrets_system != null ? var.secrets_system : random_password.secrets_system[0].result
   secrets_cookie = var.secrets_cookie != null ? var.secrets_cookie : random_password.secrets_cookie[0].result
 
-  image_config = var.image_registry != null || var.image_repository != null || var.image_tag != null ? {
+  image_config = var.image_repository != null || var.image_tag != null ? {
     image = merge(
-      var.image_registry != null ? { registry = var.image_registry } : {},
       var.image_repository != null ? { repository = var.image_repository } : {},
       var.image_tag != null ? { tag = var.image_tag } : {},
     )

@@ -164,14 +164,8 @@ variable "maester_enabled" {
   nullable    = false
 }
 
-variable "image_registry" {
-  description = "Override the Docker image registry for Hydra. Used for OEL (Ory Enterprise License) deployments. Example: europe-docker.pkg.dev"
-  type        = string
-  default     = null
-}
-
 variable "image_repository" {
-  description = "Override the Docker image repository for Hydra. Used for OEL deployments. Example: ory-artifacts/ory-enterprise/hydra-oel"
+  description = "Override the Docker image repository for Hydra. Must include the full registry path as the Ory Helm chart ignores image.registry. Example: europe-docker.pkg.dev/ory-artifacts/ory-enterprise/hydra-oel"
   type        = string
   default     = null
 }
