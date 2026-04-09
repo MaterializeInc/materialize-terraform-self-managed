@@ -40,6 +40,7 @@
 
 | Name | Description | Type | Default | Required |
 |------|-------------|------|---------|:--------:|
+| <a name="input_create_security_group"></a> [create\_security\_group](#input\_create\_security\_group) | Whether to create a dedicated security group for the NLB with ingress rules for Materialize ports. Set to false if security groups are managed externally or not needed. | `bool` | `true` | no |
 | <a name="input_enable_cross_zone_load_balancing"></a> [enable\_cross\_zone\_load\_balancing](#input\_enable\_cross\_zone\_load\_balancing) | Whether to enable cross zone load balancing on the NLB. | `bool` | `true` | no |
 | <a name="input_ingress_cidr_blocks"></a> [ingress\_cidr\_blocks](#input\_ingress\_cidr\_blocks) | List of CIDR blocks to allow ingress to the NLB Security Group. | `list(string)` | <pre>[<br/>  "0.0.0.0/0"<br/>]</pre> | no |
 | <a name="input_instance_name"></a> [instance\_name](#input\_instance\_name) | The name of the Materialize instance. | `string` | n/a | yes |
@@ -47,6 +48,7 @@
 | <a name="input_mz_resource_id"></a> [mz\_resource\_id](#input\_mz\_resource\_id) | The resourceId from the Materialize CR | `string` | n/a | yes |
 | <a name="input_name_prefix"></a> [name\_prefix](#input\_name\_prefix) | Prefix to use for NLB, Target Groups, Listeners, and TargetGroupBindings | `string` | n/a | yes |
 | <a name="input_namespace"></a> [namespace](#input\_namespace) | Kubernetes namespace in which to install TargetGroupBindings | `string` | n/a | yes |
+| <a name="input_nlb_name"></a> [nlb\_name](#input\_nlb\_name) | Explicit name for the NLB. If set, uses this instead of name\_prefix. Use when a specific, predictable NLB name is required. | `string` | `null` | no |
 | <a name="input_node_security_group_id"></a> [node\_security\_group\_id](#input\_node\_security\_group\_id) | ID of the EKS Node Security Group to allow traffic to. Used to add ingress rules from the NLB SG. | `string` | n/a | yes |
 | <a name="input_subnet_ids"></a> [subnet\_ids](#input\_subnet\_ids) | A list of subnet IDs in which to install the NLB. Must be in the VPC. | `list(string)` | n/a | yes |
 | <a name="input_tags"></a> [tags](#input\_tags) | Tags to apply to all resources | `map(string)` | `{}` | no |

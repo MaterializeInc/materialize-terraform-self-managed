@@ -37,6 +37,7 @@
 
 | Name | Description | Type | Default | Required |
 |------|-------------|------|---------|:--------:|
+| <a name="input_cluster_identifier"></a> [cluster\_identifier](#input\_cluster\_identifier) | Stable identifier for the cluster (e.g., cluster endpoint or name). Used to trigger re-provisioning when the cluster changes, without embedding ephemeral credentials in triggers. | `string` | `null` | no |
 | <a name="input_coredns_autoscaler_deployment_to_scale_down"></a> [coredns\_autoscaler\_deployment\_to\_scale\_down](#input\_coredns\_autoscaler\_deployment\_to\_scale\_down) | Name of the CoreDNS autoscaler deployment to scale down | `string` | `"coredns-autoscaler"` | no |
 | <a name="input_coredns_deployment_to_scale_down"></a> [coredns\_deployment\_to\_scale\_down](#input\_coredns\_deployment\_to\_scale\_down) | Name of the CoreDNS deployment to scale down | `string` | `"coredns"` | no |
 | <a name="input_coredns_version"></a> [coredns\_version](#input\_coredns\_version) | CoreDNS image version | `string` | `"1.11.1"` | no |

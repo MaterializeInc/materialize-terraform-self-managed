@@ -35,6 +35,7 @@ No modules.
 | <a name="input_container_access_type"></a> [container\_access\_type](#input\_container\_access\_type) | The Access Level configured for this Container. Valid values are: private, blob, container. | `string` | `"private"` | no |
 | <a name="input_container_name"></a> [container\_name](#input\_container\_name) | The name of the Container which should be created within the Storage Account | `string` | n/a | yes |
 | <a name="input_location"></a> [location](#input\_location) | The location where resources will be created | `string` | n/a | yes |
+| <a name="input_network_rules_default_action"></a> [network\_rules\_default\_action](#input\_network\_rules\_default\_action) | The default action for storage account network rules when subnets are configured. Use 'Allow' to permit access from all networks (with subnet rules as additions), or 'Deny' to restrict access to only the configured subnets. | `string` | `"Deny"` | no |
 | <a name="input_oidc_issuer_url"></a> [oidc\_issuer\_url](#input\_oidc\_issuer\_url) | The OIDC issuer URL of the AKS cluster | `string` | n/a | yes |
 | <a name="input_prefix"></a> [prefix](#input\_prefix) | Prefix to be used for resource names | `string` | n/a | yes |
 | <a name="input_resource_group_name"></a> [resource\_group\_name](#input\_resource\_group\_name) | The name of the resource group | `string` | n/a | yes |

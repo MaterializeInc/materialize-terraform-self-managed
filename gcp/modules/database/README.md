@@ -45,6 +45,7 @@ No resources.
 | <a name="input_point_in_time_recovery_enabled"></a> [point\_in\_time\_recovery\_enabled](#input\_point\_in\_time\_recovery\_enabled) | Enable point in time recovery | `bool` | `true` | no |
 | <a name="input_prefix"></a> [prefix](#input\_prefix) | Prefix to be used for resource names | `string` | n/a | yes |
 | <a name="input_project_id"></a> [project\_id](#input\_project\_id) | The ID of the project where resources will be created | `string` | n/a | yes |
+| <a name="input_random_instance_name"></a> [random\_instance\_name](#input\_random\_instance\_name) | Append a random suffix to the instance name to avoid name collisions after deletion (GCP reserves deleted instance names for ~1 week) | `bool` | `false` | no |
 | <a name="input_region"></a> [region](#input\_region) | The region where resources will be created | `string` | n/a | yes |
 | <a name="input_tier"></a> [tier](#input\_tier) | The machine tier for the database instance | `string` | n/a | yes |
 | <a name="input_update_timeout"></a> [update\_timeout](#input\_update\_timeout) | Timeout for update operations | `string` | `"45m"` | no |

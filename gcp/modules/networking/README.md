@@ -34,6 +34,7 @@
 | <a name="input_log_config_enable"></a> [log\_config\_enable](#input\_log\_config\_enable) | Enable logging for the network | `bool` | `true` | no |
 | <a name="input_log_config_filter"></a> [log\_config\_filter](#input\_log\_config\_filter) | Filter for logging | `string` | `"ERRORS_ONLY"` | no |
 | <a name="input_mtu"></a> [mtu](#input\_mtu) | MTU for the network | `number` | `1460` | no |
+| <a name="input_nat_ips"></a> [nat\_ips](#input\_nat\_ips) | List of self\_links of external IPs for Cloud NAT. When non-empty, NAT uses MANUAL\_ONLY allocation with these static IPs instead of auto-allocated ephemeral IPs. | `list(string)` | `[]` | no |
 | <a name="input_prefix"></a> [prefix](#input\_prefix) | Prefix to be used for resource names | `string` | n/a | yes |
 | <a name="input_project_id"></a> [project\_id](#input\_project\_id) | The ID of the project where resources will be created | `string` | n/a | yes |
 | <a name="input_region"></a> [region](#input\_region) | The region where resources will be created | `string` | n/a | yes |
@@ -46,6 +47,7 @@
 
 | Name | Description |
 |------|-------------|
+| <a name="output_nat_ips"></a> [nat\_ips](#output\_nat\_ips) | The self\_links of external IPs assigned to Cloud NAT (empty when using auto-allocated IPs) |
 | <a name="output_nat_name"></a> [nat\_name](#output\_nat\_name) | The name of the Cloud NAT |
 | <a name="output_nat_region"></a> [nat\_region](#output\_nat\_region) | The region of the Cloud NAT |
 | <a name="output_network_id"></a> [network\_id](#output\_network\_id) | The ID of the VPC network |

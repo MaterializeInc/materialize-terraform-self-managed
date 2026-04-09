@@ -3,14 +3,14 @@
 | Name | Version |
 |------|---------|
 | <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | >= 1.0 |
-| <a name="requirement_kubectl"></a> [kubectl](#requirement\_kubectl) | ~> 2.0 |
+| <a name="requirement_kubectl"></a> [kubectl](#requirement\_kubectl) | >= 2.2.0 |
 | <a name="requirement_kubernetes"></a> [kubernetes](#requirement\_kubernetes) | >= 2.10.0 |
 
 ## Providers
 
 | Name | Version |
 |------|---------|
-| <a name="provider_kubectl"></a> [kubectl](#provider\_kubectl) | ~> 2.0 |
+| <a name="provider_kubectl"></a> [kubectl](#provider\_kubectl) | >= 2.2.0 |
 | <a name="provider_kubernetes"></a> [kubernetes](#provider\_kubernetes) | >= 2.10.0 |
 
 ## Modules
@@ -39,6 +39,7 @@ No modules.
 | <a name="input_balancer_memory_limit"></a> [balancer\_memory\_limit](#input\_balancer\_memory\_limit) | Memory limit for balancer | `string` | `"256Mi"` | no |
 | <a name="input_balancer_memory_request"></a> [balancer\_memory\_request](#input\_balancer\_memory\_request) | Memory request for balancer | `string` | `"256Mi"` | no |
 | <a name="input_cpu_request"></a> [cpu\_request](#input\_cpu\_request) | CPU request for environmentd | `string` | `"1"` | no |
+| <a name="input_crd_version"></a> [crd\_version](#input\_crd\_version) | CRD API version to use for the Materialize instance (v1alpha1 or v1alpha2). We recommend v1alpha2, but default to v1alpha1 for backwards compatibility. We will change this default in an upcoming major release. | `string` | `"v1alpha1"` | no |
 | <a name="input_create_namespace"></a> [create\_namespace](#input\_create\_namespace) | Whether to create the Kubernetes namespace. Set to false if the namespace already exists. | `bool` | `true` | no |
 | <a name="input_enable_network_policies"></a> [enable\_network\_policies](#input\_enable\_network\_policies) | Enable default-deny-ingress network policy for the instance namespace. Helm chart creates specific allow policies. | `bool` | `true` | no |
 | <a name="input_environmentd_extra_args"></a> [environmentd\_extra\_args](#input\_environmentd\_extra\_args) | Extra command line arguments for environmentd | `list(string)` | `[]` | no |
@@ -56,7 +57,7 @@ No modules.
 | <a name="input_monitoring_namespace"></a> [monitoring\_namespace](#input\_monitoring\_namespace) | Namespace where monitoring resources (Prometheus) are installed. Used for network policy to allow metrics scraping. | `string` | `"monitoring"` | no |
 | <a name="input_persist_backend_url"></a> [persist\_backend\_url](#input\_persist\_backend\_url) | S3 connection URL for persist backend | `string` | n/a | yes |
 | <a name="input_pod_labels"></a> [pod\_labels](#input\_pod\_labels) | Labels for the materialize instance pod | `map(string)` | `{}` | no |
-| <a name="input_request_rollout"></a> [request\_rollout](#input\_request\_rollout) | UUID to request a rollout | `string` | `"00000000-0000-0000-0000-000000000001"` | no |
+| <a name="input_request_rollout"></a> [request\_rollout](#input\_request\_rollout) | UUID to request a rollout (v1alpha1 only, ignored for v1alpha2) | `string` | `"00000000-0000-0000-0000-000000000001"` | no |
 | <a name="input_rollout_strategy"></a> [rollout\_strategy](#input\_rollout\_strategy) | Strategy to use for rollouts | `string` | `"WaitUntilReady"` | no |
 | <a name="input_service_account_annotations"></a> [service\_account\_annotations](#input\_service\_account\_annotations) | Annotations for the service account associated with the materialize instance. Useful for IAM roles assigned to the service account. | `map(string)` | `{}` | no |
 | <a name="input_system_parameters"></a> [system\_parameters](#input\_system\_parameters) | System parameters to configure for the Materialize instance. These are passed via a ConfigMap. Common parameters include max\_connections, allowed\_cluster\_replica\_sizes, max\_clusters, max\_sources, max\_sinks. Set to null to skip creating the ConfigMap. | `map(string)` | `{}` | no |
