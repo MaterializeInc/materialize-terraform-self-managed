@@ -2,8 +2,9 @@
 
 This repository provides a set of reusable, **self-contained Terraform modules** to deploy Materialize on the AWS cloud platform. You can use these modules individually or combine them to create your own custom infrastructure stack.
 
-> **Note**
-> These modules are intended for demonstration and prototyping purposes. If you're planning to use them in production, fork the repo and pin to a specific commit or tag to avoid breaking changes in future versions.
+-> **Note**
+-> We recommend pinning your module sources to specific tags to avoid unexpected breaking changes in future versions.
+-> We recommend updating your module source tags when updating Materialize versions, taking care to follow any instructions in the release notes.
 
 ---
 
