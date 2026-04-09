@@ -37,6 +37,7 @@ No modules.
 | <a name="input_enable_network_policy"></a> [enable\_network\_policy](#input\_enable\_network\_policy) | Enable Kubernetes NetworkPolicy support. Requires VPC CNI v1.14+ and Kubernetes 1.25+. | `bool` | `true` | no |
 | <a name="input_enable_policy_event_logs"></a> [enable\_policy\_event\_logs](#input\_enable\_policy\_event\_logs) | Enable logging of network policy events to node/pod logs | `bool` | `true` | no |
 | <a name="input_enable_prefix_delegation"></a> [enable\_prefix\_delegation](#input\_enable\_prefix\_delegation) | Enable prefix delegation for higher pod density per node | `bool` | `false` | no |
+| <a name="input_kubeconfig_data"></a> [kubeconfig\_data](#input\_kubeconfig\_data) | Contents of the kubeconfig used for kubectl commands during resource adoption. | `string` | n/a | yes |
 | <a name="input_minimum_ip_target"></a> [minimum\_ip\_target](#input\_minimum\_ip\_target) | Minimum number of IP addresses to keep available per node | `number` | `null` | no |
 | <a name="input_name_prefix"></a> [name\_prefix](#input\_name\_prefix) | Prefix for all resource names | `string` | n/a | yes |
 | <a name="input_oidc_issuer_url"></a> [oidc\_issuer\_url](#input\_oidc\_issuer\_url) | URL of the OIDC issuer for the EKS cluster | `string` | n/a | yes |
