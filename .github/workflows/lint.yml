@@ -73,6 +73,29 @@ jobs:
           cd ${{ matrix.example }}
           terraform validate
 
+  docs:
+    name: Check Generated Docs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup terraform-docs
+        uses: jaxxstorm/action-install-gh-release@v2.0.0
+        with:
+          repo: terraform-docs/terraform-docs
+          tag: v0.19.0
+
+      - name: Generate docs
+        run: .github/scripts/generate-docs.sh
+
+      - name: Check for diff
+        run: |
+          if ! git diff --exit-code; then
+            echo "::error::Module README docs are out of date. Run .github/scripts/generate-docs.sh and commit the changes."
+            exit 1
+          fi
+
   lint-rust:
     name: Rust Tests Lint
     runs-on: ubuntu-latest
