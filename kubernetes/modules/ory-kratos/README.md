@@ -42,6 +42,9 @@ No modules.
 | <a name="input_dsn"></a> [dsn](#input\_dsn) | PostgreSQL DSN for Kratos database connection. Example: postgres://user:password@host:5432/kratos?sslmode=require | `string` | n/a | yes |
 | <a name="input_helm_values"></a> [helm\_values](#input\_helm\_values) | Additional values to pass to the Helm chart. These will be deep-merged with the module's default values, with these values taking precedence. | `any` | `{}` | no |
 | <a name="input_identity_schemas"></a> [identity\_schemas](#input\_identity\_schemas) | Map of identity schema filenames to their JSON content. Example: { "identity.default.schema.json" = file("schemas/default.json") } | `map(string)` | `{}` | no |
+| <a name="input_image_pull_secrets"></a> [image\_pull\_secrets](#input\_image\_pull\_secrets) | List of Kubernetes secret names for pulling images from private registries. Required for OEL deployments. | `list(string)` | `[]` | no |
+| <a name="input_image_repository"></a> [image\_repository](#input\_image\_repository) | Override the Docker image repository for Kratos. Must include the full registry path as the Ory Helm chart ignores image.registry. Example: europe-docker.pkg.dev/ory-artifacts/ory-enterprise-kratos/kratos-oel | `string` | `null` | no |
+| <a name="input_image_tag"></a> [image\_tag](#input\_image\_tag) | Override the Docker image tag for Kratos. If not set, the chart default will be used. | `string` | `null` | no |
 | <a name="input_install_timeout"></a> [install\_timeout](#input\_install\_timeout) | Timeout for installing the Ory Kratos Helm chart, in seconds. | `number` | `600` | no |
 | <a name="input_namespace"></a> [namespace](#input\_namespace) | Kubernetes namespace for Ory Kratos. | `string` | `"ory-kratos"` | no |
 | <a name="input_node_selector"></a> [node\_selector](#input\_node\_selector) | Node selector for Kratos pods. | `map(string)` | `{}` | no |

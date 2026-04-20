@@ -35,6 +35,17 @@ locals {
     identitySchemas = var.identity_schemas
   } : {}
 
+  image_config = var.image_repository != null || var.image_tag != null ? {
+    image = merge(
+      var.image_repository != null ? { repository = var.image_repository } : {},
+      var.image_tag != null ? { tag = var.image_tag } : {},
+    )
+  } : {}
+
+  image_pull_secrets_config = length(var.image_pull_secrets) > 0 ? {
+    imagePullSecrets = [for name in var.image_pull_secrets : { name = name }]
+  } : {}
+
   smtp_config = var.smtp_connection_uri != null ? {
     courier = {
       smtp = merge(
@@ -45,7 +56,7 @@ locals {
     }
   } : {}
 
-  default_helm_values = {
+  default_helm_values = merge({
     replicaCount = var.replica_count
 
     secret = {
@@ -130,7 +141,7 @@ locals {
         port    = 4434
       }
     }
-  }
+  }, local.image_config, local.image_pull_secrets_config)
 }
 
 resource "helm_release" "kratos" {

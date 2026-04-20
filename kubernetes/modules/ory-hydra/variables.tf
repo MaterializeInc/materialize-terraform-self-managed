@@ -164,6 +164,25 @@ variable "maester_enabled" {
   nullable    = false
 }
 
+variable "image_repository" {
+  description = "Override the Docker image repository for Hydra. Must include the full registry path as the Ory Helm chart ignores image.registry. Example: europe-docker.pkg.dev/ory-artifacts/ory-enterprise/hydra-oel"
+  type        = string
+  default     = null
+}
+
+variable "image_tag" {
+  description = "Override the Docker image tag for Hydra. If not set, the chart default will be used."
+  type        = string
+  default     = null
+}
+
+variable "image_pull_secrets" {
+  description = "List of Kubernetes secret names for pulling images from private registries. Required for OEL deployments."
+  type        = list(string)
+  default     = []
+  nullable    = false
+}
+
 variable "helm_values" {
   description = "Additional values to pass to the Helm chart. These will be deep-merged with the module's default values, with these values taking precedence."
   type        = any
