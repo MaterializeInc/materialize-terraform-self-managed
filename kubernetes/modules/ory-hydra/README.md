@@ -40,6 +40,9 @@ No modules.
 | <a name="input_create_namespace"></a> [create\_namespace](#input\_create\_namespace) | Whether to create the Kubernetes namespace. Set to false if the namespace already exists. | `bool` | `true` | no |
 | <a name="input_dsn"></a> [dsn](#input\_dsn) | PostgreSQL DSN for Hydra database connection. Example: postgres://user:password@host:5432/hydra?sslmode=require | `string` | n/a | yes |
 | <a name="input_helm_values"></a> [helm\_values](#input\_helm\_values) | Additional values to pass to the Helm chart. These will be deep-merged with the module's default values, with these values taking precedence. | `any` | `{}` | no |
+| <a name="input_image_pull_secrets"></a> [image\_pull\_secrets](#input\_image\_pull\_secrets) | List of Kubernetes secret names for pulling images from private registries. Required for OEL deployments. | `list(string)` | `[]` | no |
+| <a name="input_image_repository"></a> [image\_repository](#input\_image\_repository) | Override the Docker image repository for Hydra. Must include the full registry path as the Ory Helm chart ignores image.registry. Example: europe-docker.pkg.dev/ory-artifacts/ory-enterprise/hydra-oel | `string` | `null` | no |
+| <a name="input_image_tag"></a> [image\_tag](#input\_image\_tag) | Override the Docker image tag for Hydra. If not set, the chart default will be used. | `string` | `null` | no |
 | <a name="input_install_timeout"></a> [install\_timeout](#input\_install\_timeout) | Timeout for installing the Ory Hydra Helm chart, in seconds. | `number` | `600` | no |
 | <a name="input_issuer_url"></a> [issuer\_url](#input\_issuer\_url) | The public URL of the OAuth2 issuer. Used for OIDC discovery. Example: https://auth.example.com/ | `string` | n/a | yes |
 | <a name="input_login_url"></a> [login\_url](#input\_login\_url) | The URL of the login UI. Hydra redirects users here for authentication. Example: https://login.example.com/login | `string` | `null` | no |
