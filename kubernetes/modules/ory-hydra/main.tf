@@ -35,6 +35,68 @@ locals {
     imagePullSecrets = [for name in var.image_pull_secrets : { name = name }]
   } : {}
 
+  tls_enabled   = var.tls_cert_secret_name != null
+  tls_mount_dir = "/etc/hydra/tls"
+
+  # Configure TLS on the public listener so Hydra serves HTTPS there.
+  # The admin listener stays HTTP (internal-only, probes work, selfservice UI and
+  # Maester access it within the cluster). `enabled: true` is required — without
+  # it Hydra ignores cert/key paths and serves plain HTTP.
+  tls_hydra_config = local.tls_enabled ? {
+    hydra = {
+      config = {
+        serve = {
+          public = {
+            tls = {
+              enabled = true
+              cert    = { path = "${local.tls_mount_dir}/tls.crt" }
+              key     = { path = "${local.tls_mount_dir}/tls.key" }
+            }
+          }
+        }
+      }
+    }
+  } : {}
+
+  cors_config = length(var.cors_allowed_origins) > 0 ? {
+    hydra = {
+      config = {
+        serve = {
+          public = {
+            cors = {
+              enabled           = true
+              allowed_origins   = var.cors_allowed_origins
+              allowed_methods   = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
+              allowed_headers   = ["Authorization", "Content-Type"]
+              exposed_headers   = ["Content-Type"]
+              allow_credentials = true
+            }
+          }
+        }
+      }
+    }
+  } : {}
+
+  tls_deployment_config = local.tls_enabled ? {
+    deployment = {
+      extraVolumes = [
+        {
+          name = "tls-cert"
+          secret = {
+            secretName = var.tls_cert_secret_name
+          }
+        },
+      ]
+      extraVolumeMounts = [
+        {
+          name      = "tls-cert"
+          mountPath = local.tls_mount_dir
+          readOnly  = true
+        },
+      ]
+    }
+  } : {}
+
   urls_config = merge(
     {
       self = {
@@ -127,6 +189,15 @@ locals {
       }
     }
   }, local.image_config, local.image_pull_secrets_config)
+
+  # Deep-merge TLS and CORS config so they merge into the existing hydra.config and deployment blocks.
+  default_helm_values_with_tls = provider::deepmerge::mergo(
+    provider::deepmerge::mergo(
+      provider::deepmerge::mergo(local.default_helm_values, local.tls_hydra_config),
+      local.tls_deployment_config,
+    ),
+    local.cors_config,
+  )
 }
 
 resource "helm_release" "hydra" {
@@ -138,7 +209,7 @@ resource "helm_release" "hydra" {
   timeout    = var.install_timeout
 
   values = [
-    yamlencode(provider::deepmerge::mergo(local.default_helm_values, var.helm_values))
+    yamlencode(provider::deepmerge::mergo(local.default_helm_values_with_tls, var.helm_values))
   ]
 
   depends_on = [
