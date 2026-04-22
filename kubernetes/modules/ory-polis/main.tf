@@ -10,8 +10,8 @@ resource "kubernetes_namespace" "polis" {
   }
 }
 
-resource "random_password" "jackson_api_keys" {
-  count   = var.jackson_api_keys == null ? 1 : 0
+resource "random_password" "admin_api_keys" {
+  count   = var.admin_api_keys == null ? 1 : 0
   length  = 32
   special = false
 }
@@ -23,9 +23,9 @@ resource "random_password" "nextauth_secret" {
 }
 
 locals {
-  namespace        = var.create_namespace ? kubernetes_namespace.polis[0].metadata[0].name : var.namespace
-  jackson_api_keys = var.jackson_api_keys != null ? var.jackson_api_keys : random_password.jackson_api_keys[0].result
-  nextauth_secret  = var.nextauth_secret != null ? var.nextauth_secret : random_password.nextauth_secret[0].result
+  namespace       = var.create_namespace ? kubernetes_namespace.polis[0].metadata[0].name : var.namespace
+  admin_api_keys  = var.admin_api_keys != null ? var.admin_api_keys : random_password.admin_api_keys[0].result
+  nextauth_secret = var.nextauth_secret != null ? var.nextauth_secret : random_password.nextauth_secret[0].result
 
   image = "${var.image_registry}/${var.image_repository}:${var.image_tag}"
 
@@ -46,7 +46,7 @@ resource "kubernetes_secret" "polis" {
 
   data = {
     DB_URL           = var.dsn
-    JACKSON_API_KEYS = local.jackson_api_keys
+    JACKSON_API_KEYS = local.admin_api_keys
     NEXTAUTH_SECRET  = local.nextauth_secret
   }
 }

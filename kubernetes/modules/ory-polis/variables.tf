@@ -75,8 +75,8 @@ variable "image_pull_policy" {
   nullable    = false
 }
 
-variable "jackson_api_keys" {
-  description = "API key(s) for authenticating requests to Polis admin APIs. If not set, a random 32-character key will be generated."
+variable "admin_api_keys" {
+  description = "API key(s) for authenticating requests to Polis admin APIs (injected into the container as the JACKSON_API_KEYS env var that upstream Polis expects). If not set, a random 32-character key will be generated."
   type        = string
   default     = null
   sensitive   = true

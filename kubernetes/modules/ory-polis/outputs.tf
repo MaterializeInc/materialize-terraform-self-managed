@@ -13,9 +13,9 @@ output "namespace" {
   value       = local.namespace
 }
 
-output "jackson_api_keys" {
+output "admin_api_keys" {
   description = "API key for Polis admin APIs"
-  value       = local.jackson_api_keys
+  value       = local.admin_api_keys
   sensitive   = true
 }
 
