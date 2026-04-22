@@ -46,6 +46,46 @@ locals {
     imagePullSecrets = [for name in var.image_pull_secrets : { name = name }]
   } : {}
 
+  tls_enabled   = var.tls_cert_secret_name != null
+  tls_mount_dir = "/etc/kratos/tls"
+
+  # Configure TLS on the public listener so Kratos serves HTTPS. Kratos enables
+  # TLS whenever cert/key paths are set — unlike Hydra, there's no `enabled` field.
+  tls_kratos_config = local.tls_enabled ? {
+    kratos = {
+      config = {
+        serve = {
+          public = {
+            tls = {
+              cert = { path = "${local.tls_mount_dir}/tls.crt" }
+              key  = { path = "${local.tls_mount_dir}/tls.key" }
+            }
+          }
+        }
+      }
+    }
+  } : {}
+
+  tls_deployment_config = local.tls_enabled ? {
+    deployment = {
+      extraVolumes = [
+        {
+          name = "tls-cert"
+          secret = {
+            secretName = var.tls_cert_secret_name
+          }
+        },
+      ]
+      extraVolumeMounts = [
+        {
+          name      = "tls-cert"
+          mountPath = local.tls_mount_dir
+          readOnly  = true
+        },
+      ]
+    }
+  } : {}
+
   smtp_config = var.smtp_connection_uri != null ? {
     courier = {
       smtp = merge(
@@ -142,6 +182,12 @@ locals {
       }
     }
   }, local.image_config, local.image_pull_secrets_config)
+
+  # Deep-merge TLS config into hydra.config and deployment blocks.
+  default_helm_values_with_tls = provider::deepmerge::mergo(
+    provider::deepmerge::mergo(local.default_helm_values, local.tls_kratos_config),
+    local.tls_deployment_config,
+  )
 }
 
 resource "helm_release" "kratos" {
@@ -153,7 +199,7 @@ resource "helm_release" "kratos" {
   timeout    = var.install_timeout
 
   values = [
-    yamlencode(provider::deepmerge::mergo(local.default_helm_values, var.helm_values))
+    yamlencode(provider::deepmerge::mergo(local.default_helm_values_with_tls, var.helm_values))
   ]
 
   depends_on = [

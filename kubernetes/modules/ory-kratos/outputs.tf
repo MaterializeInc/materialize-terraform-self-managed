@@ -1,6 +1,6 @@
 output "public_url" {
-  description = "Internal URL for Kratos public API (user-facing: login, registration, session checks)"
-  value       = "http://${var.release_name}-public.${local.namespace}.svc.cluster.local:4433"
+  description = "Internal URL for Kratos public API (user-facing: login, registration, session checks). Uses https when tls_cert_secret_name is set."
+  value       = "${local.tls_enabled ? "https" : "http"}://${var.release_name}-public.${local.namespace}.svc.cluster.local:4433"
 }
 
 output "admin_url" {

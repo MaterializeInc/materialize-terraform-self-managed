@@ -59,6 +59,7 @@ No modules.
 | <a name="input_smtp_connection_uri"></a> [smtp\_connection\_uri](#input\_smtp\_connection\_uri) | SMTP connection URI for sending emails. Example: smtp://user:password@smtp.example.com:587/ | `string` | `null` | no |
 | <a name="input_smtp_from_address"></a> [smtp\_from\_address](#input\_smtp\_from\_address) | Email address used as the sender for Kratos emails. | `string` | `null` | no |
 | <a name="input_smtp_from_name"></a> [smtp\_from\_name](#input\_smtp\_from\_name) | Name used as the sender for Kratos emails. | `string` | `null` | no |
+| <a name="input_tls_cert_secret_name"></a> [tls\_cert\_secret\_name](#input\_tls\_cert\_secret\_name) | Name of a Kubernetes TLS secret (containing tls.crt and tls.key) to mount into the Kratos container and serve HTTPS from. Typically created by cert-manager. When set, Kratos's public API serves TLS directly. | `string` | `null` | no |
 | <a name="input_tolerations"></a> [tolerations](#input\_tolerations) | Tolerations for Kratos pods. | <pre>list(object({<br/>    key      = string<br/>    value    = optional(string)<br/>    operator = optional(string, "Equal")<br/>    effect   = string<br/>  }))</pre> | `[]` | no |
 
 ## Outputs
@@ -67,7 +68,7 @@ No modules.
 |------|-------------|
 | <a name="output_admin_url"></a> [admin\_url](#output\_admin\_url) | Internal URL for Kratos admin API (privileged: identity CRUD, session management) |
 | <a name="output_namespace"></a> [namespace](#output\_namespace) | Namespace where Ory Kratos is deployed |
-| <a name="output_public_url"></a> [public\_url](#output\_public\_url) | Internal URL for Kratos public API (user-facing: login, registration, session checks) |
+| <a name="output_public_url"></a> [public\_url](#output\_public\_url) | Internal URL for Kratos public API (user-facing: login, registration, session checks). Uses https when tls\_cert\_secret\_name is set. |
 | <a name="output_release_name"></a> [release\_name](#output\_release\_name) | Name of the Ory Kratos Helm release |
 | <a name="output_release_status"></a> [release\_status](#output\_release\_status) | Status of the Ory Kratos Helm release |
 | <a name="output_secrets_cipher"></a> [secrets\_cipher](#output\_secrets\_cipher) | Cipher secret used by Kratos |
