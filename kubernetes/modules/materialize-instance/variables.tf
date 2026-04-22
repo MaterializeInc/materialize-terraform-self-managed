@@ -193,6 +193,20 @@ variable "issuer_ref" {
   default = null
 }
 
+variable "console_extra_dns_names" {
+  description = "Additional DNS names to include in the console TLS certificate. Useful when the console is exposed via an external hostname (e.g., materialize.internal.example.com)."
+  type        = list(string)
+  default     = []
+  nullable    = false
+}
+
+variable "balancerd_extra_dns_names" {
+  description = "Additional DNS names to include in the balancerd TLS certificate. Useful when balancerd is exposed via an external hostname."
+  type        = list(string)
+  default     = []
+  nullable    = false
+}
+
 variable "system_parameters" {
   description = "System parameters to configure for the Materialize instance. These are passed via a ConfigMap. Common parameters include max_connections, allowed_cluster_replica_sizes, max_clusters, max_sources, max_sinks. Set to null to skip creating the ConfigMap."
   type        = map(string)
