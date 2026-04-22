@@ -132,4 +132,8 @@ jobs:
 
       - name: Run cargo deny
         working-directory: test
-        run: cargo deny check
+        # Advisories are checked by the scheduled advisories.yml workflow so
+        # that new RUSTSEC reports cannot flip a green merge queue red without
+        # any code change in the PR. Bans/licenses/sources are deterministic
+        # against Cargo.lock, so they stay blocking.
+        run: cargo deny check bans licenses sources
