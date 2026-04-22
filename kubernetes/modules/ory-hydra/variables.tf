@@ -76,7 +76,6 @@ variable "logout_url" {
   description = "The URL of the logout UI. Example: https://login.example.com/logout"
   type        = string
   default     = null
-  nullable    = false
 }
 
 variable "automigration_enabled" {
@@ -178,6 +177,19 @@ variable "image_tag" {
 
 variable "image_pull_secrets" {
   description = "List of Kubernetes secret names for pulling images from private registries. Required for OEL deployments."
+  type        = list(string)
+  default     = []
+  nullable    = false
+}
+
+variable "tls_cert_secret_name" {
+  description = "Name of a Kubernetes TLS secret (containing tls.crt and tls.key) to mount into the Hydra container and serve HTTPS from. Typically created by cert-manager. When set, Hydra's public and admin APIs serve TLS directly."
+  type        = string
+  default     = null
+}
+
+variable "cors_allowed_origins" {
+  description = "List of origins allowed to make cross-origin requests to Hydra's public API. Required when browser-based OIDC clients (like the Materialize console) are on a different origin."
   type        = list(string)
   default     = []
   nullable    = false
