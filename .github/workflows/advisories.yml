@@ -1,0 +1,34 @@
+name: Advisories
+
+on:
+  schedule:
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+
+jobs:
+  advisories:
+    name: Cargo Deny Advisories
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry and build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-cargo-advisories-${{ hashFiles('test/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-advisories-
+
+      - name: Install cargo-deny
+        run: cargo install cargo-deny
+
+      - name: Run cargo deny advisories
+        working-directory: test
+        run: cargo deny check advisories
