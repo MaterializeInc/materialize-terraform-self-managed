@@ -38,6 +38,8 @@ No modules.
 | <a name="input_balancer_cpu_request"></a> [balancer\_cpu\_request](#input\_balancer\_cpu\_request) | CPU request for balancer | `string` | `"100m"` | no |
 | <a name="input_balancer_memory_limit"></a> [balancer\_memory\_limit](#input\_balancer\_memory\_limit) | Memory limit for balancer | `string` | `"256Mi"` | no |
 | <a name="input_balancer_memory_request"></a> [balancer\_memory\_request](#input\_balancer\_memory\_request) | Memory request for balancer | `string` | `"256Mi"` | no |
+| <a name="input_balancerd_extra_dns_names"></a> [balancerd\_extra\_dns\_names](#input\_balancerd\_extra\_dns\_names) | Additional DNS names to include in the balancerd TLS certificate. Useful when balancerd is exposed via an external hostname. | `list(string)` | `[]` | no |
+| <a name="input_console_extra_dns_names"></a> [console\_extra\_dns\_names](#input\_console\_extra\_dns\_names) | Additional DNS names to include in the console TLS certificate. Useful when the console is exposed via an external hostname (e.g., materialize.internal.example.com). | `list(string)` | `[]` | no |
 | <a name="input_cpu_request"></a> [cpu\_request](#input\_cpu\_request) | CPU request for environmentd | `string` | `"1"` | no |
 | <a name="input_crd_version"></a> [crd\_version](#input\_crd\_version) | CRD API version to use for the Materialize instance (v1alpha1 or v1alpha2). We recommend v1alpha2, but default to v1alpha1 for backwards compatibility. We will change this default in an upcoming major release. | `string` | `"v1alpha1"` | no |
 | <a name="input_create_namespace"></a> [create\_namespace](#input\_create\_namespace) | Whether to create the Kubernetes namespace. Set to false if the namespace already exists. | `bool` | `true` | no |
