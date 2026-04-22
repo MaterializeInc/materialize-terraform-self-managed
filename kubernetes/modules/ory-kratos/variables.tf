@@ -191,6 +191,12 @@ variable "image_pull_secrets" {
   nullable    = false
 }
 
+variable "tls_cert_secret_name" {
+  description = "Name of a Kubernetes TLS secret (containing tls.crt and tls.key) to mount into the Kratos container and serve HTTPS from. Typically created by cert-manager. When set, Kratos's public API serves TLS directly."
+  type        = string
+  default     = null
+}
+
 variable "helm_values" {
   description = "Additional values to pass to the Helm chart. These will be deep-merged with the module's default values, with these values taking precedence."
   type        = any
