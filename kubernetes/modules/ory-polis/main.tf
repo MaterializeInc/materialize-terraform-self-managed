@@ -188,7 +188,10 @@ resource "kubernetes_deployment" "polis" {
               path = "/api/health"
               port = var.port
             }
-            initial_delay_seconds = 10
+            # Polis is a NextJS app and can take ~20s on cold start before it
+            # finishes DB migrations and is ready to answer /api/health, so the
+            # liveness probe needs enough initial delay to avoid a crash loop.
+            initial_delay_seconds = 30
             period_seconds        = 30
           }
 
@@ -197,7 +200,7 @@ resource "kubernetes_deployment" "polis" {
               path = "/api/health"
               port = var.port
             }
-            initial_delay_seconds = 5
+            initial_delay_seconds = 10
             period_seconds        = 10
           }
         }

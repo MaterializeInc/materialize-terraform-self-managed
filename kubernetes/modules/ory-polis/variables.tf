@@ -83,16 +83,14 @@ variable "jackson_api_keys" {
 }
 
 variable "saml_audience" {
-  description = "SAML audience identifier. Typically the entity ID of your service provider."
+  description = "SAML audience identifier (Polis's SAML entity ID). Identity providers validate that SAML assertions are intended for this audience. Must match the audience configured on the upstream IdP. Example: https://saml.example.com/entityid"
   type        = string
-  default     = "https://saml.example.com/entityid"
   nullable    = false
 }
 
 variable "external_url" {
-  description = "External URL where Polis is reachable. Used for SAML ACS URL and OAuth callbacks."
+  description = "Externally-reachable HTTPS URL for Polis. Used as the SAML ACS URL, OAuth callback base, and NextAuth URL, so it must resolve from end-user browsers. Polis does not serve TLS itself — terminate HTTPS at an ingress or LoadBalancer in front of the pod. Example: https://polis.internal.example.com"
   type        = string
-  default     = "http://localhost:5225"
   nullable    = false
 }
 
