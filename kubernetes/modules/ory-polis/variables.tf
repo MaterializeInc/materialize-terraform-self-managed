@@ -48,16 +48,16 @@ variable "image_registry" {
 }
 
 variable "image_repository" {
-  description = "Docker image repository for Polis. Example: ory-artifacts/ory-enterprise-polis/polis-oel"
+  description = "Docker image repository for Polis. Defaults to the upstream OSS image at boxyhq/jackson, which is the distribution channel Ory publishes Polis to (github.com/ory/polis is the source repo; there is no oryd/polis image on Docker Hub). For OEL deployments, override with the Ory enterprise registry path, e.g., ory-artifacts/ory-enterprise-polis/polis-oel."
   type        = string
   default     = "boxyhq/jackson"
   nullable    = false
 }
 
 variable "image_tag" {
-  description = "Docker image tag for Polis."
+  description = "Docker image tag for Polis. Defaults to the latest Polis release (see github.com/ory/polis/releases) which is published to Docker Hub under the matching boxyhq/jackson tag."
   type        = string
-  default     = "1.52.2"
+  default     = "26.2.0"
   nullable    = false
 }
 
@@ -89,7 +89,7 @@ variable "saml_audience" {
 }
 
 variable "external_url" {
-  description = "Externally-reachable HTTPS URL for Polis. Used as the SAML ACS URL, OAuth callback base, and NextAuth URL, so it must resolve from end-user browsers. Polis does not serve TLS itself — terminate HTTPS at an ingress or LoadBalancer in front of the pod. Example: https://polis.internal.example.com"
+  description = "Externally-reachable HTTPS URL for Polis. Used as the SAML ACS URL, OAuth callback base, and NextAuth URL, so it must resolve from end-user browsers. Polis does not serve TLS itself, so HTTPS must be terminated at an ingress or LoadBalancer in front of the pod. Example: https://polis.internal.example.com"
   type        = string
   nullable    = false
 }
