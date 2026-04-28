@@ -10,8 +10,8 @@
 
 | Name | Version |
 |------|---------|
-| <a name="provider_kubectl"></a> [kubectl](#provider\_kubectl) | >= 2.2.0 |
-| <a name="provider_kubernetes"></a> [kubernetes](#provider\_kubernetes) | >= 2.10.0 |
+| <a name="provider_kubectl"></a> [kubectl](#provider\_kubectl) | 2.2.0 |
+| <a name="provider_kubernetes"></a> [kubernetes](#provider\_kubernetes) | 3.1.0 |
 
 ## Modules
 
@@ -51,7 +51,8 @@ No modules.
 | <a name="input_force_rollout"></a> [force\_rollout](#input\_force\_rollout) | UUID to force a rollout | `string` | `"00000000-0000-0000-0000-000000000001"` | no |
 | <a name="input_instance_name"></a> [instance\_name](#input\_instance\_name) | Name of the Materialize instance | `string` | n/a | yes |
 | <a name="input_instance_namespace"></a> [instance\_namespace](#input\_instance\_namespace) | Kubernetes namespace for the instance. | `string` | n/a | yes |
-| <a name="input_issuer_ref"></a> [issuer\_ref](#input\_issuer\_ref) | Reference to a cert-manager Issuer or ClusterIssuer. | <pre>object({<br/>    name = string<br/>    kind = string<br/>  })</pre> | `null` | no |
+| <a name="input_internal_issuer_ref"></a> [internal\_issuer\_ref](#input\_internal\_issuer\_ref) | Optional override for the issuer used to sign cluster-internal mTLS certs (those with *.cluster.local SANs). Required when var.issuer\_ref points at a public ACME issuer such as Let's Encrypt, since public CAs cannot sign cluster.local. When this is set, the short cluster service names ('balancerd', 'console') are also stripped from the external cert SANs because public ACME issuers reject single-label domains. When null, var.issuer\_ref is used for both internal and external certs. | <pre>object({<br/>    name = string<br/>    kind = string<br/>  })</pre> | `null` | no |
+| <a name="input_issuer_ref"></a> [issuer\_ref](#input\_issuer\_ref) | Default cert-manager (Cluster)Issuer used for the instance's TLS certificates. Used for both the external (browser-facing) certs and the internal mTLS certs unless overridden by var.internal\_issuer\_ref. | <pre>object({<br/>    name = string<br/>    kind = string<br/>  })</pre> | `null` | no |
 | <a name="input_license_key"></a> [license\_key](#input\_license\_key) | Materialize license key | `string` | `null` | no |
 | <a name="input_memory_limit"></a> [memory\_limit](#input\_memory\_limit) | Memory limit for environmentd | `string` | `"4Gi"` | no |
 | <a name="input_memory_request"></a> [memory\_request](#input\_memory\_request) | Memory request for environmentd | `string` | `"4095Mi"` | no |
