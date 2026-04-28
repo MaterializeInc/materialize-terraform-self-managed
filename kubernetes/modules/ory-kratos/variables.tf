@@ -197,6 +197,22 @@ variable "tls_cert_secret_name" {
   default     = null
 }
 
+variable "upstream_oidc_providers" {
+  description = "Upstream OIDC providers to expose as social sign-in methods on the Kratos selfservice UI. Each entry renders as a 'Sign in with X' button. Leave as [] to keep password-only login. The redirect URI to register at the IdP is <kratos public URL>/self-service/methods/oidc/callback/<id>."
+  type = list(object({
+    id            = string
+    provider      = optional(string, "generic")
+    client_id     = string
+    client_secret = string
+    issuer_url    = string
+    scope         = optional(list(string), ["openid", "email", "profile"])
+    label         = optional(string)
+  }))
+  default   = []
+  nullable  = false
+  sensitive = true
+}
+
 variable "helm_values" {
   description = "Additional values to pass to the Helm chart. These will be deep-merged with the module's default values, with these values taking precedence."
   type        = any
