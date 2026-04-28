@@ -185,7 +185,16 @@ variable "pod_labels" {
 
 
 variable "issuer_ref" {
-  description = "Reference to a cert-manager Issuer or ClusterIssuer."
+  description = "Default cert-manager (Cluster)Issuer used for the instance's TLS certificates. Used for both the external (browser-facing) certs and the internal mTLS certs unless overridden by var.internal_issuer_ref."
+  type = object({
+    name = string
+    kind = string
+  })
+  default = null
+}
+
+variable "internal_issuer_ref" {
+  description = "Optional override for the issuer used to sign cluster-internal mTLS certs (those with *.cluster.local SANs). Required when var.issuer_ref points at a public ACME issuer such as Let's Encrypt, since public CAs cannot sign cluster.local. When this is set, the short cluster service names ('balancerd', 'console') are also stripped from the external cert SANs because public ACME issuers reject single-label domains. When null, var.issuer_ref is used for both internal and external certs."
   type = object({
     name = string
     kind = string
