@@ -61,6 +61,7 @@ No modules.
 | <a name="input_smtp_from_name"></a> [smtp\_from\_name](#input\_smtp\_from\_name) | Name used as the sender for Kratos emails. | `string` | `null` | no |
 | <a name="input_tls_cert_secret_name"></a> [tls\_cert\_secret\_name](#input\_tls\_cert\_secret\_name) | Name of a Kubernetes TLS secret (containing tls.crt and tls.key) to mount into the Kratos container and serve HTTPS from. Typically created by cert-manager. When set, Kratos's public API serves TLS directly. | `string` | `null` | no |
 | <a name="input_tolerations"></a> [tolerations](#input\_tolerations) | Tolerations for Kratos pods. | <pre>list(object({<br/>    key      = string<br/>    value    = optional(string)<br/>    operator = optional(string, "Equal")<br/>    effect   = string<br/>  }))</pre> | `[]` | no |
+| <a name="input_upstream_oidc_providers"></a> [upstream\_oidc\_providers](#input\_upstream\_oidc\_providers) | Upstream OIDC providers to expose as social sign-in methods on the Kratos selfservice UI. Each entry renders as a 'Sign in with X' button. Leave as [] to keep password-only login. The redirect URI to register at the IdP is <kratos public URL>/self-service/methods/oidc/callback/<id>. | <pre>list(object({<br/>    id            = string<br/>    provider      = optional(string, "generic")<br/>    client_id     = string<br/>    client_secret = string<br/>    issuer_url    = string<br/>    scope         = optional(list(string), ["openid", "email", "profile"])<br/>    label         = optional(string)<br/>  }))</pre> | `[]` | no |
 
 ## Outputs
 

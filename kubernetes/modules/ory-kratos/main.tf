@@ -96,6 +96,52 @@ locals {
     }
   } : {}
 
+  # Standard OIDC claim mapper. Maps the upstream IdP's email claim onto the
+  # Kratos identity's email trait. Encoded as a base64:// data URI so Kratos
+  # can read it inline, no ConfigMap needed.
+  upstream_oidc_mapper_jsonnet = <<-EOT
+    local claims = std.extVar('claims');
+    {
+      identity: {
+        traits: {
+          email: claims.email,
+        },
+      },
+    }
+  EOT
+
+  upstream_oidc_mapper_data_uri = "base64://${base64encode(local.upstream_oidc_mapper_jsonnet)}"
+
+  upstream_oidc_config = length(var.upstream_oidc_providers) > 0 ? {
+    kratos = {
+      config = {
+        selfservice = {
+          methods = {
+            oidc = {
+              enabled = true
+              config = {
+                providers = [
+                  for p in var.upstream_oidc_providers : merge(
+                    {
+                      id            = p.id
+                      provider      = p.provider
+                      client_id     = p.client_id
+                      client_secret = p.client_secret
+                      issuer_url    = p.issuer_url
+                      scope         = p.scope
+                      mapper_url    = local.upstream_oidc_mapper_data_uri
+                    },
+                    p.label != null ? { label = p.label } : {},
+                  )
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  } : {}
+
   default_helm_values = merge({
     replicaCount = var.replica_count
 
@@ -183,10 +229,13 @@ locals {
     }
   }, local.image_config, local.image_pull_secrets_config)
 
-  # Deep-merge TLS config into hydra.config and deployment blocks.
-  default_helm_values_with_tls = provider::deepmerge::mergo(
-    provider::deepmerge::mergo(local.default_helm_values, local.tls_kratos_config),
-    local.tls_deployment_config,
+  # Deep-merge optional features (TLS, upstream OIDC) into the default values.
+  default_helm_values_with_extras = provider::deepmerge::mergo(
+    provider::deepmerge::mergo(
+      provider::deepmerge::mergo(local.default_helm_values, local.tls_kratos_config),
+      local.tls_deployment_config,
+    ),
+    local.upstream_oidc_config,
   )
 }
 
@@ -199,7 +248,7 @@ resource "helm_release" "kratos" {
   timeout    = var.install_timeout
 
   values = [
-    yamlencode(provider::deepmerge::mergo(local.default_helm_values_with_tls, var.helm_values))
+    yamlencode(provider::deepmerge::mergo(local.default_helm_values_with_extras, var.helm_values))
   ]
 
   depends_on = [
