@@ -12,60 +12,142 @@ variable "create_namespace" {
   nullable    = false
 }
 
-variable "name" {
-  description = "Name prefix for Polis Kubernetes resources."
+variable "release_name" {
+  description = "Helm release name. Also used as the resource name prefix inside the chart. Defaulting to 'polis' produces simple resource names like 'polis' / 'polis-migration' because the chart's fullname helper collapses '<release>-<chart>' when one contains the other."
   type        = string
   default     = "polis"
   nullable    = false
 }
 
 variable "dsn" {
-  description = "PostgreSQL DSN for Polis database connection. Example: postgres://user:password@host:5432/polis?sslmode=require"
+  description = "PostgreSQL DSN for Polis. Injected as the DB_URL env var via a Kubernetes Secret (the chart's built-in secret hardcodes a CockroachDB DSN, so this module always ships its own). Example: postgres://user:password@host:5432/polis?sslmode=require"
   type        = string
   sensitive   = true
   nullable    = false
 }
 
-variable "replica_count" {
-  description = "Number of Polis replicas."
-  type        = number
-  default     = 2
-  nullable    = false
-}
-
-variable "port" {
-  description = "Port that the Polis application listens on."
-  type        = number
-  default     = 5225
-  nullable    = false
-}
-
-variable "image_registry" {
-  description = "Docker image registry for Polis. Example: europe-docker.pkg.dev"
+# Helm chart source
+variable "chart_registry" {
+  description = "OCI registry hostname for the Polis Helm chart."
   type        = string
-  default     = "docker.io"
+  default     = "europe-west3-docker.pkg.dev"
   nullable    = false
+}
+
+variable "chart_repository" {
+  description = "OCI repository path for the Polis Helm chart (relative to chart_registry)."
+  type        = string
+  default     = "ory-artifacts/helm-oel-polis/polis-oel"
+  nullable    = false
+}
+
+variable "chart_version" {
+  description = "Polis Helm chart version. See the Ory Polis release notes for the version that pairs with your OEL image tag."
+  type        = string
+  default     = "0.0.20"
+  nullable    = false
+}
+
+variable "oci_registry_username" {
+  description = "Username for authenticating to the Polis Helm OCI registry. For GCP Artifact Registry (the default chart_registry), use '_json_key'. Ignored when oci_registry_password is null."
+  type        = string
+  default     = "_json_key"
+  nullable    = false
+}
+
+variable "oci_registry_password" {
+  description = "Password / token for authenticating to the Polis Helm OCI registry. For GCP Artifact Registry, pass the full contents of a service-account JSON key via file('path/to/key.json'). When null, no authentication is configured (only viable for an anonymous registry)."
+  type        = string
+  default     = null
+  sensitive   = true
+}
+
+variable "install_timeout" {
+  description = "Helm install/upgrade timeout in seconds."
+  type        = number
+  default     = 600
+  nullable    = false
+}
+
+# Application configuration
+variable "external_url" {
+  description = "Externally-reachable HTTPS URL for Polis. Used as the NEXTAUTH_URL so OIDC and SAML flows redirect through it. Polis does not terminate TLS itself, so HTTPS must be provided by an ingress or LoadBalancer in front of the pod. Example: https://polis.internal.example.com"
+  type        = string
+  nullable    = false
+}
+
+variable "admin_api_keys" {
+  description = "Bearer token for authenticating requests to Polis admin APIs (set as the API_KEYS env var inside the Polis container). If null, a random 32-character key is generated."
+  type        = string
+  default     = null
+  sensitive   = true
+}
+
+variable "nextauth_secret" {
+  description = "Secret used by NextAuth.js for session signing. If null, a random 32-character secret is generated."
+  type        = string
+  default     = null
+  sensitive   = true
+}
+
+variable "db_encryption_key" {
+  description = "Symmetric key used by Polis to encrypt sensitive fields (e.g. IdP credentials) before storing them in the database. Required by the chart. If null, a random 32-character key is generated. WARNING: rotating this key invalidates all existing encrypted records, so persist it across applies (e.g., via Terraform state or a Vault lookup)."
+  type        = string
+  default     = null
+  sensitive   = true
+}
+
+variable "db_ssl" {
+  description = "Whether Polis should connect to its database over TLS. Maps to the chart's dbSSL value and the DB_SSL env var."
+  type        = bool
+  default     = true
+  nullable    = false
+}
+
+variable "hosted" {
+  description = "When true, Polis runs in 'hosted' mode and exposes the multi-tenant admin UI. Leave false for an embedded single-tenant deployment fronting a single Materialize console."
+  type        = bool
+  default     = false
+  nullable    = false
+}
+
+variable "idp_enabled" {
+  description = "Enable Polis's IdP routes (SAML/OAuth ACS, /.well-known/, etc.). Required when Polis is acting as an IdP for downstream consumers like Kratos."
+  type        = bool
+  default     = true
+  nullable    = false
+}
+
+variable "nextauth_acl" {
+  description = "Optional NextAuth ACL string. Restricts which email addresses can authenticate to the Polis admin UI. Empty allows all."
+  type        = string
+  default     = ""
+  nullable    = false
+}
+
+variable "saml_audience" {
+  description = "Optional SAML audience identifier (Polis's SAML entity ID). When set, injected as the SAML_AUDIENCE env var on the Polis container. Must match the audience configured on the upstream IdP. Leave null to inherit Polis's built-in default."
+  type        = string
+  default     = null
+}
+
+# Image
+variable "image_registry" {
+  description = "Override for the Polis container image registry. Null uses the chart's default (europe-docker.pkg.dev for OEL)."
+  type        = string
+  default     = null
 }
 
 variable "image_repository" {
-  description = "Docker image repository for Polis. Defaults to the upstream OSS image at boxyhq/jackson, which is the distribution channel Ory publishes Polis to (github.com/ory/polis is the source repo; there is no oryd/polis image on Docker Hub). For OEL deployments, override with the Ory enterprise registry path, e.g., ory-artifacts/ory-enterprise-polis/polis-oel."
+  description = "Override for the Polis container image repository. Null uses the chart's default (ory-artifacts/ory-enterprise-polis/polis-oel)."
   type        = string
-  default     = "boxyhq/jackson"
-  nullable    = false
+  default     = null
 }
 
 variable "image_tag" {
-  description = "Docker image tag for Polis. Defaults to the latest Polis release (see github.com/ory/polis/releases) which is published to Docker Hub under the matching boxyhq/jackson tag."
+  description = "Override for the Polis container image tag. Null uses the chart's default (typically pinned to the chart's AppVersion)."
   type        = string
-  default     = "26.2.0"
-  nullable    = false
-}
-
-variable "image_pull_secrets" {
-  description = "List of Kubernetes secret names for pulling images from private registries. Required for OEL deployments."
-  type        = list(string)
-  default     = []
-  nullable    = false
+  default     = null
 }
 
 variable "image_pull_policy" {
@@ -75,30 +157,27 @@ variable "image_pull_policy" {
   nullable    = false
 }
 
-variable "admin_api_keys" {
-  description = "API key(s) for authenticating requests to Polis admin APIs (injected into the container as the JACKSON_API_KEYS env var that upstream Polis expects). If not set, a random 32-character key will be generated."
-  type        = string
-  default     = null
-  sensitive   = true
-}
-
-variable "saml_audience" {
-  description = "SAML audience identifier (Polis's SAML entity ID). Identity providers validate that SAML assertions are intended for this audience. Must match the audience configured on the upstream IdP. Example: https://saml.example.com/entityid"
-  type        = string
+variable "image_pull_secrets" {
+  description = "List of Kubernetes secret names (in the Polis namespace) used to pull the OEL image."
+  type        = list(string)
+  default     = []
   nullable    = false
 }
 
-variable "external_url" {
-  description = "Externally-reachable HTTPS URL for Polis. Used as the SAML ACS URL, OAuth callback base, and NextAuth URL, so it must resolve from end-user browsers. Polis does not serve TLS itself, so HTTPS must be terminated at an ingress or LoadBalancer in front of the pod. Example: https://polis.internal.example.com"
-  type        = string
+# Service
+variable "port" {
+  description = "Cluster-IP service port for Polis. The container always listens on 5225; this is just the front-side port the service publishes."
+  type        = number
+  default     = 5225
   nullable    = false
 }
 
-variable "nextauth_secret" {
-  description = "Secret for NextAuth.js session signing. If not set, a random 32-character secret will be generated."
-  type        = string
-  default     = null
-  sensitive   = true
+# Deployment
+variable "replica_count" {
+  description = "Number of Polis replicas."
+  type        = number
+  default     = 2
+  nullable    = false
 }
 
 variable "resources" {
@@ -140,8 +219,23 @@ variable "tolerations" {
 }
 
 variable "extra_env" {
-  description = "Additional environment variables for Polis pods as a map of name to value."
+  description = "Additional environment variables for the Polis container as a map of name to value. Wired through the chart's deployment.extraEnvs list."
   type        = map(string)
   default     = {}
   nullable    = false
+}
+
+# Observability
+variable "monitoring_enabled" {
+  description = "When false, the chart's default OTLP endpoints (which point at a kube-prometheus-stack installation in 'observability') are blanked out so Polis doesn't keep trying to reach a non-existent collector. Set to true and override via helm_values when you have one."
+  type        = bool
+  default     = false
+  nullable    = false
+}
+
+# Escape hatch
+variable "helm_values" {
+  description = "Additional values to merge into the Helm release. Deep-merged on top of this module's defaults so individual keys can be overridden without rewriting whole blocks."
+  type        = any
+  default     = {}
 }

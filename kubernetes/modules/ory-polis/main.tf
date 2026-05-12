@@ -1,7 +1,3 @@
-# TODO: Move to a Helm chart when Ory publishes an official Polis chart.
-# Polis does not have an official Helm chart yet, so we deploy using raw
-# Kubernetes resources (Deployment + Service).
-
 resource "kubernetes_namespace" "polis" {
   count = var.create_namespace ? 1 : 0
 
@@ -22,218 +18,142 @@ resource "random_password" "nextauth_secret" {
   special = false
 }
 
-locals {
-  namespace       = var.create_namespace ? kubernetes_namespace.polis[0].metadata[0].name : var.namespace
-  admin_api_keys  = var.admin_api_keys != null ? var.admin_api_keys : random_password.admin_api_keys[0].result
-  nextauth_secret = var.nextauth_secret != null ? var.nextauth_secret : random_password.nextauth_secret[0].result
-
-  image = "${var.image_registry}/${var.image_repository}:${var.image_tag}"
-
-  labels = {
-    "app.kubernetes.io/name"       = "polis"
-    "app.kubernetes.io/instance"   = var.name
-    "app.kubernetes.io/managed-by" = "terraform"
-    "app.kubernetes.io/part-of"    = "ory"
-  }
+resource "random_password" "db_encryption_key" {
+  count   = var.db_encryption_key == null ? 1 : 0
+  length  = 32
+  special = false
 }
 
+locals {
+  namespace = var.create_namespace ? kubernetes_namespace.polis[0].metadata[0].name : var.namespace
+
+  admin_api_keys    = var.admin_api_keys != null ? var.admin_api_keys : random_password.admin_api_keys[0].result
+  nextauth_secret   = var.nextauth_secret != null ? var.nextauth_secret : random_password.nextauth_secret[0].result
+  db_encryption_key = var.db_encryption_key != null ? var.db_encryption_key : random_password.db_encryption_key[0].result
+
+  secret_name = "${var.release_name}-config"
+
+  image_config = var.image_registry != null || var.image_repository != null || var.image_tag != null ? {
+    image = merge(
+      var.image_registry != null ? { registry = var.image_registry } : {},
+      var.image_repository != null ? { repository = var.image_repository } : {},
+      var.image_tag != null ? { tag = var.image_tag } : {},
+    )
+  } : {}
+
+  image_pull_secrets_config = length(var.image_pull_secrets) > 0 ? {
+    imagePullSecrets = [for name in var.image_pull_secrets : { name = name }]
+  } : {}
+
+  # Polis only honors SAML_AUDIENCE when set as an env var; the chart does not
+  # plumb it through values, so route it through deployment.extraEnvs.
+  saml_audience_env = var.saml_audience != null ? [{
+    name  = "SAML_AUDIENCE"
+    value = var.saml_audience
+  }] : []
+
+  extra_envs = concat(
+    local.saml_audience_env,
+    [for k, v in var.extra_env : { name = k, value = v }],
+  )
+
+  # The chart's default OTLP endpoints assume a kube-prometheus-stack install
+  # in an 'observability' namespace. Most clusters don't have it, and the
+  # OTel SDK keeps logging connection errors. Blank them when disabled.
+  monitoring_config = var.monitoring_enabled ? {} : {
+    monitoring = {
+      enableDebug = "false"
+      metrics = {
+        otlpEndpoint = ""
+        otlpProtocol = "http/protobuf"
+      }
+      traces = {
+        otlpEndpoint = ""
+        otlpProtocol = "http/protobuf"
+        redact       = { enabled = true }
+      }
+    }
+  }
+
+  default_helm_values = merge({
+    fullnameOverride = var.release_name
+    replicaCount     = var.replica_count
+
+    dbType = "postgres"
+    dbSSL  = var.db_ssl
+
+    # Use our own secret instead of the chart's (which hardcodes a cockroach DSN).
+    secret = {
+      enabled      = false
+      nameOverride = kubernetes_secret.polis.metadata[0].name
+    }
+
+    polis = {
+      hosted            = var.hosted
+      idpEnabled        = var.idp_enabled
+      dbManualMigration = false
+      dbEncryptionKey   = local.db_encryption_key
+      nextAuthUrl       = var.external_url
+      nextAuthAcl       = var.nextauth_acl
+    }
+
+    service = {
+      port = var.port
+      type = "ClusterIP"
+    }
+
+    deployment = {
+      extraEnvs    = local.extra_envs
+      nodeSelector = var.node_selector
+      tolerations = [for t in var.tolerations : {
+        key      = t.key
+        operator = t.operator
+        value    = t.value
+        effect   = t.effect
+      }]
+      resources = {
+        requests = {
+          cpu    = var.resources.requests.cpu
+          memory = var.resources.requests.memory
+        }
+        limits = merge(
+          { memory = var.resources.limits.memory },
+          var.resources.limits.cpu != null ? { cpu = var.resources.limits.cpu } : {}
+        )
+      }
+    }
+  }, local.image_config, local.image_pull_secrets_config, local.monitoring_config)
+
+  merged_helm_values = provider::deepmerge::mergo(local.default_helm_values, var.helm_values)
+}
+
+# Secret feeding the chart's envFrom. The chart's built-in secret template
+# hardcodes a CockroachDB DSN, so we always disable it and provide our own
+# with the Postgres DB_URL plus the auth secrets the container expects.
 resource "kubernetes_secret" "polis" {
   metadata {
-    name      = "${var.name}-config"
+    name      = local.secret_name
     namespace = local.namespace
-    labels    = local.labels
   }
 
   data = {
-    DB_URL           = var.dsn
-    JACKSON_API_KEYS = local.admin_api_keys
-    NEXTAUTH_SECRET  = local.nextauth_secret
+    DB_URL          = var.dsn
+    API_KEYS        = local.admin_api_keys
+    NEXTAUTH_SECRET = local.nextauth_secret
   }
 }
 
-resource "kubernetes_deployment" "polis" {
-  metadata {
-    name      = var.name
-    namespace = local.namespace
-    labels    = local.labels
-  }
+resource "helm_release" "polis" {
+  name      = var.release_name
+  namespace = local.namespace
+  chart     = "oci://${var.chart_registry}/${var.chart_repository}"
+  version   = var.chart_version
+  timeout   = var.install_timeout
 
-  spec {
-    replicas = var.replica_count
+  repository_username = var.oci_registry_password != null ? var.oci_registry_username : null
+  repository_password = var.oci_registry_password
 
-    selector {
-      match_labels = {
-        "app.kubernetes.io/name"     = "polis"
-        "app.kubernetes.io/instance" = var.name
-      }
-    }
+  values = [yamlencode(local.merged_helm_values)]
 
-    template {
-      metadata {
-        labels = local.labels
-      }
-
-      spec {
-        dynamic "image_pull_secrets" {
-          for_each = var.image_pull_secrets
-          content {
-            name = image_pull_secrets.value
-          }
-        }
-
-        dynamic "toleration" {
-          for_each = var.tolerations
-          content {
-            key      = toleration.value.key
-            operator = toleration.value.operator
-            value    = toleration.value.value
-            effect   = toleration.value.effect
-          }
-        }
-
-        node_selector = var.node_selector
-
-        container {
-          name              = "polis"
-          image             = local.image
-          image_pull_policy = var.image_pull_policy
-
-          port {
-            name           = "http"
-            container_port = var.port
-            protocol       = "TCP"
-          }
-
-          env {
-            name  = "PORT"
-            value = tostring(var.port)
-          }
-
-          env {
-            name  = "DB_ENGINE"
-            value = "sql"
-          }
-
-          env {
-            name  = "DB_TYPE"
-            value = "postgres"
-          }
-
-          env {
-            name = "DB_URL"
-            value_from {
-              secret_key_ref {
-                name = kubernetes_secret.polis.metadata[0].name
-                key  = "DB_URL"
-              }
-            }
-          }
-
-          env {
-            name = "JACKSON_API_KEYS"
-            value_from {
-              secret_key_ref {
-                name = kubernetes_secret.polis.metadata[0].name
-                key  = "JACKSON_API_KEYS"
-              }
-            }
-          }
-
-          env {
-            name  = "SAML_AUDIENCE"
-            value = var.saml_audience
-          }
-
-          env {
-            name  = "EXTERNAL_URL"
-            value = var.external_url
-          }
-
-          env {
-            name  = "NEXTAUTH_URL"
-            value = var.external_url
-          }
-
-          env {
-            name = "NEXTAUTH_SECRET"
-            value_from {
-              secret_key_ref {
-                name = kubernetes_secret.polis.metadata[0].name
-                key  = "NEXTAUTH_SECRET"
-              }
-            }
-          }
-
-          dynamic "env" {
-            for_each = var.extra_env
-            content {
-              name  = env.key
-              value = env.value
-            }
-          }
-
-          resources {
-            requests = {
-              cpu    = var.resources.requests.cpu
-              memory = var.resources.requests.memory
-            }
-            limits = merge(
-              { memory = var.resources.limits.memory },
-              var.resources.limits.cpu != null ? { cpu = var.resources.limits.cpu } : {}
-            )
-          }
-
-          liveness_probe {
-            http_get {
-              path = "/api/health"
-              port = var.port
-            }
-            # Polis is a NextJS app and can take ~20s on cold start before it
-            # finishes DB migrations and is ready to answer /api/health, so the
-            # liveness probe needs enough initial delay to avoid a crash loop.
-            initial_delay_seconds = 30
-            period_seconds        = 30
-          }
-
-          readiness_probe {
-            http_get {
-              path = "/api/health"
-              port = var.port
-            }
-            initial_delay_seconds = 10
-            period_seconds        = 10
-          }
-        }
-      }
-    }
-  }
-
-  depends_on = [
-    kubernetes_namespace.polis,
-    kubernetes_secret.polis,
-  ]
-}
-
-resource "kubernetes_service" "polis" {
-  metadata {
-    name      = var.name
-    namespace = local.namespace
-    labels    = local.labels
-  }
-
-  spec {
-    type = "ClusterIP"
-
-    selector = {
-      "app.kubernetes.io/name"     = "polis"
-      "app.kubernetes.io/instance" = var.name
-    }
-
-    port {
-      name        = "http"
-      port        = var.port
-      target_port = var.port
-      protocol    = "TCP"
-    }
-  }
+  depends_on = [kubernetes_secret.polis]
 }
