@@ -33,13 +33,14 @@ locals {
 
   secret_name = "${var.release_name}-config"
 
-  image_config = var.image_registry != null || var.image_repository != null || var.image_tag != null ? {
+  image_config = {
     image = merge(
+      { pullPolicy = var.image_pull_policy },
       var.image_registry != null ? { registry = var.image_registry } : {},
       var.image_repository != null ? { repository = var.image_repository } : {},
       var.image_tag != null ? { tag = var.image_tag } : {},
     )
-  } : {}
+  }
 
   image_pull_secrets_config = length(var.image_pull_secrets) > 0 ? {
     imagePullSecrets = [for name in var.image_pull_secrets : { name = name }]
