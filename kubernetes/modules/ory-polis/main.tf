@@ -33,6 +33,16 @@ locals {
 
   secret_name = "${var.release_name}-config"
 
+  # Hash of the secret data feeding the pod's envFrom. Surfaced as a pod
+  # annotation so updating any of these values forces a rollout, since
+  # Kubernetes does not automatically re-roll a Deployment when a referenced
+  # Secret's contents change.
+  secret_checksum = sha256(jsonencode({
+    DB_URL          = var.dsn
+    API_KEYS        = local.admin_api_keys
+    NEXTAUTH_SECRET = local.nextauth_secret
+  }))
+
   image_config = {
     image = merge(
       { pullPolicy = var.image_pull_policy },
@@ -104,6 +114,9 @@ locals {
     }
 
     deployment = {
+      annotations = {
+        "checksum/config" = local.secret_checksum
+      }
       extraEnvs    = local.extra_envs
       nodeSelector = var.node_selector
       tolerations = [for t in var.tolerations : {

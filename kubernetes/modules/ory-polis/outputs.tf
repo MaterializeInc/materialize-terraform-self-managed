@@ -1,4 +1,4 @@
-output "url" {
+output "internal_url" {
   description = "Internal cluster URL for Polis (SSO, SCIM, OAuth endpoints). Always http because Polis itself does not terminate TLS, it runs as a NextJS app that only speaks plain HTTP on its configured port. Callers of this module are responsible for putting a TLS-terminating proxy in front, typically a cloud LoadBalancer service using cert-manager certs, a cloud-native cert like AWS ACM or GCP managed certs, or an ingress controller like nginx."
   value       = "http://${var.release_name}.${local.namespace}.svc.cluster.local:${var.port}"
 }
