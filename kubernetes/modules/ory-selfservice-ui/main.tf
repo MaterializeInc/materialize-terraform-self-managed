@@ -35,6 +35,16 @@ locals {
     "app.kubernetes.io/managed-by" = "terraform"
     "app.kubernetes.io/part-of"    = "ory"
   }
+
+  # Hash of the secret values so the pod template rolls when any of them
+  # change. Kubernetes does not automatically restart pods when a referenced
+  # Secret's contents change. The upstream Hydra and Kratos Helm charts emit
+  # an equivalent annotation themselves; this module is raw resources so we
+  # have to do it by hand.
+  secret_checksum = sha256(jsonencode({
+    COOKIE_SECRET      = local.cookie_secret
+    CSRF_COOKIE_SECRET = local.csrf_cookie_secret
+  }))
 }
 
 resource "kubernetes_secret" "secrets" {
@@ -72,6 +82,9 @@ resource "kubernetes_deployment" "ui" {
     template {
       metadata {
         labels = local.labels
+        annotations = {
+          "checksum/config" = local.secret_checksum
+        }
       }
 
       spec {
