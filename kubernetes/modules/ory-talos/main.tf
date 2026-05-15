@@ -3,6 +3,16 @@
 # raw Deployment + Service + Secret. Once Ory publishes a chart (or we
 # confirm one already exists at an OCI registry we have access to), swap
 # this to a helm_release in the same shape as the ory-polis module.
+#
+# Coexistence with Hydra: Talos and Hydra are independent issuers by default.
+# A downstream OIDC consumer (Materialize, etc.) that trusts a single issuer
+# URL can only validate one of them at a time. Per Ory guidance, the
+# recommended pattern is to set var.credentials_issuer to the same URL Hydra
+# publishes as its issuer and have Talos sign with the same JWK set via
+# var.signing_keys_urls; both services then mint JWTs that the same
+# downstream accepts. The alternative is fronting both with Oathkeeper at
+# the edge and re-issuing a common token; that's heavier and out of scope
+# for this module.
 
 resource "kubernetes_namespace" "talos" {
   count = var.create_namespace ? 1 : 0
@@ -48,13 +58,22 @@ locals {
 
   # Secret data Talos reads from env at startup. Kept in a Kubernetes Secret
   # so the raw values do not appear on the Deployment manifest.
-  secret_data = {
-    TALOS_DB_DSN                     = var.dsn
-    TALOS_SECRETS_DEFAULT_CURRENT    = local.default_secret
-    TALOS_SECRETS_HMAC_CURRENT       = local.hmac_secret
-    TALOS_SECRETS_PAGINATION_CURRENT = local.pagination_secret
-    TALOS_CREDENTIALS_ISSUER         = var.credentials_issuer
-  }
+  secret_data = merge(
+    {
+      TALOS_DB_DSN                     = var.dsn
+      TALOS_SECRETS_DEFAULT_CURRENT    = local.default_secret
+      TALOS_SECRETS_HMAC_CURRENT       = local.hmac_secret
+      TALOS_SECRETS_PAGINATION_CURRENT = local.pagination_secret
+      TALOS_CREDENTIALS_ISSUER         = var.credentials_issuer
+    },
+    var.signing_key_id != null ? {
+      TALOS_CREDENTIALS_DERIVED_TOKENS_JWT_SIGNING_KEY_ID = var.signing_key_id
+    } : {},
+    length(var.signing_keys_urls) > 0 ? {
+      # Talos accepts comma-separated values for array config keys.
+      TALOS_CREDENTIALS_DERIVED_TOKENS_JWT_SIGNING_KEYS_URLS = join(",", var.signing_keys_urls)
+    } : {},
+  )
 
   # Hash of the secret data so the pod template rolls when any value changes.
   # Kubernetes does not automatically restart pods when an envFrom-referenced

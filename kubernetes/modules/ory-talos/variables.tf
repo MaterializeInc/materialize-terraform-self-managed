@@ -27,8 +27,21 @@ variable "dsn" {
 }
 
 variable "credentials_issuer" {
-  description = "Issuer claim Talos puts in derived JWTs. Maps to TALOS_CREDENTIALS_ISSUER. Must match what downstream services (e.g., Materialize) validate as the OIDC issuer. Example: https://talos.internal.example.com"
+  description = "Issuer claim Talos puts in derived JWTs. Maps to TALOS_CREDENTIALS_ISSUER. Must match what downstream services (e.g., Materialize) validate as the OIDC issuer. For Hydra coexistence (so a single downstream can trust both), set this to the same URL Hydra publishes as its issuer and have both services share signing keys via var.signing_keys_urls. Example: https://auth.internal.example.com"
   type        = string
+  nullable    = false
+}
+
+variable "signing_key_id" {
+  description = "Optional hint pointing Talos at a specific JWK to sign derived tokens with. Maps to TALOS_CREDENTIALS_DERIVED_TOKENS_JWT_SIGNING_KEY_ID. Use together with var.signing_keys_urls when sharing keys with another issuer (e.g., Hydra)."
+  type        = string
+  default     = null
+}
+
+variable "signing_keys_urls" {
+  description = "Optional list of JWKS URLs Talos pulls signing keys from. Maps to TALOS_CREDENTIALS_DERIVED_TOKENS_JWT_SIGNING_KEYS_URLS. The Hydra-coexistence pattern: point this at Hydra's JWKS so both services sign derived tokens with the same key set, then a downstream validating one issuer URL accepts JWTs from either."
+  type        = list(string)
+  default     = []
   nullable    = false
 }
 
