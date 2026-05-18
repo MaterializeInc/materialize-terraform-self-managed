@@ -105,6 +105,13 @@ variable "tls_cert_secret_name" {
   default     = null
 }
 
+variable "trust_mounted_ca_cert" {
+  description = "When true and tls_cert_secret_name is set, point NODE_EXTRA_CA_CERTS at the ca.crt key of the mounted TLS secret so the UI's outbound HTTPS calls (to Kratos/Hydra) trust the issuing CA. Only useful when those upstreams are served by the same in-cluster CA (e.g., cert-manager's self-signed ClusterIssuer). Leave false when the upstream certs are signed by a public CA (Let's Encrypt, corporate trust bundle) that Node.js already trusts, since the mounted secret may not even contain a ca.crt key."
+  type        = bool
+  default     = false
+  nullable    = false
+}
+
 variable "trusted_client_ids" {
   description = "List of OAuth2 client IDs that are trusted and can skip the consent screen."
   type        = list(string)
