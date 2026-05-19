@@ -255,6 +255,11 @@ module "database" {
   prefix     = var.name_prefix
   network_id = module.networking.network_id
 
+  # Append a random suffix to the instance name so a partially-created
+  # instance from a previous apply attempt (whose state was lost) does not
+  # block the next attempt with a 409 "instance already exists" error.
+  random_instance_name = true
+
   tier = local.database_config.tier
 
   labels = var.labels
