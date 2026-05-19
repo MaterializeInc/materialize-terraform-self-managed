@@ -12,28 +12,28 @@ variable "create_namespace" {
   nullable    = false
 }
 
-# Hostnames -------------------------------------------------------------------
+# FQDNs -----------------------------------------------------------------------
 
-variable "hydra_hostname" {
-  description = "External hostname for the Hydra OAuth2 public API. Used as the OIDC issuer URL."
+variable "hydra_fqdn" {
+  description = "Fully-qualified domain name for the Hydra OAuth2 public API (e.g. hydra.example.com). Used as the OIDC issuer URL."
   type        = string
   nullable    = false
 }
 
-variable "kratos_hostname" {
-  description = "External hostname for the Kratos public API. Used by the selfservice UI and as a browser redirect target."
+variable "kratos_fqdn" {
+  description = "Fully-qualified domain name for the Kratos public API (e.g. kratos.example.com). Used by the selfservice UI and as a browser redirect target."
   type        = string
   nullable    = false
 }
 
-variable "ui_hostname" {
-  description = "External hostname for the Ory selfservice UI."
+variable "ui_fqdn" {
+  description = "Fully-qualified domain name for the Ory selfservice UI (e.g. id.example.com)."
   type        = string
   nullable    = false
 }
 
 variable "cookie_parent_domain" {
-  description = "Parent domain used as the cookie domain for Kratos session and CSRF cookies so they apply across sibling subdomains. Defaults to the parent domain of kratos_hostname (e.g. kratos.example.com -> example.com)."
+  description = "Parent domain used as the cookie domain for Kratos session and CSRF cookies so they apply across sibling subdomains. Defaults to the parent domain of kratos_fqdn (e.g. kratos.example.com -> example.com). Falls back to kratos_fqdn itself when it has no '.' separator."
   type        = string
   default     = null
 }
@@ -125,8 +125,8 @@ variable "materialize_instance_resource_id" {
   default     = null
 }
 
-variable "materialize_console_hostname" {
-  description = "External hostname the Materialize console will be served on. Required when materialize_namespace is set; used for the OAuth2 redirect URI and Hydra CORS."
+variable "materialize_console_fqdn" {
+  description = "Fully-qualified domain name the Materialize console will be served on (e.g. console.example.com). Required when materialize_namespace is set; used for the OAuth2 redirect URI and Hydra CORS."
   type        = string
   default     = null
 }
@@ -152,6 +152,13 @@ variable "lb_external_traffic_policy" {
   default     = null
 }
 
+variable "lb_source_cidrs" {
+  description = "CIDR blocks allowed to reach the Ory public ports (Hydra 4444, Kratos 4433, selfservice UI 3000) via the NetworkPolicy. Defaults to all sources; tighten to your LB or office CIDR ranges to restrict ingress."
+  type        = list(string)
+  default     = ["0.0.0.0/0"]
+  nullable    = false
+}
+
 # Scheduling ------------------------------------------------------------------
 
 variable "node_selector" {
@@ -164,7 +171,7 @@ variable "node_selector" {
 # Upstream identity providers -------------------------------------------------
 
 variable "upstream_oidc_providers" {
-  description = "Optional upstream OIDC providers (Okta, Entra, Auth0, Google, etc.) exposed as social sign-in buttons on the selfservice UI. Each entry's redirect URI is registered at the upstream IdP as https://<kratos_hostname>/self-service/methods/oidc/callback/<id>."
+  description = "Optional upstream OIDC providers (Okta, Entra, Auth0, Google, etc.) exposed as social sign-in buttons on the selfservice UI. Each entry's redirect URI is registered at the upstream IdP as https://<kratos_fqdn>/self-service/methods/oidc/callback/<id>."
   type = list(object({
     id            = string
     provider      = optional(string, "generic")

@@ -4,15 +4,27 @@ locals {
   wire_materialize = var.materialize_namespace != null
 
   # External URLs that the browser (and Materialize, for OIDC issuer matching)
-  # sees. Hostnames resolve to the LB IPs and are terminated by cert-manager certs.
-  hydra_external_url  = "https://${var.hydra_hostname}/"
-  kratos_external_url = "https://${var.kratos_hostname}"
-  ui_external_url     = "https://${var.ui_hostname}"
+  # sees. FQDNs resolve to the LB IPs and are terminated by cert-manager certs.
+  # No trailing slash on any of them: matters for OIDC issuer-string comparison
+  # downstream, which is exact-match.
+  hydra_external_url  = "https://${var.hydra_fqdn}"
+  kratos_external_url = "https://${var.kratos_fqdn}"
+  ui_external_url     = "https://${var.ui_fqdn}"
 
   # Cookie domain shared across the Ory subdomains so flow/session cookies work
-  # across sibling hostnames (Kratos, UI, Hydra). Defaults to the parent domain
-  # of kratos_hostname (e.g. kratos.example.com -> example.com).
-  cookie_parent_domain = var.cookie_parent_domain != null ? var.cookie_parent_domain : regex("^[^.]+\\.(.+)$", var.kratos_hostname)[0]
+  # across sibling FQDNs (Kratos, UI, Hydra). Defaults to the parent domain of
+  # kratos_fqdn (e.g. kratos.example.com -> example.com); when kratos_fqdn is a
+  # single label (no '.') we fall back to the value itself rather than erroring.
+  kratos_fqdn_parts = split(".", var.kratos_fqdn)
+  cookie_parent_domain = (
+    var.cookie_parent_domain != null
+    ? var.cookie_parent_domain
+    : (
+      length(local.kratos_fqdn_parts) > 1
+      ? join(".", slice(local.kratos_fqdn_parts, 1, length(local.kratos_fqdn_parts)))
+      : var.kratos_fqdn
+    )
+  )
 
   # In-cluster admin URL for Hydra. Used by Kratos (oauth2_provider.url) and the
   # selfservice UI (HYDRA_ADMIN_URL). Hardcoded service hostname because the
@@ -41,9 +53,9 @@ locals {
 
   # cert-manager Certificate map for the three browser-facing services.
   ory_certs = {
-    hydra-tls              = { hostname = var.hydra_hostname, cluster_svc = "hydra-public.${var.namespace}.svc.cluster.local" }
-    kratos-tls             = { hostname = var.kratos_hostname, cluster_svc = "kratos-public.${var.namespace}.svc.cluster.local" }
-    ory-selfservice-ui-tls = { hostname = var.ui_hostname, cluster_svc = null }
+    hydra-tls              = { fqdn = var.hydra_fqdn, cluster_svc = "hydra-public.${var.namespace}.svc.cluster.local" }
+    kratos-tls             = { fqdn = var.kratos_fqdn, cluster_svc = "kratos-public.${var.namespace}.svc.cluster.local" }
+    ory-selfservice-ui-tls = { fqdn = var.ui_fqdn, cluster_svc = null }
   }
 
   # Baked-in Kratos config that the enterprise setup requires. Callers can
@@ -161,7 +173,7 @@ resource "kubectl_manifest" "ory_certificate" {
     spec = {
       secretName = each.key
       dnsNames = concat(
-        [each.value.hostname],
+        [each.value.fqdn],
         var.cert_issuer_signs_cluster_local && each.value.cluster_svc != null ? [each.value.cluster_svc] : [],
       )
       issuerRef = var.cert_issuer_ref
@@ -245,7 +257,7 @@ module "ory_hydra" {
 
   tls_cert_secret_name = "hydra-tls"
 
-  cors_allowed_origins = local.wire_materialize ? ["https://${var.materialize_console_hostname}"] : []
+  cors_allowed_origins = local.wire_materialize ? ["https://${var.materialize_console_fqdn}"] : []
 
   login_url   = "${local.ui_external_url}/login"
   consent_url = "${local.ui_external_url}/consent"
@@ -323,6 +335,8 @@ resource "kubernetes_service_v1" "ory_lb" {
     }
   }
 
+  wait_for_load_balancer = true
+
   depends_on = [
     module.ory_kratos,
     module.ory_hydra,
@@ -377,7 +391,7 @@ resource "kubectl_manifest" "materialize_oauth2_client" {
     apiVersion = "hydra.ory.sh/v1alpha1"
     kind       = "OAuth2Client"
     metadata = {
-      name      = "materialize"
+      name      = var.oauth2_client_name
       namespace = var.namespace
     }
     spec = {
@@ -389,7 +403,7 @@ resource "kubectl_manifest" "materialize_oauth2_client" {
       responseTypes = ["code", "id_token"]
       scope         = var.oauth2_client_scope
       audience      = var.oauth2_client_audience
-      redirectUris  = ["https://${var.materialize_console_hostname}/auth/callback"]
+      redirectUris  = ["https://${var.materialize_console_fqdn}/auth/callback"]
       # Public SPA client. No secret; PKCE on the console side.
       secretName              = var.oauth2_client_name
       tokenEndpointAuthMethod = "none"
@@ -439,12 +453,12 @@ resource "kubernetes_network_policy_v1" "materialize_to_ory_egress" {
 }
 
 # Allow Ory pods to receive traffic from Materialize, from within the ory
-# namespace, and from external LoadBalancers on the three public ports.
+# namespace, and from external sources on the three public ports.
 resource "kubernetes_network_policy_v1" "ory_from_materialize_ingress" {
   count = local.wire_materialize ? 1 : 0
 
   metadata {
-    name      = "allow-materialize-ingress"
+    name      = "allow-ory-ingress"
     namespace = var.namespace
   }
 
@@ -473,9 +487,12 @@ resource "kubernetes_network_policy_v1" "ory_from_materialize_ingress" {
     # External traffic from the LBs hits Hydra public (4444), Kratos public
     # (4433), and the selfservice UI (3000). Admin ports stay internal.
     ingress {
-      from {
-        ip_block {
-          cidr = "0.0.0.0/0"
+      dynamic "from" {
+        for_each = var.lb_source_cidrs
+        content {
+          ip_block {
+            cidr = from.value
+          }
         }
       }
       ports {
