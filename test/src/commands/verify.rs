@@ -179,17 +179,23 @@ async fn dump_materialize_diagnostics(kubeconfig: &Path, namespace: &str, name: 
     )
     .await;
     run_section(
-        "kubectl logs (orchestratord, last 200 lines)",
+        "kubectl logs (materialize-operator, last 300 lines)",
         kubeconfig,
         &[
             "logs",
             "-n",
             "materialize",
             "-l",
-            "app.kubernetes.io/name=orchestratord",
-            "--tail=200",
+            "app.kubernetes.io/name=materialize-operator",
+            "--tail=300",
             "--all-containers",
         ],
+    )
+    .await;
+    run_section(
+        "kubectl describe pods (instance namespace)",
+        kubeconfig,
+        &["describe", "pods", "-n", namespace],
     )
     .await;
 
