@@ -176,6 +176,11 @@ module "gke" {
   namespace                         = local.materialize_operator_namespace
   k8s_apiserver_authorized_networks = var.k8s_apiserver_authorized_networks
   labels                            = var.labels
+
+  # Pinned to STABLE: REGULAR's 1.35.x line regressed cleanup of the per-cluster
+  # k8s-<cluster-uid>-node-http-hc firewall on cluster destroy, leaving the VPC
+  # un-deletable. STABLE is still on 1.34.x which doesn't have the regression.
+  release_channel = "STABLE"
 }
 
 # Create and configure generic node pool for all workloads except Materialize
