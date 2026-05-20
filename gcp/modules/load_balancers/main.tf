@@ -34,11 +34,6 @@ resource "kubernetes_service" "console_load_balancer" {
     ]
   }
   wait_for_load_balancer = true
-
-  # See time_sleep.wait_for_lb_cleanup below: depending on it makes the service
-  # destroy first and the sleep destroy after, giving cloud-controller-manager
-  # time to clean up the auto-created firewall rule before the VPC is destroyed.
-  depends_on = [time_sleep.wait_for_lb_cleanup]
 }
 
 resource "kubernetes_service" "balancerd_load_balancer" {
@@ -82,11 +77,6 @@ resource "kubernetes_service" "balancerd_load_balancer" {
     ]
   }
   wait_for_load_balancer = true
-
-  # See time_sleep.wait_for_lb_cleanup below: depending on it makes the service
-  # destroy first and the sleep destroy after, giving cloud-controller-manager
-  # time to clean up the auto-created firewall rule before the VPC is destroyed.
-  depends_on = [time_sleep.wait_for_lb_cleanup]
 }
 
 # Custom firewall rule to allow ingress traffic to Materialize nodes (External LB)
@@ -106,23 +96,6 @@ resource "google_compute_firewall" "external_rules" {
   }
   source_ranges           = var.ingress_cidr_blocks
   target_service_accounts = [var.node_service_account_email]
-}
-
-# When a kubernetes_service of type=LoadBalancer is destroyed, Terraform's
-# delete call returns as soon as the k8s API removes the Service. GKE's
-# cloud-controller-manager then asynchronously deletes the auto-created GCP
-# resources (forwarding rule, target pool, and a firewall rule named
-# k8s-<cluster-hash>-node-http-hc). If the GKE cluster is destroyed before
-# that async cleanup finishes, the firewall rule is orphaned in the VPC and
-# blocks a later VPC destroy with "network is already being used by ...".
-#
-# The LB services depend on this time_sleep so that at destroy time the
-# services are torn down first, then time_sleep destroy runs (sleeping
-# destroy_duration) before the module is considered done. Downstream
-# destroys (GKE cluster, VPC) then have a window in which cloud-
-# controller-manager can finish cleaning up the firewall rule.
-resource "time_sleep" "wait_for_lb_cleanup" {
-  destroy_duration = "120s"
 }
 
 # Firewall rule to allow GCP health check traffic
