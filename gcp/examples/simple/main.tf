@@ -176,6 +176,11 @@ module "gke" {
   namespace                         = local.materialize_operator_namespace
   k8s_apiserver_authorized_networks = var.k8s_apiserver_authorized_networks
   labels                            = var.labels
+
+  # Pinned to STABLE: REGULAR's 1.35.x line regressed cleanup of the per-cluster
+  # k8s-<cluster-uid>-node-http-hc firewall on cluster destroy, leaving the VPC
+  # un-deletable. STABLE is still on 1.34.x which doesn't have the regression.
+  release_channel = "STABLE"
 }
 
 # Create and configure generic node pool for all workloads except Materialize
@@ -254,6 +259,11 @@ module "database" {
   region     = var.region
   prefix     = var.name_prefix
   network_id = module.networking.network_id
+
+  # Append a random suffix to the instance name so a partially-created
+  # instance from a previous apply attempt (whose state was lost) does not
+  # block the next attempt with a 409 "instance already exists" error.
+  random_instance_name = true
 
   tier = local.database_config.tier
 

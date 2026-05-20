@@ -127,7 +127,7 @@ async fn setup_kubeconfig(
 }
 
 async fn verify_materialize_instance(kubeconfig: &Path, namespace: &str, name: &str) -> Result<()> {
-    run_cmd(kubectl(kubeconfig).args([
+    let result = run_cmd(kubectl(kubeconfig).args([
         "wait",
         "--for=jsonpath={.status.conditions[?(@.type==\"UpToDate\")].status}=True",
         &format!("materialize/{name}"),
@@ -135,11 +135,71 @@ async fn verify_materialize_instance(kubeconfig: &Path, namespace: &str, name: &
         namespace,
         "--timeout=600s",
     ]))
-    .await
-    .context("Materialize instance did not become UpToDate within timeout")?;
+    .await;
+
+    if let Err(e) = result {
+        dump_materialize_diagnostics(kubeconfig, namespace, name).await;
+        return Err(e).context("Materialize instance did not become UpToDate within timeout");
+    }
 
     println!("  Materialize instance {name} is UpToDate.");
     Ok(())
+}
+
+/// Best-effort diagnostic dump when verify_materialize_instance times out.
+/// Each command's failure is logged but ignored so we always get the rest of
+/// the output even if one section errors.
+async fn dump_materialize_diagnostics(kubeconfig: &Path, namespace: &str, name: &str) {
+    println!("\n--- diagnostics: Materialize CR did not become UpToDate ---");
+
+    async fn run_section(label: &str, kubeconfig: &Path, args: &[&str]) {
+        println!("\n>>> {label}");
+        if let Err(e) = run_cmd(kubectl(kubeconfig).args(args)).await {
+            println!("(diagnostic command failed: {e:#})");
+        }
+    }
+
+    let materialize_ref = format!("materialize/{name}");
+    run_section(
+        "kubectl describe materialize",
+        kubeconfig,
+        &["describe", &materialize_ref, "-n", namespace],
+    )
+    .await;
+    run_section(
+        "kubectl get pods (instance namespace)",
+        kubeconfig,
+        &["get", "pods", "-n", namespace, "-o", "wide"],
+    )
+    .await;
+    run_section(
+        "kubectl get pods (operator namespace)",
+        kubeconfig,
+        &["get", "pods", "-n", "materialize", "-o", "wide"],
+    )
+    .await;
+    run_section(
+        "kubectl logs (materialize-operator, last 300 lines)",
+        kubeconfig,
+        &[
+            "logs",
+            "-n",
+            "materialize",
+            "-l",
+            "app.kubernetes.io/name=materialize-operator",
+            "--tail=300",
+            "--all-containers",
+        ],
+    )
+    .await;
+    run_section(
+        "kubectl describe pods (instance namespace)",
+        kubeconfig,
+        &["describe", "pods", "-n", namespace],
+    )
+    .await;
+
+    println!("\n--- end diagnostics ---");
 }
 
 /// The expected pod types and their minimum counts in the materialize namespace.
