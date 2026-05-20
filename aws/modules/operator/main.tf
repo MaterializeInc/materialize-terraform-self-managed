@@ -147,6 +147,42 @@ resource "kubernetes_network_policy_v1" "allow_api_server_egress" {
   }
 }
 
+# Allow egress from the operator to environmentd on the HTTPS port (6876).
+# Recent operator versions call https://<svc>:6876/api/login during generation
+# rollout to finalize the Materialize CR. Without this rule the operator wedges
+# at status=Applying because the existing policies only permit port 443 egress.
+# Scoped to port 6876 only; the destination is any namespace because a single
+# operator can manage instances across multiple namespaces.
+resource "kubernetes_network_policy_v1" "allow_environmentd_egress" {
+  count = var.enable_network_policies ? 1 : 0
+
+  metadata {
+    name      = "allow-environmentd-egress"
+    namespace = kubernetes_namespace.materialize.metadata[0].name
+  }
+
+  spec {
+    pod_selector {
+      match_labels = {
+        "app.kubernetes.io/name" = "materialize-operator"
+      }
+    }
+    policy_types = ["Egress"]
+
+    egress {
+      to {
+        ip_block {
+          cidr = "0.0.0.0/0"
+        }
+      }
+      ports {
+        protocol = "TCP"
+        port     = 6876
+      }
+    }
+  }
+}
+
 # Allow ingress from Kubernetes API server (required for CRD conversion)
 resource "kubernetes_network_policy_v1" "allow_api_server_ingress_to_conversion_webhook" {
   count = var.enable_network_policies ? 1 : 0

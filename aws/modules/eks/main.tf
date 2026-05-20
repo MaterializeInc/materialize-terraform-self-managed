@@ -48,21 +48,6 @@ module "eks" {
       type                          = "ingress"
       source_cluster_security_group = true
     }
-    # The Materialize operator (on a generic node) reaches environmentd at
-    # https://<svc>:6876/api/login during reconciliation to finalize the
-    # generation rollout. Pod-to-pod traffic across nodes transits the node
-    # SG, which only opens 6876 from external CIDR blocks above. Without
-    # this self rule the operator's HTTPS call hangs and the Materialize CR
-    # never advances past status=Applying. AKS does not gate intra-cluster
-    # pod traffic this way, which is why this manifests only on AWS.
-    mz_ingress_environmentd_intracluster = {
-      description = "Intra-cluster traffic to environmentd HTTPS (operator to environmentd)"
-      protocol    = "tcp"
-      from_port   = 6876
-      to_port     = 6876
-      type        = "ingress"
-      self        = true
-    }
   }
 
   # Cluster access entry

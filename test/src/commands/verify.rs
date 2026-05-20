@@ -133,7 +133,7 @@ async fn verify_materialize_instance(kubeconfig: &Path, namespace: &str, name: &
         &format!("materialize/{name}"),
         "-n",
         namespace,
-        "--timeout=1800s",
+        "--timeout=600s",
     ]))
     .await;
 
