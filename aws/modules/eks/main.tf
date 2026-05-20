@@ -56,7 +56,7 @@ module "eks" {
     # never advances past status=Applying. AKS does not gate intra-cluster
     # pod traffic this way, which is why this manifests only on AWS.
     mz_ingress_environmentd_intracluster = {
-      description = "Intra-cluster traffic to environmentd HTTPS (operator -> environmentd)"
+      description = "Intra-cluster traffic to environmentd HTTPS (operator to environmentd)"
       protocol    = "tcp"
       from_port   = 6876
       to_port     = 6876
