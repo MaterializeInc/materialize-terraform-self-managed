@@ -217,11 +217,10 @@ resource "kubernetes_deployment" "ui" {
             }
           }
 
-          # Tell Node.js to trust the CA that issued the mounted cert. Without this,
-          # server-side HTTPS calls from the UI to Kratos/Hydra fail with
-          # UNABLE_TO_VERIFY_LEAF_SIGNATURE when they're behind self-signed certs.
+          # Trust the mounted ca.crt for outbound HTTPS to Kratos/Hydra.
+          # See var.trust_mounted_ca_cert.
           dynamic "env" {
-            for_each = local.tls_enabled ? [1] : []
+            for_each = local.tls_enabled && var.trust_mounted_ca_cert ? [1] : []
             content {
               name  = "NODE_EXTRA_CA_CERTS"
               value = "${local.tls_mount_dir}/ca.crt"
