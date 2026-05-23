@@ -3,9 +3,10 @@
 
 provider "registry.terraform.io/alekc/kubectl" {
   version     = "2.2.0"
-  constraints = "~> 2.0, >= 2.2.0"
+  constraints = "~> 2.0, >= 2.2.0, < 2.3.0"
   hashes = [
     "h1:UMcNNSk7bFSs3gzn/+8d6j2/lK+PEUKV4CSrjP6N6nA=",
+    "h1:hj17qVLN9XWIx5jNPgfvoGFIzijMNhrkfQTbaI0sucE=",
     "zh:0187d07fbfc6960c8f1e5a0a10f686ff989af070dad3c703825e7b36d9f4752b",
     "zh:0d010cb68aea779e8468b267a066f55a27556ef32f864faee8252b777ef1bd26",
     "zh:15527360858690bc2b522a0c9d90b3a650a798852d80b9311daa7e9f7def658d",
@@ -27,6 +28,7 @@ provider "registry.terraform.io/azure/azapi" {
   constraints = "~> 2.0, ~> 2.4, ~> 2.5"
   hashes = [
     "h1:ivmN39jnMJRZXlPuX8r5TTXM8lyF8ZocPQQgEUy61eM=",
+    "h1:tF2SjvM2Vj+7MTbFXhssLYu1Uc9uK/cVWBYIH8heDqM=",
     "zh:0a4eee8c9362db6ca19d371eccf38701c8306be761182da87b624294f7e8f867",
     "zh:4df87bee5b8f4cce27461ae26132a599542583cdf035942b42b0259a514ab46e",
     "zh:57dc1f4227f1d0eab630fcf868d6c9a1b4dc4c165608ce5a4d7028a482770547",
@@ -65,9 +67,10 @@ provider "registry.terraform.io/azure/modtm" {
 
 provider "registry.terraform.io/hashicorp/azuread" {
   version     = "3.8.0"
-  constraints = ">= 2.45.0"
+  constraints = ">= 2.45.0, < 3.9.0"
   hashes = [
     "h1:E2YWNE3Qry4bQMlmmZ33X4hLY5hOGrEZrlRg4anI2uw=",
+    "h1:kIEmiknJFWKe44U9ePG5vXwoloKep0Dbi/mQ8uqCbw0=",
     "zh:0d26cfbf9417acd1c2295ccd5b0052abeac85ad1c3f6422ff09bf6a1ce16f00d",
     "zh:144d4ea92fed541a6376bc76ad65ba4738dfd7bcab4c9d6cc20d35001338d06d",
     "zh:1c3e89cf19118fc07d7b04257251fc9897e722c16e0a0df7b07fcd261f8c12e7",
@@ -85,7 +88,7 @@ provider "registry.terraform.io/hashicorp/azuread" {
 
 provider "registry.terraform.io/hashicorp/azurerm" {
   version     = "4.54.0"
-  constraints = ">= 3.75.0, ~> 4.0, 4.54.0"
+  constraints = ">= 3.75.0, ~> 4.0, 4.54.0, < 4.55.0"
   hashes = [
     "h1:AeE+jsY9HfzMrTLjQZZ8IWtI/XxqBxbd3BRDSbGU2oM=",
     "h1:uYLSLApU3bG/q6nxNb2N5FV0YddZxsg6Jlq27hDmPOA=",
@@ -106,7 +109,7 @@ provider "registry.terraform.io/hashicorp/azurerm" {
 
 provider "registry.terraform.io/hashicorp/external" {
   version     = "2.3.5"
-  constraints = ">= 2.3.4"
+  constraints = ">= 2.3.4, < 2.4.0"
   hashes = [
     "h1:FnUk98MI5nOh3VJ16cHf8mchQLewLfN1qZG/MqNgPrI=",
     "h1:smKSos4zs57pJjQrNuvGBpSWth2el9SgePPbPHo0aps=",
@@ -127,7 +130,7 @@ provider "registry.terraform.io/hashicorp/external" {
 
 provider "registry.terraform.io/hashicorp/helm" {
   version     = "2.17.0"
-  constraints = "~> 2.0, >= 2.5.0"
+  constraints = "~> 2.0, >= 2.5.0, < 2.18.0"
   hashes = [
     "h1:K5FEjxvDnxb1JF1kG1xr8J3pNGxoaR3Z0IBG9Csm/Is=",
     "h1:kQMkcPVvHOguOqnxoEU2sm1ND9vCHiT8TvZ2x6v/Rsw=",
@@ -148,7 +151,7 @@ provider "registry.terraform.io/hashicorp/helm" {
 
 provider "registry.terraform.io/hashicorp/kubernetes" {
   version     = "2.38.0"
-  constraints = "~> 2.0, >= 2.10.0"
+  constraints = "~> 2.0, >= 2.10.0, < 2.39.0"
   hashes = [
     "h1:5CkveFo5ynsLdzKk+Kv+r7+U9rMrNjfZPT3a0N/fhgE=",
     "h1:soK8Lt0SZ6dB+HsypFRDzuX/npqlMU6M0fvyaR1yW0k=",
@@ -169,7 +172,7 @@ provider "registry.terraform.io/hashicorp/kubernetes" {
 
 provider "registry.terraform.io/hashicorp/null" {
   version     = "3.2.4"
-  constraints = "~> 3.0"
+  constraints = "~> 3.0, < 3.3.0"
   hashes = [
     "h1:L5V05xwp/Gto1leRryuesxjMfgZwjb7oool4WS1UEFQ=",
     "h1:hkf5w5B6q8e2A42ND2CjAvgvSN3puAosDmOJb3zCVQM=",
@@ -190,8 +193,9 @@ provider "registry.terraform.io/hashicorp/null" {
 
 provider "registry.terraform.io/hashicorp/random" {
   version     = "3.8.1"
-  constraints = ">= 3.0.0, ~> 3.0, ~> 3.1, >= 3.5.0, ~> 3.5"
+  constraints = ">= 3.0.0, ~> 3.0, ~> 3.1, >= 3.5.0, ~> 3.5, < 3.9.0"
   hashes = [
+    "h1:Eexl06+6J+s75uD46+WnZtpJZYRVUMB0AiuPBifK6Jc=",
     "h1:u8AKlWVDTH5r9YLSeswoVEjiY72Rt4/ch7U+61ZDkiQ=",
     "zh:08dd03b918c7b55713026037c5400c48af5b9f468f483463321bd18e17b907b4",
     "zh:0eee654a5542dc1d41920bbf2419032d6f0d5625b03bd81339e5b33394a3e0ae",
@@ -210,7 +214,7 @@ provider "registry.terraform.io/hashicorp/random" {
 
 provider "registry.terraform.io/isometry/deepmerge" {
   version     = "1.2.1"
-  constraints = "~> 1.0"
+  constraints = "~> 1.0, < 1.3.0"
   hashes = [
     "h1:+GBRWyzNYKj47qmSBcV28lrIIgk3Gusj48maI+jrL0Q=",
     "h1:zWPD5ysWAKAmdXlv+GZtQ8qaLiOId/zENIUXfN+WqUU=",

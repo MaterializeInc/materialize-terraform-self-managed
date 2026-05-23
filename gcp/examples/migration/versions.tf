@@ -4,23 +4,23 @@ terraform {
   required_providers {
     google = {
       source  = "hashicorp/google"
-      version = ">= 6.31, < 7"
+      version = ">= 6.31, < 6.51.0"
     }
     kubernetes = {
       source  = "hashicorp/kubernetes"
-      version = "~> 2.0"
+      version = "~> 2.0, < 2.39.0"
     }
     helm = {
       source  = "hashicorp/helm"
-      version = "~> 2.0"
+      version = "~> 2.0, < 2.18.0"
     }
     random = {
       source  = "hashicorp/random"
-      version = "~> 3.1"
+      version = "~> 3.1, < 3.9.0"
     }
     deepmerge = {
       source  = "isometry/deepmerge"
-      version = "~> 1.0"
+      version = "~> 1.0, < 1.3.0"
     }
     kubectl = {
       source = "alekc/kubectl"
@@ -29,7 +29,7 @@ terraform {
     }
     time = {
       source  = "hashicorp/time"
-      version = "~> 0.13"
+      version = "~> 0.13, < 0.14.0"
     }
   }
 }

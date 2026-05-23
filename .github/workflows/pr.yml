@@ -15,7 +15,7 @@ jobs:
       - lint
     if: always()
     steps:
-      - uses: technote-space/workflow-conclusion-action@v3
+      - uses: technote-space/workflow-conclusion-action@45ce8e0eb155657ab8ccf346ade734257fd196a5 # v3.0.3
       - name: Verify lint passed
         if: env.WORKFLOW_CONCLUSION != 'success'
         run: |

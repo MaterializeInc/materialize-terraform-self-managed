@@ -1,0 +1,84 @@
+version: 2
+updates:
+  - package-ecosystem: "terraform"
+    directories:
+      - "/.github/setup/aws"
+      - "/.github/setup/azure"
+      - "/.github/setup/gcp"
+      - "/aws/examples/migration"
+      - "/aws/examples/simple"
+      - "/aws/modules/aws-lbc"
+      - "/aws/modules/database"
+      - "/aws/modules/ebs-csi-driver"
+      - "/aws/modules/eks"
+      - "/aws/modules/eks-node-group"
+      - "/aws/modules/karpenter"
+      - "/aws/modules/karpenter-ec2nodeclass"
+      - "/aws/modules/karpenter-nodepool"
+      - "/aws/modules/networking"
+      - "/aws/modules/nlb"
+      - "/aws/modules/nlb/target"
+      - "/aws/modules/operator"
+      - "/aws/modules/storage"
+      - "/aws/modules/vpc-cni"
+      - "/azure/examples/migration"
+      - "/azure/examples/simple"
+      - "/azure/modules/aks"
+      - "/azure/modules/database"
+      - "/azure/modules/load_balancers"
+      - "/azure/modules/networking"
+      - "/azure/modules/nodepool"
+      - "/azure/modules/operator"
+      - "/azure/modules/storage"
+      - "/gcp/examples/migration"
+      - "/gcp/examples/simple"
+      - "/gcp/modules/database"
+      - "/gcp/modules/gke"
+      - "/gcp/modules/load_balancers"
+      - "/gcp/modules/networking"
+      - "/gcp/modules/nodepool"
+      - "/gcp/modules/operator"
+      - "/gcp/modules/storage"
+      - "/kubernetes/modules/cert-manager"
+      - "/kubernetes/modules/coredns"
+      - "/kubernetes/modules/grafana"
+      - "/kubernetes/modules/hpa"
+      - "/kubernetes/modules/materialize-instance"
+      - "/kubernetes/modules/ory-hydra"
+      - "/kubernetes/modules/ory-kratos"
+      - "/kubernetes/modules/ory-selfservice-ui"
+      - "/kubernetes/modules/prometheus"
+      - "/kubernetes/modules/self-signed-cluster-issuer"
+    schedule:
+      interval: "daily"
+    cooldown:
+      default-days: 7
+    groups:
+      terraform:
+        patterns:
+          - "*"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "daily"
+    cooldown:
+      default-days: 7
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+    ignore:
+      # @stable is a toolchain selector, not a version tag.
+      - dependency-name: "dtolnay/rust-toolchain"
+
+  - package-ecosystem: "cargo"
+    directory: "/test"
+    schedule:
+      interval: "daily"
+    cooldown:
+      default-days: 7
+    groups:
+      cargo:
+        patterns:
+          - "*"
