@@ -128,11 +128,14 @@ resource "kubernetes_namespace" "ory" {
   }
 }
 
-# Image pull secret for OEL ---------------------------------------------------
+# Image pull secret for the Ory registry proxy --------------------------------
 
-# SECURITY: file() embeds the GCP service-account key into Terraform state in
-# plaintext. Treat state as sensitive. The Materialize-hosted registry proxy
-# (license-key JWT auth) is the planned replacement.
+# The proxy validates the license-key JWT, checks the ory entitlement, and
+# forwards to Ory's Artifact Registry using Materialize's service account.
+# Username is arbitrary; the proxy ignores it. Convention: "jwt".
+# Pods need egress to the proxy host AND storage.googleapis.com (the proxy
+# returns 307 redirects to signed GCS URLs for blob GETs, which the kubelet
+# follows directly).
 resource "kubernetes_secret" "ory_oel_registry" {
   metadata {
     name      = var.oel_registry_secret_name
@@ -145,7 +148,7 @@ resource "kubernetes_secret" "ory_oel_registry" {
     ".dockerconfigjson" = jsonencode({
       auths = {
         (var.oel_registry_host) = {
-          auth = base64encode("_json_key:${file(var.oel_key_file)}")
+          auth = base64encode("jwt:${var.license_key_jwt}")
         }
       }
     })
