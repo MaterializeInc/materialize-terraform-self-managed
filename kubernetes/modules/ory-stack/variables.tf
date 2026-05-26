@@ -76,13 +76,6 @@ variable "license_key_jwt" {
   nullable    = false
 }
 
-variable "oel_registry_host" {
-  description = "Hostname (no path) of the OEL container registry. Used as the dockerconfigjson auths key. Defaults to the production proxy host."
-  type        = string
-  default     = "ory.registry.cloud.materialize.com"
-  nullable    = false
-}
-
 variable "oel_registry_secret_name" {
   description = "Name of the imagePullSecrets Secret created in the Ory namespace."
   type        = string

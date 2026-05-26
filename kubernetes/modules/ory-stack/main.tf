@@ -3,6 +3,10 @@ locals {
   # (OAuth2 client, network policies, console LB). When null, those are skipped.
   wire_materialize = var.materialize_namespace != null
 
+  # Hostname portion of var.oel_registry (everything before the first '/').
+  # Used as the dockerconfigjson auths key on the imagePullSecret.
+  oel_registry_host = split("/", var.oel_registry)[0]
+
   # External URLs that the browser (and Materialize, for OIDC issuer matching)
   # sees. FQDNs resolve to the LB IPs and are terminated by cert-manager certs.
   # No trailing slash on any of them: matters for OIDC issuer-string comparison
@@ -147,7 +151,7 @@ resource "kubernetes_secret" "ory_oel_registry" {
   data = {
     ".dockerconfigjson" = jsonencode({
       auths = {
-        (var.oel_registry_host) = {
+        (local.oel_registry_host) = {
           auth = base64encode("jwt:${var.license_key_jwt}")
         }
       }
