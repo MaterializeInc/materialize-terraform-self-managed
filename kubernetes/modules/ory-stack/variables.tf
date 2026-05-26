@@ -57,8 +57,9 @@ variable "hydra_dsn" {
 # OEL image pull --------------------------------------------------------------
 
 variable "oel_registry" {
-  description = "Base registry URL for Ory Enterprise License (OEL) images. Example: europe-docker.pkg.dev/ory-artifacts. The Kratos and Hydra image repos are derived from this prefix."
+  description = "Base registry URL for Ory Enterprise License (OEL) images. Defaults to the production Materialize-hosted registry proxy (ory.registry.cloud.materialize.com/ory-artifacts). Override for staging (ory.registry.staging.cloud.materialize.com/ory-artifacts) or a dev stack. The Kratos and Hydra image repos are derived from this prefix."
   type        = string
+  default     = "ory.registry.cloud.materialize.com/ory-artifacts"
   nullable    = false
 }
 
@@ -68,16 +69,10 @@ variable "oel_image_tag" {
   nullable    = false
 }
 
-variable "oel_key_file" {
-  description = "Path to the GCP service account JSON key file used to pull OEL images. SECURITY: the key contents are embedded in Terraform state in plaintext; treat state as sensitive."
+variable "license_key_jwt" {
+  description = "Materialize license key JWT. Used as the password in the imagePullSecret to authenticate to the Ory registry proxy. The proxy validates the JWT signature, checks the ory entitlement, and forwards to Ory's Artifact Registry using Materialize's service account. Same JWT used by the materialize-instance module's license_key."
   type        = string
-  nullable    = false
-}
-
-variable "oel_registry_host" {
-  description = "Hostname (no path) of the OEL container registry. Used as the dockerconfigjson auths key."
-  type        = string
-  default     = "europe-docker.pkg.dev"
+  sensitive   = true
   nullable    = false
 }
 
