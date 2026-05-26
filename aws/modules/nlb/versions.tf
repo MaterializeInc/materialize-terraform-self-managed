@@ -1,5 +1,5 @@
 terraform {
-  required_version = ">= 1.0"
+  required_version = ">= 1.8"
 
   required_providers {
     aws = {
@@ -17,6 +17,11 @@ terraform {
     random = {
       source  = "hashicorp/random"
       version = "~> 3.0, < 3.9.0"
+    }
+    kubectl = {
+      source = "alekc/kubectl"
+      # TODO: Unpin once fixed: https://github.com/alekc/terraform-provider-kubectl/issues/283
+      version = "~> 2.0, < 2.3"
     }
   }
 }
