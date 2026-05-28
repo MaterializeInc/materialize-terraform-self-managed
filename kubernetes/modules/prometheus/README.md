@@ -23,7 +23,6 @@ No modules.
 |------|------|
 | [helm_release.prometheus](https://registry.terraform.io/providers/hashicorp/helm/latest/docs/resources/release) | resource |
 | [kubernetes_namespace.prometheus](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/namespace) | resource |
-| [kubernetes_storage_class.prometheus](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/data-sources/storage_class) | data source |
 
 ## Inputs
 
