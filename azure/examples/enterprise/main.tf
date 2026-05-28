@@ -37,6 +37,7 @@ provider "kubectl" {
   cluster_ca_certificate = base64decode(module.aks.kube_config[0].cluster_ca_certificate)
 
   load_config_file = false
+  lazy_load        = true
 }
 
 
@@ -68,7 +69,7 @@ locals {
 
   database_config = {
     sku_name                      = "GP_Standard_D2s_v3"
-    postgres_version              = "18"
+    postgres_version              = "17"
     storage_mb                    = 32768
     backup_retention_days         = 35
     administrator_login           = "materialize"
@@ -80,7 +81,7 @@ locals {
   # Ory database configuration (separate Postgres instance)
   ory_database_config = {
     sku_name                      = "B_Standard_B1ms"
-    postgres_version              = "18"
+    postgres_version              = "17"
     storage_mb                    = 32768
     backup_retention_days         = 35
     administrator_login           = "oryadmin"
@@ -438,6 +439,8 @@ module "grafana" {
   create_namespace = false
   prometheus_url   = module.prometheus[0].prometheus_url
   node_selector    = local.generic_node_labels
+
+  depends_on = [module.operator]
 }
 
 module "materialize_instance" {
@@ -541,6 +544,11 @@ module "ory" {
   materialize_instance_name        = local.materialize_instance_name
   materialize_instance_resource_id = module.materialize_instance.instance_resource_id
   materialize_console_fqdn         = var.materialize_console_hostname
+
+  # externalTrafficPolicy=Local makes Azure probe the kubelet's healthCheckNodePort
+  # (always HTTP) instead of the TLS-only app port, which otherwise flaps backends
+  # unhealthy and causes intermittent timeouts on hydra/kratos/ui.
+  lb_external_traffic_policy = "Local"
 
   # Azure Load Balancer annotations. Internal LB uses the AKS internal flag.
   lb_annotations = var.internal_load_balancer ? {
