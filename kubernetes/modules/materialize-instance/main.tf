@@ -86,14 +86,14 @@ resource "kubectl_manifest" "materialize_instance" {
         balancerdExternalCertificateSpec = (
           var.issuer_ref == null ||
           (var.internal_issuer_ref != null && length(var.balancerd_extra_dns_names) == 0)
-        ) ? null : {
+          ) ? null : {
           dnsNames  = var.internal_issuer_ref != null ? var.balancerd_extra_dns_names : concat(["balancerd"], var.balancerd_extra_dns_names)
           issuerRef = var.issuer_ref
         }
         consoleExternalCertificateSpec = (
           var.issuer_ref == null ||
           (var.internal_issuer_ref != null && length(var.console_extra_dns_names) == 0)
-        ) ? null : {
+          ) ? null : {
           dnsNames  = var.internal_issuer_ref != null ? var.console_extra_dns_names : concat(["console"], var.console_extra_dns_names)
           issuerRef = var.issuer_ref
         }
