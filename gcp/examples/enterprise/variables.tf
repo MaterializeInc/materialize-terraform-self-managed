@@ -68,6 +68,41 @@ variable "enable_observability" {
   default     = true
 }
 
+# Node pool sizing ------------------------------------------------------------
+#
+# The defaults below mirror what an enterprise customer should likely run in
+# production. For multi-day testing, drop these to cheaper instance types in
+# your local terraform.tfvars (e.g., n2-highmem-4 for Materialize, e2-standard-4
+# for generic, min_nodes = 1, local_ssd_count = 0). The materialize pods will
+# still schedule provided the node has enough CPU/memory for the operator's
+# resource requests; reduce too far and pods stay Pending.
+
+variable "generic_nodepool" {
+  description = "Generic Kubernetes node pool: hosts everything except the Materialize instance pods (operator, Ory, cert-manager, prometheus, grafana)."
+  type = object({
+    machine_type = optional(string, "e2-standard-8")
+    disk_size_gb = optional(number, 50)
+    min_nodes    = optional(number, 2)
+    max_nodes    = optional(number, 5)
+  })
+  default  = {}
+  nullable = false
+}
+
+variable "materialize_nodepool" {
+  description = "Materialize-dedicated Kubernetes node pool: hosts environmentd, clusterd, balancerd, console. Tainted so only Materialize pods schedule here. Local SSD provides swap; set local_ssd_count = 0 to disable swap (uses more memory but cheaper)."
+  type = object({
+    machine_type    = optional(string, "n2-highmem-8")
+    disk_size_gb    = optional(number, 100)
+    min_nodes       = optional(number, 2)
+    max_nodes       = optional(number, 5)
+    local_ssd_count = optional(number, 1)
+    swap_enabled    = optional(bool, true)
+  })
+  default  = {}
+  nullable = false
+}
+
 # Ory variables
 variable "ory_oel_registry" {
   description = "Base registry URL for Ory Enterprise License images. Defaults to the production Materialize-hosted registry proxy. Override for staging (ory.registry.staging.cloud.materialize.com/ory-artifacts) or a dev stack."

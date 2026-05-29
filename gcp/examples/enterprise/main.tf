@@ -82,13 +82,6 @@ locals {
     }
   ]
 
-  gke_config = {
-    machine_type = "n2-highmem-8"
-    disk_size_gb = 100
-    min_nodes    = 2
-    max_nodes    = 5
-  }
-
   database_config = {
     tier                    = "db-custom-2-4096"
     database                = { name = "materialize", charset = "UTF8", collation = "en_US.UTF8" }
@@ -104,9 +97,6 @@ locals {
     db_version              = "POSTGRES_17"
     backup_retained_backups = 35
   }
-
-  local_ssd_count = 1
-  swap_enabled    = true
 
   database_statement_timeout = "15min"
 
@@ -222,10 +212,10 @@ module "generic_nodepool" {
   enable_private_nodes  = true
   cluster_name          = module.gke.cluster_name
   project_id            = var.project_id
-  min_nodes             = 2
-  max_nodes             = 5
-  machine_type          = "e2-standard-8"
-  disk_size_gb          = 50
+  min_nodes             = var.generic_nodepool.min_nodes
+  max_nodes             = var.generic_nodepool.max_nodes
+  machine_type          = var.generic_nodepool.machine_type
+  disk_size_gb          = var.generic_nodepool.disk_size_gb
   service_account_email = module.gke.service_account_email
   labels                = local.generic_node_labels
   swap_enabled          = false
@@ -241,17 +231,17 @@ module "materialize_nodepool" {
   enable_private_nodes  = true
   cluster_name          = module.gke.cluster_name
   project_id            = var.project_id
-  min_nodes             = local.gke_config.min_nodes
-  max_nodes             = local.gke_config.max_nodes
-  machine_type          = local.gke_config.machine_type
-  disk_size_gb          = local.gke_config.disk_size_gb
+  min_nodes             = var.materialize_nodepool.min_nodes
+  max_nodes             = var.materialize_nodepool.max_nodes
+  machine_type          = var.materialize_nodepool.machine_type
+  disk_size_gb          = var.materialize_nodepool.disk_size_gb
   service_account_email = module.gke.service_account_email
   labels                = merge(var.labels, local.materialize_node_labels)
   # Materialize-specific taint to isolate workloads
   node_taints = local.materialize_node_taints
 
-  swap_enabled    = local.swap_enabled
-  local_ssd_count = local.local_ssd_count
+  swap_enabled    = var.materialize_nodepool.swap_enabled
+  local_ssd_count = var.materialize_nodepool.local_ssd_count
 }
 
 # Deploy custom CoreDNS with TTL 0 (GKE's kube-dns doesn't support disabling caching)
