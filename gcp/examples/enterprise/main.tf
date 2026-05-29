@@ -290,6 +290,13 @@ module "database" {
   backup_retained_backups = local.database_config.backup_retained_backups
 
   labels = var.labels
+
+  # Wait for the private services access peering inside the networking module.
+  # Referencing module.networking.network_id alone only waits for the VPC, not
+  # for google_service_networking_connection.private_vpc_connection, so without
+  # this Cloud SQL races and errors with "network doesn't have at least 1
+  # private services connection".
+  depends_on = [module.networking]
 }
 
 # Separate Cloud SQL instance for Ory (Kratos + Hydra)
@@ -312,6 +319,9 @@ module "ory_database" {
   backup_retained_backups = local.ory_database_config.backup_retained_backups
 
   labels = var.labels
+
+  # See depends_on note on module.database above.
+  depends_on = [module.networking]
 }
 
 # Create Google Cloud Storage bucket for Materialize persistent data storage
@@ -411,6 +421,11 @@ module "grafana" {
   create_namespace = false
   prometheus_url   = module.prometheus[0].prometheus_url
   node_selector    = local.generic_node_labels
+
+  # Operator creates the "monitoring" namespace. Without this depends_on,
+  # grafana's ConfigMaps can race the namespace creation and error with
+  # `namespaces "monitoring" not found`.
+  depends_on = [module.operator]
 }
 
 # Deploy Materialize instance with configured backend connections
