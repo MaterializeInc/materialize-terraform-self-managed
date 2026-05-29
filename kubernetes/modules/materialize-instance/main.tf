@@ -79,16 +79,21 @@ resource "kubectl_manifest" "materialize_instance" {
           }
         }
 
-        # When var.internal_issuer_ref is set, var.issuer_ref is assumed to be a
-        # public ACME issuer (Let's Encrypt) that cannot sign single-label cluster
-        # service names. In that case, strip "balancerd" / "console" from the
-        # external cert SANs and rely on var.{balancerd,console}_extra_dns_names
-        # for the routable hostnames.
-        balancerdExternalCertificateSpec = var.issuer_ref == null ? null : {
+        # internal_issuer_ref split: public ACME issuers can't sign single-label
+        # cluster service names, so strip "balancerd"/"console" from the SAN list
+        # and rely on the extras. Drop the spec when there are no extras, since
+        # cert-manager rejects Certificates with no SANs.
+        balancerdExternalCertificateSpec = (
+          var.issuer_ref == null ||
+          (var.internal_issuer_ref != null && length(var.balancerd_extra_dns_names) == 0)
+          ) ? null : {
           dnsNames  = var.internal_issuer_ref != null ? var.balancerd_extra_dns_names : concat(["balancerd"], var.balancerd_extra_dns_names)
           issuerRef = var.issuer_ref
         }
-        consoleExternalCertificateSpec = var.issuer_ref == null ? null : {
+        consoleExternalCertificateSpec = (
+          var.issuer_ref == null ||
+          (var.internal_issuer_ref != null && length(var.console_extra_dns_names) == 0)
+          ) ? null : {
           dnsNames  = var.internal_issuer_ref != null ? var.console_extra_dns_names : concat(["console"], var.console_extra_dns_names)
           issuerRef = var.issuer_ref
         }
