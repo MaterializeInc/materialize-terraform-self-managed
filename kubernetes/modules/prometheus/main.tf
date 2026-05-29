@@ -1,13 +1,6 @@
 # Prometheus module for Materialize observability
 # Uses prometheus-community/prometheus Helm chart with Materialize scrape configs
 
-# Verify the storage class exists before deploying Prometheus
-data "kubernetes_storage_class" "prometheus" {
-  metadata {
-    name = var.storage_class
-  }
-}
-
 resource "kubernetes_namespace" "prometheus" {
   count = var.create_namespace ? 1 : 0
 
@@ -90,6 +83,5 @@ resource "helm_release" "prometheus" {
 
   depends_on = [
     kubernetes_namespace.prometheus,
-    data.kubernetes_storage_class.prometheus,
   ]
 }

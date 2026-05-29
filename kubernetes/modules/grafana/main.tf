@@ -9,14 +9,6 @@ resource "kubernetes_namespace" "grafana" {
   }
 }
 
-# ensure storage class exists is passed.
-data "kubernetes_storage_class" "grafana" {
-  count = var.storage_class != null ? 1 : 0
-  metadata {
-    name = var.storage_class
-  }
-}
-
 locals {
   # Dashboard URLs from Materialize repository
   # Source: https://github.com/MaterializeInc/materialize/tree/self-managed-docs/v25.2/doc/user/data/monitoring/grafana_dashboards
@@ -132,6 +124,5 @@ resource "helm_release" "grafana" {
 
   depends_on = [
     kubernetes_config_map.dashboards,
-    data.kubernetes_storage_class.grafana,
   ]
 }
