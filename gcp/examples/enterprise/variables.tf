@@ -68,14 +68,8 @@ variable "enable_observability" {
   default     = true
 }
 
-# Node pool sizing ------------------------------------------------------------
-#
-# The defaults below mirror what an enterprise customer should likely run in
-# production. For multi-day testing, drop these to cheaper instance types in
-# your local terraform.tfvars (e.g., n2-highmem-4 for Materialize, e2-standard-4
-# for generic, min_nodes = 1, local_ssd_count = 0). The materialize pods will
-# still schedule provided the node has enough CPU/memory for the operator's
-# resource requests; reduce too far and pods stay Pending.
+# Node pool sizing. Defaults are production-ish; override in tfvars for cheaper
+# multi-day testing (e.g. n2-highmem-4 / e2-standard-4, min_nodes = 1).
 
 variable "generic_nodepool" {
   description = "Generic Kubernetes node pool: hosts everything except the Materialize instance pods (operator, Ory, cert-manager, prometheus, grafana)."

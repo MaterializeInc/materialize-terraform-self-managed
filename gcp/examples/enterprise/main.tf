@@ -281,11 +281,8 @@ module "database" {
 
   labels = var.labels
 
-  # Wait for the private services access peering inside the networking module.
-  # Referencing module.networking.network_id alone only waits for the VPC, not
-  # for google_service_networking_connection.private_vpc_connection, so without
-  # this Cloud SQL races and errors with "network doesn't have at least 1
-  # private services connection".
+  # Wait for the networking module's PSA peering; without this, Cloud SQL
+  # races and fails to find a private services connection on the VPC.
   depends_on = [module.networking]
 }
 
@@ -310,7 +307,7 @@ module "ory_database" {
 
   labels = var.labels
 
-  # See depends_on note on module.database above.
+  # See note on module.database.
   depends_on = [module.networking]
 }
 
@@ -448,8 +445,11 @@ module "materialize_instance" {
     kind = "ClusterIssuer"
   }
 
-  # Browser-facing SAN. balancerd is intentionally omitted; see README.
-  console_extra_dns_names = [var.materialize_console_hostname]
+  # balancerd_extra_dns_names is a placeholder: materialize-instance still
+  # creates a balancerd external Certificate even when balancerd isn't exposed,
+  # and cert-manager rejects empty dnsNames. No A record needed.
+  console_extra_dns_names   = [var.materialize_console_hostname]
+  balancerd_extra_dns_names = ["balancerd.example.com"]
 
   # OIDC configuration. Points Materialize at Hydra for JWT validation.
   # client_id comes from the Hydra Maester-generated secret (Hydra Maester auto-
