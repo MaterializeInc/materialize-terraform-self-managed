@@ -262,10 +262,15 @@ module "cert_manager" {
 
   node_selector = local.generic_node_labels
 
+  # Wait for the AWS LBC; its MutatingWebhookConfiguration intercepts every
+  # Service create across the cluster, so anything (incl. cert-manager) that
+  # creates a Service before the LBC webhook backend is ready fails with
+  # "no endpoints available for service aws-load-balancer-webhook-service".
   depends_on = [
     module.eks,
     module.nodepool_generic,
     module.coredns,
+    module.aws_lbc,
   ]
 }
 
