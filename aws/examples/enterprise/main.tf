@@ -152,6 +152,11 @@ module "ec2nodeclass_generic" {
   subnet_ids         = module.networking.private_subnet_ids
   swap_enabled       = false
   tags               = var.tags
+
+  # Wait for the Karpenter helm release (which installs the EC2NodeClass CRD).
+  # The instance_profile reference above only chains the IAM resource, not the
+  # helm release.
+  depends_on = [module.karpenter]
 }
 
 module "nodepool_generic" {
@@ -183,6 +188,9 @@ module "ec2nodeclass_materialize" {
   subnet_ids         = module.networking.private_subnet_ids
   swap_enabled       = true
   tags               = var.tags
+
+  # See note on ec2nodeclass_generic.
+  depends_on = [module.karpenter]
 }
 
 module "nodepool_materialize" {
@@ -507,6 +515,10 @@ module "grafana" {
   storage_class    = module.ebs_csi_driver.storage_class_name
   prometheus_url   = module.prometheus[0].prometheus_url
   node_selector    = local.generic_node_labels
+
+  # The operator creates the "monitoring" namespace; without this, grafana
+  # races and errors with "namespaces monitoring not found".
+  depends_on = [module.operator]
 }
 
 # 11. Setup dedicated NLB for Materialize instance
