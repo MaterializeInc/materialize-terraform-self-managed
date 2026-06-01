@@ -153,9 +153,7 @@ module "ec2nodeclass_generic" {
   swap_enabled       = false
   tags               = var.tags
 
-  # Wait for the Karpenter helm release (which installs the EC2NodeClass CRD).
-  # The instance_profile reference above only chains the IAM resource, not the
-  # helm release.
+  # Wait for the Karpenter helm release that installs the EC2NodeClass CRD.
   depends_on = [module.karpenter]
 }
 
@@ -263,9 +261,7 @@ module "cert_manager" {
   node_selector = local.generic_node_labels
 
   # Wait for the AWS LBC; its MutatingWebhookConfiguration intercepts every
-  # Service create across the cluster, so anything (incl. cert-manager) that
-  # creates a Service before the LBC webhook backend is ready fails with
-  # "no endpoints available for service aws-load-balancer-webhook-service".
+  # Service create, so anything creating a Service first fails the webhook.
   depends_on = [
     module.eks,
     module.nodepool_generic,
@@ -274,9 +270,8 @@ module "cert_manager" {
   ]
 }
 
-# Always-created self-signed cluster issuer. Used for the internal mTLS cert
-# spec (which has *.cluster.local SANs that public ACME issuers reject) and as
-# the default for the browser-facing certs when var.cert_issuer_ref is null.
+# Self-signed ClusterIssuer for the internal mTLS cert (*.cluster.local SANs,
+# which public ACME issuers reject) and the browser-facing cert fallback.
 module "self_signed_cluster_issuer" {
   source = "../../../kubernetes/modules/self-signed-cluster-issuer"
 
@@ -468,14 +463,9 @@ module "materialize_instance" {
   # Browser-facing SAN. balancerd is intentionally omitted; see README.
   console_extra_dns_names = [var.materialize_console_hostname]
 
-  # OIDC configuration. Points Materialize at Hydra for JWT validation.
-  # client_id comes from the Hydra Maester-generated secret (Hydra Maester auto-
-  # generates a UUID client_id; the installed CRD version does not support setting
-  # it explicitly).
-  # See: https://materialize.com/docs/security/self-managed/sso/
-  # system_parameters can also set any of the other Materialize configuration
-  # parameters listed at:
-  # https://materialize.com/docs/sql/alter-system-set/#key-configuration-parameters
+  # OIDC config; client_id is the Hydra Maester-generated UUID read from
+  # the OAuth2 client Secret. system_parameters can also set any of the
+  # parameters listed at https://materialize.com/docs/sql/alter-system-set/#key-configuration-parameters
   system_parameters = {
     oidc_issuer               = module.ory.hydra_external_url
     oidc_audience             = jsonencode([module.ory.oauth2_client_id])
@@ -544,16 +534,9 @@ module "materialize_nlb" {
   tags = var.tags
 }
 
-# -----------------------------------------------------------------------------
-# Ory: Identity & OAuth2 (Kratos + Hydra + selfservice UI)
-# -----------------------------------------------------------------------------
-#
-# Everything Ory-related lives in the ory-stack composite module: namespace,
-# OEL pull secret, cert-manager Certificates, Kratos / Hydra / selfservice UI,
-# the public LoadBalancers, plus the Materialize bridge (OAuth2Client CRD,
-# network policies, console HTTPS LB). The example only feeds it the cloud-
-# specific bits (DSNs, LB annotations, the cert issuer) and consumes the
-# OIDC issuer URL + OAuth2 client id from its outputs.
+# Ory stack (Kratos + Hydra + selfservice UI + Materialize bridge).
+# Example feeds cloud-specific inputs (DSNs, LB annotations, cert issuer)
+# and reads back the OIDC issuer URL + OAuth2 client id from its outputs.
 module "ory" {
   source = "../../../kubernetes/modules/ory-stack"
 
@@ -579,17 +562,14 @@ module "ory" {
   materialize_instance_resource_id = module.materialize_instance.instance_resource_id
   materialize_console_fqdn         = var.materialize_console_hostname
 
-  # AWS Load Balancer Controller settings. The AWS LBC provisions an NLB based
-  # on these annotations; the load_balancer_class routes the Service through
-  # the AWS LBC, and externalTrafficPolicy = Local preserves client source IPs.
+  # AWS LBC settings: load_balancer_class routes the Service through the LBC,
+  # externalTrafficPolicy = Local preserves client source IPs through the NLB.
   lb_annotations             = local.ory_lb_annotations
   lb_load_balancer_class     = "service.k8s.aws/nlb"
   lb_external_traffic_policy = "Local"
 
   node_selector = local.generic_node_labels
 
-  # Optional upstream OIDC providers (Okta, Entra, Auth0, Google, etc.) exposed
-  # as social sign-in buttons on the selfservice UI.
   upstream_oidc_providers = var.upstream_oidc_providers
 
   depends_on = [
@@ -734,9 +714,7 @@ locals {
     kind = "ClusterIssuer"
   }
 
-  # AWS Load Balancer Controller annotations for the external/internal NLBs
-  # fronting Ory (Hydra public, Kratos public, selfservice UI) and the Materialize
-  # console. The AWS LBC provisions these NLBs based on these annotations.
+  # AWS LBC annotations for the Ory and Materialize console NLBs.
   ory_lb_annotations = merge(
     {
       "service.beta.kubernetes.io/aws-load-balancer-type"            = "external"
