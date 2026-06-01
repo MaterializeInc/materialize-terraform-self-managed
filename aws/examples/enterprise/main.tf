@@ -42,6 +42,7 @@ provider "kubectl" {
   }
 
   load_config_file = false
+  lazy_load        = true
 }
 
 # 1. Create network infrastructure
