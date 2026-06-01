@@ -445,11 +445,8 @@ module "materialize_instance" {
     kind = "ClusterIssuer"
   }
 
-  # balancerd_extra_dns_names is a placeholder: materialize-instance still
-  # creates a balancerd external Certificate even when balancerd isn't exposed,
-  # and cert-manager rejects empty dnsNames. No A record needed.
-  console_extra_dns_names   = [var.materialize_console_hostname]
-  balancerd_extra_dns_names = ["balancerd.example.com"]
+  # Browser-facing SAN. balancerd is intentionally omitted; see README.
+  console_extra_dns_names = [var.materialize_console_hostname]
 
   # OIDC configuration. Points Materialize at Hydra for JWT validation.
   # client_id comes from the Hydra Maester-generated secret (Hydra Maester auto-
