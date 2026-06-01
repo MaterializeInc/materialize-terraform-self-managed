@@ -457,6 +457,12 @@ resource "kubernetes_network_policy_v1" "materialize_to_ory_egress" {
       }
     }
   }
+
+  # Wait for the materialize namespace to exist. console_https_lb already
+  # depends on var.materialize_instance_resource_id (which references the
+  # caller's materialize_instance module), so this chains the dep without
+  # the module having to know about materialize_instance directly.
+  depends_on = [kubernetes_service_v1.console_https_lb]
 }
 
 # Allow Ory pods to receive traffic from Materialize, from within the ory
