@@ -29,8 +29,8 @@ output "oauth2_client_secret_namespace" {
 }
 
 output "oauth2_client_id" {
-  description = "Hydra-Maester-generated OAuth2 client ID for Materialize. Null when materialize_namespace is not set."
-  value       = local.wire_materialize ? data.kubernetes_secret_v1.oauth2_client[0].data["CLIENT_ID"] : null
+  description = "Hydra-Maester-generated OAuth2 client ID for Materialize. Null when materialize_namespace is not set, or when the secret has not yet been populated by Hydra Maester (which can happen on a refresh that runs before Maester reconciles)."
+  value       = local.wire_materialize ? try(data.kubernetes_secret_v1.oauth2_client[0].data["CLIENT_ID"], null) : null
   sensitive   = true
 }
 

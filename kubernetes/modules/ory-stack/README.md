@@ -83,7 +83,7 @@
 | <a name="output_kratos_external_url"></a> [kratos\_external\_url](#output\_kratos\_external\_url) | External (browser-facing) URL for Kratos public API. |
 | <a name="output_kratos_namespace"></a> [kratos\_namespace](#output\_kratos\_namespace) | Namespace of the Kratos deployment (same as namespace; kept for parity with submodule outputs). |
 | <a name="output_namespace"></a> [namespace](#output\_namespace) | Namespace where Ory is deployed. |
-| <a name="output_oauth2_client_id"></a> [oauth2\_client\_id](#output\_oauth2\_client\_id) | Hydra-Maester-generated OAuth2 client ID for Materialize. Null when materialize\_namespace is not set. |
+| <a name="output_oauth2_client_id"></a> [oauth2\_client\_id](#output\_oauth2\_client\_id) | Hydra-Maester-generated OAuth2 client ID for Materialize. Null when materialize\_namespace is not set, or when the secret has not yet been populated by Hydra Maester (which can happen on a refresh that runs before Maester reconciles). |
 | <a name="output_oauth2_client_secret_name"></a> [oauth2\_client\_secret\_name](#output\_oauth2\_client\_secret\_name) | Name of the Secret that holds the Hydra-Maester-generated OAuth2 client credentials. Null when materialize\_namespace is not set. |
 | <a name="output_oauth2_client_secret_namespace"></a> [oauth2\_client\_secret\_namespace](#output\_oauth2\_client\_secret\_namespace) | Namespace of the OAuth2 client credentials Secret. Null when materialize\_namespace is not set. |
 | <a name="output_oel_registry_secret_name"></a> [oel\_registry\_secret\_name](#output\_oel\_registry\_secret\_name) | Name of the dockerconfigjson Secret holding OEL registry credentials, in the Ory namespace. |
