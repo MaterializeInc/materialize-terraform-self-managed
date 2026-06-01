@@ -67,7 +67,7 @@ locals {
               enabled           = true
               allowed_origins   = var.cors_allowed_origins
               allowed_methods   = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
-              allowed_headers   = ["Authorization", "Content-Type"]
+              allowed_headers   = var.cors_allowed_headers
               exposed_headers   = ["Content-Type"]
               allow_credentials = true
             }
