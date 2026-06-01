@@ -368,9 +368,8 @@ module "cert_manager" {
   ]
 }
 
-# Always-created self-signed cluster issuer. Used for the internal mTLS cert
-# spec (which has *.cluster.local SANs that public ACME issuers reject) and as
-# the default for the browser-facing certs when var.cert_issuer_ref is null.
+# Self-signed ClusterIssuer for the internal mTLS cert (*.cluster.local SANs,
+# which public ACME issuers reject) and the browser-facing cert fallback.
 module "self_signed_cluster_issuer" {
   source = "../../../kubernetes/modules/self-signed-cluster-issuer"
 
@@ -476,14 +475,9 @@ module "materialize_instance" {
   # Browser-facing SAN. balancerd is intentionally omitted; see README.
   console_extra_dns_names = [var.materialize_console_hostname]
 
-  # OIDC configuration. Points Materialize at Hydra for JWT validation.
-  # client_id comes from the Hydra Maester-generated secret (Hydra Maester auto-
-  # generates a UUID client_id; the installed CRD version does not support setting
-  # it explicitly).
-  # See: https://materialize.com/docs/security/self-managed/sso/
-  # system_parameters can also set any of the other Materialize configuration
-  # parameters listed at:
-  # https://materialize.com/docs/sql/alter-system-set/#key-configuration-parameters
+  # OIDC config; client_id is the Hydra Maester-generated UUID read from
+  # the OAuth2 client Secret. system_parameters can also set any of the
+  # parameters listed at https://materialize.com/docs/sql/alter-system-set/#key-configuration-parameters
   system_parameters = {
     oidc_issuer               = module.ory.hydra_external_url
     oidc_audience             = jsonencode([module.ory.oauth2_client_id])
@@ -510,16 +504,9 @@ module "load_balancers" {
 }
 
 
-# -----------------------------------------------------------------------------
-# Ory: Identity & OAuth2 (Kratos + Hydra + selfservice UI)
-# -----------------------------------------------------------------------------
-#
-# Everything Ory-related lives in the ory-stack composite module: namespace,
-# OEL pull secret, cert-manager Certificates, Kratos / Hydra / selfservice UI,
-# the public LoadBalancers, plus the Materialize bridge (OAuth2Client CRD,
-# network policies, console HTTPS LB). The example only feeds it the cloud-
-# specific bits (DSNs, LB annotations, the cert issuer) and consumes the
-# OIDC issuer URL + OAuth2 client id from its outputs.
+# Ory stack (Kratos + Hydra + selfservice UI + Materialize bridge).
+# Example feeds cloud-specific inputs (DSNs, LB annotations, cert issuer)
+# and reads back the OIDC issuer URL + OAuth2 client id from its outputs.
 module "ory" {
   source = "../../../kubernetes/modules/ory-stack"
 
@@ -557,8 +544,6 @@ module "ory" {
 
   node_selector = local.generic_node_labels
 
-  # Optional upstream OIDC providers (Okta, Entra, Auth0, Google, etc.) exposed
-  # as social sign-in buttons on the selfservice UI.
   upstream_oidc_providers = var.upstream_oidc_providers
 
   depends_on = [
