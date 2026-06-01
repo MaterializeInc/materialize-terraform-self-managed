@@ -195,6 +195,13 @@ variable "cors_allowed_origins" {
   nullable    = false
 }
 
+variable "cors_allowed_headers" {
+  description = "List of request headers permitted in CORS preflight responses. Defaults to ['*'] (any header) because origin pinning is the security boundary for OAuth2 endpoints, not header restriction; tightening to a list of specific headers is supported but tends to break preflights when browsers ask for headers not on the list (e.g. CSRF tokens, X-Requested-With)."
+  type        = list(string)
+  default     = ["*"]
+  nullable    = false
+}
+
 variable "helm_values" {
   description = "Additional values to pass to the Helm chart. These will be deep-merged with the module's default values, with these values taking precedence."
   type        = any
