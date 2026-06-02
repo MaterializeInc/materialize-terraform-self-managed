@@ -51,7 +51,7 @@ locals {
   }
 
   aks_config = {
-    kubernetes_version         = "1.33"
+    kubernetes_version         = "1.34"
     service_cidr               = "20.1.0.0/16"
     enable_azure_monitor       = false
     log_analytics_workspace_id = null
@@ -472,8 +472,10 @@ module "materialize_instance" {
     kind = "ClusterIssuer"
   }
 
-  # Browser-facing SAN. balancerd is intentionally omitted; see README.
-  console_extra_dns_names = [var.materialize_console_hostname]
+  # Browser-facing SANs. balancerd is reached from the console JS in the
+  # browser, so it also needs a publicly trusted cert + DNS record.
+  console_extra_dns_names   = [var.materialize_console_hostname]
+  balancerd_extra_dns_names = [var.materialize_balancerd_hostname]
 
   # OIDC config; client_id is the Hydra Maester-generated UUID read from
   # the OAuth2 client Secret. system_parameters can also set any of the

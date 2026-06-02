@@ -50,10 +50,11 @@ license_key = "your-materialize-license-key"
 
 # Public hostnames used for browser traffic and OIDC redirects. These must
 # resolve to the LB IPs after apply (see "DNS records" below).
-ory_hydra_hostname           = "hydra.mz.example.com"
-ory_ui_hostname              = "auth.mz.example.com"
-ory_kratos_hostname          = "kratos.mz.example.com"
-materialize_console_hostname = "console.mz.example.com"
+ory_hydra_hostname             = "hydra.mz.example.com"
+ory_ui_hostname                = "auth.mz.example.com"
+ory_kratos_hostname            = "kratos.mz.example.com"
+materialize_console_hostname   = "console.mz.example.com"
+materialize_balancerd_hostname = "balancerd.mz.example.com"
 
 tags = {
   environment = "demo"
@@ -67,7 +68,7 @@ tags = {
 - `tags`: Map of tags to apply to resources
 - `license_key`: Materialize license key JWT. Used for Materialize itself and as the password authenticating to the Ory registry proxy. Must carry the `ory` entitlement.
 - `k8s_apiserver_authorized_networks`: List of CIDR blocks allowed to reach the AKS API server. No default; pass `["0.0.0.0/0"]` for lab use, or a tight allowlist for production.
-- `ory_hydra_hostname`, `ory_ui_hostname`, `ory_kratos_hostname`, `materialize_console_hostname`: Public hostnames for the four browser-facing services
+- `ory_hydra_hostname`, `ory_ui_hostname`, `ory_kratos_hostname`, `materialize_console_hostname`, `materialize_balancerd_hostname`: Public hostnames for the five browser-facing endpoints (Hydra OAuth2, Kratos public API, selfservice UI, Materialize console, and balancerd — the SQL wire endpoint the console JS calls from the browser)
 
 **Optional Variables:**
 - `location`: Azure region for deployment (defaults to `westus2`)
@@ -273,6 +274,3 @@ az keyvault purge --name <vault-name> --location <location>
 
 For lab iteration where you do not care about recovery, you can flip `purge_soft_delete_on_destroy = true` in the `azurerm` provider block.
 
-### Balancerd SAN
-
-This example only puts `materialize_console_hostname` into the **console** cert SAN list. Balancerd (the SQL wire-protocol endpoint) sits behind its own LoadBalancer and is not exposed under a public hostname by default. If you want external SQL access, register a separate hostname, create an A record for it pointing at the balancerd LB IP, and add it to the `balancerd_extra_dns_names` argument of the `materialize_instance` module call in `main.tf`.
