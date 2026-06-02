@@ -13,11 +13,6 @@ k8s_apiserver_authorized_networks = [
   },
 ]
 
-# OEL image pull credentials. Contact Materialize sales for access to Ory's
-# private registry while the Materialize-hosted mirror is in flight.
-ory_oel_registry = "europe-docker.pkg.dev/ory-artifacts"
-ory_oel_key_file = "/path/to/ory-artifacts-sa-key.json"
-
 # Public hostnames the browser uses. After apply, point A records at the LB
 # IPs. The materialize_console_hostname is also used as the OAuth2 redirect
 # URI registered with Hydra.

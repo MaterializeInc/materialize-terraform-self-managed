@@ -86,7 +86,7 @@ locals {
     tier                    = "db-custom-2-4096"
     database                = { name = "materialize", charset = "UTF8", collation = "en_US.UTF8" }
     user_name               = "materialize"
-    db_version              = "POSTGRES_17"
+    db_version              = "POSTGRES_18"
     backup_retained_backups = 35
   }
 
@@ -94,7 +94,7 @@ locals {
   ory_database_config = {
     tier                    = "db-f1-micro"
     user_name               = "oryadmin"
-    db_version              = "POSTGRES_17"
+    db_version              = "POSTGRES_18"
     backup_retained_backups = 35
   }
 
@@ -151,7 +151,7 @@ locals {
 
   # Ory database DSNs
   ory_kratos_dsn = format(
-    "postgres://%s:%s@%s/%s?sslmode=disable",
+    "postgres://%s:%s@%s/%s?sslmode=require",
     module.ory_database.users[0].name,
     urlencode(module.ory_database.users[0].password),
     module.ory_database.private_ip,
@@ -159,7 +159,7 @@ locals {
   )
 
   ory_hydra_dsn = format(
-    "postgres://%s:%s@%s/%s?sslmode=disable",
+    "postgres://%s:%s@%s/%s?sslmode=require",
     module.ory_database.users[0].name,
     urlencode(module.ory_database.users[0].password),
     module.ory_database.private_ip,

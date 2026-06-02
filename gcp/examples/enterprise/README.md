@@ -47,6 +47,16 @@ name_prefix = "mz-enterprise"
 # to Materialize sales / support to get one issued with the `ory` entitlement.
 license_key = "your-materialize-license-key"
 
+# Restrict access to the GKE master endpoint. Required (no default). For lab
+# use you may pass a single 0.0.0.0/0 entry, but production should pin a
+# tight allowlist.
+k8s_apiserver_authorized_networks = [
+  {
+    cidr_block   = "203.0.113.0/24"
+    display_name = "corp-vpn"
+  },
+]
+
 # Public hostnames used for browser traffic and OIDC redirects. These must
 # resolve to the LB IPs after apply (see "DNS records" below).
 ory_hydra_hostname           = "hydra.mz.example.com"
