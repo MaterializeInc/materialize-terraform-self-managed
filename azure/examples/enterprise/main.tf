@@ -2,13 +2,14 @@ provider "azurerm" {
   # Set the Azure subscription ID here or use the AZURE_SUBSCRIPTION_ID environment variable
   subscription_id = var.subscription_id
 
+  # Conservative defaults for an enterprise stack. See README "Limitations".
   features {
     resource_group {
-      prevent_deletion_if_contains_resources = false
+      prevent_deletion_if_contains_resources = true
     }
     key_vault {
-      purge_soft_delete_on_destroy    = true
-      recover_soft_deleted_key_vaults = false
+      purge_soft_delete_on_destroy    = false
+      recover_soft_deleted_key_vaults = true
     }
   }
 }
@@ -29,11 +30,6 @@ provider "helm" {
   }
 }
 
-# lazy_load = true lets alekc/kubectl v2.4.0+ defer kubeconfig resolution
-# (which is strict at provider-configure since v2.3.0) until first use. Without
-# it, same-root cluster-plus-manifests applies fail at plan with an empty REST
-# config because module.aks outputs are unknown before the cluster exists. See:
-# https://registry.terraform.io/providers/alekc/kubectl/latest/docs#troubleshooting
 provider "kubectl" {
   host                   = module.aks.cluster_endpoint
   client_certificate     = base64decode(module.aks.kube_config[0].client_certificate)
@@ -73,12 +69,23 @@ locals {
 
   database_config = {
     sku_name                      = "GP_Standard_D2s_v3"
-    postgres_version              = "15"
+    postgres_version              = "17"
     storage_mb                    = 32768
-    backup_retention_days         = 7
+    backup_retention_days         = 35
     administrator_login           = "materialize"
     administrator_password        = null # Will generate random password
     database_name                 = "materialize"
+    public_network_access_enabled = false
+  }
+
+  # Ory database configuration (separate Postgres instance)
+  ory_database_config = {
+    sku_name                      = "B_Standard_B1ms"
+    postgres_version              = "17"
+    storage_mb                    = 32768
+    backup_retention_days         = 35
+    administrator_login           = "oryadmin"
+    administrator_password        = null # Will generate random password
     public_network_access_enabled = false
   }
 
@@ -132,6 +139,32 @@ locals {
 
   # https://learn.microsoft.com/en-us/azure/aks/concepts-storage#storage-classes
   storage_class = "managed-csi"
+
+  # Ory database DSNs
+  ory_kratos_dsn = format(
+    "postgres://%s:%s@%s/%s?sslmode=require",
+    module.ory_database.administrator_login,
+    urlencode(module.ory_database.administrator_password),
+    module.ory_database.server_fqdn,
+    "kratos"
+  )
+
+  ory_hydra_dsn = format(
+    "postgres://%s:%s@%s/%s?sslmode=require",
+    module.ory_database.administrator_login,
+    urlencode(module.ory_database.administrator_password),
+    module.ory_database.server_fqdn,
+    "hydra"
+  )
+
+  ory_namespace = "ory"
+
+  # cert-manager ClusterIssuer for browser-facing TLS. Defaults to the built-in
+  # self-signed issuer; override via var.cert_issuer_ref to plug in a real one.
+  cert_issuer = var.cert_issuer_ref != null ? var.cert_issuer_ref : {
+    name = module.self_signed_cluster_issuer.issuer_name
+    kind = "ClusterIssuer"
+  }
 }
 
 
@@ -154,8 +187,6 @@ module "networking" {
   api_server_subnet_cidr             = local.vnet_config.api_server_subnet_cidr
 
   tags = var.tags
-
-  depends_on = [azurerm_resource_group.materialize]
 }
 
 # AKS Cluster with Default Node Pool
@@ -187,8 +218,6 @@ module "aks" {
   log_analytics_workspace_id = local.aks_config.log_analytics_workspace_id
 
   tags = var.tags
-
-  depends_on = [azurerm_resource_group.materialize]
 }
 
 # Materialize-dedicated node pool with taints (via labels on Azure)
@@ -219,15 +248,11 @@ module "materialize_nodepool" {
   node_taints = local.materialize_node_taints
 
   tags = var.tags
-
-  depends_on = [azurerm_resource_group.materialize]
 }
 
 
 module "database" {
   source = "../../modules/database"
-
-  depends_on = [module.networking]
 
   # Database configuration using new structure
   databases = [
@@ -258,6 +283,47 @@ module "database" {
   tags = var.tags
 }
 
+# Separate Postgres instance for Ory (Kratos + Hydra)
+module "ory_database" {
+  source = "../../modules/database"
+
+  databases = [
+    {
+      name      = "kratos"
+      charset   = "UTF8"
+      collation = "en_US.utf8"
+    },
+    {
+      name      = "hydra"
+      charset   = "UTF8"
+      collation = "en_US.utf8"
+    }
+  ]
+
+  administrator_login = local.ory_database_config.administrator_login
+
+  resource_group_name = azurerm_resource_group.materialize.name
+  location            = var.location
+  prefix              = "${var.name_prefix}-ory"
+  subnet_id           = module.networking.postgres_subnet_id
+  private_dns_zone_id = module.networking.private_dns_zone_id
+
+  sku_name                      = local.ory_database_config.sku_name
+  postgres_version              = local.ory_database_config.postgres_version
+  storage_mb                    = local.ory_database_config.storage_mb
+  backup_retention_days         = local.ory_database_config.backup_retention_days
+  public_network_access_enabled = local.ory_database_config.public_network_access_enabled
+
+  tags = var.tags
+}
+
+# Enable PostgreSQL extensions required by Ory Kratos migrations (pg_trgm + btree_gin for GIN indexes)
+resource "azurerm_postgresql_flexible_server_configuration" "ory_extensions" {
+  name      = "azure.extensions"
+  server_id = module.ory_database.server_id
+  value     = "btree_gin,pg_trgm,uuid-ossp"
+}
+
 module "storage" {
   source = "../../modules/storage"
 
@@ -275,8 +341,6 @@ module "storage" {
   service_account_name      = local.materialize_instance_name
 
   storage_account_tags = var.tags
-
-  depends_on = [azurerm_resource_group.materialize]
 }
 
 resource "random_password" "external_login_password_mz_system" {
@@ -291,10 +355,6 @@ module "coredns" {
   node_selector      = local.generic_node_labels
   kubeconfig_data    = module.aks.kube_config_raw
   cluster_identifier = module.aks.cluster_name
-  depends_on = [
-    module.aks,
-    module.networking,
-  ]
 }
 
 module "cert_manager" {
@@ -304,11 +364,12 @@ module "cert_manager" {
 
   depends_on = [
     module.aks,
-    module.networking,
     module.coredns,
   ]
 }
 
+# Self-signed ClusterIssuer for the internal mTLS cert (*.cluster.local SANs,
+# which public ACME issuers reject) and the browser-facing cert fallback.
 module "self_signed_cluster_issuer" {
   source = "../../../kubernetes/modules/self-signed-cluster-issuer"
 
@@ -342,13 +403,12 @@ module "operator" {
       }
     }
   } : {}
-  enable_network_policies = true
+
   depends_on = [
     module.aks,
     module.database,
     module.storage,
     module.coredns,
-    module.cert_manager,
   ]
 }
 
@@ -379,22 +439,19 @@ module "grafana" {
   prometheus_url   = module.prometheus[0].prometheus_url
   node_selector    = local.generic_node_labels
 
-  depends_on = [
-    module.prometheus,
-  ]
+  depends_on = [module.operator]
 }
 
 module "materialize_instance" {
-  source                  = "../../../kubernetes/modules/materialize-instance"
-  crd_version             = var.crd_version
-  instance_name           = local.materialize_instance_name
-  instance_namespace      = local.materialize_instance_namespace
-  metadata_backend_url    = local.metadata_backend_url
-  persist_backend_url     = local.persist_backend_url
-  enable_network_policies = true
+  source               = "../../../kubernetes/modules/materialize-instance"
+  instance_name        = local.materialize_instance_name
+  instance_namespace   = local.materialize_instance_namespace
+  metadata_backend_url = local.metadata_backend_url
+  persist_backend_url  = local.persist_backend_url
 
-  # The password for the external login to the Materialize instance
-  authenticator_kind                = "Password"
+  # Use OIDC authentication via Ory Hydra. The external_login_password is still required
+  # as a fallback for the mz_system admin user.
+  authenticator_kind                = "Oidc"
   external_login_password_mz_system = random_password.external_login_password_mz_system.result
 
   # Azure workload identity annotations for service account
@@ -407,27 +464,31 @@ module "materialize_instance" {
 
   license_key = var.license_key
 
-  issuer_ref = {
+  issuer_ref = local.cert_issuer
+  # Internal mTLS has cluster.local SANs which public ACME issuers can't sign,
+  # so always route the internal cert spec through the self-signed cluster issuer.
+  internal_issuer_ref = {
     name = module.self_signed_cluster_issuer.issuer_name
     kind = "ClusterIssuer"
   }
 
-  # System parameters for the Materialize instance
-  # See: https://materialize.com/docs/self-managed-deployments/configuration-system-parameters/
-  # Example settings:
-  #   max_connections               = "1000"
-  #   allowed_cluster_replica_sizes = "'25cc', '50cc', '100cc', '200cc', '400cc', '800cc', '1600cc', '3200cc'"
-  #   max_clusters                  = "10"
-  #   max_sources                   = "50"
-  #   max_sinks                     = "50"
-  system_parameters = {}
+  # Browser-facing SANs. balancerd is reached from the console JS in the
+  # browser, so it also needs a publicly trusted cert + DNS record.
+  console_extra_dns_names   = [var.materialize_console_hostname]
+  balancerd_extra_dns_names = [var.materialize_balancerd_hostname]
+
+  # OIDC config; client_id is the Hydra Maester-generated UUID read from
+  # the OAuth2 client Secret. system_parameters can also set any of the
+  # parameters listed at https://materialize.com/docs/sql/alter-system-set/#key-configuration-parameters
+  system_parameters = {
+    oidc_issuer               = module.ory.hydra_external_url
+    oidc_audience             = jsonencode([module.ory.oauth2_client_id])
+    oidc_authentication_claim = "email"
+    console_oidc_client_id    = module.ory.oauth2_client_id
+    console_oidc_scopes       = "openid email"
+  }
 
   depends_on = [
-    module.aks,
-    module.database,
-    module.storage,
-    module.networking,
-    module.self_signed_cluster_issuer,
     module.operator,
     module.materialize_nodepool,
     module.coredns,
@@ -442,8 +503,53 @@ module "load_balancers" {
   resource_id         = module.materialize_instance.instance_resource_id
   internal            = var.internal_load_balancer
   ingress_cidr_blocks = var.internal_load_balancer ? null : var.ingress_cidr_blocks
+}
+
+
+# Ory stack (Kratos + Hydra + selfservice UI + Materialize bridge).
+# Example feeds cloud-specific inputs (DSNs, LB annotations, cert issuer)
+# and reads back the OIDC issuer URL + OAuth2 client id from its outputs.
+module "ory" {
+  source = "../../../kubernetes/modules/ory-stack"
+
+  namespace = local.ory_namespace
+
+  hydra_fqdn  = var.ory_hydra_hostname
+  kratos_fqdn = var.ory_kratos_hostname
+  ui_fqdn     = var.ory_ui_hostname
+
+  kratos_dsn = local.ory_kratos_dsn
+  hydra_dsn  = local.ory_hydra_dsn
+
+  oel_registry    = var.ory_oel_registry
+  oel_image_tag   = var.ory_oel_image_tag
+  license_key_jwt = var.license_key
+
+  cert_issuer_ref                 = local.cert_issuer
+  cert_issuer_signs_cluster_local = var.cert_issuer_ref == null
+
+  # Materialize integration: OAuth2 client CRD, network policies, console LB.
+  materialize_namespace            = local.materialize_instance_namespace
+  materialize_instance_name        = local.materialize_instance_name
+  materialize_instance_resource_id = module.materialize_instance.instance_resource_id
+  materialize_console_fqdn         = var.materialize_console_hostname
+
+  # externalTrafficPolicy=Local makes Azure probe the kubelet's healthCheckNodePort
+  # (always HTTP) instead of the TLS-only app port, which otherwise flaps backends
+  # unhealthy and causes intermittent timeouts on hydra/kratos/ui.
+  lb_external_traffic_policy = "Local"
+
+  # Azure Load Balancer annotations. Internal LB uses the AKS internal flag.
+  lb_annotations = var.internal_load_balancer ? {
+    "service.beta.kubernetes.io/azure-load-balancer-internal" = "true"
+  } : {}
+
+  node_selector = local.generic_node_labels
+
+  upstream_oidc_providers = var.upstream_oidc_providers
 
   depends_on = [
-    module.materialize_instance,
+    module.coredns,
+    azurerm_postgresql_flexible_server_configuration.ory_extensions,
   ]
 }

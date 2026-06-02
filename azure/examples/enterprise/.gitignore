@@ -1,0 +1,3 @@
+# Local-only Let's Encrypt + Cloudflare ClusterIssuer for tester convenience.
+# Production deployments bring their own cert-manager Issuer; see README.
+letsencrypt.tf
