@@ -98,6 +98,19 @@ variable "ory_kratos_hostname" {
   type        = string
 }
 
+variable "enable_polis" {
+  description = "Deploy Ory Polis (SAML-to-OIDC bridge) alongside Kratos and Hydra. When true, ory_polis_hostname must be set and a polis database is provisioned on the Ory Postgres instance."
+  type        = bool
+  default     = false
+  nullable    = false
+}
+
+variable "ory_polis_hostname" {
+  description = "External hostname for Ory Polis (SAML-to-OIDC bridge). Used as the NEXTAUTH_URL so SAML and OAuth callbacks redirect through it. Required when enable_polis is true. Example: polis.internal.example.com"
+  type        = string
+  default     = null
+}
+
 variable "materialize_console_hostname" {
   description = "External hostname for the Materialize console. Used to construct the OAuth2 redirect URI. Example: materialize.internal.example.com"
   type        = string

@@ -17,6 +17,11 @@ ory_kratos_hostname            = "kratos.mz.example.com"
 materialize_console_hostname   = "console.mz.example.com"
 materialize_balancerd_hostname = "balancerd.mz.example.com"
 
+# Optional: deploy Ory Polis (SAML-to-OIDC bridge). When true, set
+# ory_polis_hostname and point an A record at the polis LB IP after apply.
+# enable_polis       = true
+# ory_polis_hostname = "polis.mz.example.com"
+
 # Optional: bring your own cert-manager (Cluster)Issuer for browser-facing
 # TLS. Leave commented out to use the in-cluster self-signed issuer (browser
 # trust warnings). See the README for a Let's Encrypt + Cloudflare snippet.

@@ -157,6 +157,14 @@ locals {
     "hydra"
   )
 
+  ory_polis_dsn = format(
+    "postgres://%s:%s@%s/%s?sslmode=require",
+    module.ory_database.administrator_login,
+    urlencode(module.ory_database.administrator_password),
+    module.ory_database.server_fqdn,
+    "polis"
+  )
+
   ory_namespace = "ory"
 
   # cert-manager ClusterIssuer for browser-facing TLS. Defaults to the built-in
@@ -287,18 +295,27 @@ module "database" {
 module "ory_database" {
   source = "../../modules/database"
 
-  databases = [
-    {
-      name      = "kratos"
-      charset   = "UTF8"
-      collation = "en_US.utf8"
-    },
-    {
-      name      = "hydra"
-      charset   = "UTF8"
-      collation = "en_US.utf8"
-    }
-  ]
+  databases = concat(
+    [
+      {
+        name      = "kratos"
+        charset   = "UTF8"
+        collation = "en_US.utf8"
+      },
+      {
+        name      = "hydra"
+        charset   = "UTF8"
+        collation = "en_US.utf8"
+      },
+    ],
+    var.enable_polis ? [
+      {
+        name      = "polis"
+        charset   = "UTF8"
+        collation = "en_US.utf8"
+      },
+    ] : []
+  )
 
   administrator_login = local.ory_database_config.administrator_login
 
@@ -520,6 +537,12 @@ module "ory" {
 
   kratos_dsn = local.ory_kratos_dsn
   hydra_dsn  = local.ory_hydra_dsn
+
+  # Polis (SAML-to-OIDC bridge). Off by default; turn on to let customers wire
+  # a SAML IdP that Kratos can consume as an upstream OIDC provider.
+  enable_polis = var.enable_polis
+  polis_fqdn   = var.enable_polis ? var.ory_polis_hostname : null
+  polis_dsn    = var.enable_polis ? local.ory_polis_dsn : null
 
   oel_registry    = var.ory_oel_registry
   oel_image_tag   = var.ory_oel_image_tag

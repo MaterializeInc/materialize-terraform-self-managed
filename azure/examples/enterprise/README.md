@@ -13,7 +13,7 @@ Everything from the [simple example](../simple/README.md), plus:
 ### Ory Database
 - **Azure PostgreSQL Flexible Server** (separate instance from Materialize): Version 18
 - **SKU**: B_Standard_B1ms (burstable, suitable for Ory workloads)
-- **Databases**: `kratos` and `hydra` on the same server
+- **Databases**: `kratos` and `hydra` on the same server (plus `polis` when `enable_polis = true`)
 - **Network Access**: Private only, same subnet as the Materialize database
 
 ### Ory Kratos (Identity Management)
@@ -28,6 +28,12 @@ Everything from the [simple example](../simple/README.md), plus:
 - **Resources**: 250m CPU request / 256Mi memory (request & limit)
 - **Maester**: Enabled (CRD controller for managing OAuth2 clients via Kubernetes resources)
 - **Purpose**: Issues OAuth2 tokens, provides OIDC discovery endpoint, delegates login/consent to Kratos
+
+### Ory Polis (optional, SAML-to-OIDC bridge)
+- **Helm release**: Deployed in the `ory` namespace when `enable_polis = true`
+- **Purpose**: Accepts a customer's SAML IdP on one side and exposes an OIDC provider on the other so Kratos can consume it as an upstream social sign-in
+- **Chart and image**: Both pulled through the same Materialize OEL registry proxy with the license-key JWT
+- Off by default. Set `enable_polis = true` and `ory_polis_hostname` to deploy.
 
 ---
 
