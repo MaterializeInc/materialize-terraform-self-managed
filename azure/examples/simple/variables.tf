@@ -84,5 +84,5 @@ variable "crd_version" {
 variable "enable_observability" {
   description = "Enable Prometheus and Grafana monitoring stack for Materialize"
   type        = bool
-  default     = false
+  default     = true
 }
