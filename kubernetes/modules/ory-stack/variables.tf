@@ -32,6 +32,12 @@ variable "ui_fqdn" {
   nullable    = false
 }
 
+variable "polis_fqdn" {
+  description = "Fully-qualified domain name for Polis (e.g. polis.example.com). Used as the NEXTAUTH_URL and the cert SAN; SAML and OAuth callbacks redirect through it. Required when enable_polis is true."
+  type        = string
+  default     = null
+}
+
 variable "cookie_parent_domain" {
   description = "Parent domain used as the cookie domain for Kratos session and CSRF cookies so they apply across sibling subdomains. Defaults to the parent domain of kratos_fqdn (e.g. kratos.example.com -> example.com). Falls back to kratos_fqdn itself when it has no '.' separator."
   type        = string
@@ -52,6 +58,13 @@ variable "hydra_dsn" {
   type        = string
   sensitive   = true
   nullable    = false
+}
+
+variable "polis_dsn" {
+  description = "Postgres DSN for Polis. Cloud-specific, computed by the caller from the database module outputs. Required when enable_polis is true."
+  type        = string
+  sensitive   = true
+  default     = null
 }
 
 # OEL image pull --------------------------------------------------------------
@@ -223,4 +236,53 @@ variable "oauth2_client_scope" {
   type        = string
   default     = "openid profile email offline"
   nullable    = false
+}
+
+# Polis (optional) ------------------------------------------------------------
+
+variable "enable_polis" {
+  description = "Deploy Ory Polis (SAML-to-OIDC bridge) as part of the stack. When true, polis_fqdn and polis_dsn must be provided."
+  type        = bool
+  default     = false
+  nullable    = false
+}
+
+variable "polis_oel_image_tag" {
+  description = "Tag for the Polis OEL image. Polis releases independently of Kratos/Hydra, so it has its own tag knob. When null, the chart's pinned AppVersion is used."
+  type        = string
+  default     = null
+}
+
+variable "polis_chart_version" {
+  description = "Polis Helm chart version pulled from the OEL registry."
+  type        = string
+  default     = "0.0.20"
+  nullable    = false
+}
+
+variable "polis_admin_api_keys" {
+  description = "Bearer token for Polis admin APIs. When null, the module generates a random 32-character key. Persist across applies, rotating invalidates admin-tool access."
+  type        = string
+  default     = null
+  sensitive   = true
+}
+
+variable "polis_db_encryption_key" {
+  description = "Symmetric key used by Polis to encrypt sensitive fields at rest in its database. When null, a random 32-character key is generated. WARNING: rotating invalidates existing encrypted records."
+  type        = string
+  default     = null
+  sensitive   = true
+}
+
+variable "polis_nextauth_secret" {
+  description = "Secret used by NextAuth.js for session signing in Polis. When null, a random 32-character secret is generated."
+  type        = string
+  default     = null
+  sensitive   = true
+}
+
+variable "polis_helm_values" {
+  description = "Additional helm_values merged on top of the Polis defaults."
+  type        = any
+  default     = {}
 }
