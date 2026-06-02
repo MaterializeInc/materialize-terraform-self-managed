@@ -47,6 +47,10 @@ name_prefix = "mz-enterprise"
 # to Materialize sales / support to get one issued with the `ory` entitlement.
 license_key = "your-materialize-license-key"
 
+# Restrict access to the EKS API server. Required (no default). For lab use
+# you may pass ["0.0.0.0/0"], but production should pin a tight allowlist.
+k8s_apiserver_authorized_networks = ["203.0.113.0/24"]
+
 # Public hostnames used for browser traffic and OIDC redirects. These must
 # resolve to the LB IPs after apply (see "DNS records" below).
 ory_hydra_hostname           = "hydra.mz.example.com"
