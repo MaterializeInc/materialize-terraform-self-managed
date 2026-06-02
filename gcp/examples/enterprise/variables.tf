@@ -130,6 +130,11 @@ variable "materialize_console_hostname" {
   type        = string
 }
 
+variable "materialize_balancerd_hostname" {
+  description = "External hostname for balancerd (the SQL-over-HTTP endpoint). The Materialize console's browser-side JS calls balancerd directly, so an externally-accessed console needs balancerd reachable too. Point an A record at the balancerd LB IP after apply. Example: balancerd.internal.example.com"
+  type        = string
+}
+
 variable "cert_issuer_ref" {
   description = "Bring-your-own cert-manager (Cluster)Issuer used to sign the browser-facing TLS certs (Materialize console / balancerd, Hydra, Kratos, selfservice UI). When null, the example falls back to the built-in self-signed issuer for browser-facing certs (the demo path). The internal mTLS cert (with *.cluster.local SANs) always uses the self-signed cluster issuer because public ACME issuers like Let's Encrypt cannot sign cluster.local. See the README for an example of plugging in a Let's Encrypt + Cloudflare DNS-01 issuer."
   type = object({
