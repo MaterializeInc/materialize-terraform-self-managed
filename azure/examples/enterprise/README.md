@@ -74,7 +74,7 @@ tags = {
 - `tags`: Map of tags to apply to resources
 - `license_key`: Materialize license key JWT. Used for Materialize itself and as the password authenticating to the Ory registry proxy. Must carry the `ory` entitlement.
 - `k8s_apiserver_authorized_networks`: List of CIDR blocks allowed to reach the AKS API server. No default; pass `["0.0.0.0/0"]` for lab use, or a tight allowlist for production.
-- `ory_hydra_hostname`, `ory_ui_hostname`, `ory_kratos_hostname`, `materialize_console_hostname`, `materialize_balancerd_hostname`: Public hostnames for the five browser-facing endpoints (Hydra OAuth2, Kratos public API, selfservice UI, Materialize console, and balancerd — the SQL wire endpoint the console JS calls from the browser)
+- `ory_hydra_hostname`, `ory_ui_hostname`, `ory_kratos_hostname`, `materialize_console_hostname`, `materialize_balancerd_hostname`: Public hostnames for the five browser-facing endpoints (Hydra OAuth2, Kratos public API, selfservice UI, Materialize console, and balancerd, which serves the SQL-over-HTTP endpoint the console JS calls from the browser)
 
 **Optional Variables:**
 - `location`: Azure region for deployment (defaults to `westus2`)
