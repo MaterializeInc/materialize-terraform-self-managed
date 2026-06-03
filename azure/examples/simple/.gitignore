@@ -1,0 +1,3 @@
+# Provider lockfile. Examples are forked rather than consumed directly, so
+# each user generates their own on first `terraform init`.
+.terraform.lock.hcl
