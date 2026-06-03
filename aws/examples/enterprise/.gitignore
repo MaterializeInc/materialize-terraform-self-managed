@@ -1,3 +1,7 @@
 # Local-only Let's Encrypt + Cloudflare ClusterIssuer for tester convenience.
 # Production deployments bring their own cert-manager Issuer; see README.
 letsencrypt.tf
+
+# Provider lockfile. Examples are forked rather than consumed directly, so
+# each user generates their own on first `terraform init`.
+.terraform.lock.hcl
