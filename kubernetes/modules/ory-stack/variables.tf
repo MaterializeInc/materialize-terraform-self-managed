@@ -286,3 +286,29 @@ variable "polis_helm_values" {
   type        = any
   default     = {}
 }
+
+variable "polis_chart_registry" {
+  description = "OCI registry host the Polis Helm chart is pulled from. Null falls back to the OEL registry proxy host (derived from oel_registry). Override when the proxy does not yet serve OCI chart manifests, typical override is the upstream GCP Artifact Registry host (europe-west3-docker.pkg.dev)."
+  type        = string
+  default     = null
+}
+
+variable "polis_chart_repository" {
+  description = "OCI repository path for the Polis Helm chart (no leading slash, no registry host). Null falls back to the proxy-aware path derived from oel_registry. Override when the chart lives outside the proxy path, e.g. 'ory-artifacts/helm-oel-polis/polis-oel' on GCP Artifact Registry."
+  type        = string
+  default     = null
+}
+
+variable "polis_chart_oci_username" {
+  description = "Username for authenticating to the Polis chart OCI registry. Defaults to 'jwt' (proxy path); use '_json_key' when pulling directly from GCP Artifact Registry."
+  type        = string
+  default     = "jwt"
+  nullable    = false
+}
+
+variable "polis_chart_oci_password" {
+  description = "Password for authenticating to the Polis chart OCI registry. Null falls back to license_key_jwt (proxy path). Set to the contents of a GCP service-account JSON key when pulling the chart directly from GCP Artifact Registry."
+  type        = string
+  default     = null
+  sensitive   = true
+}

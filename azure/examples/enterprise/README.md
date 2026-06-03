@@ -32,8 +32,9 @@ Everything from the [simple example](../simple/README.md), plus:
 ### Ory Polis (optional, SAML-to-OIDC bridge)
 - **Helm release**: Deployed in the `ory` namespace when `enable_polis = true`
 - **Purpose**: Accepts a customer's SAML IdP on one side and exposes an OIDC provider on the other so Kratos can consume it as an upstream social sign-in
-- **Chart and image**: Both pulled through the same Materialize OEL registry proxy with the license-key JWT
-- Off by default. Set `enable_polis = true` and `ory_polis_hostname` to deploy.
+- **Image**: Pulled through the Materialize OEL registry proxy with the license-key JWT
+- **Chart**: Pulled directly from GCP Artifact Registry while the OEL registry proxy does not yet serve OCI chart manifests, so a GCP service-account JSON key is required (`ory_polis_oci_chart_key_file`)
+- Off by default. Set `enable_polis = true`, `ory_polis_hostname`, and `ory_polis_oci_chart_key_file` to deploy.
 
 ---
 

@@ -344,9 +344,11 @@ module "ory_selfservice_ui" {
 # and exposes an OIDC provider on the other. Kratos can consume it as an
 # upstream OIDC provider for social sign-in.
 #
-# The Polis chart is private (OEL only) and is pulled through the same
-# Materialize registry proxy as the Kratos/Hydra images, using the license-key
-# JWT for both chart and image auth.
+# Image pull always goes through the Materialize OEL registry proxy with the
+# license-key JWT (same imagePullSecret as Kratos/Hydra). Chart pull defaults
+# to that proxy too, but the proxy does not yet serve OCI chart manifests, so
+# callers can override polis_chart_{registry,repository,oci_*} to pull the
+# chart directly from GCP Artifact Registry with a service-account key.
 module "ory_polis" {
   count = local.wire_polis ? 1 : 0
 
@@ -358,11 +360,11 @@ module "ory_polis" {
   dsn          = var.polis_dsn
   external_url = local.polis_external_url
 
-  chart_registry        = local.oel_registry_host
-  chart_repository      = local.polis_chart_repository
+  chart_registry        = var.polis_chart_registry != null ? var.polis_chart_registry : local.oel_registry_host
+  chart_repository      = var.polis_chart_repository != null ? var.polis_chart_repository : local.polis_chart_repository
   chart_version         = var.polis_chart_version
-  oci_registry_username = "jwt"
-  oci_registry_password = var.license_key_jwt
+  oci_registry_username = var.polis_chart_oci_username
+  oci_registry_password = var.polis_chart_oci_password != null ? var.polis_chart_oci_password : var.license_key_jwt
 
   image_registry     = local.oel_registry_host
   image_repository   = local.polis_image_repository
