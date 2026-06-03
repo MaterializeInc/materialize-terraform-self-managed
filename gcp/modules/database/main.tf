@@ -18,6 +18,7 @@ module "postgresql" {
   project_id           = var.project_id
   region               = var.region
   tier                 = var.tier
+  edition              = var.edition
   deletion_protection  = false
 
   # Network configuration

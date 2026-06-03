@@ -21,11 +21,6 @@ provider "helm" {
   }
 }
 
-# lazy_load = true lets alekc/kubectl v2.4.0+ defer kubeconfig resolution
-# (which is strict at provider-configure since v2.3.0) until first use. Without
-# it, same-root cluster-plus-manifests applies fail at plan with an empty REST
-# config because module.gke outputs are unknown before the cluster exists. See:
-# https://registry.terraform.io/providers/alekc/kubectl/latest/docs#troubleshooting
 provider "kubectl" {
   host                   = "https://${module.gke.cluster_endpoint}"
   token                  = data.google_client_config.default.access_token
@@ -87,21 +82,21 @@ locals {
     }
   ]
 
-  gke_config = {
-    machine_type = "n2-highmem-8"
-    disk_size_gb = 100
-    min_nodes    = 2
-    max_nodes    = 5
-  }
-
   database_config = {
-    tier      = "db-custom-2-4096"
-    database  = { name = "materialize", charset = "UTF8", collation = "en_US.UTF8" }
-    user_name = "materialize"
+    tier                    = "db-custom-2-4096"
+    database                = { name = "materialize", charset = "UTF8", collation = "en_US.UTF8" }
+    user_name               = "materialize"
+    db_version              = "POSTGRES_18"
+    backup_retained_backups = 35
   }
 
-  local_ssd_count = 1
-  swap_enabled    = true
+  # Ory database configuration (separate Cloud SQL instance)
+  ory_database_config = {
+    tier                    = "db-f1-micro"
+    user_name               = "oryadmin"
+    db_version              = "POSTGRES_18"
+    backup_retained_backups = 35
+  }
 
   database_statement_timeout = "15min"
 
@@ -153,6 +148,32 @@ locals {
     }]
   })
   storage_class = "standard-rwo" # default storage class in gcp
+
+  # Ory database DSNs
+  ory_kratos_dsn = format(
+    "postgres://%s:%s@%s/%s?sslmode=require",
+    module.ory_database.users[0].name,
+    urlencode(module.ory_database.users[0].password),
+    module.ory_database.private_ip,
+    "kratos"
+  )
+
+  ory_hydra_dsn = format(
+    "postgres://%s:%s@%s/%s?sslmode=require",
+    module.ory_database.users[0].name,
+    urlencode(module.ory_database.users[0].password),
+    module.ory_database.private_ip,
+    "hydra"
+  )
+
+  ory_namespace = "ory"
+
+  # cert-manager ClusterIssuer for browser-facing TLS. Defaults to the built-in
+  # self-signed issuer; override via var.cert_issuer_ref to plug in a real one.
+  cert_issuer = var.cert_issuer_ref != null ? var.cert_issuer_ref : {
+    name = module.self_signed_cluster_issuer.issuer_name
+    kind = "ClusterIssuer"
+  }
 }
 
 # Configure networking infrastructure including VPC, subnets, and CIDR blocks
@@ -170,8 +191,6 @@ module "networking" {
 module "gke" {
   source = "../../modules/gke"
 
-  depends_on = [module.networking]
-
   project_id   = var.project_id
   region       = var.region
   prefix       = var.name_prefix
@@ -182,27 +201,21 @@ module "gke" {
   namespace                         = local.materialize_operator_namespace
   k8s_apiserver_authorized_networks = var.k8s_apiserver_authorized_networks
   labels                            = var.labels
-
-  # Pinned to STABLE: REGULAR's 1.35.x line regressed cleanup of the per-cluster
-  # k8s-<cluster-uid>-node-http-hc firewall on cluster destroy, leaving the VPC
-  # un-deletable. STABLE is still on 1.34.x which doesn't have the regression.
-  release_channel = "STABLE"
 }
 
 # Create and configure generic node pool for all workloads except Materialize
 module "generic_nodepool" {
-  source     = "../../modules/nodepool"
-  depends_on = [module.gke]
+  source = "../../modules/nodepool"
 
   prefix                = "${var.name_prefix}-generic"
   region                = var.region
   enable_private_nodes  = true
   cluster_name          = module.gke.cluster_name
   project_id            = var.project_id
-  min_nodes             = 2
-  max_nodes             = 5
-  machine_type          = "e2-standard-8"
-  disk_size_gb          = 50
+  min_nodes             = var.generic_nodepool.min_nodes
+  max_nodes             = var.generic_nodepool.max_nodes
+  machine_type          = var.generic_nodepool.machine_type
+  disk_size_gb          = var.generic_nodepool.disk_size_gb
   service_account_email = module.gke.service_account_email
   labels                = local.generic_node_labels
   swap_enabled          = false
@@ -211,25 +224,24 @@ module "generic_nodepool" {
 
 # Create and configure Materialize-dedicated node pool with taints
 module "materialize_nodepool" {
-  source     = "../../modules/nodepool"
-  depends_on = [module.gke]
+  source = "../../modules/nodepool"
 
   prefix                = "${var.name_prefix}-mz"
   region                = var.region
   enable_private_nodes  = true
   cluster_name          = module.gke.cluster_name
   project_id            = var.project_id
-  min_nodes             = local.gke_config.min_nodes
-  max_nodes             = local.gke_config.max_nodes
-  machine_type          = local.gke_config.machine_type
-  disk_size_gb          = local.gke_config.disk_size_gb
+  min_nodes             = var.materialize_nodepool.min_nodes
+  max_nodes             = var.materialize_nodepool.max_nodes
+  machine_type          = var.materialize_nodepool.machine_type
+  disk_size_gb          = var.materialize_nodepool.disk_size_gb
   service_account_email = module.gke.service_account_email
   labels                = merge(var.labels, local.materialize_node_labels)
   # Materialize-specific taint to isolate workloads
   node_taints = local.materialize_node_taints
 
-  swap_enabled    = local.swap_enabled
-  local_ssd_count = local.local_ssd_count
+  swap_enabled    = var.materialize_nodepool.swap_enabled
+  local_ssd_count = var.materialize_nodepool.local_ssd_count
 }
 
 # Deploy custom CoreDNS with TTL 0 (GKE's kube-dns doesn't support disabling caching)
@@ -241,10 +253,7 @@ module "coredns" {
   cluster_identifier                          = module.gke.cluster_name
   coredns_deployment_to_scale_down            = "kube-dns"
   coredns_autoscaler_deployment_to_scale_down = "kube-dns-autoscaler"
-  depends_on = [
-    module.gke,
-    module.generic_nodepool,
-  ]
+  depends_on                                  = [module.generic_nodepool]
 }
 
 resource "random_password" "external_login_password_mz_system" {
@@ -255,8 +264,7 @@ resource "random_password" "external_login_password_mz_system" {
 
 # Set up PostgreSQL database instance for Materialize metadata storage
 module "database" {
-  source     = "../../modules/database"
-  depends_on = [module.networking]
+  source = "../../modules/database"
 
   databases = [local.database_config.database]
   # We don't provide password, so random password is generated
@@ -267,14 +275,40 @@ module "database" {
   prefix     = var.name_prefix
   network_id = module.networking.network_id
 
-  # Append a random suffix to the instance name so a partially-created
-  # instance from a previous apply attempt (whose state was lost) does not
-  # block the next attempt with a 409 "instance already exists" error.
-  random_instance_name = true
-
-  tier = local.database_config.tier
+  tier                    = local.database_config.tier
+  db_version              = local.database_config.db_version
+  backup_retained_backups = local.database_config.backup_retained_backups
 
   labels = var.labels
+
+  # Wait for the networking module's PSA peering; without this, Cloud SQL
+  # races and fails to find a private services connection on the VPC.
+  depends_on = [module.networking]
+}
+
+# Separate Cloud SQL instance for Ory (Kratos + Hydra)
+module "ory_database" {
+  source = "../../modules/database"
+
+  databases = [
+    { name = "kratos", charset = "UTF8", collation = "en_US.UTF8" },
+    { name = "hydra", charset = "UTF8", collation = "en_US.UTF8" }
+  ]
+  users = [{ name = local.ory_database_config.user_name }]
+
+  project_id = var.project_id
+  region     = var.region
+  prefix     = "${var.name_prefix}-ory"
+  network_id = module.networking.network_id
+
+  tier                    = local.ory_database_config.tier
+  db_version              = local.ory_database_config.db_version
+  backup_retained_backups = local.ory_database_config.backup_retained_backups
+
+  labels = var.labels
+
+  # See note on module.database.
+  depends_on = [module.networking]
 }
 
 # Create Google Cloud Storage bucket for Materialize persistent data storage
@@ -299,11 +333,12 @@ module "cert_manager" {
 
   depends_on = [
     module.gke,
-    module.generic_nodepool,
     module.coredns,
   ]
 }
 
+# Self-signed ClusterIssuer for the internal mTLS cert (*.cluster.local SANs,
+# which public ACME issuers reject) and the browser-facing cert fallback.
 module "self_signed_cluster_issuer" {
   source = "../../../kubernetes/modules/self-signed-cluster-issuer"
 
@@ -344,10 +379,7 @@ module "operator" {
   depends_on = [
     module.gke,
     module.generic_nodepool,
-    module.database,
-    module.storage,
     module.coredns,
-    module.cert_manager,
   ]
 }
 
@@ -361,8 +393,6 @@ module "prometheus" {
   storage_class    = local.storage_class
   depends_on = [
     module.operator,
-    module.gke,
-    module.generic_nodepool,
     module.coredns,
   ]
 }
@@ -378,24 +408,23 @@ module "grafana" {
   prometheus_url   = module.prometheus[0].prometheus_url
   node_selector    = local.generic_node_labels
 
-  depends_on = [
-    module.prometheus,
-  ]
+  # Wait for the operator to create the "monitoring" namespace.
+  depends_on = [module.operator]
 }
 
 # Deploy Materialize instance with configured backend connections
 module "materialize_instance" {
   source                  = "../../../kubernetes/modules/materialize-instance"
-  crd_version             = var.crd_version
   instance_name           = local.materialize_instance_name
   instance_namespace      = local.materialize_instance_namespace
   metadata_backend_url    = local.metadata_backend_url
   persist_backend_url     = local.persist_backend_url
   enable_network_policies = true
 
-  # The password for the external login to the Materialize instance
+  # Use OIDC authentication via Ory Hydra. The external_login_password is still required
+  # as a fallback for the mz_system admin user.
   external_login_password_mz_system = random_password.external_login_password_mz_system.result
-  authenticator_kind                = "Password"
+  authenticator_kind                = "Oidc"
 
   # GCP workload identity annotation for service account
   # TODO: this needs a fix in Environmentd Client. KSA based access to storage doesn't work end to end
@@ -405,27 +434,31 @@ module "materialize_instance" {
 
   license_key = var.license_key
 
-  issuer_ref = {
+  issuer_ref = local.cert_issuer
+  # Internal mTLS has cluster.local SANs which public ACME issuers can't sign,
+  # so always route the internal cert spec through the self-signed cluster issuer.
+  internal_issuer_ref = {
     name = module.self_signed_cluster_issuer.issuer_name
     kind = "ClusterIssuer"
   }
 
-  # System parameters for the Materialize instance
-  # See: https://materialize.com/docs/self-managed-deployments/configuration-system-parameters/
-  # Example settings:
-  #   max_connections               = "1000"
-  #   allowed_cluster_replica_sizes = "'25cc', '50cc', '100cc', '200cc', '400cc', '800cc', '1600cc', '3200cc'"
-  #   max_clusters                  = "10"
-  #   max_sources                   = "50"
-  #   max_sinks                     = "50"
-  system_parameters = {}
+  # Browser-facing SANs. balancerd is reached from the console JS in the
+  # browser, so it also needs a publicly trusted cert + DNS record.
+  console_extra_dns_names   = [var.materialize_console_hostname]
+  balancerd_extra_dns_names = [var.materialize_balancerd_hostname]
+
+  # OIDC config; client_id is the Hydra Maester-generated UUID read from
+  # the OAuth2 client Secret. system_parameters can also set any of the
+  # parameters listed at https://materialize.com/docs/sql/alter-system-set/#key-configuration-parameters
+  system_parameters = {
+    oidc_issuer               = module.ory.hydra_external_url
+    oidc_audience             = jsonencode([module.ory.oauth2_client_id])
+    oidc_authentication_claim = "email"
+    console_oidc_client_id    = module.ory.oauth2_client_id
+    console_oidc_scopes       = "openid email"
+  }
 
   depends_on = [
-    module.gke,
-    module.database,
-    module.storage,
-    module.networking,
-    module.self_signed_cluster_issuer,
     module.operator,
     module.materialize_nodepool,
     module.coredns,
@@ -445,8 +478,47 @@ module "load_balancers" {
   instance_name              = local.materialize_instance_name
   namespace                  = local.materialize_instance_namespace
   resource_id                = module.materialize_instance.instance_resource_id
+}
+
+# Ory stack (Kratos + Hydra + selfservice UI + Materialize bridge).
+# Example feeds cloud-specific inputs (DSNs, LB annotations, cert issuer)
+# and reads back the OIDC issuer URL + OAuth2 client id from its outputs.
+module "ory" {
+  source = "../../../kubernetes/modules/ory-stack"
+
+  namespace = local.ory_namespace
+
+  hydra_fqdn  = var.ory_hydra_hostname
+  kratos_fqdn = var.ory_kratos_hostname
+  ui_fqdn     = var.ory_ui_hostname
+
+  kratos_dsn = local.ory_kratos_dsn
+  hydra_dsn  = local.ory_hydra_dsn
+
+  oel_registry    = var.ory_oel_registry
+  oel_image_tag   = var.ory_oel_image_tag
+  license_key_jwt = var.license_key
+
+  cert_issuer_ref                 = local.cert_issuer
+  cert_issuer_signs_cluster_local = var.cert_issuer_ref == null
+
+  # Materialize integration: OAuth2 client CRD, network policies, console LB.
+  materialize_namespace            = local.materialize_instance_namespace
+  materialize_instance_name        = local.materialize_instance_name
+  materialize_instance_resource_id = module.materialize_instance.instance_resource_id
+  materialize_console_fqdn         = var.materialize_console_hostname
+
+  # GKE Internal TCP/UDP Network LB when var.internal_load_balancer = true,
+  # external NLB otherwise.
+  lb_annotations = var.internal_load_balancer ? {
+    "networking.gke.io/load-balancer-type" = "Internal"
+  } : {}
+
+  node_selector = local.generic_node_labels
+
+  upstream_oidc_providers = var.upstream_oidc_providers
 
   depends_on = [
-    module.materialize_instance,
+    module.coredns,
   ]
 }

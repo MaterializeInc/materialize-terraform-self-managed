@@ -37,6 +37,7 @@ No resources.
 | <a name="input_disk_autoresize_limit"></a> [disk\_autoresize\_limit](#input\_disk\_autoresize\_limit) | The maximum size to which storage can be auto increased | `number` | `0` | no |
 | <a name="input_disk_size"></a> [disk\_size](#input\_disk\_size) | The disk size for the database instance in GB | `number` | `null` | no |
 | <a name="input_disk_type"></a> [disk\_type](#input\_disk\_type) | The disk type for the database instance | `string` | `"PD_SSD"` | no |
+| <a name="input_edition"></a> [edition](#input\_edition) | Cloud SQL edition. ENTERPRISE accepts the legacy tier names (db-custom-N-M, db-f1-micro, etc.); ENTERPRISE\_PLUS only accepts predefined db-perf-optimized-N-* tiers. Defaults to ENTERPRISE so the tier inputs the example modules pass keep working when a project's default is set to ENTERPRISE\_PLUS. | `string` | `"ENTERPRISE"` | no |
 | <a name="input_labels"></a> [labels](#input\_labels) | Labels to apply to Cloud SQL instances | `map(string)` | `{}` | no |
 | <a name="input_maintenance_window_day"></a> [maintenance\_window\_day](#input\_maintenance\_window\_day) | Day of week for maintenance window (1-7) | `number` | `7` | no |
 | <a name="input_maintenance_window_hour"></a> [maintenance\_window\_hour](#input\_maintenance\_window\_hour) | Hour of day for maintenance window (0-23) | `number` | `3` | no |

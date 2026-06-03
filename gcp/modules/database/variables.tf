@@ -39,6 +39,17 @@ variable "db_version" {
   }
 }
 
+variable "edition" {
+  description = "Cloud SQL edition. ENTERPRISE accepts the legacy tier names (db-custom-N-M, db-f1-micro, etc.); ENTERPRISE_PLUS only accepts predefined db-perf-optimized-N-* tiers. Defaults to ENTERPRISE so the tier inputs the example modules pass keep working when a project's default is set to ENTERPRISE_PLUS."
+  type        = string
+  default     = "ENTERPRISE"
+  nullable    = false
+  validation {
+    condition     = contains(["ENTERPRISE", "ENTERPRISE_PLUS"], var.edition)
+    error_message = "edition must be either ENTERPRISE or ENTERPRISE_PLUS."
+  }
+}
+
 variable "databases" {
   description = "List of additional databases to create"
   type = list(object({
