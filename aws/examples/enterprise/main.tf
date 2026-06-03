@@ -31,11 +31,6 @@ provider "helm" {
   }
 }
 
-# lazy_load = true lets alekc/kubectl v2.4.0+ defer kubeconfig resolution
-# (which is strict at provider-configure since v2.3.0) until first use. Without
-# it, same-root cluster-plus-manifests applies fail at plan with an empty REST
-# config because module.eks outputs are unknown before the cluster exists. See:
-# https://registry.terraform.io/providers/alekc/kubectl/latest/docs#troubleshooting
 provider "kubectl" {
   host                   = module.eks.cluster_endpoint
   cluster_ca_certificate = base64decode(module.eks.cluster_certificate_authority_data)
@@ -77,11 +72,6 @@ module "eks" {
   materialize_node_ingress_cidrs           = [module.networking.vpc_cidr_block]
   k8s_apiserver_authorized_networks        = var.k8s_apiserver_authorized_networks
   tags                                     = var.tags
-
-
-  depends_on = [
-    module.networking,
-  ]
 }
 
 # 2.1 Create base node group for Karpenter and coredns
@@ -111,18 +101,14 @@ module "vpc_cni" {
   name_prefix       = var.name_prefix
   oidc_provider_arn = module.eks.oidc_provider_arn
   oidc_issuer_url   = module.eks.cluster_oidc_issuer_url
+  kubeconfig_data   = local.kubeconfig_data
 
   enable_network_policy    = true
   enable_policy_event_logs = true
 
-  kubeconfig_data = local.kubeconfig_data
-
   tags = var.tags
 
-  depends_on = [
-    module.eks,
-    module.base_node_group,
-  ]
+  depends_on = [module.base_node_group]
 }
 
 module "coredns" {
@@ -135,9 +121,7 @@ module "coredns" {
   cluster_identifier                 = module.eks.cluster_name
 
   depends_on = [
-    module.eks,
     module.base_node_group,
-    module.networking,
     module.vpc_cni,
   ]
 }
@@ -153,11 +137,7 @@ module "karpenter" {
   cluster_oidc_issuer_url = module.eks.cluster_oidc_issuer_url
   node_selector           = local.base_node_labels
 
-  depends_on = [
-    module.eks,
-    module.base_node_group,
-    module.networking,
-  ]
+  depends_on = [module.base_node_group]
 }
 
 # Create a generic nodeclass and nodepool for all workloads except Materialize.
@@ -173,9 +153,8 @@ module "ec2nodeclass_generic" {
   swap_enabled       = false
   tags               = var.tags
 
-  depends_on = [
-    module.karpenter,
-  ]
+  # Wait for the Karpenter helm release that installs the EC2NodeClass CRD.
+  depends_on = [module.karpenter]
 }
 
 module "nodepool_generic" {
@@ -190,7 +169,6 @@ module "nodepool_generic" {
   kubeconfig_data = local.kubeconfig_data
 
   depends_on = [
-    module.karpenter,
     module.ec2nodeclass_generic,
     module.coredns,
   ]
@@ -209,9 +187,8 @@ module "ec2nodeclass_materialize" {
   swap_enabled       = true
   tags               = var.tags
 
-  depends_on = [
-    module.karpenter,
-  ]
+  # See note on ec2nodeclass_generic.
+  depends_on = [module.karpenter]
 }
 
 module "nodepool_materialize" {
@@ -226,7 +203,7 @@ module "nodepool_materialize" {
   # downtime. Karpenter will remove nodes regardless of whether they
   # have pods with do-not-disrupt labels. If you set this to any duration
   # you should ensure that you always gracefully roll nodes during a
-  # materialize rollout. To do this cordon the node, perform an upgrade or 
+  # materialize rollout. To do this cordon the node, perform an upgrade or
   # forced rollout of all materialize instances that may be using the node pool.
   # the node should have all pods removed from it and be consolidated. You may
   # also delete the node after all clusterd and environmentd pods have been moved off.
@@ -235,7 +212,6 @@ module "nodepool_materialize" {
   kubeconfig_data = local.kubeconfig_data
 
   depends_on = [
-    module.karpenter,
     module.ec2nodeclass_materialize,
     module.coredns,
   ]
@@ -256,7 +232,6 @@ module "aws_lbc" {
   tags = var.tags
 
   depends_on = [
-    module.eks,
     module.nodepool_generic,
     module.coredns,
   ]
@@ -274,7 +249,6 @@ module "ebs_csi_driver" {
   tags = var.tags
 
   depends_on = [
-    module.eks,
     module.base_node_group,
     module.coredns,
   ]
@@ -286,15 +260,18 @@ module "cert_manager" {
 
   node_selector = local.generic_node_labels
 
+  # Wait for the AWS LBC; its MutatingWebhookConfiguration intercepts every
+  # Service create, so anything creating a Service first fails the webhook.
   depends_on = [
-    module.networking,
     module.eks,
     module.nodepool_generic,
-    module.aws_lbc,
     module.coredns,
+    module.aws_lbc,
   ]
 }
 
+# Self-signed ClusterIssuer for the internal mTLS cert (*.cluster.local SANs,
+# which public ACME issuers reject) and the browser-facing cert fallback.
 module "self_signed_cluster_issuer" {
   source = "../../../kubernetes/modules/self-signed-cluster-issuer"
 
@@ -337,12 +314,9 @@ module "operator" {
   } : {}
 
   depends_on = [
-    module.eks,
-    module.networking,
     module.nodepool_generic,
     module.coredns,
     module.vpc_cni,
-    module.cert_manager,
   ]
 }
 
@@ -358,17 +332,68 @@ resource "random_password" "external_login_password_mz_system" {
   override_special = "!#$%&*()-_=+[]{}<>:?"
 }
 
+resource "random_password" "ory_database_password" {
+  length           = 16
+  special          = true
+  override_special = "!#$%&*()-_=+[]{}<>:?"
+}
+
 # 7. Setup dedicated database instance for Materialize
 module "database" {
   source                    = "../../modules/database"
   name_prefix               = var.name_prefix
-  postgres_version          = "15"
+  postgres_version          = "18"
+  backup_retention_period   = 35
   instance_class            = "db.t3.large"
   allocated_storage         = 50
   max_allocated_storage     = 100
   database_name             = "materialize"
   database_username         = "materialize"
   database_password         = random_password.database_password.result
+  multi_az                  = false
+  database_subnet_ids       = module.networking.private_subnet_ids
+  vpc_id                    = module.networking.vpc_id
+  cluster_name              = module.eks.cluster_name
+  cluster_security_group_id = module.eks.cluster_security_group_id
+  node_security_group_id    = module.eks.node_security_group_id
+
+  tags = var.tags
+}
+
+# Separate RDS instance for Ory Kratos
+module "ory_kratos_database" {
+  source                    = "../../modules/database"
+  name_prefix               = "${var.name_prefix}-ory-kratos"
+  postgres_version          = "18"
+  backup_retention_period   = 35
+  instance_class            = "db.t3.small"
+  allocated_storage         = 20
+  max_allocated_storage     = 50
+  database_name             = "kratos"
+  database_username         = "oryadmin"
+  database_password         = random_password.ory_database_password.result
+  multi_az                  = false
+  database_subnet_ids       = module.networking.private_subnet_ids
+  vpc_id                    = module.networking.vpc_id
+  cluster_name              = module.eks.cluster_name
+  cluster_security_group_id = module.eks.cluster_security_group_id
+  node_security_group_id    = module.eks.node_security_group_id
+
+  tags = var.tags
+}
+
+# Separate RDS instance for Ory Hydra
+module "ory_hydra_database" {
+  source                    = "../../modules/database"
+  name_prefix               = "${var.name_prefix}-ory-hydra"
+  postgres_version          = "18"
+  backup_retention_period   = 35
+  instance_class            = "db.t3.small"
+  allocated_storage         = 20
+  max_allocated_storage     = 50
+  database_name             = "hydra"
+  database_username         = "oryadmin"
+  database_password         = random_password.ory_database_password.result
   multi_az                  = false
   database_subnet_ids       = module.networking.private_subnet_ids
   vpc_id                    = module.networking.vpc_id
@@ -403,7 +428,6 @@ module "storage" {
 # 9. Setup Materialize instance
 module "materialize_instance" {
   source               = "../../../kubernetes/modules/materialize-instance"
-  crd_version          = var.crd_version
   instance_name        = local.materialize_instance_name
   instance_namespace   = local.materialize_instance_namespace
   metadata_backend_url = local.metadata_backend_url
@@ -416,9 +440,10 @@ module "materialize_instance" {
   force_rollout   = var.force_rollout
   request_rollout = var.request_rollout
 
-  # The password for the external login to the Materialize instance
+  # Use OIDC authentication via Ory Hydra. The external_login_password is still required
+  # as a fallback for the mz_system admin user.
   external_login_password_mz_system = random_password.external_login_password_mz_system.result
-  authenticator_kind                = "Password"
+  authenticator_kind                = "Oidc"
 
   # AWS IAM role annotation for service account
   service_account_annotations = {
@@ -427,27 +452,31 @@ module "materialize_instance" {
 
   license_key = var.license_key
 
-  issuer_ref = {
+  issuer_ref = local.cert_issuer
+  # Internal mTLS has cluster.local SANs which public ACME issuers can't sign,
+  # so always route the internal cert spec through the self-signed cluster issuer.
+  internal_issuer_ref = {
     name = module.self_signed_cluster_issuer.issuer_name
     kind = "ClusterIssuer"
   }
 
-  # System parameters for the Materialize instance
-  # See: https://materialize.com/docs/self-managed-deployments/configuration-system-parameters/
-  # Example settings:
-  #   max_connections               = "1000"
-  #   allowed_cluster_replica_sizes = "'25cc', '50cc', '100cc', '200cc', '400cc', '800cc', '1600cc', '3200cc'"
-  #   max_clusters                  = "10"
-  #   max_sources                   = "50"
-  #   max_sinks                     = "50"
-  system_parameters = {}
+  # Browser-facing SANs. balancerd is reached from the console JS in the
+  # browser, so it also needs a publicly trusted cert + DNS record.
+  console_extra_dns_names   = [var.materialize_console_hostname]
+  balancerd_extra_dns_names = [var.materialize_balancerd_hostname]
+
+  # OIDC config; client_id is the Hydra Maester-generated UUID read from
+  # the OAuth2 client Secret. system_parameters can also set any of the
+  # parameters listed at https://materialize.com/docs/sql/alter-system-set/#key-configuration-parameters
+  system_parameters = {
+    oidc_issuer               = module.ory.hydra_external_url
+    oidc_audience             = jsonencode([module.ory.oauth2_client_id])
+    oidc_authentication_claim = "email"
+    console_oidc_client_id    = module.ory.oauth2_client_id
+    console_oidc_scopes       = "openid email"
+  }
 
   depends_on = [
-    module.eks,
-    module.database,
-    module.storage,
-    module.networking,
-    module.self_signed_cluster_issuer,
     module.operator,
     module.aws_lbc,
     module.nodepool_materialize,
@@ -484,9 +513,9 @@ module "grafana" {
   prometheus_url   = module.prometheus[0].prometheus_url
   node_selector    = local.generic_node_labels
 
-  depends_on = [
-    module.prometheus,
-  ]
+  # The operator creates the "monitoring" namespace; without this, grafana
+  # races and errors with "namespaces monitoring not found".
+  depends_on = [module.operator]
 }
 
 # 11. Setup dedicated NLB for Materialize instance
@@ -505,9 +534,49 @@ module "materialize_nlb" {
   ingress_cidr_blocks              = var.ingress_cidr_blocks
 
   tags = var.tags
+}
+
+# Ory stack (Kratos + Hydra + selfservice UI + Materialize bridge).
+# Example feeds cloud-specific inputs (DSNs, LB annotations, cert issuer)
+# and reads back the OIDC issuer URL + OAuth2 client id from its outputs.
+module "ory" {
+  source = "../../../kubernetes/modules/ory-stack"
+
+  namespace = local.ory_namespace
+
+  hydra_fqdn  = var.ory_hydra_hostname
+  kratos_fqdn = var.ory_kratos_hostname
+  ui_fqdn     = var.ory_ui_hostname
+
+  kratos_dsn = local.ory_kratos_dsn
+  hydra_dsn  = local.ory_hydra_dsn
+
+  oel_registry    = var.ory_oel_registry
+  oel_image_tag   = var.ory_oel_image_tag
+  license_key_jwt = var.license_key
+
+  cert_issuer_ref                 = local.cert_issuer
+  cert_issuer_signs_cluster_local = var.cert_issuer_ref == null
+
+  # Materialize integration: OAuth2 client CRD, network policies, console LB.
+  materialize_namespace            = local.materialize_instance_namespace
+  materialize_instance_name        = local.materialize_instance_name
+  materialize_instance_resource_id = module.materialize_instance.instance_resource_id
+  materialize_console_fqdn         = var.materialize_console_hostname
+
+  # AWS LBC settings: load_balancer_class routes the Service through the LBC,
+  # externalTrafficPolicy = Local preserves client source IPs through the NLB.
+  lb_annotations             = local.ory_lb_annotations
+  lb_load_balancer_class     = "service.k8s.aws/nlb"
+  lb_external_traffic_policy = "Local"
+
+  node_selector = local.generic_node_labels
+
+  upstream_oidc_providers = var.upstream_oidc_providers
 
   depends_on = [
-    module.materialize_instance
+    module.coredns,
+    module.aws_lbc,
   ]
 }
 
@@ -620,6 +689,44 @@ locals {
       },
     ],
   })
+
+  # Ory database DSNs
+  ory_kratos_dsn = format(
+    "postgres://%s:%s@%s/%s?sslmode=require",
+    module.ory_kratos_database.db_instance_username,
+    urlencode(random_password.ory_database_password.result),
+    module.ory_kratos_database.db_instance_endpoint,
+    "kratos"
+  )
+
+  ory_hydra_dsn = format(
+    "postgres://%s:%s@%s/%s?sslmode=require",
+    module.ory_hydra_database.db_instance_username,
+    urlencode(random_password.ory_database_password.result),
+    module.ory_hydra_database.db_instance_endpoint,
+    "hydra"
+  )
+
+  ory_namespace = "ory"
+
+  # cert-manager ClusterIssuer for browser-facing TLS. Defaults to the built-in
+  # self-signed issuer; override via var.cert_issuer_ref to plug in a real one.
+  cert_issuer = var.cert_issuer_ref != null ? var.cert_issuer_ref : {
+    name = module.self_signed_cluster_issuer.issuer_name
+    kind = "ClusterIssuer"
+  }
+
+  # AWS LBC annotations for the Ory and Materialize console NLBs.
+  ory_lb_annotations = merge(
+    {
+      "service.beta.kubernetes.io/aws-load-balancer-type"            = "external"
+      "service.beta.kubernetes.io/aws-load-balancer-nlb-target-type" = "ip"
+      "service.beta.kubernetes.io/aws-load-balancer-scheme"          = var.internal_load_balancer ? "internal" : "internet-facing"
+    },
+    var.internal_load_balancer ? {} : {
+      "service.beta.kubernetes.io/aws-load-balancer-ip-address-type" = "ipv4"
+    },
+  )
 }
 
 data "aws_caller_identity" "current" {}
