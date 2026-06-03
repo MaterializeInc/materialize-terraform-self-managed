@@ -552,6 +552,8 @@ module "ory" {
   polis_chart_oci_username = "_json_key"
   polis_chart_oci_password = var.enable_polis && var.ory_polis_oci_chart_key_file != null ? file(var.ory_polis_oci_chart_key_file) : null
 
+  polis_helm_values = var.polis_helm_values
+
   oel_registry    = var.ory_oel_registry
   oel_image_tag   = var.ory_oel_image_tag
   license_key_jwt = var.license_key
