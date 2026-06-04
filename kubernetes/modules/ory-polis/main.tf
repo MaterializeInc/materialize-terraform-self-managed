@@ -24,6 +24,14 @@ resource "random_password" "db_encryption_key" {
   special = false
 }
 
+# RSA keypair used by Polis to sign OIDC tokens returned to upstream consumers
+# (Kratos). Without these env vars Polis errors with "OAuth server not
+# configured correctly for openid flow, check if JWT signing keys are loaded".
+resource "tls_private_key" "openid_rsa" {
+  algorithm = "RSA"
+  rsa_bits  = 2048
+}
+
 locals {
   namespace = var.create_namespace ? kubernetes_namespace.polis[0].metadata[0].name : var.namespace
 
@@ -71,9 +79,23 @@ locals {
     value = var.external_url
   }]
 
+  # OPENID_RSA_PRIVATE_KEY / OPENID_RSA_PUBLIC_KEY are the signing keys Polis
+  # uses to issue OIDC tokens. Base64 of the PEM so the env var stays one line.
+  openid_rsa_env = [
+    {
+      name  = "OPENID_RSA_PRIVATE_KEY"
+      value = base64encode(tls_private_key.openid_rsa.private_key_pem)
+    },
+    {
+      name  = "OPENID_RSA_PUBLIC_KEY"
+      value = base64encode(tls_private_key.openid_rsa.public_key_pem)
+    },
+  ]
+
   extra_envs = concat(
     local.saml_audience_env,
     local.external_url_env,
+    local.openid_rsa_env,
     [for k, v in var.extra_env : { name = k, value = v }],
   )
 

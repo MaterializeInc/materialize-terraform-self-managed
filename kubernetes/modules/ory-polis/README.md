@@ -7,6 +7,7 @@
 | <a name="requirement_helm"></a> [helm](#requirement\_helm) | ~> 2.0 |
 | <a name="requirement_kubernetes"></a> [kubernetes](#requirement\_kubernetes) | ~> 2.0 |
 | <a name="requirement_random"></a> [random](#requirement\_random) | >= 3.0.0 |
+| <a name="requirement_tls"></a> [tls](#requirement\_tls) | ~> 4.0 |
 
 ## Providers
 
@@ -15,6 +16,7 @@
 | <a name="provider_helm"></a> [helm](#provider\_helm) | ~> 2.0 |
 | <a name="provider_kubernetes"></a> [kubernetes](#provider\_kubernetes) | ~> 2.0 |
 | <a name="provider_random"></a> [random](#provider\_random) | >= 3.0.0 |
+| <a name="provider_tls"></a> [tls](#provider\_tls) | ~> 4.0 |
 
 ## Modules
 
@@ -30,6 +32,7 @@ No modules.
 | [random_password.admin_api_keys](https://registry.terraform.io/providers/hashicorp/random/latest/docs/resources/password) | resource |
 | [random_password.db_encryption_key](https://registry.terraform.io/providers/hashicorp/random/latest/docs/resources/password) | resource |
 | [random_password.nextauth_secret](https://registry.terraform.io/providers/hashicorp/random/latest/docs/resources/password) | resource |
+| [tls_private_key.openid_rsa](https://registry.terraform.io/providers/hashicorp/tls/latest/docs/resources/private_key) | resource |
 
 ## Inputs
 
