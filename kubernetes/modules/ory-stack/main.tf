@@ -637,6 +637,11 @@ resource "kubectl_manifest" "materialize_oauth2_client" {
       scope         = var.oauth2_client_scope
       audience      = var.oauth2_client_audience
       redirectUris  = ["https://${var.materialize_console_fqdn}/auth/callback"]
+      # First-party SPA client, no third-party consent needed. Skipping the
+      # consent screen also avoids the first-login footgun where users click
+      # Allow without ticking the email scope, leaving Materialize without the
+      # auth claim it expects.
+      skipConsent = true
       # Public SPA client. No secret; PKCE on the console side.
       secretName              = var.oauth2_client_name
       tokenEndpointAuthMethod = "none"
