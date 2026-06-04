@@ -1,3 +1,7 @@
 # Local-only Let's Encrypt + Cloudflare ClusterIssuer for tester convenience.
 # Production deployments bring their own cert-manager Issuer; see README.
 letsencrypt.tf
+
+# Local-only Okta SAML app + SCIM provisioning config for tester convenience.
+# Customers bring their own IdP setup; this is for end-to-end test runs.
+okta.tf
