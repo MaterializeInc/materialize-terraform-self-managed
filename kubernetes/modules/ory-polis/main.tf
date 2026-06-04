@@ -81,10 +81,12 @@ locals {
 
   # OPENID_RSA_PRIVATE_KEY / OPENID_RSA_PUBLIC_KEY are the signing keys Polis
   # uses to issue OIDC tokens. Base64 of the PEM so the env var stays one line.
+  # Private key must be PKCS#8 (Polis errors with `"pkcs8" must be PKCS#8
+  # formatted string` against the PKCS#1 form tls_private_key emits by default).
   openid_rsa_env = [
     {
       name  = "OPENID_RSA_PRIVATE_KEY"
-      value = base64encode(tls_private_key.openid_rsa.private_key_pem)
+      value = base64encode(tls_private_key.openid_rsa.private_key_pem_pkcs8)
     },
     {
       name  = "OPENID_RSA_PUBLIC_KEY"
