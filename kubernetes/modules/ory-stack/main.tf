@@ -70,7 +70,7 @@ locals {
     }
     }, local.wire_polis ? {
     polis-public-lb = {
-      app_name     = "polis-oel"
+      app_name     = "polis"
       app_instance = "polis"
       target_port  = 5225
     }
