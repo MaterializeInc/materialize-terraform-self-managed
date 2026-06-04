@@ -63,8 +63,17 @@ locals {
     value = var.saml_audience
   }] : []
 
+  # EXTERNAL_URL controls the host Polis advertises in SCIM endpoint URLs,
+  # OAuth callbacks, and similar. Without it Polis falls back to its internal
+  # listen address (http://localhost:5225) which IdPs can't reach.
+  external_url_env = [{
+    name  = "EXTERNAL_URL"
+    value = var.external_url
+  }]
+
   extra_envs = concat(
     local.saml_audience_env,
+    local.external_url_env,
     [for k, v in var.extra_env : { name = k, value = v }],
   )
 
