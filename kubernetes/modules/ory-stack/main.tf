@@ -724,8 +724,8 @@ resource "kubernetes_network_policy_v1" "ory_from_materialize_ingress" {
     }
 
     # External traffic from the LBs hits Hydra public (4444), Kratos public
-    # (4433), the selfservice UI (3000), and Polis (5225, when enabled).
-    # Admin ports stay internal.
+    # (4433), the selfservice UI (3000), and the Polis TLS proxy (8443, when
+    # enabled). Admin ports stay internal.
     ingress {
       dynamic "from" {
         for_each = var.lb_source_cidrs
@@ -751,7 +751,7 @@ resource "kubernetes_network_policy_v1" "ory_from_materialize_ingress" {
         for_each = local.wire_polis ? [1] : []
         content {
           protocol = "TCP"
-          port     = 5225
+          port     = 8443
         }
       }
     }
