@@ -70,9 +70,9 @@ locals {
     }
     }, local.wire_polis ? {
     polis-public-lb = {
-      app_name     = "polis"
+      app_name     = "polis-tls-proxy"
       app_instance = "polis"
-      target_port  = 5225
+      target_port  = 8443
     }
   } : {})
 
@@ -385,6 +385,158 @@ module "ory_polis" {
   ]
 }
 
+# Polis TLS-terminating proxy (only when enable_polis is true) ---------------
+
+# Polis is a NextJS app that doesn't terminate TLS itself, and the polis-oel
+# chart doesn't expose a sidecar/extraContainers hook. We front it with a
+# minimal nginx-unprivileged Deployment that mounts the polis-tls cert and
+# reverse-proxies to the in-cluster polis ClusterIP Service. The public LB
+# Service then targets these proxy pods on port 8443.
+
+resource "kubernetes_config_map_v1" "polis_tls_proxy" {
+  count = local.wire_polis ? 1 : 0
+
+  metadata {
+    name      = "polis-tls-proxy"
+    namespace = var.namespace
+  }
+
+  data = {
+    "nginx.conf" = <<-EOT
+      worker_processes auto;
+      error_log /tmp/error.log warn;
+      pid /tmp/nginx.pid;
+      events { worker_connections 1024; }
+      http {
+        client_body_temp_path /tmp/client_body;
+        proxy_temp_path       /tmp/proxy;
+        fastcgi_temp_path     /tmp/fastcgi;
+        uwsgi_temp_path       /tmp/uwsgi;
+        scgi_temp_path        /tmp/scgi;
+
+        server {
+          listen 8443 ssl;
+          http2 on;
+
+          ssl_certificate     /etc/nginx/tls/tls.crt;
+          ssl_certificate_key /etc/nginx/tls/tls.key;
+          ssl_protocols       TLSv1.2 TLSv1.3;
+
+          location / {
+            proxy_pass http://polis.${var.namespace}.svc.cluster.local:5225;
+            proxy_set_header Host              $host;
+            proxy_set_header X-Real-IP         $remote_addr;
+            proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto https;
+            proxy_http_version 1.1;
+          }
+        }
+      }
+    EOT
+  }
+}
+
+resource "kubernetes_deployment_v1" "polis_tls_proxy" {
+  count = local.wire_polis ? 1 : 0
+
+  metadata {
+    name      = "polis-tls-proxy"
+    namespace = var.namespace
+    labels = {
+      "app.kubernetes.io/name"     = "polis-tls-proxy"
+      "app.kubernetes.io/instance" = "polis"
+    }
+  }
+
+  spec {
+    replicas = 2
+
+    selector {
+      match_labels = {
+        "app.kubernetes.io/name"     = "polis-tls-proxy"
+        "app.kubernetes.io/instance" = "polis"
+      }
+    }
+
+    template {
+      metadata {
+        labels = {
+          "app.kubernetes.io/name"     = "polis-tls-proxy"
+          "app.kubernetes.io/instance" = "polis"
+        }
+        annotations = {
+          # Force a rollout when the nginx config changes.
+          "checksum/config" = sha256(kubernetes_config_map_v1.polis_tls_proxy[0].data["nginx.conf"])
+        }
+      }
+
+      spec {
+        node_selector = var.node_selector
+
+        container {
+          name              = "nginx"
+          image             = "nginxinc/nginx-unprivileged:1.27-alpine"
+          image_pull_policy = "IfNotPresent"
+
+          port {
+            name           = "https"
+            container_port = 8443
+          }
+
+          volume_mount {
+            name       = "tls"
+            mount_path = "/etc/nginx/tls"
+            read_only  = true
+          }
+
+          volume_mount {
+            name       = "config"
+            mount_path = "/etc/nginx/nginx.conf"
+            sub_path   = "nginx.conf"
+          }
+
+          resources {
+            requests = {
+              cpu    = "50m"
+              memory = "32Mi"
+            }
+            limits = {
+              memory = "64Mi"
+            }
+          }
+
+          readiness_probe {
+            tcp_socket {
+              port = 8443
+            }
+            initial_delay_seconds = 2
+            period_seconds        = 5
+          }
+        }
+
+        volume {
+          name = "tls"
+          secret {
+            secret_name = "polis-tls"
+          }
+        }
+
+        volume {
+          name = "config"
+          config_map {
+            name = kubernetes_config_map_v1.polis_tls_proxy[0].metadata[0].name
+          }
+        }
+      }
+    }
+  }
+
+  depends_on = [
+    module.ory_polis,
+    kubectl_manifest.ory_certificate["polis-tls"],
+  ]
+}
+
 # Public LoadBalancers (Kratos public, Hydra public, selfservice UI, Polis) --
 
 resource "kubernetes_service_v1" "ory_lb" {
@@ -420,6 +572,7 @@ resource "kubernetes_service_v1" "ory_lb" {
     module.ory_kratos,
     module.ory_hydra,
     module.ory_polis,
+    kubernetes_deployment_v1.polis_tls_proxy,
   ]
 }
 
