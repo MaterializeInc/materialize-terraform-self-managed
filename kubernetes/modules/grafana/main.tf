@@ -1,5 +1,6 @@
 # Grafana module for Materialize observability
-# Uses grafana/grafana Helm chart with Materialize dashboards
+# Uses grafana-community/grafana Helm chart with Materialize dashboards
+# WARNING: unstable as of June 2026 (major changes incoming soon!)
 
 resource "kubernetes_namespace" "grafana" {
   count = var.create_namespace ? 1 : 0
@@ -115,7 +116,7 @@ locals {
 resource "helm_release" "grafana" {
   name       = "grafana"
   namespace  = var.namespace
-  repository = "https://grafana.github.io/helm-charts"
+  repository = var.chart_repository
   chart      = "grafana"
   version    = var.chart_version
   timeout    = var.install_timeout
