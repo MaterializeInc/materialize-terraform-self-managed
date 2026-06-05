@@ -33,7 +33,8 @@ No modules.
 | Name | Description | Type | Default | Required |
 |------|-------------|------|---------|:--------:|
 | <a name="input_admin_password"></a> [admin\_password](#input\_admin\_password) | Admin password for Grafana. If not set, a random password will be generated. | `string` | `null` | no |
-| <a name="input_chart_version"></a> [chart\_version](#input\_chart\_version) | Version of the Grafana helm chart | `string` | `"10.5.0"` | no |
+| <a name="input_chart_repository"></a> [chart\_repository](#input\_chart\_repository) | Helm repository URL for Grafana chart | `string` | `"https://grafana-community.github.io/helm-charts"` | no |
+| <a name="input_chart_version"></a> [chart\_version](#input\_chart\_version) | Version of the Grafana helm chart | `string` | `"12.4.2"` | no |
 | <a name="input_create_namespace"></a> [create\_namespace](#input\_create\_namespace) | Whether to create the namespace | `bool` | `false` | no |
 | <a name="input_install_timeout"></a> [install\_timeout](#input\_install\_timeout) | Timeout for installing the Grafana helm chart, in seconds | `number` | `600` | no |
 | <a name="input_namespace"></a> [namespace](#input\_namespace) | Kubernetes namespace for Grafana | `string` | `"monitoring"` | no |

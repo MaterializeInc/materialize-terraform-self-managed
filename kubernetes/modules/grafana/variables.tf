@@ -12,10 +12,19 @@ variable "create_namespace" {
   nullable    = false
 }
 
+variable "chart_repository" {
+  description = "Helm repository URL for Grafana chart"
+  type        = string
+  # oci variant: oci://ghcr.io/grafana-community/helm-charts/
+  # legacy: https://grafana.github.io/helm-charts
+  default  = "https://grafana-community.github.io/helm-charts"
+  nullable = false
+}
+
 variable "chart_version" {
   description = "Version of the Grafana helm chart"
   type        = string
-  default     = "10.5.0"
+  default     = "12.4.2"
   nullable    = false
 }
 
