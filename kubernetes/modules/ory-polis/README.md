@@ -1,3 +1,21 @@
+## Chart values escape hatch
+
+The `helm_values` input deep-merges into the upstream Ory Polis Helm chart's
+default values. Use it to override any chart-level setting this module does
+not surface as a typed input (for example, `job.nodeSelector` to pin the
+migration job to a specific node pool, or `polis.hosted = true` to enable
+the multi-tenant admin UI).
+
+The Polis OEL chart is private. To inspect the full set of available keys,
+pull and run `helm show values` against the chart:
+
+```bash
+helm registry login europe-west3-docker.pkg.dev --username _json_key \
+  --password-stdin < /path/to/ory-artifacts-sa-key.json
+helm show values oci://europe-west3-docker.pkg.dev/ory-artifacts/helm-oel-polis/polis-oel \
+  --version 0.0.20
+```
+
 ## Requirements
 
 | Name | Version |
