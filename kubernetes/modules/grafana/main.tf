@@ -94,6 +94,10 @@ locals {
             url       = var.prometheus_url
             access    = "proxy"
             isDefault = true
+            jsonData = {
+              # Must match prometheus scrape to avoid having too low of a $__rate_interval
+              timeInterval = "60s"
+            }
           }
         ]
       }

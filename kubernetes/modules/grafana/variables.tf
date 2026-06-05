@@ -17,8 +17,8 @@ variable "chart_repository" {
   type        = string
   # oci variant: oci://ghcr.io/grafana-community/helm-charts/
   # legacy: https://grafana.github.io/helm-charts
-  default     = "https://grafana-community.github.io/helm-charts"
-  nullable    = false
+  default  = "https://grafana-community.github.io/helm-charts"
+  nullable = false
 }
 
 variable "chart_version" {
