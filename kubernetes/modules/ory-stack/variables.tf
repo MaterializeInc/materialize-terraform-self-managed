@@ -32,6 +32,12 @@ variable "ui_fqdn" {
   nullable    = false
 }
 
+variable "polis_fqdn" {
+  description = "Fully-qualified domain name for Polis (e.g. polis.example.com). Used as the NEXTAUTH_URL and the cert SAN; SAML and OAuth callbacks redirect through it. Required when enable_polis is true."
+  type        = string
+  default     = null
+}
+
 variable "cookie_parent_domain" {
   description = "Parent domain used as the cookie domain for Kratos session and CSRF cookies so they apply across sibling subdomains. Defaults to the parent domain of kratos_fqdn (e.g. kratos.example.com -> example.com). Falls back to kratos_fqdn itself when it has no '.' separator."
   type        = string
@@ -52,6 +58,13 @@ variable "hydra_dsn" {
   type        = string
   sensitive   = true
   nullable    = false
+}
+
+variable "polis_dsn" {
+  description = "Postgres DSN for Polis. Cloud-specific, computed by the caller from the database module outputs. Required when enable_polis is true."
+  type        = string
+  sensitive   = true
+  default     = null
 }
 
 # OEL image pull --------------------------------------------------------------
@@ -223,4 +236,79 @@ variable "oauth2_client_scope" {
   type        = string
   default     = "openid profile email offline"
   nullable    = false
+}
+
+# Polis (optional) ------------------------------------------------------------
+
+variable "enable_polis" {
+  description = "Deploy Ory Polis (SAML-to-OIDC bridge) as part of the stack. When true, polis_fqdn and polis_dsn must be provided."
+  type        = bool
+  default     = false
+  nullable    = false
+}
+
+variable "polis_oel_image_tag" {
+  description = "Tag for the Polis OEL image. Polis releases independently of Kratos/Hydra, so it has its own tag knob. When null, the chart's pinned AppVersion is used."
+  type        = string
+  default     = null
+}
+
+variable "polis_chart_version" {
+  description = "Polis Helm chart version pulled from the OEL registry."
+  type        = string
+  default     = "0.0.20"
+  nullable    = false
+}
+
+variable "polis_admin_api_keys" {
+  description = "Bearer token for Polis admin APIs. When null, the module generates a random 32-character key. Persist across applies, rotating invalidates admin-tool access."
+  type        = string
+  default     = null
+  sensitive   = true
+}
+
+variable "polis_db_encryption_key" {
+  description = "Symmetric key used by Polis to encrypt sensitive fields at rest in its database. When null, a random 32-character key is generated. WARNING: rotating invalidates existing encrypted records."
+  type        = string
+  default     = null
+  sensitive   = true
+}
+
+variable "polis_nextauth_secret" {
+  description = "Secret used by NextAuth.js for session signing in Polis. When null, a random 32-character secret is generated."
+  type        = string
+  default     = null
+  sensitive   = true
+}
+
+variable "polis_helm_values" {
+  description = "Additional helm_values merged on top of the Polis defaults."
+  type        = any
+  default     = {}
+}
+
+variable "polis_chart_registry" {
+  description = "OCI registry host the Polis Helm chart is pulled from. Null falls back to the OEL registry proxy host (derived from oel_registry). Override when the proxy does not yet serve OCI chart manifests, typical override is the upstream GCP Artifact Registry host (europe-west3-docker.pkg.dev)."
+  type        = string
+  default     = null
+}
+
+variable "polis_chart_repository" {
+  description = "OCI repository path for the Polis Helm chart (no leading slash, no registry host). Null falls back to the proxy-aware path derived from oel_registry. Override when the chart lives outside the proxy path, e.g. 'ory-artifacts/helm-oel-polis/polis-oel' on GCP Artifact Registry."
+  type        = string
+  default     = null
+}
+
+variable "polis_chart_oci_username" {
+  description = "Username for authenticating to the Polis chart OCI registry. Defaults to 'jwt' (proxy path); use '_json_key' when pulling directly from GCP Artifact Registry."
+  type        = string
+  default     = "jwt"
+  nullable    = false
+}
+
+variable "polis_chart_oci_password" {
+  description = "Password for authenticating to the Polis chart OCI registry. Null falls back to license_key_jwt (proxy path). Set to the contents of a GCP service-account JSON key when pulling the chart directly from GCP Artifact Registry."
+  type        = string
+  default     = null
+  sensitive   = true
 }

@@ -3,9 +3,22 @@ locals {
   # (OAuth2 client, network policies, console LB). When null, those are skipped.
   wire_materialize = var.materialize_namespace != null
 
+  # Polis is optional and gated by var.enable_polis.
+  wire_polis = var.enable_polis
+
   # Hostname portion of var.oel_registry (everything before the first '/').
-  # Used as the dockerconfigjson auths key on the imagePullSecret.
+  # Used as the dockerconfigjson auths key on the imagePullSecret, and as the
+  # image.registry / chart_registry for Polis (whose chart takes registry and
+  # repository as separate fields).
   oel_registry_host = split("/", var.oel_registry)[0]
+
+  # Full image and chart repository paths for Polis, derived from oel_registry.
+  # The Polis chart takes image.registry and image.repository separately, so we
+  # split the host off before passing them through.
+  polis_image_full       = "${var.oel_registry}/ory-enterprise-polis/polis-oel"
+  polis_image_repository = trimprefix(local.polis_image_full, "${local.oel_registry_host}/")
+  polis_chart_full       = "${var.oel_registry}/helm-oel-polis/polis-oel"
+  polis_chart_repository = trimprefix(local.polis_chart_full, "${local.oel_registry_host}/")
 
   # External URLs that the browser (and Materialize, for OIDC issuer matching)
   # sees. FQDNs resolve to the LB IPs and are terminated by cert-manager certs.
@@ -14,6 +27,7 @@ locals {
   hydra_external_url  = "https://${var.hydra_fqdn}"
   kratos_external_url = "https://${var.kratos_fqdn}"
   ui_external_url     = "https://${var.ui_fqdn}"
+  polis_external_url  = local.wire_polis ? "https://${var.polis_fqdn}" : null
 
   # Cookie domain shared across the Ory subdomains so flow/session cookies work
   # across sibling FQDNs (Kratos, UI, Hydra). Defaults to the parent domain of
@@ -35,9 +49,10 @@ locals {
   # Hydra Helm chart deploys with this canonical service name.
   hydra_admin_internal_url = "http://hydra-admin.${var.namespace}.svc.cluster.local:4445"
 
-  # Public LoadBalancer Service map (Kratos public, Hydra public, selfservice UI).
-  # Selectors target the app.kubernetes.io/* labels emitted by the upstream charts.
-  ory_lb_services = {
+  # Public LoadBalancer Service map (Kratos public, Hydra public, selfservice UI,
+  # and Polis when enabled). Selectors target the app.kubernetes.io/* labels
+  # emitted by the upstream charts.
+  ory_lb_services = merge({
     kratos-public-lb = {
       app_name     = "kratos"
       app_instance = "kratos"
@@ -53,14 +68,24 @@ locals {
       app_instance = module.ory_selfservice_ui.service_name
       target_port  = module.ory_selfservice_ui.port
     }
-  }
+    }, local.wire_polis ? {
+    polis-public-lb = {
+      app_name     = "polis-tls-proxy"
+      app_instance = "polis"
+      target_port  = 8443
+    }
+  } : {})
 
-  # cert-manager Certificate map for the three browser-facing services.
-  ory_certs = {
+  # cert-manager Certificate map for the browser-facing services. Polis is added
+  # when enabled. Polis does not terminate TLS itself, so the cert is consumed by
+  # the LB Service's TLS termination rather than mounted into the pod.
+  ory_certs = merge({
     hydra-tls              = { fqdn = var.hydra_fqdn, cluster_svc = "hydra-public.${var.namespace}.svc.cluster.local" }
     kratos-tls             = { fqdn = var.kratos_fqdn, cluster_svc = "kratos-public.${var.namespace}.svc.cluster.local" }
     ory-selfservice-ui-tls = { fqdn = var.ui_fqdn, cluster_svc = null }
-  }
+    }, local.wire_polis ? {
+    polis-tls = { fqdn = var.polis_fqdn, cluster_svc = null }
+  } : {})
 
   # Baked-in Kratos config that the enterprise setup requires. Callers can
   # override individual keys via var.kratos_helm_values (deep-merged on top).
@@ -313,7 +338,206 @@ module "ory_selfservice_ui" {
   ]
 }
 
-# Public LoadBalancers (Kratos public, Hydra public, selfservice UI) ---------
+# Ory Polis (optional) -------------------------------------------------------
+
+# Polis is a SAML-to-OIDC bridge: it accepts a customer's SAML IdP on one side
+# and exposes an OIDC provider on the other. Kratos can consume it as an
+# upstream OIDC provider for social sign-in.
+#
+# Image pull always goes through the Materialize OEL registry proxy with the
+# license-key JWT (same imagePullSecret as Kratos/Hydra). Chart pull defaults
+# to that proxy too, but the proxy does not yet serve OCI chart manifests, so
+# callers can override polis_chart_{registry,repository,oci_*} to pull the
+# chart directly from GCP Artifact Registry with a service-account key.
+module "ory_polis" {
+  count = local.wire_polis ? 1 : 0
+
+  source = "../ory-polis"
+
+  namespace        = var.namespace
+  create_namespace = false
+
+  dsn          = var.polis_dsn
+  external_url = local.polis_external_url
+
+  chart_registry        = var.polis_chart_registry != null ? var.polis_chart_registry : local.oel_registry_host
+  chart_repository      = var.polis_chart_repository != null ? var.polis_chart_repository : local.polis_chart_repository
+  chart_version         = var.polis_chart_version
+  oci_registry_username = var.polis_chart_oci_username
+  oci_registry_password = var.polis_chart_oci_password != null ? var.polis_chart_oci_password : var.license_key_jwt
+
+  image_registry     = local.oel_registry_host
+  image_repository   = local.polis_image_repository
+  image_tag          = var.polis_oel_image_tag
+  image_pull_secrets = [kubernetes_secret.ory_oel_registry.metadata[0].name]
+
+  admin_api_keys    = var.polis_admin_api_keys
+  nextauth_secret   = var.polis_nextauth_secret
+  db_encryption_key = var.polis_db_encryption_key
+
+  node_selector = var.node_selector
+
+  helm_values = var.polis_helm_values
+
+  depends_on = [
+    kubernetes_namespace.ory,
+    kubernetes_secret.ory_oel_registry,
+  ]
+}
+
+# Polis TLS-terminating proxy (only when enable_polis is true) ---------------
+
+# Polis is a NextJS app that doesn't terminate TLS itself, and the polis-oel
+# chart doesn't expose a sidecar/extraContainers hook. We front it with a
+# minimal nginx-unprivileged Deployment that mounts the polis-tls cert and
+# reverse-proxies to the in-cluster polis ClusterIP Service. The public LB
+# Service then targets these proxy pods on port 8443.
+
+resource "kubernetes_config_map_v1" "polis_tls_proxy" {
+  count = local.wire_polis ? 1 : 0
+
+  metadata {
+    name      = "polis-tls-proxy"
+    namespace = var.namespace
+  }
+
+  data = {
+    "nginx.conf" = <<-EOT
+      worker_processes auto;
+      error_log /tmp/error.log warn;
+      pid /tmp/nginx.pid;
+      events { worker_connections 1024; }
+      http {
+        client_body_temp_path /tmp/client_body;
+        proxy_temp_path       /tmp/proxy;
+        fastcgi_temp_path     /tmp/fastcgi;
+        uwsgi_temp_path       /tmp/uwsgi;
+        scgi_temp_path        /tmp/scgi;
+
+        server {
+          listen 8443 ssl;
+          http2 on;
+
+          ssl_certificate     /etc/nginx/tls/tls.crt;
+          ssl_certificate_key /etc/nginx/tls/tls.key;
+          ssl_protocols       TLSv1.2 TLSv1.3;
+
+          location / {
+            proxy_pass http://polis.${var.namespace}.svc.cluster.local:5225;
+            proxy_set_header Host              $host;
+            proxy_set_header X-Real-IP         $remote_addr;
+            proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto https;
+            proxy_http_version 1.1;
+          }
+        }
+      }
+    EOT
+  }
+}
+
+resource "kubernetes_deployment_v1" "polis_tls_proxy" {
+  count = local.wire_polis ? 1 : 0
+
+  metadata {
+    name      = "polis-tls-proxy"
+    namespace = var.namespace
+    labels = {
+      "app.kubernetes.io/name"     = "polis-tls-proxy"
+      "app.kubernetes.io/instance" = "polis"
+    }
+  }
+
+  spec {
+    replicas = 2
+
+    selector {
+      match_labels = {
+        "app.kubernetes.io/name"     = "polis-tls-proxy"
+        "app.kubernetes.io/instance" = "polis"
+      }
+    }
+
+    template {
+      metadata {
+        labels = {
+          "app.kubernetes.io/name"     = "polis-tls-proxy"
+          "app.kubernetes.io/instance" = "polis"
+        }
+        annotations = {
+          # Force a rollout when the nginx config changes.
+          "checksum/config" = sha256(kubernetes_config_map_v1.polis_tls_proxy[0].data["nginx.conf"])
+        }
+      }
+
+      spec {
+        node_selector = var.node_selector
+
+        container {
+          name              = "nginx"
+          image             = "nginxinc/nginx-unprivileged:1.27-alpine"
+          image_pull_policy = "IfNotPresent"
+
+          port {
+            name           = "https"
+            container_port = 8443
+          }
+
+          volume_mount {
+            name       = "tls"
+            mount_path = "/etc/nginx/tls"
+            read_only  = true
+          }
+
+          volume_mount {
+            name       = "config"
+            mount_path = "/etc/nginx/nginx.conf"
+            sub_path   = "nginx.conf"
+          }
+
+          resources {
+            requests = {
+              cpu    = "50m"
+              memory = "32Mi"
+            }
+            limits = {
+              memory = "64Mi"
+            }
+          }
+
+          readiness_probe {
+            tcp_socket {
+              port = 8443
+            }
+            initial_delay_seconds = 2
+            period_seconds        = 5
+          }
+        }
+
+        volume {
+          name = "tls"
+          secret {
+            secret_name = "polis-tls"
+          }
+        }
+
+        volume {
+          name = "config"
+          config_map {
+            name = kubernetes_config_map_v1.polis_tls_proxy[0].metadata[0].name
+          }
+        }
+      }
+    }
+  }
+
+  depends_on = [
+    module.ory_polis,
+    kubectl_manifest.ory_certificate["polis-tls"],
+  ]
+}
+
+# Public LoadBalancers (Kratos public, Hydra public, selfservice UI, Polis) --
 
 resource "kubernetes_service_v1" "ory_lb" {
   for_each = local.ory_lb_services
@@ -347,6 +571,8 @@ resource "kubernetes_service_v1" "ory_lb" {
   depends_on = [
     module.ory_kratos,
     module.ory_hydra,
+    module.ory_polis,
+    kubernetes_deployment_v1.polis_tls_proxy,
   ]
 }
 
@@ -411,6 +637,11 @@ resource "kubectl_manifest" "materialize_oauth2_client" {
       scope         = var.oauth2_client_scope
       audience      = var.oauth2_client_audience
       redirectUris  = ["https://${var.materialize_console_fqdn}/auth/callback"]
+      # First-party SPA client, no third-party consent needed. Skipping the
+      # consent screen also avoids the first-login footgun where users click
+      # Allow without ticking the email scope, leaving Materialize without the
+      # auth claim it expects.
+      skipConsent = true
       # Public SPA client. No secret; PKCE on the console side.
       secretName              = var.oauth2_client_name
       tokenEndpointAuthMethod = "none"
@@ -498,7 +729,8 @@ resource "kubernetes_network_policy_v1" "ory_from_materialize_ingress" {
     }
 
     # External traffic from the LBs hits Hydra public (4444), Kratos public
-    # (4433), and the selfservice UI (3000). Admin ports stay internal.
+    # (4433), the selfservice UI (3000), and the Polis TLS proxy (8443, when
+    # enabled). Admin ports stay internal.
     ingress {
       dynamic "from" {
         for_each = var.lb_source_cidrs
@@ -519,6 +751,13 @@ resource "kubernetes_network_policy_v1" "ory_from_materialize_ingress" {
       ports {
         protocol = "TCP"
         port     = 3000
+      }
+      dynamic "ports" {
+        for_each = local.wire_polis ? [1] : []
+        content {
+          protocol = "TCP"
+          port     = 8443
+        }
       }
     }
   }

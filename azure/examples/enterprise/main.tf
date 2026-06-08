@@ -69,7 +69,7 @@ locals {
 
   database_config = {
     sku_name                      = "GP_Standard_D2s_v3"
-    postgres_version              = "17"
+    postgres_version              = "18"
     storage_mb                    = 32768
     backup_retention_days         = 35
     administrator_login           = "materialize"
@@ -81,7 +81,7 @@ locals {
   # Ory database configuration (separate Postgres instance)
   ory_database_config = {
     sku_name                      = "B_Standard_B1ms"
-    postgres_version              = "17"
+    postgres_version              = "18"
     storage_mb                    = 32768
     backup_retention_days         = 35
     administrator_login           = "oryadmin"
@@ -155,6 +155,14 @@ locals {
     urlencode(module.ory_database.administrator_password),
     module.ory_database.server_fqdn,
     "hydra"
+  )
+
+  ory_polis_dsn = format(
+    "postgres://%s:%s@%s/%s?sslmode=require",
+    module.ory_database.administrator_login,
+    urlencode(module.ory_database.administrator_password),
+    module.ory_database.server_fqdn,
+    "polis"
   )
 
   ory_namespace = "ory"
@@ -287,18 +295,27 @@ module "database" {
 module "ory_database" {
   source = "../../modules/database"
 
-  databases = [
-    {
-      name      = "kratos"
-      charset   = "UTF8"
-      collation = "en_US.utf8"
-    },
-    {
-      name      = "hydra"
-      charset   = "UTF8"
-      collation = "en_US.utf8"
-    }
-  ]
+  databases = concat(
+    [
+      {
+        name      = "kratos"
+        charset   = "UTF8"
+        collation = "en_US.utf8"
+      },
+      {
+        name      = "hydra"
+        charset   = "UTF8"
+        collation = "en_US.utf8"
+      },
+    ],
+    var.enable_polis ? [
+      {
+        name      = "polis"
+        charset   = "UTF8"
+        collation = "en_US.utf8"
+      },
+    ] : []
+  )
 
   administrator_login = local.ory_database_config.administrator_login
 
@@ -520,6 +537,22 @@ module "ory" {
 
   kratos_dsn = local.ory_kratos_dsn
   hydra_dsn  = local.ory_hydra_dsn
+
+  # Polis (SAML-to-OIDC bridge). Off by default; turn on to let customers wire
+  # a SAML IdP that Kratos can consume as an upstream OIDC provider.
+  enable_polis = var.enable_polis
+  polis_fqdn   = var.enable_polis ? var.ory_polis_hostname : null
+  polis_dsn    = var.enable_polis ? local.ory_polis_dsn : null
+
+  # Pull the Polis chart directly from GCP Artifact Registry. The OEL registry
+  # proxy does not yet serve OCI chart manifests (returns 403 on HEAD), so the
+  # chart needs a GCP service-account key. Image pull stays on the proxy.
+  polis_chart_registry     = var.enable_polis ? "europe-west3-docker.pkg.dev" : null
+  polis_chart_repository   = var.enable_polis ? "ory-artifacts/helm-oel-polis/polis-oel" : null
+  polis_chart_oci_username = "_json_key"
+  polis_chart_oci_password = var.enable_polis && var.ory_polis_oci_chart_key_file != null ? file(var.ory_polis_oci_chart_key_file) : null
+
+  polis_helm_values = var.polis_helm_values
 
   oel_registry    = var.ory_oel_registry
   oel_image_tag   = var.ory_oel_image_tag

@@ -1,3 +1,21 @@
+## Chart values escape hatch
+
+The `helm_values` input deep-merges into the upstream Ory Polis Helm chart's
+default values. Use it to override any chart-level setting this module does
+not surface as a typed input (for example, `job.nodeSelector` to pin the
+migration job to a specific node pool, or `polis.hosted = true` to enable
+the multi-tenant admin UI).
+
+The Polis OEL chart is private. To inspect the full set of available keys,
+pull and run `helm show values` against the chart:
+
+```bash
+helm registry login europe-west3-docker.pkg.dev --username _json_key \
+  --password-stdin < /path/to/ory-artifacts-sa-key.json
+helm show values oci://europe-west3-docker.pkg.dev/ory-artifacts/helm-oel-polis/polis-oel \
+  --version 0.0.20
+```
+
 ## Requirements
 
 | Name | Version |
@@ -7,6 +25,7 @@
 | <a name="requirement_helm"></a> [helm](#requirement\_helm) | ~> 2.0 |
 | <a name="requirement_kubernetes"></a> [kubernetes](#requirement\_kubernetes) | ~> 2.0 |
 | <a name="requirement_random"></a> [random](#requirement\_random) | >= 3.0.0 |
+| <a name="requirement_tls"></a> [tls](#requirement\_tls) | ~> 4.0 |
 
 ## Providers
 
@@ -15,6 +34,7 @@
 | <a name="provider_helm"></a> [helm](#provider\_helm) | ~> 2.0 |
 | <a name="provider_kubernetes"></a> [kubernetes](#provider\_kubernetes) | ~> 2.0 |
 | <a name="provider_random"></a> [random](#provider\_random) | >= 3.0.0 |
+| <a name="provider_tls"></a> [tls](#provider\_tls) | ~> 4.0 |
 
 ## Modules
 
@@ -30,6 +50,7 @@ No modules.
 | [random_password.admin_api_keys](https://registry.terraform.io/providers/hashicorp/random/latest/docs/resources/password) | resource |
 | [random_password.db_encryption_key](https://registry.terraform.io/providers/hashicorp/random/latest/docs/resources/password) | resource |
 | [random_password.nextauth_secret](https://registry.terraform.io/providers/hashicorp/random/latest/docs/resources/password) | resource |
+| [tls_private_key.openid_rsa](https://registry.terraform.io/providers/hashicorp/tls/latest/docs/resources/private_key) | resource |
 
 ## Inputs
 

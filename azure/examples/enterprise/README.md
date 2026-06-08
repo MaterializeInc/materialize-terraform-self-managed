@@ -13,7 +13,7 @@ Everything from the [simple example](../simple/README.md), plus:
 ### Ory Database
 - **Azure PostgreSQL Flexible Server** (separate instance from Materialize): Version 18
 - **SKU**: B_Standard_B1ms (burstable, suitable for Ory workloads)
-- **Databases**: `kratos` and `hydra` on the same server
+- **Databases**: `kratos` and `hydra` on the same server (plus `polis` when `enable_polis = true`)
 - **Network Access**: Private only, same subnet as the Materialize database
 
 ### Ory Kratos (Identity Management)
@@ -28,6 +28,13 @@ Everything from the [simple example](../simple/README.md), plus:
 - **Resources**: 250m CPU request / 256Mi memory (request & limit)
 - **Maester**: Enabled (CRD controller for managing OAuth2 clients via Kubernetes resources)
 - **Purpose**: Issues OAuth2 tokens, provides OIDC discovery endpoint, delegates login/consent to Kratos
+
+### Ory Polis (optional, SAML-to-OIDC bridge)
+- **Helm release**: Deployed in the `ory` namespace when `enable_polis = true`
+- **Purpose**: Accepts a customer's SAML IdP on one side and exposes an OIDC provider on the other so Kratos can consume it as an upstream social sign-in
+- **Image**: Pulled through the Materialize OEL registry proxy with the license-key JWT
+- **Chart**: Pulled directly from GCP Artifact Registry while the OEL registry proxy does not yet serve OCI chart manifests, so a GCP service-account JSON key is required (`ory_polis_oci_chart_key_file`)
+- Off by default. Set `enable_polis = true`, `ory_polis_hostname`, and `ory_polis_oci_chart_key_file` to deploy.
 
 ---
 
@@ -68,7 +75,7 @@ tags = {
 - `tags`: Map of tags to apply to resources
 - `license_key`: Materialize license key JWT. Used for Materialize itself and as the password authenticating to the Ory registry proxy. Must carry the `ory` entitlement.
 - `k8s_apiserver_authorized_networks`: List of CIDR blocks allowed to reach the AKS API server. No default; pass `["0.0.0.0/0"]` for lab use, or a tight allowlist for production.
-- `ory_hydra_hostname`, `ory_ui_hostname`, `ory_kratos_hostname`, `materialize_console_hostname`, `materialize_balancerd_hostname`: Public hostnames for the five browser-facing endpoints (Hydra OAuth2, Kratos public API, selfservice UI, Materialize console, and balancerd — the SQL wire endpoint the console JS calls from the browser)
+- `ory_hydra_hostname`, `ory_ui_hostname`, `ory_kratos_hostname`, `materialize_console_hostname`, `materialize_balancerd_hostname`: Public hostnames for the five browser-facing endpoints (Hydra OAuth2, Kratos public API, selfservice UI, Materialize console, and balancerd, which serves the SQL-over-HTTP endpoint the console JS calls from the browser)
 
 **Optional Variables:**
 - `location`: Azure region for deployment (defaults to `westus2`)

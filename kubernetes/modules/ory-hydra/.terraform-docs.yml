@@ -1,0 +1,36 @@
+formatter: markdown
+
+output-file: README.md
+output-mode: replace
+
+sections:
+  show-header: true
+  show-inputs: true
+  show-outputs: true
+  show-providers: true
+  show-requirements: true
+  show-resources: true
+  show-data-sources: true
+  show-modules: true
+
+content: |-
+  ## Chart values escape hatch
+
+  The `helm_values` input deep-merges into the upstream Ory Hydra Helm chart's
+  default values. Use it to override any chart-level setting this module does
+  not surface as a typed input.
+
+  Refer to the upstream chart's `values.yaml` for the full set of available
+  keys: https://github.com/ory/k8s/blob/master/helm/charts/hydra/values.yaml
+
+  {{ .Requirements }}
+
+  {{ .Providers }}
+
+  {{ .Modules }}
+
+  {{ .Resources }}
+
+  {{ .Inputs }}
+
+  {{ .Outputs }}

@@ -98,6 +98,31 @@ variable "ory_kratos_hostname" {
   type        = string
 }
 
+variable "enable_polis" {
+  description = "Deploy Ory Polis (SAML-to-OIDC bridge) alongside Kratos and Hydra. When true, ory_polis_hostname must be set and a polis database is provisioned on the Ory Postgres instance."
+  type        = bool
+  default     = false
+  nullable    = false
+}
+
+variable "ory_polis_hostname" {
+  description = "External hostname for Ory Polis (SAML-to-OIDC bridge). Used as the NEXTAUTH_URL so SAML and OAuth callbacks redirect through it. Required when enable_polis is true. Example: polis.internal.example.com"
+  type        = string
+  default     = null
+}
+
+variable "ory_polis_oci_chart_key_file" {
+  description = "Path to a GCP service-account JSON key file with read access to the Polis OEL Helm chart at europe-west3-docker.pkg.dev/ory-artifacts/helm-oel-polis. Required when enable_polis is true because the Materialize-hosted OEL registry proxy does not yet serve OCI chart manifests, so the chart is pulled directly from GCP Artifact Registry. The Polis container image still goes through the proxy with the license-key JWT."
+  type        = string
+  default     = null
+}
+
+variable "polis_helm_values" {
+  description = "Additional Helm values deep-merged into the Polis chart. Used as an escape hatch, common case is pinning Polis pods to a particular node pool (e.g. amd64) while the rest of the Ory stack stays on the generic pool."
+  type        = any
+  default     = {}
+}
+
 variable "materialize_console_hostname" {
   description = "External hostname for the Materialize console. Used to construct the OAuth2 redirect URI. Example: materialize.internal.example.com"
   type        = string
