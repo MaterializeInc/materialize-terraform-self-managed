@@ -46,6 +46,13 @@ jobs:
     if: needs.ignored_files.outputs.any_modified == 'true' || github.event_name == 'workflow_dispatch'
     env:
       DURATION_SECONDS: 14400 # 4 hours
+      # Dedicated GCP project per test run. Created below under the CI folder and
+      # deleted in the always() cleanup step, so a wedged terraform destroy can no
+      # longer leak resources into a shared project (see CLO-86 / CLO-84 / CLO-82).
+      # Project IDs are globally unique and reserved ~30 days after deletion, so we
+      # key off the globally-unique run id + attempt. Must be 6-30 chars, start with
+      # a lowercase letter, and contain only lowercase letters, digits and hyphens.
+      TF_TEST_GCP_PROJECT: mz-tf-ci-${{ github.run_id }}-${{ github.run_attempt }}
 
     steps:
       - name: Checkout code
@@ -63,8 +70,8 @@ jobs:
       - name: Authenticate to Google Cloud (Service Account Impersonation)
         uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
         with:
-          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
-          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL }}
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT_EMAIL }}
           access_token_lifetime: ${{ env.DURATION_SECONDS }}s # 4 hours for long-running tests
 
       - name: Set up Cloud SDK
@@ -72,6 +79,31 @@ jobs:
 
       - name: Install gke-gcloud-auth-plugin
         run: gcloud components install gke-gcloud-auth-plugin
+
+      - name: Create per-run GCP project
+        run: |
+          set -euo pipefail
+          echo "Creating project ${TF_TEST_GCP_PROJECT} under folder ${{ vars.GCP_CI_FOLDER_ID }}..."
+          gcloud projects create "${TF_TEST_GCP_PROJECT}" \
+            --folder="${{ vars.GCP_CI_FOLDER_ID }}" \
+            --labels="purpose=integration-test,managed-by=github-actions" \
+            --no-enable-cloud-apis
+
+          echo "Linking billing account..."
+          gcloud billing projects link "${TF_TEST_GCP_PROJECT}" \
+            --billing-account="${{ vars.GCP_BILLING_ACCOUNT }}"
+
+          echo "Enabling required APIs..."
+          gcloud services enable \
+            cloudresourcemanager.googleapis.com \
+            compute.googleapis.com \
+            container.googleapis.com \
+            iam.googleapis.com \
+            iamcredentials.googleapis.com \
+            servicenetworking.googleapis.com \
+            sqladmin.googleapis.com \
+            storage.googleapis.com \
+            --project="${TF_TEST_GCP_PROJECT}"
 
       - name: Verify AWS Authentication (for S3 backend)
         run: |
@@ -110,10 +142,25 @@ jobs:
         working-directory: test
         env:
           MATERIALIZE_LICENSE_KEY: ${{ secrets.MATERIALIZE_LICENSE_KEY }}
+          # Without an explicit billing project, the google provider bills some
+          # API calls (e.g. Service Networking operation polling) to the service
+          # account's home project, which has no APIs enabled. Bill them to the
+          # per-run project instead, where the required APIs are enabled above.
+          USER_PROJECT_OVERRIDE: "true"
+          GOOGLE_BILLING_PROJECT: ${{ env.TF_TEST_GCP_PROJECT }}
         run: |
           cargo run -- run --destroy-on-failure gcp \
             --owner "github-actions" \
-            --project-id "${{ vars.GOOGLE_PROJECT }}" \
+            --project-id "${TF_TEST_GCP_PROJECT}" \
             --region "${{ vars.GOOGLE_REGION }}" \
             --backend-s3-bucket "${{ vars.TF_TEST_S3_BUCKET }}" \
             --backend-s3-region "${{ vars.TF_TEST_S3_REGION }}"
+
+      - name: Delete per-run GCP project
+        # Always run so the project is torn down even when apply/verify/destroy
+        # fails — guaranteed cleanup regardless of terraform state (CLO-86).
+        if: always()
+        run: |
+          echo "Deleting project ${TF_TEST_GCP_PROJECT}..."
+          gcloud projects delete "${TF_TEST_GCP_PROJECT}" --quiet \
+            || echo "Project delete failed or project was never created; nothing to clean up."
