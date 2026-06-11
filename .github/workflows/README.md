@@ -67,15 +67,30 @@ Infrastructure tests **integrate with GitHub's merge queue** to ensure only appr
 ```
 MATERIALIZE_LICENSE_KEY
 AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID  
-GCP_WORKLOAD_IDENTITY_PROVIDER, GCP_SERVICE_ACCOUNT_EMAIL
 ```
 
 **Repository Variables:**
 ```
 GA_AWS_IAM_ROLE
 TF_TEST_S3_BUCKET, TF_TEST_S3_REGION, TF_TEST_S3_PREFIX
-GOOGLE_PROJECT, AWS_REGION
+AWS_REGION
+GOOGLE_REGION
+# Provisioned by i2 (google/mz_terraform_self_managed_ci.py):
+GCP_WORKLOAD_IDENTITY_PROVIDER  # shared org WIF provider used for OIDC auth
+GCP_SERVICE_ACCOUNT_EMAIL       # CI service account the workflow impersonates
+GCP_CI_FOLDER_ID                # folder the per-run test project is created under
+GCP_BILLING_ACCOUNT             # billing account linked to each per-run test project
 ```
+
+> **Note:** GCP tests no longer use a shared `GOOGLE_PROJECT`. Each run creates a
+> dedicated project `mz-tf-ci-<run_id>-<run_attempt>` under `GCP_CI_FOLDER_ID`,
+> links `GCP_BILLING_ACCOUNT`, runs against it, and deletes it on completion
+> (including on failure). The GCP identity, its
+> `roles/resourcemanager.projectCreator` (folder) and `roles/billing.user`
+> (billing account) grants, and the four `GCP_*` variables above are all managed
+> in the [i2](https://github.com/MaterializeInc/i2) repo
+> (`google/mz_terraform_self_managed_ci.py`); they are no longer provisioned by
+> the terraform in `.github/setup/gcp`.
 
 ## **Manual Testing**
 
