@@ -118,3 +118,59 @@ jobs:
             --location "${{ vars.AZURE_LOCATION }}" \
             --backend-s3-bucket "${{ vars.TF_TEST_S3_BUCKET }}" \
             --backend-s3-region "${{ vars.TF_TEST_S3_REGION }}"
+
+      # Re-authenticate before cleanup: the Azure CLI token from the initial
+      # login may have expired during the (potentially hours-long) test run.
+      - name: Azure Login via OIDC (for cleanup)
+        if: always()
+        uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3.0.0
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      # Guaranteed cleanup that does not depend on terraform state being
+      # correct (e.g. an orphaned AKS cluster blocking subnet deletion with
+      # InUseSubnetCannotBeDeleted). Each test run provisions everything
+      # under a single per-run resource group, and the test harness only
+      # removes the run directory after a successful destroy, so any
+      # directory left under test/runs identifies a potentially leaked
+      # resource group.
+      - name: Cleanup leaked Azure resources
+        if: always()
+        run: |
+          shopt -s nullglob
+          failed=0
+
+          # Deletions are submitted with --no-wait: the runner may kill this
+          # step (job cancellation or time limit) long before an AKS resource
+          # group deletion (10-30 min) finishes, but once a request is
+          # accepted Azure completes it server-side regardless.
+          for tfvars in test/runs/*/terraform.tfvars.json; do
+            rg="$(jq -r '.resource_group_name // empty' "$tfvars")"
+            if [ -z "$rg" ]; then
+              echo "No resource_group_name in $tfvars; skipping"
+              continue
+            fi
+            # Delete the AKS node resource groups (MC_<rg>_<cluster>_<region>)
+            # before the parent: deleting the parent does not always cascade
+            # to them, and they hold the node NICs that can block subnet and
+            # VNet deletion in the parent (InUseSubnetCannotBeDeleted). With
+            # their deletion already in flight, ARM's retries on the parent
+            # deletion can succeed once the subnet is freed.
+            for mc in $(az group list --query "[?starts_with(name, 'MC_${rg}_')].name" --output tsv); do
+              echo "Requesting deletion of leaked AKS node resource group: $mc"
+              az group delete --name "$mc" --yes --no-wait || failed=1
+            done
+            if [ "$(az group exists --name "$rg")" = "true" ]; then
+              echo "Requesting deletion of leaked resource group: $rg"
+              az group delete --name "$rg" --yes --no-wait || failed=1
+            else
+              echo "Resource group $rg does not exist; nothing to delete"
+            fi
+          done
+
+          if [ "$failed" -ne 0 ]; then
+            echo "::error::Failed to request deletion of one or more leaked resource groups"
+            exit 1
+          fi
