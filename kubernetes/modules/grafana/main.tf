@@ -14,7 +14,7 @@ locals {
 
   dashboards = {
     environment_overview = {
-      name    = "environment-overview"
+      name    = "mz-mon-env-top"
       content = file("${path.module}/env-top.json")
     }
   }
