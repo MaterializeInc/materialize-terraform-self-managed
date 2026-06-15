@@ -4,7 +4,6 @@ updates:
     directories:
       - "/.github/setup/aws"
       - "/.github/setup/azure"
-      - "/.github/setup/gcp"
       - "/aws/examples/migration"
       - "/aws/examples/simple"
       - "/aws/modules/aws-lbc"
