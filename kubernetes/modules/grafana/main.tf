@@ -1,5 +1,4 @@
 # Grafana module for Materialize observability
-# Uses grafana-community/grafana Helm chart with Materialize dashboards
 # WARNING: unstable as of June 2026 (major changes incoming soon!)
 
 resource "kubernetes_namespace" "grafana" {
@@ -11,17 +10,12 @@ resource "kubernetes_namespace" "grafana" {
 }
 
 locals {
-  # Dashboard URLs from Materialize repository
-  # Source: https://github.com/MaterializeInc/materialize/tree/self-managed-docs/v25.2/doc/user/data/monitoring/grafana_dashboards
+  # Source: https://materializeinc.github.io/materialize-monitoring/dashboards/grafana/
 
   dashboards = {
     environment_overview = {
       name    = "environment-overview"
-      content = file("${path.module}/environment_overview_dashboard.json")
-    }
-    freshness_overview = {
-      name    = "freshness-overview"
-      content = file("${path.module}/freshness_overview_dashboard.json")
+      content = file("${path.module}/env-top.json")
     }
   }
 }
