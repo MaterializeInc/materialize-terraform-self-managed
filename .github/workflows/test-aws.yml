@@ -25,7 +25,6 @@ jobs:
           files_ignore: |
             gcp/**
             azure/**
-            .github/setup/gcp/**
             .github/setup/azure/**
             **.md
             **.env

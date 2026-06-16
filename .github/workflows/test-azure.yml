@@ -26,7 +26,6 @@ jobs:
             aws/**
             gcp/**
             .github/setup/aws/**
-            .github/setup/gcp/**
             **.md
             **.env
             .gitignore

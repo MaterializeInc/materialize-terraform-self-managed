@@ -89,8 +89,7 @@ GCP_BILLING_ACCOUNT             # billing account linked to each per-run test pr
 > `roles/resourcemanager.projectCreator` (folder) and `roles/billing.user`
 > (billing account) grants, and the four `GCP_*` variables above are all managed
 > in the [i2](https://github.com/MaterializeInc/i2) repo
-> (`google/mz_terraform_self_managed_ci.py`); they are no longer provisioned by
-> the terraform in `.github/setup/gcp`.
+> (`google/mz_terraform_self_managed_ci.py`);
 
 ## **Manual Testing**
 
