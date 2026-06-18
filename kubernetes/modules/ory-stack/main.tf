@@ -389,9 +389,13 @@ module "ory_polis" {
 
 # Polis is a NextJS app that doesn't terminate TLS itself, and the polis-oel
 # chart doesn't expose a sidecar/extraContainers hook. We front it with a
-# minimal nginx-unprivileged Deployment that mounts the polis-tls cert and
-# reverse-proxies to the in-cluster polis ClusterIP Service. The public LB
-# Service then targets these proxy pods on port 8443.
+# Pingap Deployment that mounts the polis-tls cert and reverse-proxies to the
+# in-cluster polis ClusterIP Service. The public LB Service then targets these
+# proxy pods on port 8443.
+#
+# Pingap is a Rust reverse proxy with DNS resolution that's better-behaved in
+# Kubernetes than nginx (nginx caches upstream DNS at startup and breaks when
+# the upstream pod's IP changes).
 
 resource "kubernetes_config_map_v1" "polis_tls_proxy" {
   count = local.wire_polis ? 1 : 0
@@ -402,36 +406,20 @@ resource "kubernetes_config_map_v1" "polis_tls_proxy" {
   }
 
   data = {
-    "nginx.conf" = <<-EOT
-      worker_processes auto;
-      error_log /tmp/error.log warn;
-      pid /tmp/nginx.pid;
-      events { worker_connections 1024; }
-      http {
-        client_body_temp_path /tmp/client_body;
-        proxy_temp_path       /tmp/proxy;
-        fastcgi_temp_path     /tmp/fastcgi;
-        uwsgi_temp_path       /tmp/uwsgi;
-        scgi_temp_path        /tmp/scgi;
+    "pingap.toml" = <<-EOT
+      [servers.polis]
+      addr = "0.0.0.0:8443"
+      tls_cert = "/opt/pingap/certs/tls.crt"
+      tls_key = "/opt/pingap/certs/tls.key"
+      locations = ["polis"]
 
-        server {
-          listen 8443 ssl;
-          http2 on;
+      [upstreams.polis]
+      addrs = ["polis.${var.namespace}.svc.cluster.local:5225"]
+      discovery = "dns"
 
-          ssl_certificate     /etc/nginx/tls/tls.crt;
-          ssl_certificate_key /etc/nginx/tls/tls.key;
-          ssl_protocols       TLSv1.2 TLSv1.3;
-
-          location / {
-            proxy_pass http://polis.${var.namespace}.svc.cluster.local:5225;
-            proxy_set_header Host              $host;
-            proxy_set_header X-Real-IP         $remote_addr;
-            proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
-            proxy_set_header X-Forwarded-Proto https;
-            proxy_http_version 1.1;
-          }
-        }
-      }
+      [locations.polis]
+      path = "/"
+      upstream = "polis"
     EOT
   }
 }
@@ -465,8 +453,8 @@ resource "kubernetes_deployment_v1" "polis_tls_proxy" {
           "app.kubernetes.io/instance" = "polis"
         }
         annotations = {
-          # Force a rollout when the nginx config changes.
-          "checksum/config" = sha256(kubernetes_config_map_v1.polis_tls_proxy[0].data["nginx.conf"])
+          # Force a rollout when the proxy config changes.
+          "checksum/config" = sha256(kubernetes_config_map_v1.polis_tls_proxy[0].data["pingap.toml"])
         }
       }
 
@@ -474,9 +462,11 @@ resource "kubernetes_deployment_v1" "polis_tls_proxy" {
         node_selector = var.node_selector
 
         container {
-          name              = "nginx"
-          image             = "nginxinc/nginx-unprivileged:1.27-alpine"
+          name              = "pingap"
+          image             = "vicanso/pingap:0.12.1-full"
           image_pull_policy = "IfNotPresent"
+
+          args = ["-c", "/opt/pingap/conf"]
 
           port {
             name           = "https"
@@ -485,14 +475,14 @@ resource "kubernetes_deployment_v1" "polis_tls_proxy" {
 
           volume_mount {
             name       = "tls"
-            mount_path = "/etc/nginx/tls"
+            mount_path = "/opt/pingap/certs"
             read_only  = true
           }
 
           volume_mount {
             name       = "config"
-            mount_path = "/etc/nginx/nginx.conf"
-            sub_path   = "nginx.conf"
+            mount_path = "/opt/pingap/conf"
+            read_only  = true
           }
 
           resources {
