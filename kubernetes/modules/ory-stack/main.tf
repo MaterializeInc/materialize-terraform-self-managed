@@ -344,11 +344,10 @@ module "ory_selfservice_ui" {
 # and exposes an OIDC provider on the other. Kratos can consume it as an
 # upstream OIDC provider for social sign-in.
 #
-# Image pull always goes through the Materialize OEL registry proxy with the
-# license-key JWT (same imagePullSecret as Kratos/Hydra). Chart pull defaults
-# to that proxy too, but the proxy does not yet serve OCI chart manifests, so
-# callers can override polis_chart_{registry,repository,oci_*} to pull the
-# chart directly from GCP Artifact Registry with a service-account key.
+# Image and chart are both pulled through the Materialize OEL registry proxy
+# with the license-key JWT (same auth flow as Kratos/Hydra images). Callers
+# can override polis_chart_{registry,repository,oci_*} to pull the chart from
+# a different OCI registry if they want to bypass the proxy.
 module "ory_polis" {
   count = local.wire_polis ? 1 : 0
 

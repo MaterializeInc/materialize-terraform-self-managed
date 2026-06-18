@@ -23,12 +23,14 @@ content: |-
   the multi-tenant admin UI).
 
   The Polis OEL chart is private. To inspect the full set of available keys,
-  pull and run `helm show values` against the chart:
+  pull and run `helm show values` against the chart. The chart is served via
+  the Materialize OEL registry proxy with the license-key JWT (the same
+  credential used for image pulls):
 
   ```bash
-  helm registry login europe-docker.pkg.dev --username _json_key \
-    --password-stdin < /path/to/ory-artifacts-sa-key.json
-  helm show values oci://europe-docker.pkg.dev/ory-artifacts/helm-oel-polis/polis-oel \
+  echo "$MATERIALIZE_LICENSE_KEY_JWT" | helm registry login \
+    ory.registry.cloud.materialize.com --username jwt --password-stdin
+  helm show values oci://ory.registry.cloud.materialize.com/ory-artifacts/helm-oel-polis/polis-oel \
     --version 0.0.20
   ```
 

@@ -288,7 +288,7 @@ variable "polis_helm_values" {
 }
 
 variable "polis_chart_registry" {
-  description = "OCI registry host the Polis Helm chart is pulled from. Null falls back to the OEL registry proxy host (derived from oel_registry). Override when the proxy does not yet serve OCI chart manifests, typical override is the upstream GCP Artifact Registry multi-region EU host (europe-docker.pkg.dev)."
+  description = "OCI registry host the Polis Helm chart is pulled from. Null falls back to the OEL registry proxy host (derived from oel_registry), which is the default and recommended path. Override if you want to bypass the proxy and pull the chart directly from a different OCI registry."
   type        = string
   default     = null
 }

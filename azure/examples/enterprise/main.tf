@@ -539,18 +539,12 @@ module "ory" {
   hydra_dsn  = local.ory_hydra_dsn
 
   # Polis (SAML-to-OIDC bridge). Off by default; turn on to let customers wire
-  # a SAML IdP that Kratos can consume as an upstream OIDC provider.
+  # a SAML IdP that Kratos can consume as an upstream OIDC provider. Both the
+  # Polis chart and image are pulled through the Materialize OEL registry proxy
+  # using the license-key JWT, no separate credential required.
   enable_polis = var.enable_polis
   polis_fqdn   = var.enable_polis ? var.ory_polis_hostname : null
   polis_dsn    = var.enable_polis ? local.ory_polis_dsn : null
-
-  # Pull the Polis chart directly from GCP Artifact Registry. The OEL registry
-  # proxy does not yet serve OCI chart manifests (returns 403 on HEAD), so the
-  # chart needs a GCP service-account key. Image pull stays on the proxy.
-  polis_chart_registry     = var.enable_polis ? "europe-docker.pkg.dev" : null
-  polis_chart_repository   = var.enable_polis ? "ory-artifacts/helm-oel-polis/polis-oel" : null
-  polis_chart_oci_username = "_json_key"
-  polis_chart_oci_password = var.enable_polis && var.ory_polis_oci_chart_key_file != null ? file(var.ory_polis_oci_chart_key_file) : null
 
   polis_helm_values = var.polis_helm_values
 

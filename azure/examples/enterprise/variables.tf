@@ -111,12 +111,6 @@ variable "ory_polis_hostname" {
   default     = null
 }
 
-variable "ory_polis_oci_chart_key_file" {
-  description = "Path to a GCP service-account JSON key file with read access to the Polis OEL Helm chart at europe-docker.pkg.dev/ory-artifacts/helm-oel-polis. Required when enable_polis is true because the Materialize-hosted OEL registry proxy does not yet serve OCI chart manifests, so the chart is pulled directly from GCP Artifact Registry. The Polis container image still goes through the proxy with the license-key JWT."
-  type        = string
-  default     = null
-}
-
 variable "polis_helm_values" {
   description = "Additional Helm values deep-merged into the Polis chart. Used as an escape hatch, common case is pinning Polis pods to a particular node pool (e.g. amd64) while the rest of the Ory stack stays on the generic pool."
   type        = any
