@@ -547,7 +547,7 @@ module "ory" {
   # Pull the Polis chart directly from GCP Artifact Registry. The OEL registry
   # proxy does not yet serve OCI chart manifests (returns 403 on HEAD), so the
   # chart needs a GCP service-account key. Image pull stays on the proxy.
-  polis_chart_registry     = var.enable_polis ? "europe-west3-docker.pkg.dev" : null
+  polis_chart_registry     = var.enable_polis ? "europe-docker.pkg.dev" : null
   polis_chart_repository   = var.enable_polis ? "ory-artifacts/helm-oel-polis/polis-oel" : null
   polis_chart_oci_username = "_json_key"
   polis_chart_oci_password = var.enable_polis && var.ory_polis_oci_chart_key_file != null ? file(var.ory_polis_oci_chart_key_file) : null

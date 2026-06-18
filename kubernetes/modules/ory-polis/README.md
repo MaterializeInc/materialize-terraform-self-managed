@@ -10,9 +10,9 @@ The Polis OEL chart is private. To inspect the full set of available keys,
 pull and run `helm show values` against the chart:
 
 ```bash
-helm registry login europe-west3-docker.pkg.dev --username _json_key \
+helm registry login europe-docker.pkg.dev --username _json_key \
   --password-stdin < /path/to/ory-artifacts-sa-key.json
-helm show values oci://europe-west3-docker.pkg.dev/ory-artifacts/helm-oel-polis/polis-oel \
+helm show values oci://europe-docker.pkg.dev/ory-artifacts/helm-oel-polis/polis-oel \
   --version 0.0.20
 ```
 
@@ -57,7 +57,7 @@ No modules.
 | Name | Description | Type | Default | Required |
 |------|-------------|------|---------|:--------:|
 | <a name="input_admin_api_keys"></a> [admin\_api\_keys](#input\_admin\_api\_keys) | Bearer token for authenticating requests to Polis admin APIs (set as the API\_KEYS env var inside the Polis container). If null, a random 32-character key is generated. | `string` | `null` | no |
-| <a name="input_chart_registry"></a> [chart\_registry](#input\_chart\_registry) | OCI registry hostname for the Polis Helm chart. | `string` | `"europe-west3-docker.pkg.dev"` | no |
+| <a name="input_chart_registry"></a> [chart\_registry](#input\_chart\_registry) | OCI registry hostname for the Polis Helm chart. Defaults to the EU multi-region Artifact Registry endpoint, which Ory mirrored the chart onto. The single-region 'europe-west3-docker.pkg.dev' path still works if you need it. | `string` | `"europe-docker.pkg.dev"` | no |
 | <a name="input_chart_repository"></a> [chart\_repository](#input\_chart\_repository) | OCI repository path for the Polis Helm chart (relative to chart\_registry). | `string` | `"ory-artifacts/helm-oel-polis/polis-oel"` | no |
 | <a name="input_chart_version"></a> [chart\_version](#input\_chart\_version) | Polis Helm chart version. See the Ory Polis release notes for the version that pairs with your OEL image tag. | `string` | `"0.0.20"` | no |
 | <a name="input_create_namespace"></a> [create\_namespace](#input\_create\_namespace) | Whether to create the Kubernetes namespace. Set to false if the namespace already exists. | `bool` | `true` | no |
