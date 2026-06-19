@@ -491,8 +491,8 @@ module "materialize_instance" {
 
   # Browser-facing SANs. balancerd is reached from the console JS in the
   # browser, so it also needs a publicly trusted cert + DNS record.
-  console_extra_dns_names   = [var.materialize_console_hostname]
-  balancerd_extra_dns_names = [var.materialize_balancerd_hostname]
+  console_extra_dns_names   = [var.materialize_console_fqdn]
+  balancerd_extra_dns_names = [var.materialize_balancerd_fqdn]
 
   # OIDC config; client_id is the Hydra Maester-generated UUID read from
   # the OAuth2 client Secret. system_parameters can also set any of the
@@ -531,9 +531,9 @@ module "ory" {
 
   namespace = local.ory_namespace
 
-  hydra_fqdn  = var.ory_hydra_hostname
-  kratos_fqdn = var.ory_kratos_hostname
-  ui_fqdn     = var.ory_ui_hostname
+  hydra_fqdn  = var.ory_hydra_fqdn
+  kratos_fqdn = var.ory_kratos_fqdn
+  ui_fqdn     = var.ory_ui_fqdn
 
   kratos_dsn = local.ory_kratos_dsn
   hydra_dsn  = local.ory_hydra_dsn
@@ -543,7 +543,7 @@ module "ory" {
   # Polis chart and image are pulled through the Materialize OEL registry proxy
   # using the license-key JWT, no separate credential required.
   enable_polis = var.enable_polis
-  polis_fqdn   = var.enable_polis ? var.ory_polis_hostname : null
+  polis_fqdn   = var.enable_polis ? var.ory_polis_fqdn : null
   polis_dsn    = var.enable_polis ? local.ory_polis_dsn : null
 
   polis_helm_values = var.polis_helm_values
@@ -559,7 +559,7 @@ module "ory" {
   materialize_namespace            = local.materialize_instance_namespace
   materialize_instance_name        = local.materialize_instance_name
   materialize_instance_resource_id = module.materialize_instance.instance_resource_id
-  materialize_console_fqdn         = var.materialize_console_hostname
+  materialize_console_fqdn         = var.materialize_console_fqdn
 
   # externalTrafficPolicy=Local makes Azure probe the kubelet's healthCheckNodePort
   # (always HTTP) instead of the TLS-only app port, which otherwise flaps backends
