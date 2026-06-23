@@ -1,12 +1,12 @@
 variable "crd_version" {
-  description = "CRD API version to use for the Materialize instance (v1alpha1 or v1alpha2). We recommend v1alpha2, but default to v1alpha1 for backwards compatibility. We will change this default in an upcoming major release."
+  description = "CRD API version to use for the Materialize instance (v1alpha1 or v1). We recommend v1, but default to v1alpha1 for backwards compatibility. We will change this default in an upcoming major release."
   type        = string
   default     = "v1alpha1"
   nullable    = false
 
   validation {
-    condition     = contains(["v1alpha1", "v1alpha2"], var.crd_version)
-    error_message = "CRD version must be either 'v1alpha1' or 'v1alpha2'"
+    condition     = contains(["v1alpha1", "v1"], var.crd_version)
+    error_message = "CRD version must be either 'v1alpha1' or 'v1'"
   }
 }
 
@@ -107,7 +107,7 @@ variable "rollout_strategy" {
 }
 
 variable "request_rollout" {
-  description = "UUID to request a rollout (v1alpha1 only, ignored for v1alpha2)"
+  description = "UUID to request a rollout (v1alpha1 only, ignored for v1)"
   type        = string
   default     = "00000000-0000-0000-0000-000000000001"
 
