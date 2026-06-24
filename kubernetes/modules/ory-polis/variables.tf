@@ -28,7 +28,7 @@ variable "dsn" {
 
 # Helm chart source
 variable "chart_registry" {
-  description = "OCI registry hostname for the Polis Helm chart. Defaults to the EU multi-region Artifact Registry endpoint, which Ory mirrored the chart onto. The single-region 'europe-west3-docker.pkg.dev' path still works if you need it."
+  description = "OCI registry hostname for the Polis Helm chart."
   type        = string
   default     = "europe-docker.pkg.dev"
   nullable    = false
