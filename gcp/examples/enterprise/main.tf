@@ -508,10 +508,7 @@ module "ory" {
   kratos_dsn = local.ory_kratos_dsn
   hydra_dsn  = local.ory_hydra_dsn
 
-  # Polis (SAML-to-OIDC bridge). Off by default; turn on to let customers wire
-  # a SAML IdP that Kratos can consume as an upstream OIDC provider. Both the
-  # Polis chart and image are pulled through the Materialize OEL registry proxy
-  # using the license-key JWT, no separate credential required.
+  # Polis (SAML-to-OIDC bridge). Off by default.
   enable_polis = var.enable_polis
   polis_fqdn   = var.enable_polis ? var.ory_polis_fqdn : null
   polis_dsn    = var.enable_polis ? local.ory_polis_dsn : null
