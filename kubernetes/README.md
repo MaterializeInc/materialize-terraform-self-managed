@@ -68,7 +68,7 @@ Deploys a Materialize instance as a Kubernetes custom resource managed by the Ma
 - Manages instance lifecycle (rollouts, upgrades)
 - Configurable resource requests and limits
 - Support for workload identity/IRSA annotations
-- Support for both v1alpha1 and v1alpha2 CRD API versions
+- Support for both v1alpha1 and v1 CRD API versions
 
 **Requirements:**
 - Materialize operator must be installed (via cloud-specific operator module)
@@ -136,7 +136,7 @@ module "materialize_instance" {
 
 The materialize-instance module supports two CRD API versions, controlled by the `crd_version` variable:
 
-### v1alpha1 (default, before v26.19)
+### v1alpha1 (default, before v26.30)
 
 The original CRD version. Rollouts are a two-step process:
 
@@ -160,7 +160,7 @@ module "materialize_instance" {
 ```bash
 # Stage a version change (does not trigger rollout)
 kubectl patch materialize <name> -n <namespace> --type='merge' \
-  -p '{"spec":{"environmentdImageRef":"materialize/environmentd:v26.19.0"}}'
+  -p '{"spec":{"environmentdImageRef":"materialize/environmentd:v26.30.0"}}'
 
 # Trigger the rollout
 kubectl patch materialize <name> -n <namespace> --type='merge' \
@@ -168,10 +168,10 @@ kubectl patch materialize <name> -n <namespace> --type='merge' \
 
 # Or combine both in one command
 kubectl patch materialize <name> -n <namespace> --type='merge' \
-  -p "{\"spec\":{\"environmentdImageRef\":\"materialize/environmentd:v26.19.0\",\"requestRollout\":\"$(uuidgen)\"}}"
+  -p "{\"spec\":{\"environmentdImageRef\":\"materialize/environmentd:v26.30.0\",\"requestRollout\":\"$(uuidgen)\"}}"
 ```
 
-### v1alpha2 (v26.19+)
+### v1 (v26.30+)
 
 The simplified CRD version. The `requestRollout` field is removed. The operator automatically computes a hash of the spec and triggers a rollout whenever it changes. Updating `environmentdImageRef` is all you need to do.
 
@@ -179,8 +179,8 @@ The simplified CRD version. The `requestRollout` field is removed. The operator 
 module "materialize_instance" {
   source = "../kubernetes/modules/materialize-instance"
 
-  crd_version     = "v1alpha2"
-  request_rollout = null  # not used in v1alpha2
+  crd_version     = "v1"
+  request_rollout = null  # not used in v1
   # ...
 }
 ```
@@ -190,21 +190,21 @@ module "materialize_instance" {
 ```bash
 # Update version (rollout triggers automatically)
 kubectl patch materialize <name> -n <namespace> --type='merge' \
-  -p '{"apiVersion":"materialize.cloud/v1alpha2","spec":{"environmentdImageRef":"materialize/environmentd:v26.19.0"}}'
+  -p '{"apiVersion":"materialize.cloud/v1","spec":{"environmentdImageRef":"materialize/environmentd:v26.30.0"}}'
 
 # Force rollout without spec changes
 kubectl patch materialize <name> -n <namespace> --type='merge' \
-  -p "{\"apiVersion\":\"materialize.cloud/v1alpha2\",\"spec\":{\"forceRollout\":\"$(uuidgen)\"}}"
+  -p "{\"apiVersion\":\"materialize.cloud/v1\",\"spec\":{\"forceRollout\":\"$(uuidgen)\"}}"
 ```
 
-### Switching from v1alpha1 to v1alpha2
+### Switching from v1alpha1 to v1
 
-Switching to v1alpha2 is **opt-in**. Upgrading the operator to v26.19+ does not change existing v1alpha1 behavior.
+Switching to v1 is **opt-in**. Upgrading the operator to v26.30+ does not change existing v1alpha1 behavior.
 
 To opt in:
 
-1. Upgrade the Materialize Operator Helm chart to v26.19+ (the operator must support the v1alpha2 CRD and conversion webhooks).
-2. Set `crd_version = "v1alpha2"` and `request_rollout = null` in your Terraform configuration.
+1. Upgrade the Materialize Operator Helm chart to v26.30+ (the operator must support the v1 CRD and conversion webhooks).
+2. Set `crd_version = "v1"` and `request_rollout = null` in your Terraform configuration.
 3. Run `terraform apply`.
 
 The operator's conversion webhook handles the transition. The `requestRollout` field is no longer needed because the operator derives rollout triggers from a hash of the spec.
@@ -231,7 +231,7 @@ kubectl patch materialize <name> -n <namespace> --type='merge' \
   -p "{\"spec\":{\"requestRollout\":\"$LAST\"}}"
 ```
 
-**v1alpha2:** Reapply the previous Materialize configuration:
+**v1:** Reapply the previous Materialize configuration:
 
 ```bash
 kubectl apply -f previous_materialize_configuration.yaml
