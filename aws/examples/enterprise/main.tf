@@ -404,9 +404,7 @@ module "ory_hydra_database" {
   tags = var.tags
 }
 
-# Separate RDS instance for Ory Polis (only when enable_polis = true). The
-# AWS database module is one-DB-per-instance, so Polis gets its own RDS like
-# Kratos and Hydra.
+# Separate RDS instance for Ory Polis (one-DB-per-instance).
 module "ory_polis_database" {
   count  = var.enable_polis ? 1 : 0
   source = "../../modules/database"
@@ -577,13 +575,8 @@ module "ory" {
   kratos_dsn = local.ory_kratos_dsn
   hydra_dsn  = local.ory_hydra_dsn
 
-  # Polis (SAML-to-OIDC bridge). Off by default; turn on to let customers wire
-  # a SAML IdP that Kratos can consume as an upstream OIDC provider. Both the
-  # Polis chart and image are pulled through the Materialize OEL registry proxy
-  # using the license-key JWT, no separate credential required. The polis-oel
-  # image is amd64-only, so on this example's default arm64 generic nodepool
-  # callers must provision a small amd64 nodepool and pin Polis there via
-  # polis_helm_values.
+  # Polis (SAML-to-OIDC bridge). Off by default; pin to an amd64 nodepool via
+  # polis_helm_values since polis-oel is amd64-only.
   enable_polis = var.enable_polis
   polis_fqdn   = var.enable_polis ? var.ory_polis_fqdn : null
   polis_dsn    = local.ory_polis_dsn
