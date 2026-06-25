@@ -125,6 +125,25 @@ variable "ory_kratos_fqdn" {
   type        = string
 }
 
+variable "enable_polis" {
+  description = "Deploy Ory Polis (SAML-to-OIDC bridge) alongside Kratos and Hydra. When true, ory_polis_fqdn must be set and a polis database is provisioned on the Ory Cloud SQL instance."
+  type        = bool
+  default     = false
+  nullable    = false
+}
+
+variable "ory_polis_fqdn" {
+  description = "External hostname for Ory Polis (SAML-to-OIDC bridge). Used as the NEXTAUTH_URL so SAML and OAuth callbacks redirect through it. Required when enable_polis is true. Example: polis.internal.example.com"
+  type        = string
+  default     = null
+}
+
+variable "polis_helm_values" {
+  description = "Additional Helm values deep-merged into the Polis chart. Common case is pinning Polis pods to a particular node pool (e.g. amd64) while the rest of the Ory stack stays on the generic pool."
+  type        = any
+  default     = {}
+}
+
 variable "materialize_console_fqdn" {
   description = "External hostname for the Materialize console. Used to construct the OAuth2 redirect URI. Example: materialize.internal.example.com"
   type        = string
