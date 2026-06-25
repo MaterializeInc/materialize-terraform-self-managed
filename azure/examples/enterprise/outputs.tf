@@ -183,12 +183,13 @@ output "ory_database_endpoint" {
 }
 
 output "ory" {
-  description = "Ory stack deployment details (Hydra issuer URL, Kratos and UI external URLs, OAuth2 client secret name)."
+  description = "Ory stack deployment details (Hydra issuer URL, Kratos and UI external URLs, OAuth2 client secret name, optional Polis URL)."
   value = {
     namespace                 = module.ory.namespace
     hydra_external_url        = module.ory.hydra_external_url
     kratos_external_url       = module.ory.kratos_external_url
     ui_external_url           = module.ory.ui_external_url
+    polis_external_url        = module.ory.polis_external_url
     oauth2_client_secret_name = module.ory.oauth2_client_secret_name
   }
 }

@@ -1,3 +1,12 @@
+## Chart values escape hatch
+
+The `helm_values` input deep-merges into the upstream Ory Kratos Helm chart's
+default values. Use it to override any chart-level setting this module does
+not surface as a typed input.
+
+Refer to the upstream chart's `values.yaml` for the full set of available
+keys: https://github.com/ory/k8s/blob/master/helm/charts/kratos/values.yaml
+
 ## Requirements
 
 | Name | Version |

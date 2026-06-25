@@ -18,5 +18,9 @@ terraform {
       source  = "isometry/deepmerge"
       version = "~> 1.0"
     }
+    tls = {
+      source  = "hashicorp/tls"
+      version = "~> 4.0"
+    }
   }
 }

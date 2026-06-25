@@ -69,7 +69,7 @@ locals {
 
   database_config = {
     sku_name                      = "GP_Standard_D2s_v3"
-    postgres_version              = "17"
+    postgres_version              = "18"
     storage_mb                    = 32768
     backup_retention_days         = 35
     administrator_login           = "materialize"
@@ -81,7 +81,7 @@ locals {
   # Ory database configuration (separate Postgres instance)
   ory_database_config = {
     sku_name                      = "B_Standard_B1ms"
-    postgres_version              = "17"
+    postgres_version              = "18"
     storage_mb                    = 32768
     backup_retention_days         = 35
     administrator_login           = "oryadmin"
@@ -155,6 +155,14 @@ locals {
     urlencode(module.ory_database.administrator_password),
     module.ory_database.server_fqdn,
     "hydra"
+  )
+
+  ory_polis_dsn = format(
+    "postgres://%s:%s@%s/%s?sslmode=require",
+    module.ory_database.administrator_login,
+    urlencode(module.ory_database.administrator_password),
+    module.ory_database.server_fqdn,
+    "polis"
   )
 
   ory_namespace = "ory"
@@ -287,18 +295,27 @@ module "database" {
 module "ory_database" {
   source = "../../modules/database"
 
-  databases = [
-    {
-      name      = "kratos"
-      charset   = "UTF8"
-      collation = "en_US.utf8"
-    },
-    {
-      name      = "hydra"
-      charset   = "UTF8"
-      collation = "en_US.utf8"
-    }
-  ]
+  databases = concat(
+    [
+      {
+        name      = "kratos"
+        charset   = "UTF8"
+        collation = "en_US.utf8"
+      },
+      {
+        name      = "hydra"
+        charset   = "UTF8"
+        collation = "en_US.utf8"
+      },
+    ],
+    var.enable_polis ? [
+      {
+        name      = "polis"
+        charset   = "UTF8"
+        collation = "en_US.utf8"
+      },
+    ] : []
+  )
 
   administrator_login = local.ory_database_config.administrator_login
 
@@ -474,8 +491,8 @@ module "materialize_instance" {
 
   # Browser-facing SANs. balancerd is reached from the console JS in the
   # browser, so it also needs a publicly trusted cert + DNS record.
-  console_extra_dns_names   = [var.materialize_console_hostname]
-  balancerd_extra_dns_names = [var.materialize_balancerd_hostname]
+  console_extra_dns_names   = [var.materialize_console_fqdn]
+  balancerd_extra_dns_names = [var.materialize_balancerd_fqdn]
 
   # OIDC config; client_id is the Hydra Maester-generated UUID read from
   # the OAuth2 client Secret. system_parameters can also set any of the
@@ -514,12 +531,22 @@ module "ory" {
 
   namespace = local.ory_namespace
 
-  hydra_fqdn  = var.ory_hydra_hostname
-  kratos_fqdn = var.ory_kratos_hostname
-  ui_fqdn     = var.ory_ui_hostname
+  hydra_fqdn  = var.ory_hydra_fqdn
+  kratos_fqdn = var.ory_kratos_fqdn
+  ui_fqdn     = var.ory_ui_fqdn
 
   kratos_dsn = local.ory_kratos_dsn
   hydra_dsn  = local.ory_hydra_dsn
+
+  # Polis (SAML-to-OIDC bridge). Off by default; turn on to let customers wire
+  # a SAML IdP that Kratos can consume as an upstream OIDC provider. Both the
+  # Polis chart and image are pulled through the Materialize OEL registry proxy
+  # using the license-key JWT, no separate credential required.
+  enable_polis = var.enable_polis
+  polis_fqdn   = var.enable_polis ? var.ory_polis_fqdn : null
+  polis_dsn    = var.enable_polis ? local.ory_polis_dsn : null
+
+  polis_helm_values = var.polis_helm_values
 
   oel_registry    = var.ory_oel_registry
   oel_image_tag   = var.ory_oel_image_tag
@@ -532,7 +559,7 @@ module "ory" {
   materialize_namespace            = local.materialize_instance_namespace
   materialize_instance_name        = local.materialize_instance_name
   materialize_instance_resource_id = module.materialize_instance.instance_resource_id
-  materialize_console_fqdn         = var.materialize_console_hostname
+  materialize_console_fqdn         = var.materialize_console_fqdn
 
   # externalTrafficPolicy=Local makes Azure probe the kubelet's healthCheckNodePort
   # (always HTTP) instead of the TLS-only app port, which otherwise flaps backends

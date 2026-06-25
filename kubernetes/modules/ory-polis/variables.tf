@@ -30,7 +30,7 @@ variable "dsn" {
 variable "chart_registry" {
   description = "OCI registry hostname for the Polis Helm chart."
   type        = string
-  default     = "europe-west3-docker.pkg.dev"
+  default     = "europe-docker.pkg.dev"
   nullable    = false
 }
 

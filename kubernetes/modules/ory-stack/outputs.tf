@@ -18,6 +18,23 @@ output "ui_external_url" {
   value       = local.ui_external_url
 }
 
+output "polis_external_url" {
+  description = "External (browser-facing) URL for Polis. Null when enable_polis is false."
+  value       = local.polis_external_url
+}
+
+output "polis_admin_api_keys" {
+  description = "API key for Polis admin APIs (generated or supplied). Null when enable_polis is false."
+  value       = local.wire_polis ? module.ory_polis[0].admin_api_keys : null
+  sensitive   = true
+}
+
+output "polis_db_encryption_key" {
+  description = "Symmetric key used by Polis to encrypt sensitive fields at rest. Persist across applies, rotating invalidates existing records. Null when enable_polis is false."
+  value       = local.wire_polis ? module.ory_polis[0].db_encryption_key : null
+  sensitive   = true
+}
+
 output "oauth2_client_secret_name" {
   description = "Name of the Secret that holds the Hydra-Maester-generated OAuth2 client credentials. Null when materialize_namespace is not set."
   value       = local.wire_materialize ? var.oauth2_client_name : null

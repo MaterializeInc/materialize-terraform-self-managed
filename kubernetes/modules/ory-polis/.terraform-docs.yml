@@ -1,0 +1,47 @@
+formatter: markdown
+
+output-file: README.md
+output-mode: replace
+
+sections:
+  show-header: true
+  show-inputs: true
+  show-outputs: true
+  show-providers: true
+  show-requirements: true
+  show-resources: true
+  show-data-sources: true
+  show-modules: true
+
+content: |-
+  ## Chart values escape hatch
+
+  The `helm_values` input deep-merges into the upstream Ory Polis Helm chart's
+  default values. Use it to override any chart-level setting this module does
+  not surface as a typed input (for example, `job.nodeSelector` to pin the
+  migration job to a specific node pool, or `polis.hosted = true` to enable
+  the multi-tenant admin UI).
+
+  The Polis OEL chart is private. To inspect the full set of available keys,
+  pull and run `helm show values` against the chart. The chart is served via
+  the Materialize OEL registry proxy with the license-key JWT (the same
+  credential used for image pulls):
+
+  ```bash
+  echo "$MATERIALIZE_LICENSE_KEY_JWT" | helm registry login \
+    ory.registry.cloud.materialize.com --username jwt --password-stdin
+  helm show values oci://ory.registry.cloud.materialize.com/ory-artifacts/helm-oel-polis/polis-oel \
+    --version 0.0.20
+  ```
+
+  {{ .Requirements }}
+
+  {{ .Providers }}
+
+  {{ .Modules }}
+
+  {{ .Resources }}
+
+  {{ .Inputs }}
+
+  {{ .Outputs }}

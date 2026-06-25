@@ -1,3 +1,23 @@
+## Chart values escape hatch
+
+The `helm_values` input deep-merges into the upstream Ory Polis Helm chart's
+default values. Use it to override any chart-level setting this module does
+not surface as a typed input (for example, `job.nodeSelector` to pin the
+migration job to a specific node pool, or `polis.hosted = true` to enable
+the multi-tenant admin UI).
+
+The Polis OEL chart is private. To inspect the full set of available keys,
+pull and run `helm show values` against the chart. The chart is served via
+the Materialize OEL registry proxy with the license-key JWT (the same
+credential used for image pulls):
+
+```bash
+echo "$MATERIALIZE_LICENSE_KEY_JWT" | helm registry login \
+  ory.registry.cloud.materialize.com --username jwt --password-stdin
+helm show values oci://ory.registry.cloud.materialize.com/ory-artifacts/helm-oel-polis/polis-oel \
+  --version 0.0.20
+```
+
 ## Requirements
 
 | Name | Version |
@@ -7,6 +27,7 @@
 | <a name="requirement_helm"></a> [helm](#requirement\_helm) | ~> 2.0 |
 | <a name="requirement_kubernetes"></a> [kubernetes](#requirement\_kubernetes) | ~> 2.0 |
 | <a name="requirement_random"></a> [random](#requirement\_random) | >= 3.0.0 |
+| <a name="requirement_tls"></a> [tls](#requirement\_tls) | ~> 4.0 |
 
 ## Providers
 
@@ -15,6 +36,7 @@
 | <a name="provider_helm"></a> [helm](#provider\_helm) | ~> 2.0 |
 | <a name="provider_kubernetes"></a> [kubernetes](#provider\_kubernetes) | ~> 2.0 |
 | <a name="provider_random"></a> [random](#provider\_random) | >= 3.0.0 |
+| <a name="provider_tls"></a> [tls](#provider\_tls) | ~> 4.0 |
 
 ## Modules
 
@@ -30,13 +52,14 @@ No modules.
 | [random_password.admin_api_keys](https://registry.terraform.io/providers/hashicorp/random/latest/docs/resources/password) | resource |
 | [random_password.db_encryption_key](https://registry.terraform.io/providers/hashicorp/random/latest/docs/resources/password) | resource |
 | [random_password.nextauth_secret](https://registry.terraform.io/providers/hashicorp/random/latest/docs/resources/password) | resource |
+| [tls_private_key.openid_rsa](https://registry.terraform.io/providers/hashicorp/tls/latest/docs/resources/private_key) | resource |
 
 ## Inputs
 
 | Name | Description | Type | Default | Required |
 |------|-------------|------|---------|:--------:|
 | <a name="input_admin_api_keys"></a> [admin\_api\_keys](#input\_admin\_api\_keys) | Bearer token for authenticating requests to Polis admin APIs (set as the API\_KEYS env var inside the Polis container). If null, a random 32-character key is generated. | `string` | `null` | no |
-| <a name="input_chart_registry"></a> [chart\_registry](#input\_chart\_registry) | OCI registry hostname for the Polis Helm chart. | `string` | `"europe-west3-docker.pkg.dev"` | no |
+| <a name="input_chart_registry"></a> [chart\_registry](#input\_chart\_registry) | OCI registry hostname for the Polis Helm chart. | `string` | `"europe-docker.pkg.dev"` | no |
 | <a name="input_chart_repository"></a> [chart\_repository](#input\_chart\_repository) | OCI repository path for the Polis Helm chart (relative to chart\_registry). | `string` | `"ory-artifacts/helm-oel-polis/polis-oel"` | no |
 | <a name="input_chart_version"></a> [chart\_version](#input\_chart\_version) | Polis Helm chart version. See the Ory Polis release notes for the version that pairs with your OEL image tag. | `string` | `"0.0.20"` | no |
 | <a name="input_create_namespace"></a> [create\_namespace](#input\_create\_namespace) | Whether to create the Kubernetes namespace. Set to false if the namespace already exists. | `bool` | `true` | no |

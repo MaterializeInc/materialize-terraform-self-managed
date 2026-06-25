@@ -83,27 +83,46 @@ variable "ory_oel_image_tag" {
   default     = "26.2.3"
 }
 
-variable "ory_hydra_hostname" {
+variable "ory_hydra_fqdn" {
   description = "External hostname for the Hydra OAuth2 public API. Used as the OIDC issuer URL. Example: hydra.internal.example.com"
   type        = string
 }
 
-variable "ory_ui_hostname" {
+variable "ory_ui_fqdn" {
   description = "External hostname for the Ory selfservice UI (login/consent pages). Example: auth.internal.example.com"
   type        = string
 }
 
-variable "ory_kratos_hostname" {
+variable "ory_kratos_fqdn" {
   description = "External hostname for the Kratos public API. Kratos flows return browser-facing URLs using this hostname. Example: kratos.internal.example.com"
   type        = string
 }
 
-variable "materialize_console_hostname" {
+variable "enable_polis" {
+  description = "Deploy Ory Polis (SAML-to-OIDC bridge) alongside Kratos and Hydra. When true, ory_polis_fqdn must be set and a polis database is provisioned on the Ory Postgres instance."
+  type        = bool
+  default     = false
+  nullable    = false
+}
+
+variable "ory_polis_fqdn" {
+  description = "External hostname for Ory Polis (SAML-to-OIDC bridge). Used as the NEXTAUTH_URL so SAML and OAuth callbacks redirect through it. Required when enable_polis is true. Example: polis.internal.example.com"
+  type        = string
+  default     = null
+}
+
+variable "polis_helm_values" {
+  description = "Additional Helm values deep-merged into the Polis chart. Used as an escape hatch, common case is pinning Polis pods to a particular node pool (e.g. amd64) while the rest of the Ory stack stays on the generic pool."
+  type        = any
+  default     = {}
+}
+
+variable "materialize_console_fqdn" {
   description = "External hostname for the Materialize console. Used to construct the OAuth2 redirect URI. Example: materialize.internal.example.com"
   type        = string
 }
 
-variable "materialize_balancerd_hostname" {
+variable "materialize_balancerd_fqdn" {
   description = "External hostname for balancerd (the SQL wire-protocol endpoint). The Materialize console's browser-side JS calls balancerd directly, so an externally-accessed console needs balancerd reachable too. Point an A record at the balancerd LB IP after apply. Example: balancerd.internal.example.com"
   type        = string
 }
@@ -118,7 +137,7 @@ variable "cert_issuer_ref" {
 }
 
 variable "upstream_oidc_providers" {
-  description = "Upstream OIDC providers to expose as social sign-in methods on the Kratos selfservice UI. Each entry renders as a 'Sign in with X' button on the login page. Leave as [] for password-only login. Register the redirect URI https://<ory_kratos_hostname>/self-service/methods/oidc/callback/<id> at the upstream IdP."
+  description = "Upstream OIDC providers to expose as social sign-in methods on the Kratos selfservice UI. Each entry renders as a 'Sign in with X' button on the login page. Leave as [] for password-only login. Register the redirect URI https://<ory_kratos_fqdn>/self-service/methods/oidc/callback/<id> at the upstream IdP."
   type = list(object({
     id            = string
     provider      = optional(string, "generic")

@@ -8,13 +8,13 @@ license_key = "your-materialize-license-key"
 k8s_apiserver_authorized_networks = ["203.0.113.0/24"]
 
 # Public hostnames the browser uses. After apply, point A records at the LB
-# IPs. The materialize_console_hostname is also used as the OAuth2 redirect
+# IPs. The materialize_console_fqdn is also used as the OAuth2 redirect
 # URI registered with Hydra.
-ory_hydra_hostname             = "hydra.mz.example.com"
-ory_ui_hostname                = "auth.mz.example.com"
-ory_kratos_hostname            = "kratos.mz.example.com"
-materialize_console_hostname   = "console.mz.example.com"
-materialize_balancerd_hostname = "balancerd.mz.example.com"
+ory_hydra_fqdn             = "hydra.mz.example.com"
+ory_ui_fqdn                = "auth.mz.example.com"
+ory_kratos_fqdn            = "kratos.mz.example.com"
+materialize_console_fqdn   = "console.mz.example.com"
+materialize_balancerd_fqdn = "balancerd.mz.example.com"
 
 # Optional: bring your own cert-manager (Cluster)Issuer for browser-facing
 # TLS. Leave commented out to use the in-cluster self-signed issuer (browser

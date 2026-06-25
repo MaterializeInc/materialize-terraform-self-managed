@@ -53,11 +53,11 @@ k8s_apiserver_authorized_networks = ["203.0.113.0/24"]
 
 # Public hostnames used for browser traffic and OIDC redirects. These must
 # resolve to the LB IPs after apply (see "DNS records" below).
-ory_hydra_hostname             = "hydra.mz.example.com"
-ory_ui_hostname                = "auth.mz.example.com"
-ory_kratos_hostname            = "kratos.mz.example.com"
-materialize_console_hostname   = "console.mz.example.com"
-materialize_balancerd_hostname = "balancerd.mz.example.com"
+ory_hydra_fqdn             = "hydra.mz.example.com"
+ory_ui_fqdn                = "auth.mz.example.com"
+ory_kratos_fqdn            = "kratos.mz.example.com"
+materialize_console_fqdn   = "console.mz.example.com"
+materialize_balancerd_fqdn = "balancerd.mz.example.com"
 
 tags = {
   environment = "demo"
@@ -71,7 +71,7 @@ tags = {
 - `license_key`: Materialize license key JWT. Used for Materialize itself and as the password authenticating to the Ory registry proxy. Must carry the `ory` entitlement.
 - `tags`: Map of tags to apply to resources
 - `k8s_apiserver_authorized_networks`: List of CIDR blocks allowed to reach the EKS cluster endpoint. No default; pass `["0.0.0.0/0"]` for lab use, or a tight allowlist for production.
-- `ory_hydra_hostname`, `ory_ui_hostname`, `ory_kratos_hostname`, `materialize_console_hostname`, `materialize_balancerd_hostname`: Public hostnames for the five browser-facing endpoints (Hydra OAuth2, Kratos public API, selfservice UI, Materialize console, and balancerd, which serves the SQL-over-HTTP endpoint the console JS calls from the browser)
+- `ory_hydra_fqdn`, `ory_ui_fqdn`, `ory_kratos_fqdn`, `materialize_console_fqdn`, `materialize_balancerd_fqdn`: Public hostnames for the five browser-facing endpoints (Hydra OAuth2, Kratos public API, selfservice UI, Materialize console, and balancerd, which serves the SQL-over-HTTP endpoint the console JS calls from the browser)
 
 **Optional Variables:**
 - `aws_region`: AWS region (defaults to `us-east-1`)
