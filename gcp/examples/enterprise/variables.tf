@@ -107,7 +107,7 @@ variable "ory_oel_registry" {
 variable "ory_oel_image_tag" {
   description = "Image tag for OEL images."
   type        = string
-  default     = "26.2.3"
+  default     = "26.2.22"
 }
 
 variable "ory_hydra_fqdn" {
@@ -139,7 +139,7 @@ variable "ory_polis_fqdn" {
 }
 
 variable "polis_helm_values" {
-  description = "Additional Helm values deep-merged into the Polis chart. Common case is pinning Polis pods to a particular node pool (e.g. amd64) while the rest of the Ory stack stays on the generic pool."
+  description = "Additional Helm values deep-merged into the Polis chart. Escape hatch for overriding resources, node selectors, tolerations, etc."
   type        = any
   default     = {}
 }

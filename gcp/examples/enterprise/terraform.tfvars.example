@@ -24,15 +24,8 @@ materialize_balancerd_fqdn = "balancerd.mz.example.com"
 
 # Optional: deploy Ory Polis (SAML-to-OIDC bridge). When true, set
 # ory_polis_fqdn and point an A record at the polis LB IP after apply.
-# Both the Polis chart and image are pulled through the Materialize OEL
+# The Polis chart and image are pulled through the Materialize OEL
 # registry proxy using the license-key JWT above, no extra credential needed.
-# The polis-oel image is currently amd64-only, so on arm64 clusters add a
-# dedicated amd64 node pool out of band and pin Polis there:
-#
-#   polis_helm_values = {
-#     deployment = { nodeSelector = { workload = "polis-amd64" } }
-#     job        = { nodeSelector = { workload = "polis-amd64" } }
-#   }
 #
 # enable_polis   = true
 # ory_polis_fqdn = "polis.mz.example.com"

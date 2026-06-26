@@ -90,9 +90,9 @@ labels = {
 - `ingress_cidr_blocks`: List of CIDR blocks allowed to reach the LoadBalancer frontends (no effect when `internal_load_balancer = true`)
 - `internal_load_balancer`: Whether to use internal LBs (defaults to `true`). Set to `false` for prod-like demos validated against real DNS.
 - `enable_observability`: Enable Prometheus and Grafana monitoring stack (defaults to `true`)
-- `enable_polis`: Deploy Ory Polis alongside Kratos and Hydra (defaults to `false`). When `true`, also set `ory_polis_fqdn` and create the corresponding DNS record. The `polis-oel` image is currently amd64-only; on arm64 clusters add a small amd64 node pool and pin Polis there via `polis_helm_values`.
+- `enable_polis`: Deploy Ory Polis alongside Kratos and Hydra (defaults to `false`). When `true`, also set `ory_polis_fqdn` and create the corresponding DNS record.
 - `ory_polis_fqdn`: Public hostname for Polis. Required when `enable_polis = true`.
-- `polis_helm_values`: Additional Helm values for the Polis chart. Most common use is `{ deployment = { nodeSelector = { workload = "polis-amd64" } }, job = { nodeSelector = { workload = "polis-amd64" } } }` to pin Polis to a dedicated amd64 node pool.
+- `polis_helm_values`: Additional Helm values for the Polis chart. Escape hatch for overriding resources, node selectors, tolerations, etc.
 - TLS certificate options (`cert_issuer_ref`, …): see [TLS Certificates](#tls-certificates) below.
 
 ### Step 2: Deploy
@@ -269,7 +269,7 @@ After `terraform apply`, create A records for your hostnames (Hydra, Kratos, sel
 - Both Ory components are scheduled on generic nodes (not the Materialize-dedicated node pool)
 - Cloud SQL on GCP has PostgreSQL extensions (pg_trgm, btree_gin, uuid-ossp) available by default, no allowlisting needed
 - For production, override Kratos and Hydra chart values via `kratos_helm_values` and `hydra_helm_values` on the `module.ory` call (they deep-merge on top of the baked-in defaults), and register additional OAuth2 clients via Hydra Maester CRDs (Maester is enabled by default)
-- When `enable_polis = true`, the Polis Helm chart and image are pulled through the Materialize OEL registry proxy using the same license-key JWT; no additional credential is required. The `polis-oel` image is currently amd64-only; on arm64 clusters provision a small amd64 node pool and pin Polis there via `polis_helm_values`
+- When `enable_polis = true`, the Polis Helm chart and image are pulled through the Materialize OEL registry proxy using the same license-key JWT; no additional credential is required
 - Don't forget to destroy resources when finished:
 
 ```bash
