@@ -142,6 +142,7 @@ Every deployment creates two layers:
 | `grafana` | Grafana monitoring |
 | `prometheus` | Prometheus monitoring stack |
 | `hpa` | Horizontal Pod Autoscaling |
+| `ory-*` | Ory stack (Kratos, Hydra, etc.) for enterprise auth |
 
 ### Materialize Instance Module
 
@@ -265,14 +266,16 @@ license_key = "your-license-key"
 - 6876: HTTP API
 - 8080: Materialize Console (HTTPS)
 
-**Console:**
+**AWS** (uses NLB DNS):
 ```bash
 open "https://$(terraform output -raw nlb_dns_name):8080/materialize"
+psql "postgres://mz_system@$(terraform output -raw nlb_dns_name):6875/materialize"
 ```
 
-**psql:**
+**Azure / GCP** (uses load balancer IPs):
 ```bash
-psql "postgres://mz_system@$(terraform output -raw nlb_dns_name):6875/materialize"
+open "https://$(terraform output -raw console_load_balancer_ip):8080/materialize"
+psql "postgres://mz_system@$(terraform output -raw balancerd_load_balancer_ip):6875/materialize"
 ```
 
 Use the `external_login_password_mz_system` output for the password when authentication is enabled. Create dedicated users after initial setup; avoid using `mz_system` for regular operations.
