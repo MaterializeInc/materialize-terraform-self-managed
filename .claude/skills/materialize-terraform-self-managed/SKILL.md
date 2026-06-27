@@ -125,7 +125,7 @@ Every deployment creates two layers:
 | `operator` | Materialize operator (Helm) |
 
 **Key GCP patterns:**
-- HMAC keys for S3-compatible GCS access (native GCS support planned for future releases)
+- HMAC keys for S3-compatible GCS access (these modules use the S3-compatible API)
 - VPC peering for Cloud SQL private access
 - n2-highmem-8 instances for Materialize nodes with local SSD and swap
 - Secondary IP ranges for pods and services (VPC-native)
@@ -222,31 +222,34 @@ terraform init
 terraform apply
 ```
 
-### Required Variables by Cloud
+### Variables by Cloud
 
 **AWS** (`aws/examples/simple/`):
 ```hcl
-name_prefix = "my-mz"
-aws_region  = "us-east-1"
-aws_profile = "my-profile"
-license_key = "your-license-key"
+name_prefix = "my-mz"                # required
+aws_profile = "my-profile"            # required
+license_key = "your-license-key"      # required
+tags        = { environment = "dev" } # required (no default)
+aws_region  = "us-east-1"            # optional, defaults to us-east-1
 ```
 
 **Azure** (`azure/examples/simple/`):
 ```hcl
-subscription_id     = "12345678-..."
-resource_group_name = "materialize-rg"
-name_prefix         = "my-mz"
-location            = "westus2"
-license_key         = "your-license-key"
+subscription_id     = "12345678-..."   # required
+resource_group_name = "materialize-rg" # required
+name_prefix         = "my-mz"         # required
+tags                = { environment = "dev" } # required (no default)
+location            = "westus2"        # optional, defaults to westus2
+license_key         = "your-key"       # optional (null default), needed for production
 ```
 
 **GCP** (`gcp/examples/simple/`):
 ```hcl
-project_id  = "my-gcp-project"
-name_prefix = "my-mz"
-region      = "us-central1"
-license_key = "your-license-key"
+project_id  = "my-gcp-project"        # required
+labels      = { environment = "dev" }  # required (no default)
+license_key = "your-license-key"      # optional (null default), needed for production
+name_prefix = "my-mz"                # optional, defaults to "materialize"
+region      = "us-central1"           # optional, defaults to us-central1
 ```
 
 ### Common Optional Variables (all clouds)
