@@ -33,7 +33,6 @@ Everything from the [simple example](../simple/README.md), plus:
 - **Helm release**: Deployed in the `ory` namespace when `enable_polis = true`
 - **Purpose**: Accepts a customer's SAML IdP on one side and exposes an OIDC provider on the other so Kratos can consume it as an upstream social sign-in. Also exposes a SCIM endpoint for IdP-driven user provisioning.
 - **Chart and image**: Both pulled through the Materialize OEL registry proxy with the license-key JWT, no separate credential required
-- **Node scheduling**: The `polis-oel` image is amd64-only and the example's generic Karpenter nodepool defaults to arm64 (t4g). Provision a small amd64 nodepool out of band and pin Polis there via `polis_helm_values`.
 - Off by default. Set `enable_polis = true` and `ory_polis_fqdn` to deploy.
 
 ---
@@ -85,9 +84,9 @@ tags = {
 - `ingress_cidr_blocks`: List of CIDR blocks allowed to reach the NLB (no effect when `internal_load_balancer = true`)
 - `internal_load_balancer`: Whether to use an internal load balancer (defaults to `true`). Set to `false` for prod-like demos validated against real DNS.
 - `enable_observability`: Enable Prometheus and Grafana monitoring stack (defaults to `true`)
-- `enable_polis`: Deploy Ory Polis alongside Kratos and Hydra (defaults to `false`). When `true`, also set `ory_polis_fqdn` and create the corresponding DNS record. A dedicated RDS instance is provisioned for the polis database. The `polis-oel` image is amd64-only and this example's generic Karpenter nodepool defaults to arm64, so add an amd64 nodepool out of band and pin Polis there via `polis_helm_values`.
+- `enable_polis`: Deploy Ory Polis alongside Kratos and Hydra (defaults to `false`). When `true`, also set `ory_polis_fqdn` and create the corresponding DNS record. A dedicated RDS instance is provisioned for the polis database.
 - `ory_polis_fqdn`: Public hostname for Polis. Required when `enable_polis = true`.
-- `polis_helm_values`: Additional Helm values for the Polis chart. Typical use is `{ deployment = { nodeSelector = { workload = "polis-amd64" } }, job = { nodeSelector = { workload = "polis-amd64" } } }` to pin Polis to a dedicated amd64 nodepool.
+- `polis_helm_values`: Additional Helm values for the Polis chart. Escape hatch for overriding resources, node selectors, tolerations, etc.
 - TLS certificate options (`cert_issuer_ref`, …): see [TLS Certificates](#tls-certificates) below.
 
 ### Step 2: Deploy
@@ -264,7 +263,7 @@ After `terraform apply`, create CNAME (or ALIAS) records for your hostnames (Hyd
 - Kratos and Hydra are scheduled on the generic Karpenter nodepool (not the Materialize-dedicated nodepool)
 - AWS RDS has PostgreSQL extensions (pg_trgm, btree_gin, uuid-ossp) available by default
 - For production, override Kratos and Hydra chart values via `kratos_helm_values` and `hydra_helm_values` on the `module.ory` call (they deep-merge on top of the baked-in defaults), and register additional OAuth2 clients via Hydra Maester CRDs (Maester is enabled by default)
-- When `enable_polis = true`, the Polis Helm chart and image are pulled through the Materialize OEL registry proxy using the same license-key JWT; no additional credential is required. The `polis-oel` image is currently amd64-only and the generic nodepool defaults to arm64 (t4g), so provision a small amd64 nodepool out of band and pin Polis there via `polis_helm_values`
+- When `enable_polis = true`, the Polis Helm chart and image are pulled through the Materialize OEL registry proxy using the same license-key JWT; no additional credential is required
 - Don't forget to destroy resources when finished:
 
 ```bash

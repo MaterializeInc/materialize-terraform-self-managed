@@ -82,7 +82,7 @@ variable "ory_oel_registry" {
 variable "ory_oel_image_tag" {
   description = "Image tag for OEL images."
   type        = string
-  default     = "26.2.3"
+  default     = "26.2.22"
 }
 
 variable "ory_hydra_fqdn" {
@@ -114,7 +114,7 @@ variable "ory_polis_fqdn" {
 }
 
 variable "polis_helm_values" {
-  description = "Additional Helm values deep-merged into the Polis chart. The default generic Karpenter nodepool runs arm64 (t4g) instances and the polis-oel image is amd64-only; provision a small amd64 nodepool out of band and pin Polis there, e.g. { deployment = { nodeSelector = { workload = \"polis-amd64\" } }, job = { nodeSelector = { workload = \"polis-amd64\" } } }."
+  description = "Additional Helm values deep-merged into the Polis chart. Escape hatch for overriding resources, node selectors, tolerations, etc."
   type        = any
   default     = {}
 }

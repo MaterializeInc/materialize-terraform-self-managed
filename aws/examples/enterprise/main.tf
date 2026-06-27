@@ -575,8 +575,7 @@ module "ory" {
   kratos_dsn = local.ory_kratos_dsn
   hydra_dsn  = local.ory_hydra_dsn
 
-  # Polis (SAML-to-OIDC bridge). Off by default; pin to an amd64 nodepool via
-  # polis_helm_values since polis-oel is amd64-only.
+  # Polis (SAML-to-OIDC bridge). Off by default.
   enable_polis = var.enable_polis
   polis_fqdn   = var.enable_polis ? var.ory_polis_fqdn : null
   polis_dsn    = local.ory_polis_dsn

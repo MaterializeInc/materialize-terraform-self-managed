@@ -17,19 +17,10 @@ materialize_console_fqdn   = "console.mz.example.com"
 materialize_balancerd_fqdn = "balancerd.mz.example.com"
 
 # Optional: deploy Ory Polis (SAML-to-OIDC bridge). When true, set
-# ory_polis_fqdn and point an A record at the polis LB hostname after apply.
+# ory_polis_fqdn and point a CNAME at the polis LB hostname after apply.
 # A dedicated RDS instance is provisioned for the polis database. The Polis
 # chart and image are pulled through the Materialize OEL registry proxy
 # using the license-key JWT above; no extra credential needed.
-#
-# The polis-oel image is amd64-only and this example's generic Karpenter
-# nodepool defaults to arm64 (t4g) instances. Add an amd64 nodepool out of
-# band and pin Polis pods there:
-#
-#   polis_helm_values = {
-#     deployment = { nodeSelector = { workload = "polis-amd64" } }
-#     job        = { nodeSelector = { workload = "polis-amd64" } }
-#   }
 #
 # enable_polis   = true
 # ory_polis_fqdn = "polis.mz.example.com"
