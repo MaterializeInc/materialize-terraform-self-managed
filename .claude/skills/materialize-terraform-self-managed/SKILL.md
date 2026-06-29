@@ -262,26 +262,72 @@ region      = "us-central1"           # optional, defaults to us-central1
 | `crd_version` | `v1alpha1` | Use `v1` for v26.30+ |
 | `enable_observability` | `false` | Install Prometheus + Grafana |
 
-## Connecting After Deployment
+## Post-Deployment Setup
+
+### Configure kubectl
+
+After `terraform apply`, configure kubectl to talk to the new cluster:
+
+**AWS:**
+```bash
+aws eks update-kubeconfig --name $(terraform output -raw eks_cluster_name) --region <region>
+```
+
+**Azure:**
+```bash
+az aks get-credentials --resource-group <rg> --name $(terraform output -raw aks_cluster_name)
+```
+
+**GCP:**
+```bash
+gcloud container clusters get-credentials $(terraform output -raw gke_cluster_name) --region <region>
+```
+
+### Connecting to Materialize
 
 **Ports:**
-- 6875: PostgreSQL-compatible SQL
+- 6875: PostgreSQL-compatible SQL (pgwire)
 - 6876: HTTP API
 - 8080: Materialize Console (HTTPS)
 
-**AWS** (uses NLB DNS):
+**With a public (internet-facing) load balancer** (`internal_load_balancer = false`):
+
+AWS (uses NLB DNS):
 ```bash
-open "https://$(terraform output -raw nlb_dns_name):8080/materialize"
 psql "postgres://mz_system@$(terraform output -raw nlb_dns_name):6875/materialize"
+open "https://$(terraform output -raw nlb_dns_name):8080/materialize"
 ```
 
-**Azure / GCP** (uses load balancer IPs):
+Azure / GCP (uses load balancer IPs):
 ```bash
-open "https://$(terraform output -raw console_load_balancer_ip):8080/materialize"
 psql "postgres://mz_system@$(terraform output -raw balancerd_load_balancer_ip):6875/materialize"
+open "https://$(terraform output -raw console_load_balancer_ip):8080/materialize"
+```
+
+**With a private (internal) load balancer** (the default):
+
+Use kubectl port-forwarding. The resource ID is in `terraform output materialize_instance_resource_id`:
+
+```bash
+kubectl port-forward svc/mz<resource-id>-balancerd 6875:6875 -n materialize-environment
+psql "postgres://mz_system@localhost:6875/materialize"
+```
+
+```bash
+kubectl port-forward svc/mz<resource-id>-console 8080:8080 -n materialize-environment
+open "http://localhost:8080"
 ```
 
 Use the `external_login_password_mz_system` output for the password when authentication is enabled. Create dedicated users after initial setup; avoid using `mz_system` for regular operations.
+
+### Observability
+
+When `enable_observability = true`, Prometheus and Grafana are deployed in the `monitoring` namespace with pre-configured Materialize dashboards:
+
+```bash
+kubectl port-forward svc/grafana 3000:80 -n monitoring
+# Username: admin, Password: terraform output -raw grafana_admin_password
+```
 
 ## Upgrading Materialize
 
@@ -315,6 +361,27 @@ ARM-based CPUs with a 1:8 vCPU-to-memory ratio and 8:1 local-storage-to-memory r
 - **Self-signed certs**: The simple examples use self-signed TLS. For production, use a real CA or ACME issuer. When using a public ACME issuer (like Let's Encrypt), set `internal_issuer_ref` separately because public CAs cannot sign `*.cluster.local` names.
 - **statement_timeout**: The metadata backend URL must include `statement_timeout=15min` or metadata operations may time out.
 - **Console slow loads**: If the Console UI is slow, increase `mz_catalog_server` cluster size from 25cc to 50cc via internal SQL port 6877.
+
+## Troubleshooting
+
+**Check operator status:**
+```bash
+kubectl -n materialize get all
+kubectl -n materialize logs -l app.kubernetes.io/name=materialize-operator
+```
+
+**Check Materialize instance:**
+```bash
+kubectl -n materialize-environment get all
+kubectl -n materialize-environment logs <pod-name>
+kubectl -n materialize-environment describe pod/<pod-name>
+```
+
+**Check Materialize CR status:**
+```bash
+kubectl get materialize -n materialize-environment -o jsonpath='{.items[0].status}'
+```
+The CR status should show `UpToDate` when healthy.
 
 ## Testing
 
