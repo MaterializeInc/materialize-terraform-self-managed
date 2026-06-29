@@ -22,6 +22,14 @@ ory_kratos_fqdn            = "kratos.mz.example.com"
 materialize_console_fqdn   = "console.mz.example.com"
 materialize_balancerd_fqdn = "balancerd.mz.example.com"
 
+# Optional: deploy Ory Polis (SAML-to-OIDC bridge). When true, set
+# ory_polis_fqdn and point an A record at the polis LB IP after apply.
+# The Polis chart and image are pulled through the Materialize OEL
+# registry proxy using the license-key JWT above, no extra credential needed.
+#
+# enable_polis   = true
+# ory_polis_fqdn = "polis.mz.example.com"
+
 # Optional: bring your own cert-manager (Cluster)Issuer for browser-facing
 # TLS. Leave commented out to use the in-cluster self-signed issuer (browser
 # trust warnings). See the README for a Let's Encrypt + Cloudflare snippet.

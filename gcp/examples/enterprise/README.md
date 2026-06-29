@@ -1,6 +1,6 @@
 # Example: Enterprise Materialize Deployment on GCP with Ory (OIDC/SAML)
 
-This example extends the [simple deployment](../simple/) with **Ory Kratos** (identity management) and **Ory Hydra** (OAuth2/OIDC provider) for enterprise authentication via OIDC and SAML.
+This example extends the [simple deployment](../simple/) with **Ory Kratos** (identity management) and **Ory Hydra** (OAuth2/OIDC provider) for enterprise authentication via OIDC and SAML. Optionally adds **Ory Polis** (SAML-to-OIDC bridge with SCIM support) when `enable_polis = true`.
 
 Ory enterprise images are pulled through the Materialize-hosted registry proxy at `ory.registry.cloud.materialize.com`. The proxy authenticates with the Materialize license key JWT, so no separate Ory credential is needed. Cluster nodes need egress to the proxy host and to `storage.googleapis.com` (the proxy returns 307 redirects to signed GCS URLs for blob GETs, which the kubelet follows directly).
 
@@ -11,9 +11,9 @@ Ory enterprise images are pulled through the Materialize-hosted registry proxy a
 Everything from the [simple example](../simple/README.md), plus:
 
 ### Ory Database
-- **Cloud SQL for PostgreSQL** (separate instance from Materialize): Version 17
+- **Cloud SQL for PostgreSQL** (separate instance from Materialize): Version 18
 - **Tier**: db-f1-micro (suitable for Ory workloads)
-- **Databases**: `kratos` and `hydra` on the same instance
+- **Databases**: `kratos` and `hydra` on the same instance (plus `polis` when `enable_polis = true`)
 - **Network Access**: Private IP only, same VPC as the Materialize database
 
 ### Ory Kratos (Identity Management)
@@ -28,6 +28,12 @@ Everything from the [simple example](../simple/README.md), plus:
 - **Resources**: 250m CPU request / 256Mi memory (request & limit)
 - **Maester**: Enabled (CRD controller for managing OAuth2 clients via Kubernetes resources)
 - **Purpose**: Issues OAuth2 tokens, provides OIDC discovery endpoint, delegates login/consent to Kratos
+
+### Ory Polis (optional, SAML-to-OIDC bridge)
+- **Helm release**: Deployed in the `ory` namespace when `enable_polis = true`
+- **Purpose**: Accepts a customer's SAML IdP on one side and exposes an OIDC provider on the other so Kratos can consume it as an upstream social sign-in. Also exposes a SCIM endpoint for IdP-driven user provisioning.
+- **Chart and image**: Both pulled through the Materialize OEL registry proxy with the license-key JWT, no separate credential required
+- Off by default. Set `enable_polis = true` and `ory_polis_fqdn` to deploy.
 
 ---
 
@@ -84,6 +90,9 @@ labels = {
 - `ingress_cidr_blocks`: List of CIDR blocks allowed to reach the LoadBalancer frontends (no effect when `internal_load_balancer = true`)
 - `internal_load_balancer`: Whether to use internal LBs (defaults to `true`). Set to `false` for prod-like demos validated against real DNS.
 - `enable_observability`: Enable Prometheus and Grafana monitoring stack (defaults to `true`)
+- `enable_polis`: Deploy Ory Polis alongside Kratos and Hydra (defaults to `false`). When `true`, also set `ory_polis_fqdn` and create the corresponding DNS record.
+- `ory_polis_fqdn`: Public hostname for Polis. Required when `enable_polis = true`.
+- `polis_helm_values`: Additional Helm values for the Polis chart. Escape hatch for overriding resources, node selectors, tolerations, etc.
 - TLS certificate options (`cert_issuer_ref`, …): see [TLS Certificates](#tls-certificates) below.
 
 ### Step 2: Deploy
@@ -217,7 +226,7 @@ module "materialize_enterprise" {
 }
 ```
 
-After `terraform apply`, create A records for your hostnames (Hydra, Kratos, selfservice UI, Materialize console) pointing at the LB IPs. cert-manager issues certs once DNS resolves (typically 1 to 2 minutes for the first issuance).
+After `terraform apply`, create A records for your hostnames (Hydra, Kratos, selfservice UI, Materialize console, and Polis when `enable_polis = true`) pointing at the LB IPs. cert-manager issues certs once DNS resolves (typically 1 to 2 minutes for the first issuance).
 
 ---
 
@@ -260,6 +269,7 @@ After `terraform apply`, create A records for your hostnames (Hydra, Kratos, sel
 - Both Ory components are scheduled on generic nodes (not the Materialize-dedicated node pool)
 - Cloud SQL on GCP has PostgreSQL extensions (pg_trgm, btree_gin, uuid-ossp) available by default, no allowlisting needed
 - For production, override Kratos and Hydra chart values via `kratos_helm_values` and `hydra_helm_values` on the `module.ory` call (they deep-merge on top of the baked-in defaults), and register additional OAuth2 clients via Hydra Maester CRDs (Maester is enabled by default)
+- When `enable_polis = true`, the Polis Helm chart and image are pulled through the Materialize OEL registry proxy using the same license-key JWT; no additional credential is required
 - Don't forget to destroy resources when finished:
 
 ```bash

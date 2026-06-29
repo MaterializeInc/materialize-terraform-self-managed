@@ -166,6 +166,14 @@ locals {
     "hydra"
   )
 
+  ory_polis_dsn = format(
+    "postgres://%s:%s@%s/%s?sslmode=require",
+    module.ory_database.users[0].name,
+    urlencode(module.ory_database.users[0].password),
+    module.ory_database.private_ip,
+    "polis"
+  )
+
   ory_namespace = "ory"
 
   # cert-manager ClusterIssuer for browser-facing TLS. Defaults to the built-in
@@ -290,10 +298,15 @@ module "database" {
 module "ory_database" {
   source = "../../modules/database"
 
-  databases = [
-    { name = "kratos", charset = "UTF8", collation = "en_US.UTF8" },
-    { name = "hydra", charset = "UTF8", collation = "en_US.UTF8" }
-  ]
+  databases = concat(
+    [
+      { name = "kratos", charset = "UTF8", collation = "en_US.UTF8" },
+      { name = "hydra", charset = "UTF8", collation = "en_US.UTF8" },
+    ],
+    var.enable_polis ? [
+      { name = "polis", charset = "UTF8", collation = "en_US.UTF8" },
+    ] : []
+  )
   users = [{ name = local.ory_database_config.user_name }]
 
   project_id = var.project_id
@@ -494,6 +507,13 @@ module "ory" {
 
   kratos_dsn = local.ory_kratos_dsn
   hydra_dsn  = local.ory_hydra_dsn
+
+  # Polis (SAML-to-OIDC bridge). Off by default.
+  enable_polis = var.enable_polis
+  polis_fqdn   = var.enable_polis ? var.ory_polis_fqdn : null
+  polis_dsn    = var.enable_polis ? local.ory_polis_dsn : null
+
+  polis_helm_values = var.polis_helm_values
 
   oel_registry    = var.ory_oel_registry
   oel_image_tag   = var.ory_oel_image_tag
