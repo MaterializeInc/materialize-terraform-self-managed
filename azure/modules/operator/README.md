@@ -41,6 +41,7 @@ No modules.
 | <a name="input_helm_repository"></a> [helm\_repository](#input\_helm\_repository) | Repository URL for the Materialize operator Helm chart. Leave empty if using local chart. | `string` | `"https://materializeinc.github.io/materialize/"` | no |
 | <a name="input_helm_values"></a> [helm\_values](#input\_helm\_values) | Values to pass to the Helm chart | `any` | `{}` | no |
 | <a name="input_install_metrics_server"></a> [install\_metrics\_server](#input\_install\_metrics\_server) | Whether to install the metrics-server | `bool` | `false` | no |
+| <a name="input_install_v1_crd"></a> [install\_v1\_crd](#input\_install\_v1\_crd) | Install v1 of the Materialize CRD. | `bool` | `true` | no |
 | <a name="input_instance_node_selector"></a> [instance\_node\_selector](#input\_instance\_node\_selector) | Node selector for Materialize workloads (environmentd, clusterd, balancerd, console). | `map(string)` | `{}` | no |
 | <a name="input_instance_pod_tolerations"></a> [instance\_pod\_tolerations](#input\_instance\_pod\_tolerations) | Tolerations for Materialize instance workloads (environmentd, clusterd, balancerd, console). | <pre>list(object({<br/>    key      = string<br/>    value    = optional(string)<br/>    operator = optional(string, "Equal")<br/>    effect   = string<br/>  }))</pre> | `[]` | no |
 | <a name="input_location"></a> [location](#input\_location) | The location of the Azure subscription | `string` | n/a | yes |
