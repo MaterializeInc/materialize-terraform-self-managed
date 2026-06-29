@@ -98,6 +98,13 @@ variable "enable_license_key_checks" {
   nullable    = false
 }
 
+variable "install_v1_crd" {
+  description = "Install v1 of the Materialize CRD."
+  type        = bool
+  default     = true
+  nullable    = false
+}
+
 variable "swap_enabled" {
   description = "Whether to enable swap on the local NVMe disks."
   type        = bool

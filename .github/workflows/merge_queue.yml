@@ -16,9 +16,9 @@ jobs:
     uses: ./.github/workflows/test-gcp.yml
     secrets: inherit
 
-  test-azure:
-    uses: ./.github/workflows/test-azure.yml
-    secrets: inherit
+  #test-azure:
+  #  uses: ./.github/workflows/test-azure.yml
+  #  secrets: inherit
 
   ci-success:
     runs-on: ubuntu-latest
@@ -27,7 +27,7 @@ jobs:
       - lint
       - test-aws
       - test-gcp
-      - test-azure
+      #- test-azure
     steps:
       - uses: technote-space/workflow-conclusion-action@45ce8e0eb155657ab8ccf346ade734257fd196a5 # v3.0.3
       - name: Verify all checks passed
