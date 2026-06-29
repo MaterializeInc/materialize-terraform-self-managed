@@ -404,6 +404,30 @@ module "ory_hydra_database" {
   tags = var.tags
 }
 
+# Separate RDS instance for Ory Polis (one-DB-per-instance).
+module "ory_polis_database" {
+  count  = var.enable_polis ? 1 : 0
+  source = "../../modules/database"
+
+  name_prefix               = "${var.name_prefix}-ory-polis"
+  postgres_version          = "18"
+  backup_retention_period   = 35
+  instance_class            = "db.t3.small"
+  allocated_storage         = 20
+  max_allocated_storage     = 50
+  database_name             = "polis"
+  database_username         = "oryadmin"
+  database_password         = random_password.ory_database_password.result
+  multi_az                  = false
+  database_subnet_ids       = module.networking.private_subnet_ids
+  vpc_id                    = module.networking.vpc_id
+  cluster_name              = module.eks.cluster_name
+  cluster_security_group_id = module.eks.cluster_security_group_id
+  node_security_group_id    = module.eks.node_security_group_id
+
+  tags = var.tags
+}
+
 # 8. Setup S3 bucket for Materialize
 module "storage" {
   source                 = "../../modules/storage"
@@ -550,6 +574,13 @@ module "ory" {
 
   kratos_dsn = local.ory_kratos_dsn
   hydra_dsn  = local.ory_hydra_dsn
+
+  # Polis (SAML-to-OIDC bridge). Off by default.
+  enable_polis = var.enable_polis
+  polis_fqdn   = var.enable_polis ? var.ory_polis_fqdn : null
+  polis_dsn    = local.ory_polis_dsn
+
+  polis_helm_values = var.polis_helm_values
 
   oel_registry    = var.ory_oel_registry
   oel_image_tag   = var.ory_oel_image_tag
@@ -706,6 +737,14 @@ locals {
     module.ory_hydra_database.db_instance_endpoint,
     "hydra"
   )
+
+  ory_polis_dsn = var.enable_polis ? format(
+    "postgres://%s:%s@%s/%s?sslmode=require",
+    module.ory_polis_database[0].db_instance_username,
+    urlencode(random_password.ory_database_password.result),
+    module.ory_polis_database[0].db_instance_endpoint,
+    "polis"
+  ) : null
 
   ory_namespace = "ory"
 

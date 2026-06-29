@@ -82,7 +82,7 @@ variable "ory_oel_registry" {
 variable "ory_oel_image_tag" {
   description = "Image tag for OEL images."
   type        = string
-  default     = "26.2.3"
+  default     = "26.2.22"
 }
 
 variable "ory_hydra_fqdn" {
@@ -98,6 +98,25 @@ variable "ory_ui_fqdn" {
 variable "ory_kratos_fqdn" {
   description = "External hostname for the Kratos public API. Kratos flows return browser-facing URLs using this hostname. Example: kratos.internal.example.com"
   type        = string
+}
+
+variable "enable_polis" {
+  description = "Deploy Ory Polis (SAML-to-OIDC bridge) alongside Kratos and Hydra. When true, ory_polis_fqdn must be set and a dedicated RDS instance is provisioned for the polis database."
+  type        = bool
+  default     = false
+  nullable    = false
+}
+
+variable "ory_polis_fqdn" {
+  description = "External hostname for Ory Polis (SAML-to-OIDC bridge). Used as the NEXTAUTH_URL so SAML and OAuth callbacks redirect through it. Required when enable_polis is true. Example: polis.internal.example.com"
+  type        = string
+  default     = null
+}
+
+variable "polis_helm_values" {
+  description = "Additional Helm values deep-merged into the Polis chart. Escape hatch for overriding resources, node selectors, tolerations, etc."
+  type        = any
+  default     = {}
 }
 
 variable "materialize_console_fqdn" {

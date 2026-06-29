@@ -11,7 +11,7 @@ Ory enterprise images are pulled through the Materialize-hosted registry proxy a
 Everything from the [simple example](../simple/README.md), plus:
 
 ### Ory Databases
-- **Two separate RDS instances** (one for Kratos, one for Hydra): PostgreSQL 18
+- **Separate RDS instances** (one per Ory component): PostgreSQL 18. Kratos and Hydra always, Polis added when `enable_polis = true`.
 - **Instance class**: db.t3.small (suitable for Ory workloads)
 - **Storage**: 20GB with autoscaling up to 50GB
 - **Network Access**: Private subnets only, same VPC as the Materialize database
@@ -28,6 +28,12 @@ Everything from the [simple example](../simple/README.md), plus:
 - **Resources**: 250m CPU request / 256Mi memory (request & limit)
 - **Maester**: Enabled (CRD controller for managing OAuth2 clients via Kubernetes resources)
 - **Purpose**: Issues OAuth2 tokens, provides OIDC discovery endpoint, delegates login/consent to Kratos
+
+### Ory Polis (optional, SAML-to-OIDC bridge)
+- **Helm release**: Deployed in the `ory` namespace when `enable_polis = true`
+- **Purpose**: Accepts a customer's SAML IdP on one side and exposes an OIDC provider on the other so Kratos can consume it as an upstream social sign-in. Also exposes a SCIM endpoint for IdP-driven user provisioning.
+- **Chart and image**: Both pulled through the Materialize OEL registry proxy with the license-key JWT, no separate credential required
+- Off by default. Set `enable_polis = true` and `ory_polis_fqdn` to deploy.
 
 ---
 
@@ -78,6 +84,9 @@ tags = {
 - `ingress_cidr_blocks`: List of CIDR blocks allowed to reach the NLB (no effect when `internal_load_balancer = true`)
 - `internal_load_balancer`: Whether to use an internal load balancer (defaults to `true`). Set to `false` for prod-like demos validated against real DNS.
 - `enable_observability`: Enable Prometheus and Grafana monitoring stack (defaults to `true`)
+- `enable_polis`: Deploy Ory Polis alongside Kratos and Hydra (defaults to `false`). When `true`, also set `ory_polis_fqdn` and create the corresponding DNS record. A dedicated RDS instance is provisioned for the polis database.
+- `ory_polis_fqdn`: Public hostname for Polis. Required when `enable_polis = true`.
+- `polis_helm_values`: Additional Helm values for the Polis chart. Escape hatch for overriding resources, node selectors, tolerations, etc.
 - TLS certificate options (`cert_issuer_ref`, …): see [TLS Certificates](#tls-certificates) below.
 
 ### Step 2: Deploy
@@ -211,7 +220,7 @@ module "materialize_enterprise" {
 }
 ```
 
-After `terraform apply`, create A records for your hostnames (Hydra, Kratos, selfservice UI, Materialize console) pointing at the LB IPs. cert-manager issues certs once DNS resolves (typically 1 to 2 minutes for the first issuance).
+After `terraform apply`, create CNAME (or ALIAS) records for your hostnames (Hydra, Kratos, selfservice UI, Materialize console, and Polis when `enable_polis = true`) pointing at the NLB DNS names. cert-manager issues certs once DNS resolves (typically 1 to 2 minutes for the first issuance).
 
 ---
 
@@ -249,11 +258,12 @@ After `terraform apply`, create A records for your hostnames (Hydra, Kratos, sel
 
 ## Notes
 
-- AWS RDS creates one database per instance, so Kratos and Hydra each get their own RDS instance (`db.t3.small`)
-- Both Ory components share the `ory` namespace but have separate databases
-- Both Ory components are scheduled on generic Karpenter nodes (not the Materialize-dedicated node pool)
+- AWS RDS creates one database per instance, so each Ory component (Kratos, Hydra, and Polis when enabled) gets its own RDS instance (`db.t3.small`)
+- All Ory components share the `ory` namespace but use separate databases
+- Kratos and Hydra are scheduled on the generic Karpenter nodepool (not the Materialize-dedicated nodepool)
 - AWS RDS has PostgreSQL extensions (pg_trgm, btree_gin, uuid-ossp) available by default
 - For production, override Kratos and Hydra chart values via `kratos_helm_values` and `hydra_helm_values` on the `module.ory` call (they deep-merge on top of the baked-in defaults), and register additional OAuth2 clients via Hydra Maester CRDs (Maester is enabled by default)
+- When `enable_polis = true`, the Polis Helm chart and image are pulled through the Materialize OEL registry proxy using the same license-key JWT; no additional credential is required
 - Don't forget to destroy resources when finished:
 
 ```bash

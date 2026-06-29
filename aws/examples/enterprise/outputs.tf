@@ -155,13 +155,19 @@ output "ory_hydra_database_endpoint" {
   value       = module.ory_hydra_database.db_instance_endpoint
 }
 
+output "ory_polis_database_endpoint" {
+  description = "RDS instance endpoint for Ory Polis (null when enable_polis = false)"
+  value       = var.enable_polis ? module.ory_polis_database[0].db_instance_endpoint : null
+}
+
 output "ory" {
-  description = "Ory stack deployment details (Hydra issuer URL, Kratos and UI external URLs, OAuth2 client secret name)."
+  description = "Ory stack deployment details (Hydra issuer URL, Kratos and UI external URLs, OAuth2 client secret name, optional Polis URL)."
   value = {
     namespace                 = module.ory.namespace
     hydra_external_url        = module.ory.hydra_external_url
     kratos_external_url       = module.ory.kratos_external_url
     ui_external_url           = module.ory.ui_external_url
+    polis_external_url        = module.ory.polis_external_url
     oauth2_client_secret_name = module.ory.oauth2_client_secret_name
   }
 }
