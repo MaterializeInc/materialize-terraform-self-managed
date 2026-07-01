@@ -43,6 +43,18 @@ variable "license_key" {
   sensitive   = true
 }
 
+variable "force_rollout" {
+  description = "UUID to force a rollout"
+  type        = string
+  default     = "00000000-0000-0000-0000-000000000001"
+}
+
+variable "request_rollout" {
+  description = "UUID to request a rollout"
+  type        = string
+  default     = "00000000-0000-0000-0000-000000000001"
+}
+
 variable "k8s_apiserver_authorized_networks" {
   description = "List of authorized IP ranges that can reach the AKS API server. Required (no default) so that an enterprise deployment makes an explicit choice instead of inheriting an open default. Pass ['0.0.0.0/0'] to allow all (lab use); production should pin a tight allowlist (e.g., ['203.0.113.0/24'])."
   type        = list(string)

@@ -466,6 +466,10 @@ module "materialize_instance" {
   metadata_backend_url = local.metadata_backend_url
   persist_backend_url  = local.persist_backend_url
 
+  # Rollout configuration
+  force_rollout   = var.force_rollout
+  request_rollout = var.request_rollout
+
   # Use OIDC authentication via Ory Hydra. The external_login_password is still required
   # as a fallback for the mz_system admin user.
   authenticator_kind                = "Oidc"
