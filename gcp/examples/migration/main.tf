@@ -573,6 +573,10 @@ module "materialize_instance" {
 
   environmentd_version = var.environmentd_version
 
+  # Rollout configuration
+  force_rollout   = var.force_rollout
+  request_rollout = var.request_rollout
+
   service_account_annotations = {
     "iam.gke.io/gcp-service-account" = google_service_account.workload_identity_sa.email
   }

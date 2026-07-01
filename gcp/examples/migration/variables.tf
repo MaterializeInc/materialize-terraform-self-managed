@@ -195,6 +195,18 @@ variable "environmentd_version" {
   default     = null
 }
 
+variable "force_rollout" {
+  description = "UUID to force a rollout"
+  type        = string
+  default     = "00000000-0000-0000-0000-000000000001"
+}
+
+variable "request_rollout" {
+  description = "UUID to request a rollout"
+  type        = string
+  default     = "00000000-0000-0000-0000-000000000001"
+}
+
 variable "authenticator_kind" {
   description = "Kind of authenticator to use for Materialize instance."
   type        = string

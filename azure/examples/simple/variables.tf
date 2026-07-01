@@ -44,6 +44,18 @@ variable "license_key" {
   sensitive   = true
 }
 
+variable "force_rollout" {
+  description = "UUID to force a rollout"
+  type        = string
+  default     = "00000000-0000-0000-0000-000000000001"
+}
+
+variable "request_rollout" {
+  description = "UUID to request a rollout"
+  type        = string
+  default     = "00000000-0000-0000-0000-000000000001"
+}
+
 variable "k8s_apiserver_authorized_networks" {
   description = "List of authorized IP ranges that can access the Kubernetes API server when public access is available. Defaults to ['0.0.0.0/0'] (allow all). For production, restrict to specific IPs (e.g., ['203.0.113.0/24'])"
   type        = list(string)
