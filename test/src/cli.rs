@@ -53,6 +53,14 @@ pub enum SubCommand {
         #[arg(long)]
         rm: bool,
     },
+    /// Deletes every AWS resource tagged for a test run, independent of
+    /// terraform state. A last-resort cleanup for when `terraform destroy`
+    /// fails and leaks resources. Scoped strictly to the run's `TestRun` tag.
+    Purge {
+        /// Which test run to purge.
+        #[arg(long)]
+        test_run: String,
+    },
     /// Runs the full test lifecycle: init, apply, verify, destroy.
     Run {
         #[clap(subcommand)]

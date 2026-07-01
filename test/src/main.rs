@@ -6,7 +6,7 @@ mod types;
 use clap::Parser;
 
 use cli::{Args, SubCommand};
-use commands::{list, phase_apply, phase_destroy, phase_init, phase_sync, phase_verify};
+use commands::{list, phase_apply, phase_destroy, phase_init, phase_sync, phase_verify, purge};
 use helpers::test_run_dir;
 
 #[tokio::main]
@@ -41,6 +41,7 @@ async fn main() {
             }
         }
         SubCommand::List { latest } => list(*latest).await,
+        SubCommand::Purge { test_run } => purge(test_run).await,
         SubCommand::Destroy { test_run, rm } => {
             let dir = test_run_dir(test_run);
             match dir {

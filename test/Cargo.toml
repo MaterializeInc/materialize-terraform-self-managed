@@ -7,6 +7,18 @@ publish = false
 [dependencies]
 anyhow = "1.0.102"
 aws-config = { version = "1.8.15", features = ["behavior-version-latest"] }
+# default-features = false avoids the legacy hyper-0.14/rustls-0.21 default HTTP
+# client (which carries RUSTSEC advisories and duplicate-dependency bans); we
+# select the modern hyper-1.x client via default-https-client, matching s3.
+aws-sdk-cloudwatchlogs = { version = "1", default-features = false, features = ["default-https-client", "rt-tokio"] }
+aws-sdk-ec2 = { version = "1", default-features = false, features = ["default-https-client", "rt-tokio"] }
+aws-sdk-eks = { version = "1", default-features = false, features = ["default-https-client", "rt-tokio"] }
+aws-sdk-elasticloadbalancingv2 = { version = "1", default-features = false, features = ["default-https-client", "rt-tokio"] }
+aws-sdk-eventbridge = { version = "1", default-features = false, features = ["default-https-client", "rt-tokio"] }
+aws-sdk-iam = { version = "1", default-features = false, features = ["default-https-client", "rt-tokio"] }
+aws-sdk-kms = { version = "1", default-features = false, features = ["default-https-client", "rt-tokio"] }
+aws-sdk-rds = { version = "1", default-features = false, features = ["default-https-client", "rt-tokio"] }
+aws-sdk-sqs = { version = "1", default-features = false, features = ["default-https-client", "rt-tokio"] }
 aws-sdk-s3 = { version = "1.129.0", default-features = false, features = ["sigv4a", "http-1x", "default-https-client", "rt-tokio"] }
 chrono = "0.4.44"
 clap = { version = "4.5.36", features = ["derive", "env"] }

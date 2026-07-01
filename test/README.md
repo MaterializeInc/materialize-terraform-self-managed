@@ -91,6 +91,34 @@ cargo run -- list
 cargo run -- list --latest  # print only the most recent
 ```
 
+### `purge` -- Force-delete a run's AWS resources
+
+A last-resort cleanup for when `terraform destroy` fails and leaks resources. AWS
+has no single-container delete, so `purge` finds a run's resources by the unique
+per-run id: most carry a `TestRun=<id>` tag (or, for controller-created resources,
+the cluster tag, which embeds the id), while a few are matched by the `<id>` name
+prefix (IAM instance profiles and policies, the Karpenter SQS queue and EventBridge
+rules) or by membership in the run's tagged VPC (security groups, ENIs). It only
+ever acts on resources tied to that long, unique run id, independent of terraform
+state.
+
+```sh
+cargo run -- purge --test-run t260319-a4bc2f
+```
+
+A single invocation deletes resources in dependency order, waiting on the slow
+deletions (EKS node groups and cluster, RDS instance, NAT gateways, load
+balancers) before tearing down what they block, and repeats the whole sweep up to
+five times (pausing 15s between passes) until nothing remains or no further
+progress is made. So a normal run is fully reclaimed by one `purge`; only if
+resources are still draining after five passes does it exit non-zero.
+One exception: KMS keys cannot be deleted immediately, so the EKS encryption key
+is scheduled for deletion with the 7-day minimum pending window rather than removed
+outright. Some resource types are out of scope (see the module docs in
+`src/commands/purge.rs`).
+
+The AWS test workflow runs this automatically after every job.
+
 ## Running individual phases
 
 The staged approach is useful for development -- you can `init` and `apply` once, then iterate on `verify`, and `destroy` when done:
@@ -201,7 +229,7 @@ A reusable workflow (`workflow_call`) consumed by both `pr.yml` and `merge_queue
 
 ### `test-aws.yml` -- AWS integration tests
 
-Reusable workflow, also manually triggerable (`workflow_dispatch`). Authenticates via OIDC to assume an IAM role, then runs the full test lifecycle (`cargo run -- run --destroy-on-failure aws ...`) with remote S3 state. Smart path filtering skips the run if only GCP/Azure files changed.
+Reusable workflow, also manually triggerable (`workflow_dispatch`). Authenticates via OIDC to assume an IAM role, then runs the full test lifecycle (`cargo run -- run --destroy-on-failure aws ...`) with remote S3 state. Smart path filtering skips the run if only GCP/Azure files changed. An `always()` step then runs `cargo run -- purge` for any run whose destroy did not complete, guaranteeing tag-scoped cleanup of leaked resources regardless of job outcome.
 
 ### `test-gcp.yml` -- GCP integration tests
 
