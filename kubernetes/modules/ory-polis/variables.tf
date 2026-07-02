@@ -44,7 +44,7 @@ variable "chart_repository" {
 variable "chart_version" {
   description = "Polis Helm chart version. See the Ory Polis release notes for the version that pairs with your OEL image tag."
   type        = string
-  default     = "0.0.20"
+  default     = "0.0.34"
   nullable    = false
 }
 
@@ -238,4 +238,33 @@ variable "helm_values" {
   description = "Additional values to merge into the Helm release. Deep-merged on top of this module's defaults so individual keys can be overridden without rewriting whole blocks."
   type        = any
   default     = {}
+}
+
+# TLS sidecar ----------------------------------------------------------------
+
+variable "tls_secret_name" {
+  description = "Name of an existing Kubernetes Secret (in this module's namespace) holding the TLS cert and key. When set, the chart's TLS-terminating nginx sidecar is enabled and the chart's Service routes to it over HTTPS instead of plain-HTTP Polis. Typically points at a cert-manager Certificate Secret. Null leaves Polis serving plain HTTP; the caller is then responsible for terminating TLS in front of it."
+  type        = string
+  default     = null
+}
+
+variable "tls_cert_file" {
+  description = "Key within tls_secret_name holding the certificate. Matches cert-manager's default output."
+  type        = string
+  default     = "tls.crt"
+  nullable    = false
+}
+
+variable "tls_key_file" {
+  description = "Key within tls_secret_name holding the private key. Matches cert-manager's default output."
+  type        = string
+  default     = "tls.key"
+  nullable    = false
+}
+
+variable "tls_sidecar_port" {
+  description = "Port the TLS sidecar listens on inside the pod. The chart's Service routes to this port when tls_secret_name is set."
+  type        = number
+  default     = 8443
+  nullable    = false
 }

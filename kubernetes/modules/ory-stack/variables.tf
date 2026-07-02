@@ -256,7 +256,7 @@ variable "polis_oel_image_tag" {
 variable "polis_chart_version" {
   description = "Polis Helm chart version pulled from the OEL registry."
   type        = string
-  default     = "0.0.20"
+  default     = "0.0.34"
   nullable    = false
 }
 
