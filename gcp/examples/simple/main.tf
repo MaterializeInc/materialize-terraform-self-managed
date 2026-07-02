@@ -182,6 +182,7 @@ module "gke" {
   namespace                         = local.materialize_operator_namespace
   k8s_apiserver_authorized_networks = var.k8s_apiserver_authorized_networks
   labels                            = var.labels
+  datapath_provider                 = var.datapath_provider
 
   # Pinned to STABLE: REGULAR's 1.35.x line regressed cleanup of the per-cluster
   # k8s-<cluster-uid>-node-http-hc firewall on cluster destroy, leaving the VPC

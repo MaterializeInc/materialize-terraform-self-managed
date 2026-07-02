@@ -30,6 +30,7 @@ No modules.
 | Name | Description | Type | Default | Required |
 |------|-------------|------|---------|:--------:|
 | <a name="input_cluster_secondary_range_name"></a> [cluster\_secondary\_range\_name](#input\_cluster\_secondary\_range\_name) | The name of the secondary range to use for pods | `string` | `"pods"` | no |
+| <a name="input_datapath_provider"></a> [datapath\_provider](#input\_datapath\_provider) | The datapath provider (CNI) for the GKE cluster. ADVANCED\_DATAPATH is GKE Dataplane V2 (eBPF-based, enforces Kubernetes NetworkPolicy natively). DATAPATH\_PROVIDER\_UNSPECIFIED and LEGACY\_DATAPATH use the legacy GKE CNI, which silently ignores NetworkPolicy resources. GKE cannot change the datapath provider on an existing cluster: changing this forces the cluster to be rebuilt. | `string` | `"ADVANCED_DATAPATH"` | no |
 | <a name="input_gce_persistent_disk_csi_driver_enabled"></a> [gce\_persistent\_disk\_csi\_driver\_enabled](#input\_gce\_persistent\_disk\_csi\_driver\_enabled) | Whether to enable the GCE persistent disk CSI driver | `bool` | `true` | no |
 | <a name="input_horizontal_pod_autoscaling_disabled"></a> [horizontal\_pod\_autoscaling\_disabled](#input\_horizontal\_pod\_autoscaling\_disabled) | Whether to disable horizontal pod autoscaling | `bool` | `false` | no |
 | <a name="input_http_load_balancing_disabled"></a> [http\_load\_balancing\_disabled](#input\_http\_load\_balancing\_disabled) | Whether to disable HTTP load balancing | `bool` | `false` | no |
