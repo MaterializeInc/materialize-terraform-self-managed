@@ -31,8 +31,6 @@
 |------|------|
 | [kubectl_manifest.materialize_oauth2_client](https://registry.terraform.io/providers/alekc/kubectl/2.4.0/docs/resources/manifest) | resource |
 | [kubectl_manifest.ory_certificate](https://registry.terraform.io/providers/alekc/kubectl/2.4.0/docs/resources/manifest) | resource |
-| [kubernetes_config_map_v1.polis_tls_proxy](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/config_map_v1) | resource |
-| [kubernetes_deployment_v1.polis_tls_proxy](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/deployment_v1) | resource |
 | [kubernetes_namespace.ory](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/namespace) | resource |
 | [kubernetes_network_policy_v1.materialize_to_ory_egress](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/network_policy_v1) | resource |
 | [kubernetes_network_policy_v1.ory_from_materialize_ingress](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/network_policy_v1) | resource |
@@ -78,7 +76,7 @@
 | <a name="input_polis_chart_oci_username"></a> [polis\_chart\_oci\_username](#input\_polis\_chart\_oci\_username) | Username for authenticating to the Polis chart OCI registry. Defaults to 'jwt' (proxy path); use '\_json\_key' when pulling directly from GCP Artifact Registry. | `string` | `"jwt"` | no |
 | <a name="input_polis_chart_registry"></a> [polis\_chart\_registry](#input\_polis\_chart\_registry) | OCI registry host the Polis Helm chart is pulled from. Null falls back to the OEL registry proxy host (derived from oel\_registry), which is the default and recommended path. Override if you want to bypass the proxy and pull the chart directly from a different OCI registry. | `string` | `null` | no |
 | <a name="input_polis_chart_repository"></a> [polis\_chart\_repository](#input\_polis\_chart\_repository) | OCI repository path for the Polis Helm chart (no leading slash, no registry host). Null falls back to the proxy-aware path derived from oel\_registry. Override when the chart lives outside the proxy path, e.g. 'ory-artifacts/helm-oel-polis/polis-oel' on GCP Artifact Registry. | `string` | `null` | no |
-| <a name="input_polis_chart_version"></a> [polis\_chart\_version](#input\_polis\_chart\_version) | Polis Helm chart version pulled from the OEL registry. | `string` | `"0.0.20"` | no |
+| <a name="input_polis_chart_version"></a> [polis\_chart\_version](#input\_polis\_chart\_version) | Polis Helm chart version pulled from the OEL registry. | `string` | `"0.0.34"` | no |
 | <a name="input_polis_db_encryption_key"></a> [polis\_db\_encryption\_key](#input\_polis\_db\_encryption\_key) | Symmetric key used by Polis to encrypt sensitive fields at rest in its database. When null, a random 32-character key is generated. WARNING: rotating invalidates existing encrypted records. | `string` | `null` | no |
 | <a name="input_polis_dsn"></a> [polis\_dsn](#input\_polis\_dsn) | Postgres DSN for Polis. Cloud-specific, computed by the caller from the database module outputs. Required when enable\_polis is true. | `string` | `null` | no |
 | <a name="input_polis_fqdn"></a> [polis\_fqdn](#input\_polis\_fqdn) | Fully-qualified domain name for Polis (e.g. polis.example.com). Used as the NEXTAUTH\_URL and the cert SAN; SAML and OAuth callbacks redirect through it. Required when enable\_polis is true. | `string` | `null` | no |

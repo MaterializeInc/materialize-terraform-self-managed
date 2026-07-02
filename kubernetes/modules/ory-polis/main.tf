@@ -119,6 +119,21 @@ locals {
     }
   }
 
+  # Chart-provided nginx sidecar that terminates TLS in front of the plain-HTTP
+  # Polis listener. When enabled the chart's Service routes to the sidecar on
+  # tls_sidecar_port over HTTPS instead of hitting Polis directly.
+  tls_sidecar_config = var.tls_secret_name != null ? {
+    tlsSidecar = {
+      enabled = true
+      port    = var.tls_sidecar_port
+      tls = {
+        secretName = var.tls_secret_name
+        certFile   = var.tls_cert_file
+        keyFile    = var.tls_key_file
+      }
+    }
+  } : {}
+
   default_helm_values = merge({
     fullnameOverride = var.release_name
     replicaCount     = var.replica_count
@@ -169,7 +184,7 @@ locals {
         )
       }
     }
-  }, local.image_config, local.image_pull_secrets_config, local.monitoring_config)
+  }, local.image_config, local.image_pull_secrets_config, local.monitoring_config, local.tls_sidecar_config)
 
   merged_helm_values = provider::deepmerge::mergo(local.default_helm_values, var.helm_values)
 }

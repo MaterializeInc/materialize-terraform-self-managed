@@ -70,15 +70,15 @@ locals {
     }
     }, local.wire_polis ? {
     polis-public-lb = {
-      app_name     = "polis-tls-proxy"
+      app_name     = "polis"
       app_instance = "polis"
       target_port  = 8443
     }
   } : {})
 
   # cert-manager Certificate map for the browser-facing services. Polis is added
-  # when enabled. Polis does not terminate TLS itself, so the cert is consumed by
-  # the LB Service's TLS termination rather than mounted into the pod.
+  # when enabled and its cert is mounted into the chart's TLS-terminating nginx
+  # sidecar.
   ory_certs = merge({
     hydra-tls              = { fqdn = var.hydra_fqdn, cluster_svc = "hydra-public.${var.namespace}.svc.cluster.local" }
     kratos-tls             = { fqdn = var.kratos_fqdn, cluster_svc = "kratos-public.${var.namespace}.svc.cluster.local" }
@@ -374,6 +374,10 @@ module "ory_polis" {
   nextauth_secret   = var.polis_nextauth_secret
   db_encryption_key = var.polis_db_encryption_key
 
+  # cert-manager Secret consumed by the chart's TLS-terminating nginx sidecar.
+  # Matches the Certificate created for the polis-tls entry in ory_certs above.
+  tls_secret_name = "polis-tls"
+
   node_selector = var.node_selector
 
   helm_values = var.polis_helm_values
@@ -381,147 +385,6 @@ module "ory_polis" {
   depends_on = [
     kubernetes_namespace.ory,
     kubernetes_secret.ory_oel_registry,
-  ]
-}
-
-# Polis TLS-terminating proxy (only when enable_polis is true) ---------------
-
-# Polis is a NextJS app that doesn't terminate TLS itself, and the polis-oel
-# chart doesn't expose a sidecar/extraContainers hook. We front it with a
-# Pingap Deployment that mounts the polis-tls cert and reverse-proxies to the
-# in-cluster polis ClusterIP Service. The public LB Service then targets these
-# proxy pods on port 8443.
-#
-# Pingap is a Rust reverse proxy with DNS resolution that's better-behaved in
-# Kubernetes than nginx (nginx caches upstream DNS at startup and breaks when
-# the upstream pod's IP changes).
-
-resource "kubernetes_config_map_v1" "polis_tls_proxy" {
-  count = local.wire_polis ? 1 : 0
-
-  metadata {
-    name      = "polis-tls-proxy"
-    namespace = var.namespace
-  }
-
-  data = {
-    "pingap.toml" = <<-EOT
-      [servers.polis]
-      addr = "0.0.0.0:8443"
-      tls_cert = "/opt/pingap/certs/tls.crt"
-      tls_key = "/opt/pingap/certs/tls.key"
-      locations = ["polis"]
-
-      [upstreams.polis]
-      addrs = ["polis.${var.namespace}.svc.cluster.local:5225"]
-      discovery = "dns"
-
-      [locations.polis]
-      path = "/"
-      upstream = "polis"
-    EOT
-  }
-}
-
-resource "kubernetes_deployment_v1" "polis_tls_proxy" {
-  count = local.wire_polis ? 1 : 0
-
-  metadata {
-    name      = "polis-tls-proxy"
-    namespace = var.namespace
-    labels = {
-      "app.kubernetes.io/name"     = "polis-tls-proxy"
-      "app.kubernetes.io/instance" = "polis"
-    }
-  }
-
-  spec {
-    replicas = 2
-
-    selector {
-      match_labels = {
-        "app.kubernetes.io/name"     = "polis-tls-proxy"
-        "app.kubernetes.io/instance" = "polis"
-      }
-    }
-
-    template {
-      metadata {
-        labels = {
-          "app.kubernetes.io/name"     = "polis-tls-proxy"
-          "app.kubernetes.io/instance" = "polis"
-        }
-        annotations = {
-          # Force a rollout when the proxy config changes.
-          "checksum/config" = sha256(kubernetes_config_map_v1.polis_tls_proxy[0].data["pingap.toml"])
-        }
-      }
-
-      spec {
-        node_selector = var.node_selector
-
-        container {
-          name              = "pingap"
-          image             = "vicanso/pingap:0.12.1-full"
-          image_pull_policy = "IfNotPresent"
-
-          args = ["-c", "/opt/pingap/conf"]
-
-          port {
-            name           = "https"
-            container_port = 8443
-          }
-
-          volume_mount {
-            name       = "tls"
-            mount_path = "/opt/pingap/certs"
-            read_only  = true
-          }
-
-          volume_mount {
-            name       = "config"
-            mount_path = "/opt/pingap/conf"
-            read_only  = true
-          }
-
-          resources {
-            requests = {
-              cpu    = "50m"
-              memory = "32Mi"
-            }
-            limits = {
-              memory = "64Mi"
-            }
-          }
-
-          readiness_probe {
-            tcp_socket {
-              port = 8443
-            }
-            initial_delay_seconds = 2
-            period_seconds        = 5
-          }
-        }
-
-        volume {
-          name = "tls"
-          secret {
-            secret_name = "polis-tls"
-          }
-        }
-
-        volume {
-          name = "config"
-          config_map {
-            name = kubernetes_config_map_v1.polis_tls_proxy[0].metadata[0].name
-          }
-        }
-      }
-    }
-  }
-
-  depends_on = [
-    module.ory_polis,
     kubectl_manifest.ory_certificate["polis-tls"],
   ]
 }
@@ -561,7 +424,6 @@ resource "kubernetes_service_v1" "ory_lb" {
     module.ory_kratos,
     module.ory_hydra,
     module.ory_polis,
-    kubernetes_deployment_v1.polis_tls_proxy,
   ]
 }
 
