@@ -166,8 +166,9 @@ locals {
     "hydra"
   )
 
+  # uselibpqcompat=true keeps sslmode=require at libpq semantics (encrypt, don't verify).
   ory_polis_dsn = format(
-    "postgres://%s:%s@%s/%s?sslmode=require",
+    "postgres://%s:%s@%s/%s?sslmode=require&uselibpqcompat=true",
     module.ory_database.users[0].name,
     urlencode(module.ory_database.users[0].password),
     module.ory_database.private_ip,
