@@ -288,7 +288,7 @@ variable "polis_helm_values" {
 }
 
 variable "polis_admin_login_emails" {
-  description = "Comma-separated allowlist of emails permitted to log into the Polis admin UI via magic link. Glob patterns are supported, so \"*@example.com\" allows any address in a domain. Empty is Polis's default and allows all authenticated users. Set this to unlock the admin UI without configuring a bootstrap SAML app; the alternative is driving Polis entirely through its admin API. Only meaningful when enable_polis is true."
+  description = "Comma-separated allowlist of emails permitted to log into the Polis admin UI via magic link. Glob patterns are supported, so \"*@example.com\" allows any address in a domain. Empty (the default) locks the admin UI to no one, so the module ships closed and operators must make an explicit decision to open it. Only meaningful when enable_polis is true AND SMTP is wired via polis_helm_values or a follow-up smtp input; without SMTP no magic-link email is delivered regardless of this value."
   type        = string
   default     = ""
   nullable    = false

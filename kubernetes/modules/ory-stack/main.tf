@@ -373,7 +373,11 @@ module "ory_polis" {
   admin_api_keys    = var.polis_admin_api_keys
   nextauth_secret   = var.polis_nextauth_secret
   db_encryption_key = var.polis_db_encryption_key
-  nextauth_acl      = var.polis_admin_login_emails
+  # Polis interprets an empty NEXTAUTH_ACL as "allow all authenticated users",
+  # which is the wrong default for a module that a customer might layer SMTP
+  # onto later. Map empty to a sentinel that matches no real address so the
+  # admin UI stays closed by default; operators opt in by setting the variable.
+  nextauth_acl = var.polis_admin_login_emails != "" ? var.polis_admin_login_emails : "no-one@invalid.local"
 
   # cert-manager Secret consumed by the chart's TLS-terminating nginx sidecar.
   # Matches the Certificate created for the polis-tls entry in ory_certs above.
