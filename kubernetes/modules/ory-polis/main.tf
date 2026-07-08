@@ -94,10 +94,17 @@ locals {
     },
   ]
 
+  # Chart bakes OPENID_REDIRECT_EXACT_MATCH=true; append to override (last-wins).
+  openid_redirect_exact_match_env = [{
+    name  = "OPENID_REDIRECT_EXACT_MATCH"
+    value = tostring(var.openid_redirect_exact_match)
+  }]
+
   extra_envs = concat(
     local.saml_audience_env,
     local.external_url_env,
     local.openid_rsa_env,
+    local.openid_redirect_exact_match_env,
     [for k, v in var.extra_env : { name = k, value = v }],
   )
 

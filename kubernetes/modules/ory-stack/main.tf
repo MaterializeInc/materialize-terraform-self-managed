@@ -113,8 +113,16 @@ locals {
         selfservice = {
           default_browser_return_url = local.ui_external_url
           flows = {
-            login        = { ui_url = "${local.ui_external_url}/login" }
-            registration = { ui_url = "${local.ui_external_url}/registration" }
+            # OIDC session hooks below issue the Kratos session cookie on first
+            # OIDC login/registration; without them Hydra consent gets no identity.
+            login = {
+              ui_url = "${local.ui_external_url}/login"
+              after  = { oidc = { hooks = [{ hook = "session" }] } }
+            }
+            registration = {
+              ui_url = "${local.ui_external_url}/registration"
+              after  = { oidc = { hooks = [{ hook = "session" }] } }
+            }
             recovery     = { ui_url = "${local.ui_external_url}/recovery" }
             verification = { ui_url = "${local.ui_external_url}/verification" }
             settings     = { ui_url = "${local.ui_external_url}/settings" }
