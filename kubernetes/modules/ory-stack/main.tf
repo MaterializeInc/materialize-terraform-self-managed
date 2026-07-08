@@ -113,12 +113,9 @@ locals {
         selfservice = {
           default_browser_return_url = local.ui_external_url
           flows = {
-            # OIDC session hooks below issue the Kratos session cookie on first
-            # OIDC login/registration; without them Hydra consent gets no identity.
-            login = {
-              ui_url = "${local.ui_external_url}/login"
-              after  = { oidc = { hooks = [{ hook = "session" }] } }
-            }
+            login = { ui_url = "${local.ui_external_url}/login" }
+            # session hook logs the user in on first OIDC registration; without
+            # it Hydra consent gets no identity and the JWT has no email claim.
             registration = {
               ui_url = "${local.ui_external_url}/registration"
               after  = { oidc = { hooks = [{ hook = "session" }] } }
@@ -496,6 +493,9 @@ resource "kubectl_manifest" "materialize_oauth2_client" {
       scope         = var.oauth2_client_scope
       audience      = var.oauth2_client_audience
       redirectUris  = ["https://${var.materialize_console_fqdn}/auth/callback"]
+      postLogoutRedirectUris = var.oauth2_client_post_logout_redirect_uris != null ? var.oauth2_client_post_logout_redirect_uris : [
+        "https://${var.materialize_console_fqdn}/",
+      ]
       # First-party SPA client, no third-party consent needed. Skipping the
       # consent screen also avoids the first-login footgun where users click
       # Allow without ticking the email scope, leaving Materialize without the
