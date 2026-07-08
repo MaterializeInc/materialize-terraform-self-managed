@@ -45,10 +45,12 @@ resource "google_container_cluster" "primary" {
   network         = var.network_name
   subnetwork      = var.subnet_name
 
-  # Dataplane V2 uses eBPF-based networking with built-in NetworkPolicy support
-  # Standard Kubernetes NetworkPolicy is automatically enforced
+  # ADVANCED_DATAPATH (Dataplane V2) uses eBPF-based networking with built-in
+  # NetworkPolicy support; standard Kubernetes NetworkPolicy is automatically
+  # enforced. The legacy datapath ignores NetworkPolicy resources entirely.
+  # Cannot be changed on an existing cluster without rebuilding it.
   # Reference: https://cloud.google.com/kubernetes-engine/docs/how-to/dataplane-v2
-  datapath_provider = "ADVANCED_DATAPATH"
+  datapath_provider = var.datapath_provider
 
   remove_default_node_pool = true
   initial_node_count       = 1

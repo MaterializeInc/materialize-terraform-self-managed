@@ -209,6 +209,7 @@ module "gke" {
   namespace                         = local.materialize_operator_namespace
   k8s_apiserver_authorized_networks = var.k8s_apiserver_authorized_networks
   labels                            = var.labels
+  datapath_provider                 = var.datapath_provider
 }
 
 # Create and configure generic node pool for all workloads except Materialize
