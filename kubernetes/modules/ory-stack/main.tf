@@ -373,6 +373,7 @@ module "ory_polis" {
   admin_api_keys    = var.polis_admin_api_keys
   nextauth_secret   = var.polis_nextauth_secret
   db_encryption_key = var.polis_db_encryption_key
+  nextauth_acl      = var.polis_admin_login_emails
 
   # cert-manager Secret consumed by the chart's TLS-terminating nginx sidecar.
   # Matches the Certificate created for the polis-tls entry in ory_certs above.

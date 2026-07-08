@@ -287,6 +287,13 @@ variable "polis_helm_values" {
   default     = {}
 }
 
+variable "polis_admin_login_emails" {
+  description = "Comma-separated allowlist of emails permitted to log into the Polis admin UI via magic link. Glob patterns are supported, so \"*@example.com\" allows any address in a domain. Empty is Polis's default and allows all authenticated users. Set this to unlock the admin UI without configuring a bootstrap SAML app; the alternative is driving Polis entirely through its admin API. Only meaningful when enable_polis is true."
+  type        = string
+  default     = ""
+  nullable    = false
+}
+
 variable "polis_chart_registry" {
   description = "OCI registry host the Polis Helm chart is pulled from. Null falls back to the OEL registry proxy host (derived from oel_registry), which is the default and recommended path. Override if you want to bypass the proxy and pull the chart directly from a different OCI registry."
   type        = string
