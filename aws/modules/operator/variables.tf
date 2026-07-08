@@ -7,7 +7,7 @@ variable "name_prefix" {
 variable "operator_version" {
   description = "Version of the Materialize operator to install"
   type        = string
-  default     = "v26.31.1" # META: helm-chart version
+  default     = "v26.31.2" # META: helm-chart version
   nullable    = false
 }
 
