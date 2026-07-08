@@ -128,12 +128,16 @@ Complete support for deploying Materialize on Google Cloud Platform with GKE, Cl
 ### Quick Start
 
 1. **Choose your cloud provider** and navigate to the example directory
+
+    `cd <cloud-provider>/examples/simple`
 2. **Review the example README** for cloud-specific prerequisites and configuration
-3. **Set required variables** in a `terraform.tfvars` file
-4. **Deploy the infrastructure:**
+3. **Instantiate modules in your terraform stack**.
+
+    The examples are just that: examples. They aren't meant for you to run directly, but to serve as something to base your own module instantiations on.
+4. **Set required variables** in a `terraform.tfvars` file
+5. **Deploy the infrastructure:**
 
 ```bash
-cd <cloud-provider>/examples/simple
 terraform init
 terraform plan
 terraform apply
@@ -147,7 +151,7 @@ All modules can be used independently. For example, if you already have a Kubern
 
 ```hcl
 module "materialize_instance" {
-  source               = "github.com/MaterializeInc/materialize-terraform-self-managed//kubernetes/modules/materialize-instance"
+  source               = "github.com/MaterializeInc/materialize-terraform-self-managed//kubernetes/modules/materialize-instance?ref=<tag>"
   instance_name        = "production"
   instance_namespace   = "materialize"
   metadata_backend_url = "postgres://user:pass@host/db"
@@ -155,6 +159,32 @@ module "materialize_instance" {
   # ... additional configuration
 }
 ```
+
+Set the `ref=` portion to point at the latest tagged version of this repository.
+
+## Upgrading
+
+Most of the time, you just need to bump the `ref=<tag>` in all modules. We recommend that you bump all modules to the same version in the same `terraform apply`. We frequently make changes that assume related changes in dependent modules.
+
+Upgrades of the materialize version are included in our tagged releases. We do not recommend overriding the Materialize version, orchestratord version, or helm chart version. Updating the module tags will automatically pick up the latest versions of these components.
+
+We follow semantic versioning with our tags. If a particular version requires additional actions or contains breaking changes, we will list them below.
+
+### Upgrade Notes
+
+#### v4.0.0
+
+Default to v1 of the Materialize CRD.
+
+Changes will be rolled out immediately, without needing to update the `request_rollout` variable.
+
+#### v3.0.0
+
+Kubernetes version 1.34.
+
+#### v2.0.0
+
+Kubernetes version 1.33.
 
 ---
 
