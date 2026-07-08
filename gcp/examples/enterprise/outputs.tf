@@ -139,13 +139,18 @@ output "materialize_instance_persist_backend_url" {
 
 # Load balancer outputs
 output "console_load_balancer_ip" {
-  description = "IP address of the Materialize console's load balancer."
-  value       = module.load_balancers.console_load_balancer_ip
+  description = "IP address of the browser-facing (HTTPS, port 443) Materialize console LoadBalancer, provisioned by the ory-stack module. Point the console DNS record at this address."
+  value       = try(module.ory.lb_addresses.console.ip, null)
 }
 
 output "balancerd_load_balancer_ip" {
   description = "IP address of the Materialize balancerd's load balancer."
   value       = module.load_balancers.balancerd_load_balancer_ip
+}
+
+output "ory_lb_addresses" {
+  description = "Ingress addresses of every browser-facing LoadBalancer the ory-stack module owns (hydra, kratos, ui, polis, console). Feed these into your DNS records for the corresponding hostnames."
+  value       = module.ory.lb_addresses
 }
 
 output "external_login_password_mz_system" {
