@@ -21,6 +21,21 @@ Pull requests are the best way to propose changes to the codebase. We actively w
 5. Make sure your code lints.
 6. Issue that pull request!
 
+### PR Labels
+
+We use labels to categorize pull requests in auto-generated release notes (see [.github/release.yml](./.github/release.yml)). Please apply the label that best describes your change:
+
+| Label | Release notes section |
+|-------|----------------------|
+| `breaking-change` | Breaking Changes 🛠 |
+| `enhancement` | New Features 🎉 |
+| `bug` | Bug Fixes 🐛 |
+| `documentation` | Documentation 📚 |
+| `dependencies`, `github_actions` | Dependencies ⬆️ |
+| `ignore-for-release` | Excluded from release notes |
+
+Unlabeled PRs land under "Other Changes".
+
 
 ## Generating Documentation
 
@@ -96,6 +111,8 @@ Perform a manual test of the latest code on `main`. See prior section. Then run:
 
     git tag -a vX.Y.Z -m vX.Y.Z
     git push origin vX.Y.Z
+
+Pushing the tag triggers the [release workflow](./.github/workflows/release.yml), which creates a GitHub release with auto-generated release notes. Notes are grouped by PR label per [.github/release.yml](./.github/release.yml), so make sure merged PRs are labeled correctly (see [PR Labels](#pr-labels)) before tagging.
 
 ## References
 
