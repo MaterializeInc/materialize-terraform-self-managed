@@ -14,7 +14,7 @@
 | Name | Version |
 |------|---------|
 | <a name="provider_kubectl"></a> [kubectl](#provider\_kubectl) | 2.4.0 |
-| <a name="provider_kubernetes"></a> [kubernetes](#provider\_kubernetes) | ~> 2.0 |
+| <a name="provider_kubernetes"></a> [kubernetes](#provider\_kubernetes) | 2.38.0 |
 
 ## Modules
 

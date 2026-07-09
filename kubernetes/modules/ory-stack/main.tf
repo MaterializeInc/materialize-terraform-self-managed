@@ -259,6 +259,11 @@ module "ory_kratos" {
                 verification = { via = "email" }
               }
             }
+            groups = {
+              type  = "array"
+              title = "Groups"
+              items = { type = "string" }
+            }
           }
           required = ["email"]
         }

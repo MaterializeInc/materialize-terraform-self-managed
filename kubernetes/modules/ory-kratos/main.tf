@@ -105,6 +105,7 @@ locals {
       identity: {
         traits: {
           email: claims.email,
+          groups: if std.objectHas(claims, 'groups') then claims.groups else [],
         },
       },
     }

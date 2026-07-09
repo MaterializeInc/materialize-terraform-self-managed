@@ -45,6 +45,24 @@ locals {
     COOKIE_SECRET      = local.cookie_secret
     CSRF_COOKIE_SECRET = local.csrf_cookie_secret
   }))
+
+  # Patches the upstream consent handler at pod startup so identity.traits.groups
+  # is propagated into the OIDC id_token. The built-in extractSession only reads
+  # email + a few profile claims; without this Hydra's JWT never carries group
+  # membership even when Kratos has it on the identity.
+  consent_groups_patch_script = <<-EOT
+    set -eu
+    node -e '
+      const fs = require("fs");
+      const p = "/usr/src/app/lib/routes/consent.js";
+      let src = fs.readFileSync(p, "utf8");
+      const inject = "    if (identity.traits && identity.traits.groups) { session.id_token.groups = identity.traits.groups; session.access_token.groups = identity.traits.groups; }\n    ";
+      const idx = src.lastIndexOf("return session;");
+      if (idx < 0) { console.error("consent.js: pattern not found, running unpatched"); }
+      else { fs.writeFileSync(p, src.slice(0, idx) + inject + src.slice(idx)); console.error("consent.js: groups propagation patch applied"); }
+    '
+    exec node /usr/src/app/lib/index.js
+  EOT
 }
 
 resource "kubernetes_secret" "secrets" {
@@ -114,6 +132,9 @@ resource "kubernetes_deployment" "ui" {
           name              = "kratos-selfservice-ui-node"
           image             = local.image
           image_pull_policy = var.image_pull_policy
+
+          command = ["sh", "-c"]
+          args    = [local.consent_groups_patch_script]
 
           port {
             name           = "http"
