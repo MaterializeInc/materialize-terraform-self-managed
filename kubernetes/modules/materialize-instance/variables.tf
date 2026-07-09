@@ -1,7 +1,7 @@
 variable "crd_version" {
   description = "CRD API version to use for the Materialize instance (v1alpha1 or v1). We recommend v1, but default to v1alpha1 for backwards compatibility. We will change this default in an upcoming major release."
   type        = string
-  default     = "v1alpha1"
+  default     = "v1"
   nullable    = false
 
   validation {
