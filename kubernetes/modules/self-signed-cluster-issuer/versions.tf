@@ -12,7 +12,7 @@ terraform {
     }
     random = {
       source  = "hashicorp/random"
-      version = "< 3.10.0"
+      version = "~> 3.1, < 3.10.0"
     }
     kubectl = {
       source  = "alekc/kubectl"

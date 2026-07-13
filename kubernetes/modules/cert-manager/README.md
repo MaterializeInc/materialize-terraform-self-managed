@@ -5,7 +5,7 @@
 | <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | >= 1.0.0 |
 | <a name="requirement_helm"></a> [helm](#requirement\_helm) | >= 2.5.0, < 2.18.0 |
 | <a name="requirement_kubernetes"></a> [kubernetes](#requirement\_kubernetes) | >= 2.10.0, < 2.39.0 |
-| <a name="requirement_random"></a> [random](#requirement\_random) | < 3.10.0 |
+| <a name="requirement_random"></a> [random](#requirement\_random) | ~> 3.1, < 3.10.0 |
 
 ## Providers
 

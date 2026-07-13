@@ -12,10 +12,10 @@ keys: https://github.com/ory/k8s/blob/master/helm/charts/kratos/values.yaml
 | Name | Version |
 | ---- | ------- |
 | <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | >= 1.8 |
-| <a name="requirement_deepmerge"></a> [deepmerge](#requirement\_deepmerge) | < 1.4.0 |
+| <a name="requirement_deepmerge"></a> [deepmerge](#requirement\_deepmerge) | ~> 1.0, < 1.4.0 |
 | <a name="requirement_helm"></a> [helm](#requirement\_helm) | ~> 2.0, < 2.18.0 |
 | <a name="requirement_kubernetes"></a> [kubernetes](#requirement\_kubernetes) | ~> 2.0, < 2.39.0 |
-| <a name="requirement_random"></a> [random](#requirement\_random) | < 3.10.0 |
+| <a name="requirement_random"></a> [random](#requirement\_random) | >= 3.0.0, < 3.10.0 |
 
 ## Providers
 
@@ -23,7 +23,7 @@ keys: https://github.com/ory/k8s/blob/master/helm/charts/kratos/values.yaml
 | ---- | ------- |
 | <a name="provider_helm"></a> [helm](#provider\_helm) | ~> 2.0, < 2.18.0 |
 | <a name="provider_kubernetes"></a> [kubernetes](#provider\_kubernetes) | ~> 2.0, < 2.39.0 |
-| <a name="provider_random"></a> [random](#provider\_random) | < 3.10.0 |
+| <a name="provider_random"></a> [random](#provider\_random) | >= 3.0.0, < 3.10.0 |
 
 ## Modules
 
