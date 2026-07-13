@@ -43,7 +43,7 @@ module "vpc" {
 # Cloud NAT for outbound internet access from private nodes
 module "cloud-nat" {
   source     = "terraform-google-modules/cloud-nat/google"
-  version    = "5.3.0"
+  version    = "5.4.0"
   project_id = var.project_id
   region     = var.region
 
