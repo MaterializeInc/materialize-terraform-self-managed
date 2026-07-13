@@ -1,28 +1,28 @@
 ## Requirements
 
 | Name | Version |
-|------|---------|
+| ---- | ------- |
 | <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | >= 1.8 |
 | <a name="requirement_kubernetes"></a> [kubernetes](#requirement\_kubernetes) | ~> 2.0, < 2.39.0 |
-| <a name="requirement_null"></a> [null](#requirement\_null) | ~> 3.0, < 3.3.0 |
+| <a name="requirement_null"></a> [null](#requirement\_null) | < 3.4.0 |
 
 ## Providers
 
 | Name | Version |
-|------|---------|
+| ---- | ------- |
 | <a name="provider_kubernetes"></a> [kubernetes](#provider\_kubernetes) | ~> 2.0, < 2.39.0 |
 | <a name="provider_terraform"></a> [terraform](#provider\_terraform) | n/a |
 
 ## Modules
 
 | Name | Source | Version |
-|------|--------|---------|
+| ---- | ------ | ------- |
 | <a name="module_hpa"></a> [hpa](#module\_hpa) | ../hpa | n/a |
 
 ## Resources
 
 | Name | Type |
-|------|------|
+| ---- | ---- |
 | [kubernetes_cluster_role.coredns](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/cluster_role) | resource |
 | [kubernetes_cluster_role_binding.coredns](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/cluster_role_binding) | resource |
 | [kubernetes_config_map.coredns](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/config_map) | resource |
@@ -36,7 +36,7 @@
 ## Inputs
 
 | Name | Description | Type | Default | Required |
-|------|-------------|------|---------|:--------:|
+| ---- | ----------- | ---- | ------- | :------: |
 | <a name="input_cluster_identifier"></a> [cluster\_identifier](#input\_cluster\_identifier) | Stable identifier for the cluster (e.g., cluster endpoint or name). Used to trigger re-provisioning when the cluster changes, without embedding ephemeral credentials in triggers. | `string` | `null` | no |
 | <a name="input_coredns_autoscaler_deployment_to_scale_down"></a> [coredns\_autoscaler\_deployment\_to\_scale\_down](#input\_coredns\_autoscaler\_deployment\_to\_scale\_down) | Name of the CoreDNS autoscaler deployment to scale down | `string` | `"coredns-autoscaler"` | no |
 | <a name="input_coredns_deployment_to_scale_down"></a> [coredns\_deployment\_to\_scale\_down](#input\_coredns\_deployment\_to\_scale\_down) | Name of the CoreDNS deployment to scale down | `string` | `"coredns"` | no |
@@ -64,7 +64,7 @@
 ## Outputs
 
 | Name | Description |
-|------|-------------|
+| ---- | ----------- |
 | <a name="output_config_map_name"></a> [config\_map\_name](#output\_config\_map\_name) | Name of the CoreDNS ConfigMap |
 | <a name="output_deployment_name"></a> [deployment\_name](#output\_deployment\_name) | Name of the custom CoreDNS deployment |
 | <a name="output_service_account_name"></a> [service\_account\_name](#output\_service\_account\_name) | Name of the CoreDNS service account |

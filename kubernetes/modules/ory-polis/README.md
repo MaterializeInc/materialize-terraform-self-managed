@@ -21,7 +21,7 @@ helm show values oci://ory.registry.cloud.materialize.com/ory-artifacts/helm-oel
 ## Requirements
 
 | Name | Version |
-|------|---------|
+| ---- | ------- |
 | <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | >= 1.8 |
 | <a name="requirement_deepmerge"></a> [deepmerge](#requirement\_deepmerge) | ~> 1.0 |
 | <a name="requirement_helm"></a> [helm](#requirement\_helm) | ~> 2.0 |
@@ -32,7 +32,7 @@ helm show values oci://ory.registry.cloud.materialize.com/ory-artifacts/helm-oel
 ## Providers
 
 | Name | Version |
-|------|---------|
+| ---- | ------- |
 | <a name="provider_helm"></a> [helm](#provider\_helm) | ~> 2.0 |
 | <a name="provider_kubernetes"></a> [kubernetes](#provider\_kubernetes) | ~> 2.0 |
 | <a name="provider_random"></a> [random](#provider\_random) | >= 3.0.0 |
@@ -45,7 +45,7 @@ No modules.
 ## Resources
 
 | Name | Type |
-|------|------|
+| ---- | ---- |
 | [helm_release.polis](https://registry.terraform.io/providers/hashicorp/helm/latest/docs/resources/release) | resource |
 | [kubernetes_namespace.polis](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/namespace) | resource |
 | [kubernetes_secret.polis](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/secret) | resource |
@@ -57,7 +57,7 @@ No modules.
 ## Inputs
 
 | Name | Description | Type | Default | Required |
-|------|-------------|------|---------|:--------:|
+| ---- | ----------- | ---- | ------- | :------: |
 | <a name="input_admin_api_keys"></a> [admin\_api\_keys](#input\_admin\_api\_keys) | Bearer token for authenticating requests to Polis admin APIs (set as the API\_KEYS env var inside the Polis container). If null, a random 32-character key is generated. | `string` | `null` | no |
 | <a name="input_chart_registry"></a> [chart\_registry](#input\_chart\_registry) | OCI registry hostname for the Polis Helm chart. | `string` | `"europe-docker.pkg.dev"` | no |
 | <a name="input_chart_repository"></a> [chart\_repository](#input\_chart\_repository) | OCI repository path for the Polis Helm chart (relative to chart\_registry). | `string` | `"ory-artifacts/helm-oel-polis/polis-oel"` | no |
@@ -98,7 +98,7 @@ No modules.
 ## Outputs
 
 | Name | Description |
-|------|-------------|
+| ---- | ----------- |
 | <a name="output_admin_api_keys"></a> [admin\_api\_keys](#output\_admin\_api\_keys) | API key for Polis admin APIs. |
 | <a name="output_db_encryption_key"></a> [db\_encryption\_key](#output\_db\_encryption\_key) | Symmetric key used to encrypt sensitive fields at rest in the Polis database. Persist across applies; rotating invalidates existing encrypted records. |
 | <a name="output_external_url"></a> [external\_url](#output\_external\_url) | Externally-reachable HTTPS URL for Polis, as supplied via var.external\_url. This is the browser-facing URL that SAML/OAuth flows redirect through, and the issuer URL that upstream OIDC consumers (e.g., Kratos social sign-in) should point at. |

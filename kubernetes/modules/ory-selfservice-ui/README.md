@@ -1,7 +1,7 @@
 ## Requirements
 
 | Name | Version |
-|------|---------|
+| ---- | ------- |
 | <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | >= 1.8 |
 | <a name="requirement_kubernetes"></a> [kubernetes](#requirement\_kubernetes) | ~> 2.0, < 2.39.0 |
 | <a name="requirement_random"></a> [random](#requirement\_random) | >= 3.0.0, < 3.9.0 |
@@ -9,7 +9,7 @@
 ## Providers
 
 | Name | Version |
-|------|---------|
+| ---- | ------- |
 | <a name="provider_kubernetes"></a> [kubernetes](#provider\_kubernetes) | ~> 2.0, < 2.39.0 |
 | <a name="provider_random"></a> [random](#provider\_random) | >= 3.0.0, < 3.9.0 |
 
@@ -20,7 +20,7 @@ No modules.
 ## Resources
 
 | Name | Type |
-|------|------|
+| ---- | ---- |
 | [kubernetes_deployment.ui](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/deployment) | resource |
 | [kubernetes_namespace.ui](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/namespace) | resource |
 | [kubernetes_secret.secrets](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/secret) | resource |
@@ -31,7 +31,7 @@ No modules.
 ## Inputs
 
 | Name | Description | Type | Default | Required |
-|------|-------------|------|---------|:--------:|
+| ---- | ----------- | ---- | ------- | :------: |
 | <a name="input_cookie_secret"></a> [cookie\_secret](#input\_cookie\_secret) | Secret for signing cookies. If not set, a random 32-character secret will be generated. | `string` | `null` | no |
 | <a name="input_create_namespace"></a> [create\_namespace](#input\_create\_namespace) | Whether to create the Kubernetes namespace. | `bool` | `false` | no |
 | <a name="input_csrf_cookie_name"></a> [csrf\_cookie\_name](#input\_csrf\_cookie\_name) | Name of the CSRF cookie. Should be prefixed with \_\_HOST- in production. | `string` | `"__HOST-ory-ui-x-csrf-token"` | no |
@@ -60,7 +60,7 @@ No modules.
 ## Outputs
 
 | Name | Description |
-|------|-------------|
+| ---- | ----------- |
 | <a name="output_namespace"></a> [namespace](#output\_namespace) | Namespace where the selfservice UI is deployed. |
 | <a name="output_port"></a> [port](#output\_port) | Port the selfservice UI listens on. |
 | <a name="output_service_name"></a> [service\_name](#output\_service\_name) | Name of the Kubernetes Service for the selfservice UI. |

@@ -1,20 +1,20 @@
 ## Requirements
 
 | Name | Version |
-|------|---------|
+| ---- | ------- |
 | <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | >= 1.8 |
 | <a name="requirement_aws"></a> [aws](#requirement\_aws) | ~> 5.0, < 5.101.0 |
-| <a name="requirement_deepmerge"></a> [deepmerge](#requirement\_deepmerge) | ~> 1.0, < 1.3.0 |
+| <a name="requirement_deepmerge"></a> [deepmerge](#requirement\_deepmerge) | < 1.4.0 |
 | <a name="requirement_helm"></a> [helm](#requirement\_helm) | ~> 2.0, < 2.18.0 |
-| <a name="requirement_kubectl"></a> [kubectl](#requirement\_kubectl) | 2.4.0 |
+| <a name="requirement_kubectl"></a> [kubectl](#requirement\_kubectl) | 2.4.1 |
 | <a name="requirement_kubernetes"></a> [kubernetes](#requirement\_kubernetes) | ~> 2.0, < 2.39.0 |
 | <a name="requirement_random"></a> [random](#requirement\_random) | ~> 3.0, < 3.9.0 |
 
 ## Providers
 
 | Name | Version |
-|------|---------|
-| <a name="provider_kubectl"></a> [kubectl](#provider\_kubectl) | 2.4.0 |
+| ---- | ------- |
+| <a name="provider_kubectl"></a> [kubectl](#provider\_kubectl) | 2.4.1 |
 | <a name="provider_terraform"></a> [terraform](#provider\_terraform) | n/a |
 
 ## Modules
@@ -24,14 +24,14 @@ No modules.
 ## Resources
 
 | Name | Type |
-|------|------|
-| [kubectl_manifest.nodepool](https://registry.terraform.io/providers/alekc/kubectl/2.4.0/docs/resources/manifest) | resource |
+| ---- | ---- |
+| [kubectl_manifest.nodepool](https://registry.terraform.io/providers/alekc/kubectl/2.4.1/docs/resources/manifest) | resource |
 | [terraform_data.destroyer](https://registry.terraform.io/providers/hashicorp/terraform/latest/docs/resources/data) | resource |
 
 ## Inputs
 
 | Name | Description | Type | Default | Required |
-|------|-------------|------|---------|:--------:|
+| ---- | ----------- | ---- | ------- | :------: |
 | <a name="input_disruption"></a> [disruption](#input\_disruption) | Configuration for node disruption. | `any` | <pre>{<br/>  "budgets": [<br/>    {<br/>      "nodes": "10%"<br/>    }<br/>  ],<br/>  "consolidateAfter": "60s",<br/>  "consolidationPolicy": "WhenEmpty"<br/>}</pre> | no |
 | <a name="input_expire_after"></a> [expire\_after](#input\_expire\_after) | Time after which the node will expire. | `string` | `"Never"` | no |
 | <a name="input_instance_types"></a> [instance\_types](#input\_instance\_types) | List of instance types to support. | `list(string)` | n/a | yes |

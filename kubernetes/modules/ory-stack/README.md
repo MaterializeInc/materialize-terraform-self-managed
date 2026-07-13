@@ -1,25 +1,25 @@
 ## Requirements
 
 | Name | Version |
-|------|---------|
+| ---- | ------- |
 | <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | >= 1.8 |
 | <a name="requirement_deepmerge"></a> [deepmerge](#requirement\_deepmerge) | ~> 1.0 |
 | <a name="requirement_helm"></a> [helm](#requirement\_helm) | ~> 2.0 |
-| <a name="requirement_kubectl"></a> [kubectl](#requirement\_kubectl) | 2.4.0 |
+| <a name="requirement_kubectl"></a> [kubectl](#requirement\_kubectl) | 2.4.1 |
 | <a name="requirement_kubernetes"></a> [kubernetes](#requirement\_kubernetes) | ~> 2.0 |
 | <a name="requirement_random"></a> [random](#requirement\_random) | >= 3.0.0 |
 
 ## Providers
 
 | Name | Version |
-|------|---------|
-| <a name="provider_kubectl"></a> [kubectl](#provider\_kubectl) | 2.4.0 |
+| ---- | ------- |
+| <a name="provider_kubectl"></a> [kubectl](#provider\_kubectl) | 2.4.1 |
 | <a name="provider_kubernetes"></a> [kubernetes](#provider\_kubernetes) | ~> 2.0 |
 
 ## Modules
 
 | Name | Source | Version |
-|------|--------|---------|
+| ---- | ------ | ------- |
 | <a name="module_ory_hydra"></a> [ory\_hydra](#module\_ory\_hydra) | ../ory-hydra | n/a |
 | <a name="module_ory_kratos"></a> [ory\_kratos](#module\_ory\_kratos) | ../ory-kratos | n/a |
 | <a name="module_ory_polis"></a> [ory\_polis](#module\_ory\_polis) | ../ory-polis | n/a |
@@ -28,9 +28,9 @@
 ## Resources
 
 | Name | Type |
-|------|------|
-| [kubectl_manifest.materialize_oauth2_client](https://registry.terraform.io/providers/alekc/kubectl/2.4.0/docs/resources/manifest) | resource |
-| [kubectl_manifest.ory_certificate](https://registry.terraform.io/providers/alekc/kubectl/2.4.0/docs/resources/manifest) | resource |
+| ---- | ---- |
+| [kubectl_manifest.materialize_oauth2_client](https://registry.terraform.io/providers/alekc/kubectl/2.4.1/docs/resources/manifest) | resource |
+| [kubectl_manifest.ory_certificate](https://registry.terraform.io/providers/alekc/kubectl/2.4.1/docs/resources/manifest) | resource |
 | [kubernetes_namespace.ory](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/namespace) | resource |
 | [kubernetes_network_policy_v1.materialize_to_ory_egress](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/network_policy_v1) | resource |
 | [kubernetes_network_policy_v1.ory_from_materialize_ingress](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/network_policy_v1) | resource |
@@ -42,7 +42,7 @@
 ## Inputs
 
 | Name | Description | Type | Default | Required |
-|------|-------------|------|---------|:--------:|
+| ---- | ----------- | ---- | ------- | :------: |
 | <a name="input_cert_issuer_ref"></a> [cert\_issuer\_ref](#input\_cert\_issuer\_ref) | cert-manager issuer reference used for the browser-facing TLS certificates. Object with 'name' and 'kind' (e.g. {name = '...', kind = 'ClusterIssuer'}). | <pre>object({<br/>    name = string<br/>    kind = string<br/>  })</pre> | n/a | yes |
 | <a name="input_cert_issuer_signs_cluster_local"></a> [cert\_issuer\_signs\_cluster\_local](#input\_cert\_issuer\_signs\_cluster\_local) | Set to true when the issuer can sign single-label cluster.local SANs (typically the built-in self-signed ClusterIssuer). When true the cert SANs include the in-cluster service hostnames so in-cluster callers can hit the services directly; when false the SAN is dropped and in-cluster callers route via the external hostname (hairpin NAT through the LB). | `bool` | n/a | yes |
 | <a name="input_cookie_parent_domain"></a> [cookie\_parent\_domain](#input\_cookie\_parent\_domain) | Parent domain used as the cookie domain for Kratos session and CSRF cookies so they apply across sibling subdomains. Defaults to the parent domain of kratos\_fqdn (e.g. kratos.example.com -> example.com). Falls back to kratos\_fqdn itself when it has no '.' separator. | `string` | `null` | no |
@@ -90,7 +90,7 @@
 ## Outputs
 
 | Name | Description |
-|------|-------------|
+| ---- | ----------- |
 | <a name="output_console_https_service_name"></a> [console\_https\_service\_name](#output\_console\_https\_service\_name) | Name of the Materialize console HTTPS LoadBalancer Service. Null when materialize\_namespace is not set. |
 | <a name="output_hydra_external_url"></a> [hydra\_external\_url](#output\_hydra\_external\_url) | External (browser-facing) URL for Hydra. Use this as the OIDC issuer in Materialize. |
 | <a name="output_hydra_namespace"></a> [hydra\_namespace](#output\_hydra\_namespace) | Namespace of the Hydra deployment (same as namespace; kept for parity with submodule outputs). |
