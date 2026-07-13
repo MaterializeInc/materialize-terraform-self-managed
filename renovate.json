@@ -2,5 +2,11 @@
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
     "config:recommended"
-  ]
+  ],
+  "rangeStrategy": "widen",
+  "postUpgradeTasks": {
+    "commands": ["bash .github/scripts/generate-docs.sh"],
+    "fileFilters": ["**/README.md"],
+    "executionMode": "branch"
+  }
 }
