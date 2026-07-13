@@ -55,6 +55,7 @@ resource "google_container_node_pool" "primary_nodes" {
   node_config {
     machine_type = var.machine_type
     disk_size_gb = var.disk_size_gb
+    disk_type    = var.disk_type
 
     labels = local.node_labels
 
@@ -150,6 +151,14 @@ resource "kubernetes_daemonset" "disk_setup" {
                   key      = "materialize.cloud/swap"
                   operator = "In"
                   values   = ["true"]
+                }
+                # Scope to this module instance's pool so multiple swap-enabled
+                # pools (e.g. during a blue-green machine type migration) each
+                # run only their own disk-setup daemonset.
+                match_expressions {
+                  key      = "cloud.google.com/gke-nodepool"
+                  operator = "In"
+                  values   = [google_container_node_pool.primary_nodes.name]
                 }
               }
             }

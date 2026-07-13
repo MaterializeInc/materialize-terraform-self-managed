@@ -81,12 +81,13 @@ variable "enable_observability" {
 }
 
 # Node pool sizing. Defaults are production-ish; override in tfvars for cheaper
-# multi-day testing (e.g. n2-highmem-4 / e2-standard-4, min_nodes = 1).
+# multi-day testing (e.g. c4a-highmem-4-lssd / c4-standard-4, min_nodes = 1).
 
 variable "generic_nodepool" {
   description = "Generic Kubernetes node pool: hosts everything except the Materialize instance pods (operator, Ory, cert-manager, prometheus, grafana)."
   type = object({
-    machine_type = optional(string, "e2-standard-8")
+    machine_type = optional(string, "c4-standard-8")
+    disk_type    = optional(string, "hyperdisk-balanced")
     disk_size_gb = optional(number, 50)
     min_nodes    = optional(number, 2)
     max_nodes    = optional(number, 5)
@@ -96,13 +97,14 @@ variable "generic_nodepool" {
 }
 
 variable "materialize_nodepool" {
-  description = "Materialize-dedicated Kubernetes node pool: hosts environmentd, clusterd, balancerd, console. Tainted so only Materialize pods schedule here. Local SSD provides swap; set local_ssd_count = 0 to disable swap (uses more memory but cheaper)."
+  description = "Materialize-dedicated Kubernetes node pool: hosts environmentd, clusterd, balancerd, console. Tainted so only Materialize pods schedule here. Local SSD provides swap. C4A only offers local SSDs on -lssd machine variants with a fixed disk count that local_ssd_count must match (c4a-highmem-8-lssd bundles 2). To disable swap, use a non-lssd machine type and set local_ssd_count = 0 and swap_enabled = false (uses more memory but cheaper)."
   type = object({
-    machine_type    = optional(string, "n2-highmem-8")
+    machine_type    = optional(string, "c4a-highmem-8-lssd")
+    disk_type       = optional(string, "hyperdisk-balanced")
     disk_size_gb    = optional(number, 100)
     min_nodes       = optional(number, 2)
     max_nodes       = optional(number, 5)
-    local_ssd_count = optional(number, 1)
+    local_ssd_count = optional(number, 2)
     swap_enabled    = optional(bool, true)
   })
   default  = {}

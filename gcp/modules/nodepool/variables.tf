@@ -49,6 +49,12 @@ variable "disk_size_gb" {
   nullable    = false
 }
 
+variable "disk_type" {
+  description = "The boot disk type for each node. When null, GKE picks the default for the machine series. Set explicitly when changing an existing pool to a machine series with different disk support (e.g. hyperdisk-balanced for C4/C4A), since the pool otherwise keeps its old disk type."
+  type        = string
+  default     = null
+}
+
 variable "labels" {
   description = "Labels to apply to the nodes"
   type        = map(string)

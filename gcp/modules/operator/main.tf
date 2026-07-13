@@ -11,6 +11,19 @@ resource "kubernetes_namespace" "monitoring" {
 }
 
 locals {
+  # GKE taints Arm nodes with kubernetes.io/arch=arm64:NoSchedule by default.
+  # Materialize images are multi-arch, so instance pods always tolerate the
+  # taint; it is harmless on x86 pools since scheduling is still constrained
+  # by instance_node_selector.
+  instance_pod_tolerations = concat(var.instance_pod_tolerations, [
+    {
+      key      = "kubernetes.io/arch"
+      value    = "arm64"
+      operator = "Equal"
+      effect   = "NoSchedule"
+    }
+  ])
+
   default_helm_values = {
     observability = {
       podMetrics = {
@@ -59,19 +72,19 @@ locals {
     # Materialize workload configurations
     environmentd = {
       nodeSelector = var.instance_node_selector
-      tolerations  = var.instance_pod_tolerations
+      tolerations  = local.instance_pod_tolerations
     }
     clusterd = {
       nodeSelector = var.instance_node_selector
-      tolerations  = var.instance_pod_tolerations
+      tolerations  = local.instance_pod_tolerations
     }
     balancerd = {
       nodeSelector = var.instance_node_selector
-      tolerations  = var.instance_pod_tolerations
+      tolerations  = local.instance_pod_tolerations
     }
     console = {
       nodeSelector = var.instance_node_selector
-      tolerations  = var.instance_pod_tolerations
+      tolerations  = local.instance_pod_tolerations
     }
   }
 }
