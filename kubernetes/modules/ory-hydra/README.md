@@ -10,9 +10,9 @@ keys: https://github.com/ory/k8s/blob/master/helm/charts/hydra/values.yaml
 ## Requirements
 
 | Name | Version |
-|------|---------|
+| ---- | ------- |
 | <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | >= 1.8 |
-| <a name="requirement_deepmerge"></a> [deepmerge](#requirement\_deepmerge) | ~> 1.0, < 1.3.0 |
+| <a name="requirement_deepmerge"></a> [deepmerge](#requirement\_deepmerge) | < 1.4.0 |
 | <a name="requirement_helm"></a> [helm](#requirement\_helm) | ~> 2.0, < 2.18.0 |
 | <a name="requirement_kubernetes"></a> [kubernetes](#requirement\_kubernetes) | ~> 2.0, < 2.39.0 |
 | <a name="requirement_random"></a> [random](#requirement\_random) | >= 3.0.0, < 3.9.0 |
@@ -20,7 +20,7 @@ keys: https://github.com/ory/k8s/blob/master/helm/charts/hydra/values.yaml
 ## Providers
 
 | Name | Version |
-|------|---------|
+| ---- | ------- |
 | <a name="provider_helm"></a> [helm](#provider\_helm) | ~> 2.0, < 2.18.0 |
 | <a name="provider_kubernetes"></a> [kubernetes](#provider\_kubernetes) | ~> 2.0, < 2.39.0 |
 | <a name="provider_random"></a> [random](#provider\_random) | >= 3.0.0, < 3.9.0 |
@@ -32,7 +32,7 @@ No modules.
 ## Resources
 
 | Name | Type |
-|------|------|
+| ---- | ---- |
 | [helm_release.hydra](https://registry.terraform.io/providers/hashicorp/helm/latest/docs/resources/release) | resource |
 | [kubernetes_namespace.hydra](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/namespace) | resource |
 | [random_password.secrets_cookie](https://registry.terraform.io/providers/hashicorp/random/latest/docs/resources/password) | resource |
@@ -41,7 +41,7 @@ No modules.
 ## Inputs
 
 | Name | Description | Type | Default | Required |
-|------|-------------|------|---------|:--------:|
+| ---- | ----------- | ---- | ------- | :------: |
 | <a name="input_automigration_enabled"></a> [automigration\_enabled](#input\_automigration\_enabled) | Whether to enable automatic database migration. | `bool` | `true` | no |
 | <a name="input_automigration_type"></a> [automigration\_type](#input\_automigration\_type) | Type of automigration: 'job' (Helm hook) or 'initContainer'. | `string` | `"job"` | no |
 | <a name="input_chart_version"></a> [chart\_version](#input\_chart\_version) | Version of the Ory Hydra Helm chart to install. | `string` | `"0.60.1"` | no |
@@ -74,7 +74,7 @@ No modules.
 ## Outputs
 
 | Name | Description |
-|------|-------------|
+| ---- | ----------- |
 | <a name="output_admin_url"></a> [admin\_url](#output\_admin\_url) | Internal URL for Hydra admin API (privileged: OAuth2 client management, consent/login flow management) |
 | <a name="output_namespace"></a> [namespace](#output\_namespace) | Namespace where Ory Hydra is deployed |
 | <a name="output_public_url"></a> [public\_url](#output\_public\_url) | Internal URL for Hydra public API (user-facing: OAuth2 authorize, token, OIDC discovery) |

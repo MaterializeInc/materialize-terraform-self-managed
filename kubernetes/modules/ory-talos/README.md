@@ -1,7 +1,7 @@
 ## Requirements
 
 | Name | Version |
-|------|---------|
+| ---- | ------- |
 | <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | >= 1.8 |
 | <a name="requirement_kubernetes"></a> [kubernetes](#requirement\_kubernetes) | ~> 2.0 |
 | <a name="requirement_random"></a> [random](#requirement\_random) | >= 3.0.0 |
@@ -9,7 +9,7 @@
 ## Providers
 
 | Name | Version |
-|------|---------|
+| ---- | ------- |
 | <a name="provider_kubernetes"></a> [kubernetes](#provider\_kubernetes) | ~> 2.0 |
 | <a name="provider_random"></a> [random](#provider\_random) | >= 3.0.0 |
 
@@ -20,7 +20,7 @@ No modules.
 ## Resources
 
 | Name | Type |
-|------|------|
+| ---- | ---- |
 | [kubernetes_deployment.talos](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/deployment) | resource |
 | [kubernetes_namespace.talos](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/namespace) | resource |
 | [kubernetes_secret.talos](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/secret) | resource |
@@ -32,7 +32,7 @@ No modules.
 ## Inputs
 
 | Name | Description | Type | Default | Required |
-|------|-------------|------|---------|:--------:|
+| ---- | ----------- | ---- | ------- | :------: |
 | <a name="input_create_namespace"></a> [create\_namespace](#input\_create\_namespace) | Whether to create the Kubernetes namespace. Set to false if the namespace already exists. | `bool` | `true` | no |
 | <a name="input_credentials_issuer"></a> [credentials\_issuer](#input\_credentials\_issuer) | Issuer claim Talos puts in derived JWTs. Maps to TALOS\_CREDENTIALS\_ISSUER. Must match what downstream services (e.g., Materialize) validate as the OIDC issuer. For Hydra coexistence (so a single downstream can trust both), set this to the same URL Hydra publishes as its issuer and have both services share signing keys via var.signing\_keys\_urls. Example: https://auth.internal.example.com | `string` | n/a | yes |
 | <a name="input_default_secret"></a> [default\_secret](#input\_default\_secret) | Secret used by Talos default components, set as TALOS\_SECRETS\_DEFAULT\_CURRENT. Must be at least 32 characters. If null, a random 32-character secret is generated. | `string` | `null` | no |
@@ -61,7 +61,7 @@ No modules.
 ## Outputs
 
 | Name | Description |
-|------|-------------|
+| ---- | ----------- |
 | <a name="output_credentials_issuer"></a> [credentials\_issuer](#output\_credentials\_issuer) | Issuer claim Talos uses in derived JWTs. Wire this into downstream OIDC consumers (e.g., Materialize's oidc\_issuer) so they validate Talos-issued tokens. |
 | <a name="output_default_secret"></a> [default\_secret](#output\_default\_secret) | Talos default-component secret. |
 | <a name="output_hmac_secret"></a> [hmac\_secret](#output\_hmac\_secret) | Talos HMAC secret used for API key generation. |

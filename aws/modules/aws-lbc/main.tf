@@ -298,7 +298,7 @@ resource "helm_release" "aws_load_balancer_controller" {
   name       = "aws-load-balancer-controller"
   chart      = "aws-load-balancer-controller"
   repository = "https://aws.github.io/eks-charts"
-  version    = "1.11.0"
+  version    = "1.17.1"
   namespace  = "kube-system"
 
   set {

@@ -1,7 +1,7 @@
 ## Requirements
 
 | Name | Version |
-|------|---------|
+| ---- | ------- |
 | <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | >= 1.0 |
 | <a name="requirement_google"></a> [google](#requirement\_google) | >= 6.31, < 6.51.0 |
 
@@ -12,7 +12,7 @@ No providers.
 ## Modules
 
 | Name | Source | Version |
-|------|--------|---------|
+| ---- | ------ | ------- |
 | <a name="module_postgresql"></a> [postgresql](#module\_postgresql) | terraform-google-modules/sql-db/google//modules/postgresql | 26.1.1 |
 
 ## Resources
@@ -22,7 +22,7 @@ No resources.
 ## Inputs
 
 | Name | Description | Type | Default | Required |
-|------|-------------|------|---------|:--------:|
+| ---- | ----------- | ---- | ------- | :------: |
 | <a name="input_backup_enabled"></a> [backup\_enabled](#input\_backup\_enabled) | Enable backup configuration | `bool` | `true` | no |
 | <a name="input_backup_retained_backups"></a> [backup\_retained\_backups](#input\_backup\_retained\_backups) | Number of backups to retain | `number` | `7` | no |
 | <a name="input_backup_retention_unit"></a> [backup\_retention\_unit](#input\_backup\_retention\_unit) | The unit of time for backup retention | `string` | `"COUNT"` | no |
@@ -56,7 +56,7 @@ No resources.
 ## Outputs
 
 | Name | Description |
-|------|-------------|
+| ---- | ----------- |
 | <a name="output_database_names"></a> [database\_names](#output\_database\_names) | List of database names |
 | <a name="output_databases"></a> [databases](#output\_databases) | List of created databases |
 | <a name="output_instance_name"></a> [instance\_name](#output\_instance\_name) | The name of the database instance |
