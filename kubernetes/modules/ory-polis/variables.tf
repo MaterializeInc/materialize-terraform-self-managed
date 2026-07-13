@@ -225,6 +225,13 @@ variable "extra_env" {
   nullable    = false
 }
 
+variable "openid_redirect_exact_match" {
+  description = "When true, the OAuth2 redirect_uri must match a connection's redirectUrl allowlist entry exactly (including pathname). When false, only scheme, host, and port are compared. Overrides the chart's baked-in true so redirect_uri patterns work as documented."
+  type        = bool
+  default     = false
+  nullable    = false
+}
+
 # Observability
 variable "monitoring_enabled" {
   description = "When false, the chart's default OTLP endpoints (which point at a kube-prometheus-stack installation in 'observability') are blanked out so Polis doesn't keep trying to reach a non-existent collector. Set to true and override via helm_values when you have one."

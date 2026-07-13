@@ -45,6 +45,23 @@ locals {
     COOKIE_SECRET      = local.cookie_secret
     CSRF_COOKIE_SECRET = local.csrf_cookie_secret
   }))
+
+  # Patches the upstream consent handler so identity.traits.groups is
+  # propagated into the OIDC id_token. Runs in an initContainer because the
+  # main container is non-root and can't write to /usr/src/app; we produce
+  # the patched file in a shared emptyDir and mount it over the original path.
+  consent_groups_patch_script = <<-EOT
+    set -eu
+    node -e '
+      const fs = require("fs");
+      const src = fs.readFileSync("/usr/src/app/lib/routes/consent.js", "utf8");
+      const inject = "    if (identity.traits && identity.traits.groups) { session.id_token.groups = identity.traits.groups; session.access_token.groups = identity.traits.groups; }\n    ";
+      const idx = src.lastIndexOf("return session;");
+      if (idx < 0) throw new Error("consent.js: pattern not found");
+      fs.writeFileSync("/consent-patched/consent.js", src.slice(0, idx) + inject + src.slice(idx));
+      console.error("consent.js: groups propagation patch applied");
+    '
+  EOT
 }
 
 resource "kubernetes_secret" "secrets" {
@@ -110,6 +127,23 @@ resource "kubernetes_deployment" "ui" {
           }
         }
 
+        volume {
+          name = "consent-patched"
+          empty_dir {}
+        }
+
+        init_container {
+          name    = "patch-consent"
+          image   = local.image
+          command = ["sh", "-c"]
+          args    = [local.consent_groups_patch_script]
+
+          volume_mount {
+            name       = "consent-patched"
+            mount_path = "/consent-patched"
+          }
+        }
+
         container {
           name              = "kratos-selfservice-ui-node"
           image             = local.image
@@ -128,6 +162,13 @@ resource "kubernetes_deployment" "ui" {
               mount_path = local.tls_mount_dir
               read_only  = true
             }
+          }
+
+          volume_mount {
+            name       = "consent-patched"
+            mount_path = "/usr/src/app/lib/routes/consent.js"
+            sub_path   = "consent.js"
+            read_only  = true
           }
 
           env {

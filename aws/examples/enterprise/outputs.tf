@@ -171,3 +171,8 @@ output "ory" {
     oauth2_client_secret_name = module.ory.oauth2_client_secret_name
   }
 }
+
+output "ory_lb_addresses" {
+  description = "Ingress addresses of every browser-facing LoadBalancer the ory-stack module owns (hydra, kratos, ui, polis, console). Feed these into your DNS records for the corresponding hostnames. AWS populates the hostname key, not ip."
+  value       = module.ory.lb_addresses
+}

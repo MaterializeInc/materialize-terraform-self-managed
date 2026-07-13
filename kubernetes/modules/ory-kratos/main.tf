@@ -101,10 +101,16 @@ locals {
   # can read it inline, no ConfigMap needed.
   upstream_oidc_mapper_jsonnet = <<-EOT
     local claims = std.extVar('claims');
+    local raw = if std.objectHas(claims, 'raw_claims') then claims.raw_claims else {};
+    local groups_from(src) = if std.objectHas(src, 'groups') then src.groups else [];
     {
       identity: {
         traits: {
           email: claims.email,
+          // Kratos exposes standard OIDC fields (email, sub, aud, ...) flat on
+          // claims and everything else under claims.raw_claims. SAML-derived
+          // group memberships come in as a non-standard claim, so check both.
+          groups: if std.length(groups_from(claims)) > 0 then groups_from(claims) else groups_from(raw),
         },
       },
     }
