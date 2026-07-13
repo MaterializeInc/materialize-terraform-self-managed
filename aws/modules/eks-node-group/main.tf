@@ -120,7 +120,7 @@ resource "terraform_data" "eni_cleanup" {
 
 module "node_group" {
   source  = "terraform-aws-modules/eks/aws//modules/eks-managed-node-group"
-  version = "~> 20.0"
+  version = "~> 21.0"
 
   cluster_name   = var.cluster_name
   subnet_ids     = var.subnet_ids
