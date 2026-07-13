@@ -35,7 +35,7 @@ resource "aws_lb_target_group" "target_group" {
 
 resource "aws_lb_listener" "listener" {
   load_balancer_arn = var.nlb_arn
-  port              = var.port
+  port              = coalesce(var.listener_port, var.port)
   protocol          = "TCP"
   tags              = var.tags
   default_action {

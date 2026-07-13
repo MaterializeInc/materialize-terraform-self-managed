@@ -500,6 +500,9 @@ module "materialize_instance" {
     console_oidc_scopes       = "openid email"
   }
 
+  # Wire the materialize -> ory NetworkPolicy.
+  ory_namespace = local.ory_namespace
+
   depends_on = [
     module.operator,
     module.aws_lbc,
@@ -557,6 +560,12 @@ module "materialize_nlb" {
   node_security_group_id           = module.eks.node_security_group_id
   ingress_cidr_blocks              = var.ingress_cidr_blocks
 
+  # Serve the console on 443 (the canonical HTTPS port) so browser OIDC
+  # redirects to https://<materialize_console_fqdn>/auth/callback resolve without
+  # a :8080 suffix, and CORS origins match Hydra's cors_allowed_origins. The
+  # target group + pod port stay 8080.
+  console_listener_port = 443
+
   tags = var.tags
 }
 
@@ -589,11 +598,9 @@ module "ory" {
   cert_issuer_ref                 = local.cert_issuer
   cert_issuer_signs_cluster_local = var.cert_issuer_ref == null
 
-  # Materialize integration: OAuth2 client CRD, network policies, console LB.
-  materialize_namespace            = local.materialize_instance_namespace
-  materialize_instance_name        = local.materialize_instance_name
-  materialize_instance_resource_id = module.materialize_instance.instance_resource_id
-  materialize_console_fqdn         = var.materialize_console_fqdn
+  # Materialize integration: OAuth2 client CRD + ory-side ingress NetworkPolicy.
+  materialize_namespace    = local.materialize_instance_namespace
+  materialize_console_fqdn = var.materialize_console_fqdn
 
   # AWS LBC settings: load_balancer_class routes the Service through the LBC,
   # externalTrafficPolicy = Local preserves client source IPs through the NLB.
@@ -609,6 +616,16 @@ module "ory" {
     module.coredns,
     module.aws_lbc,
   ]
+}
+
+# State migration: the ory -> materialize egress NetworkPolicy moved from
+# ory-stack to materialize-instance. The console HTTPS LoadBalancer that used
+# to live in ory-stack is destroyed on apply; the existing shared NLB
+# (module.materialize_nlb) is retargeted so its console listener binds to 443
+# instead of 8080. NLB DNS name is preserved.
+moved {
+  from = module.ory.kubernetes_network_policy_v1.materialize_to_ory_egress[0]
+  to   = module.materialize_instance.kubernetes_network_policy_v1.allow_ory_egress[0]
 }
 
 locals {

@@ -510,6 +510,9 @@ module "materialize_instance" {
     console_oidc_scopes       = "openid email"
   }
 
+  # Wire the materialize -> ory NetworkPolicy.
+  ory_namespace = local.ory_namespace
+
   depends_on = [
     module.operator,
     module.materialize_nodepool,
@@ -525,6 +528,11 @@ module "load_balancers" {
   resource_id         = module.materialize_instance.instance_resource_id
   internal            = var.internal_load_balancer
   ingress_cidr_blocks = var.internal_load_balancer ? null : var.ingress_cidr_blocks
+
+  # Serve the console on 443 (the canonical HTTPS port) so browser OIDC
+  # redirects to https://<materialize_console_fqdn>/auth/callback resolve without
+  # a :8080 suffix, and CORS origins match Hydra's cors_allowed_origins.
+  materialize_console_port = 443
 }
 
 
@@ -560,11 +568,9 @@ module "ory" {
   cert_issuer_ref                 = local.cert_issuer
   cert_issuer_signs_cluster_local = var.cert_issuer_ref == null
 
-  # Materialize integration: OAuth2 client CRD, network policies, console LB.
-  materialize_namespace            = local.materialize_instance_namespace
-  materialize_instance_name        = local.materialize_instance_name
-  materialize_instance_resource_id = module.materialize_instance.instance_resource_id
-  materialize_console_fqdn         = var.materialize_console_fqdn
+  # Materialize integration: OAuth2 client CRD + ory-side ingress NetworkPolicy.
+  materialize_namespace    = local.materialize_instance_namespace
+  materialize_console_fqdn = var.materialize_console_fqdn
 
   # externalTrafficPolicy=Local makes Azure probe the kubelet's healthCheckNodePort
   # (always HTTP) instead of the TLS-only app port, which otherwise flaps backends
@@ -584,4 +590,14 @@ module "ory" {
     module.coredns,
     azurerm_postgresql_flexible_server_configuration.ory_extensions,
   ]
+}
+
+# State migration: the ory -> materialize egress NetworkPolicy moved from
+# ory-stack to materialize-instance. The console HTTPS LoadBalancer that used
+# to live in ory-stack is destroyed on apply; the existing per-cloud console
+# LB (module.load_balancers) is retargeted from 8080 to 443 in place. Update
+# the console DNS record after apply to point at the retargeted LB IP.
+moved {
+  from = module.ory.kubernetes_network_policy_v1.materialize_to_ory_egress[0]
+  to   = module.materialize_instance.kubernetes_network_policy_v1.allow_ory_egress[0]
 }

@@ -247,3 +247,30 @@ resource "kubernetes_network_policy_v1" "allow_api_server_egress" {
     }
   }
 }
+
+# Egress from this namespace to the Ory namespace (JWKS fetch, OIDC flows).
+resource "kubernetes_network_policy_v1" "allow_ory_egress" {
+  count = var.enable_network_policies && var.ory_namespace != null ? 1 : 0
+
+  metadata {
+    name      = "allow-ory-egress"
+    namespace = var.instance_namespace
+  }
+
+  spec {
+    pod_selector {}
+    policy_types = ["Egress"]
+
+    egress {
+      to {
+        namespace_selector {
+          match_labels = {
+            "kubernetes.io/metadata.name" = var.ory_namespace
+          }
+        }
+      }
+    }
+  }
+
+  depends_on = [kubernetes_namespace.instance]
+}

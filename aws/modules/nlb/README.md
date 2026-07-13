@@ -41,6 +41,7 @@
 
 | Name | Description | Type | Default | Required |
 | ---- | ----------- | ---- | ------- | :------: |
+| <a name="input_console_listener_port"></a> [console\_listener\_port](#input\_console\_listener\_port) | External port the NLB listens on for the Materialize console. Defaults to 8080. Set to 443 for enterprise SSO deployments so browser OIDC redirects hit the canonical HTTPS port; the target group still forwards to the console pod on 8080. | `number` | `8080` | no |
 | <a name="input_create_security_group"></a> [create\_security\_group](#input\_create\_security\_group) | Whether to create a dedicated security group for the NLB with ingress rules for Materialize ports. Set to false if security groups are managed externally or not needed. | `bool` | `true` | no |
 | <a name="input_enable_cross_zone_load_balancing"></a> [enable\_cross\_zone\_load\_balancing](#input\_enable\_cross\_zone\_load\_balancing) | Whether to enable cross zone load balancing on the NLB. | `bool` | `true` | no |
 | <a name="input_ingress_cidr_blocks"></a> [ingress\_cidr\_blocks](#input\_ingress\_cidr\_blocks) | List of CIDR blocks to allow ingress to the NLB Security Group. | `list(string)` | <pre>[<br/>  "0.0.0.0/0"<br/>]</pre> | no |

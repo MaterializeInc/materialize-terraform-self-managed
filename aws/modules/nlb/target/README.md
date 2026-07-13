@@ -33,10 +33,11 @@ No modules.
 | Name | Description | Type | Default | Required |
 | ---- | ----------- | ---- | ------- | :------: |
 | <a name="input_health_check_path"></a> [health\_check\_path](#input\_health\_check\_path) | The URL path for target group health checks | `string` | n/a | yes |
+| <a name="input_listener_port"></a> [listener\_port](#input\_listener\_port) | Port the NLB listener binds to. Defaults to var.port when null; set explicitly to expose the target on a different external port. | `number` | `null` | no |
 | <a name="input_name"></a> [name](#input\_name) | Name for Target Groups and TargetGroupBindings | `string` | n/a | yes |
 | <a name="input_namespace"></a> [namespace](#input\_namespace) | Kubernetes namespace in which to install TargetGroupBindings | `string` | n/a | yes |
 | <a name="input_nlb_arn"></a> [nlb\_arn](#input\_nlb\_arn) | ARN of the NLB | `string` | n/a | yes |
-| <a name="input_port"></a> [port](#input\_port) | Port for the NLB listener and Kubernetes service | `number` | n/a | yes |
+| <a name="input_port"></a> [port](#input\_port) | Port on the target (Kubernetes service and target group). By default the NLB listener also uses this port; override listener\_port to expose a different port externally (e.g. 443 -> 8080). | `number` | n/a | yes |
 | <a name="input_preserve_client_ip"></a> [preserve\_client\_ip](#input\_preserve\_client\_ip) | Whether to preserve the client IP address | `bool` | `true` | no |
 | <a name="input_service_name"></a> [service\_name](#input\_service\_name) | The name of the Kubernetes service to connect to | `string` | n/a | yes |
 | <a name="input_tags"></a> [tags](#input\_tags) | Tags to apply to all resources | `map(string)` | `{}` | no |

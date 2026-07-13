@@ -83,6 +83,13 @@ variable "create_security_group" {
   nullable    = false
 }
 
+variable "console_listener_port" {
+  description = "External port the NLB listens on for the Materialize console. Defaults to 8080. Set to 443 for enterprise SSO deployments so browser OIDC redirects hit the canonical HTTPS port; the target group still forwards to the console pod on 8080."
+  type        = number
+  default     = 8080
+  nullable    = false
+}
+
 variable "tags" {
   description = "Tags to apply to all resources"
   type        = map(string)

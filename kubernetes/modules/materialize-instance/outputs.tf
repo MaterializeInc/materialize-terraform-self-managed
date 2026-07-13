@@ -22,3 +22,4 @@ output "persist_backend_url" {
   description = "Persist backend URL used by the Materialize instance"
   value       = var.persist_backend_url
 }
+
