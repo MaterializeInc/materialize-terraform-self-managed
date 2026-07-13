@@ -3,10 +3,5 @@
   "extends": [
     "config:recommended"
   ],
-  "rangeStrategy": "widen",
-  "postUpgradeTasks": {
-    "commands": ["bash .github/scripts/generate-docs.sh"],
-    "fileFilters": ["**/README.md"],
-    "executionMode": "branch"
-  }
+  "rangeStrategy": "widen"
 }
