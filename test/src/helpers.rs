@@ -5,6 +5,7 @@ use anyhow::{Context, Result, bail};
 use aws_sdk_s3::Client as S3Client;
 use aws_sdk_s3::primitives::ByteStream;
 use chrono::Utc;
+use rand::RngExt as _;
 use rand::distr;
 use rand::distr::SampleString as _;
 use tokio::process::Command;

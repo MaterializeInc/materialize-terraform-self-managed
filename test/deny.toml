@@ -21,11 +21,23 @@ skip = [
 
     # AWS SDK smithy crates internally support both http 0.2 and 1.x APIs
     # during their transition period. Cannot be eliminated from the consumer side.
-    { name = "crypto-bigint", version = "0.4.9" },
     { name = "getrandom", version = "0.2.17" },
     { name = "http", version = "0.2.12" },
     { name = "http-body", version = "0.4.6" },
     { name = "rand_core", version = "0.6.4" },
+
+    # AWS SDK crates are mid-transition between the RustCrypto 0.10 and 0.11
+    # stacks: aws-smithy-checksums and p256 still use the 0.10 series while
+    # aws-sigv4 and aws-sdk-s3 use 0.11. Cannot be eliminated from the
+    # consumer side.
+    { name = "block-buffer", version = "0.10.4" },
+    { name = "const-oid", version = "0.9.6" },
+    { name = "cpufeatures", version = "0.2.17" },
+    { name = "crypto-common", version = "0.1.7" },
+    { name = "digest", version = "0.10.7" },
+    { name = "hmac", version = "0.12.1" },
+    { name = "sha1", version = "0.10.6" },
+    { name = "sha2", version = "0.10.9" },
 ]
 
 # Use `tracing` instead.
