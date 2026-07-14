@@ -56,22 +56,14 @@ output "oel_registry_secret_name" {
   value       = kubernetes_secret.ory_oel_registry.metadata[0].name
 }
 
-output "console_https_service_name" {
-  description = "Name of the Materialize console HTTPS LoadBalancer Service. Null when materialize_namespace is not set."
-  value       = local.wire_materialize ? kubernetes_service_v1.console_https_lb[0].metadata[0].name : null
-}
-
 output "lb_addresses" {
-  description = "Ingress addresses of the LoadBalancer services this module owns. Map keyed by hostname role (hydra, kratos, ui, polis, console); values are objects with ip and hostname keys (GCP and Azure populate ip, AWS populates hostname). Use these to create the DNS records the browser-facing hostnames point at. Polis and console entries are null when disabled."
-  value = merge(
-    {
-      hydra   = try({ ip = kubernetes_service_v1.ory_lb["hydra-public-lb"].status[0].load_balancer[0].ingress[0].ip, hostname = kubernetes_service_v1.ory_lb["hydra-public-lb"].status[0].load_balancer[0].ingress[0].hostname }, null)
-      kratos  = try({ ip = kubernetes_service_v1.ory_lb["kratos-public-lb"].status[0].load_balancer[0].ingress[0].ip, hostname = kubernetes_service_v1.ory_lb["kratos-public-lb"].status[0].load_balancer[0].ingress[0].hostname }, null)
-      ui      = try({ ip = kubernetes_service_v1.ory_lb["ory-selfservice-ui-lb"].status[0].load_balancer[0].ingress[0].ip, hostname = kubernetes_service_v1.ory_lb["ory-selfservice-ui-lb"].status[0].load_balancer[0].ingress[0].hostname }, null)
-      polis   = local.wire_polis ? try({ ip = kubernetes_service_v1.ory_lb["polis-public-lb"].status[0].load_balancer[0].ingress[0].ip, hostname = kubernetes_service_v1.ory_lb["polis-public-lb"].status[0].load_balancer[0].ingress[0].hostname }, null) : null
-      console = local.wire_materialize ? try({ ip = kubernetes_service_v1.console_https_lb[0].status[0].load_balancer[0].ingress[0].ip, hostname = kubernetes_service_v1.console_https_lb[0].status[0].load_balancer[0].ingress[0].hostname }, null) : null
-    },
-  )
+  description = "Ingress addresses of the LoadBalancer services this module owns. Map keyed by hostname role (hydra, kratos, ui, polis); values are objects with ip and hostname keys (GCP and Azure populate ip, AWS populates hostname). Use these to create the DNS records the browser-facing hostnames point at. Polis entry is null when disabled."
+  value = {
+    hydra  = try({ ip = kubernetes_service_v1.ory_lb["hydra-public-lb"].status[0].load_balancer[0].ingress[0].ip, hostname = kubernetes_service_v1.ory_lb["hydra-public-lb"].status[0].load_balancer[0].ingress[0].hostname }, null)
+    kratos = try({ ip = kubernetes_service_v1.ory_lb["kratos-public-lb"].status[0].load_balancer[0].ingress[0].ip, hostname = kubernetes_service_v1.ory_lb["kratos-public-lb"].status[0].load_balancer[0].ingress[0].hostname }, null)
+    ui     = try({ ip = kubernetes_service_v1.ory_lb["ory-selfservice-ui-lb"].status[0].load_balancer[0].ingress[0].ip, hostname = kubernetes_service_v1.ory_lb["ory-selfservice-ui-lb"].status[0].load_balancer[0].ingress[0].hostname }, null)
+    polis  = local.wire_polis ? try({ ip = kubernetes_service_v1.ory_lb["polis-public-lb"].status[0].load_balancer[0].ingress[0].ip, hostname = kubernetes_service_v1.ory_lb["polis-public-lb"].status[0].load_balancer[0].ingress[0].hostname }, null) : null
+  }
 }
 
 output "kratos_namespace" {

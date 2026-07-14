@@ -235,3 +235,9 @@ variable "monitoring_namespace" {
   default     = "monitoring"
   nullable    = false
 }
+
+variable "ory_namespace" {
+  description = "Namespace of the Ory stack. When set, creates a NetworkPolicy allowing pods in this instance's namespace to egress to the Ory namespace (used for OIDC flows against Hydra). Set to null for non-enterprise deployments."
+  type        = string
+  default     = null
+}

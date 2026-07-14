@@ -23,9 +23,15 @@ variable "vpc_id" {
 }
 
 variable "port" {
-  description = "Port for the NLB listener and Kubernetes service"
+  description = "Port on the target (Kubernetes service and target group). By default the NLB listener also uses this port; override listener_port to expose a different port externally (e.g. 443 -> 8080)."
   type        = number
   nullable    = false
+}
+
+variable "listener_port" {
+  description = "Port the NLB listener binds to. Defaults to var.port when null; set explicitly to expose the target on a different external port."
+  type        = number
+  default     = null
 }
 
 variable "health_check_path" {

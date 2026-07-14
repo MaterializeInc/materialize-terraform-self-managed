@@ -116,19 +116,7 @@ variable "cert_issuer_signs_cluster_local" {
 # Materialize integration (optional) ------------------------------------------
 
 variable "materialize_namespace" {
-  description = "Namespace of the Materialize instance to wire up. When set, the module creates an OAuth2Client CRD in Hydra, NetworkPolicies bridging the two namespaces, and the console HTTPS LoadBalancer. Set to null to deploy Ory without Materialize integration."
-  type        = string
-  default     = null
-}
-
-variable "materialize_instance_name" {
-  description = "Name of the Materialize instance. Required when materialize_namespace is set; used for the console HTTPS Service selector and name prefix."
-  type        = string
-  default     = null
-}
-
-variable "materialize_instance_resource_id" {
-  description = "resource_id from the Materialize instance status. Required when materialize_namespace is set; used for the console HTTPS Service selector."
+  description = "Namespace of the Materialize instance to wire up. When set, the module creates an OAuth2Client CRD in Hydra and NetworkPolicies bridging the two namespaces. Set to null to deploy Ory without Materialize integration. The Materialize console HTTPS LoadBalancer itself is owned by the materialize-instance module."
   type        = string
   default     = null
 }
@@ -142,7 +130,7 @@ variable "materialize_console_fqdn" {
 # Load balancer cloud-specific knobs ------------------------------------------
 
 variable "lb_annotations" {
-  description = "Annotations applied to the public LoadBalancer Services (Hydra, Kratos, UI, and the Materialize console). Use this to set cloud-specific LB knobs (Azure internal flag, GKE LB type, AWS LBC settings)."
+  description = "Annotations applied to the public LoadBalancer Services (Hydra, Kratos, UI). Use this to set cloud-specific LB knobs (Azure internal flag, GKE LB type, AWS LBC settings)."
   type        = map(string)
   default     = {}
   nullable    = false

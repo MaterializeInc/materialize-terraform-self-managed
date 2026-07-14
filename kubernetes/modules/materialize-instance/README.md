@@ -27,6 +27,7 @@ No modules.
 | [kubernetes_network_policy_v1.allow_api_server_egress](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/network_policy_v1) | resource |
 | [kubernetes_network_policy_v1.allow_kube_system_egress](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/network_policy_v1) | resource |
 | [kubernetes_network_policy_v1.allow_monitoring_ingress](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/network_policy_v1) | resource |
+| [kubernetes_network_policy_v1.allow_ory_egress](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/network_policy_v1) | resource |
 | [kubernetes_secret.materialize_backend](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/secret) | resource |
 | [kubernetes_resource.materialize_instance](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/data-sources/resource) | data source |
 
@@ -58,6 +59,7 @@ No modules.
 | <a name="input_memory_request"></a> [memory\_request](#input\_memory\_request) | Memory request for environmentd | `string` | `"4095Mi"` | no |
 | <a name="input_metadata_backend_url"></a> [metadata\_backend\_url](#input\_metadata\_backend\_url) | PostgreSQL connection URL for metadata backend | `string` | n/a | yes |
 | <a name="input_monitoring_namespace"></a> [monitoring\_namespace](#input\_monitoring\_namespace) | Namespace where monitoring resources (Prometheus) are installed. Used for network policy to allow metrics scraping. | `string` | `"monitoring"` | no |
+| <a name="input_ory_namespace"></a> [ory\_namespace](#input\_ory\_namespace) | Namespace of the Ory stack. When set, creates a NetworkPolicy allowing pods in this instance's namespace to egress to the Ory namespace (used for OIDC flows against Hydra). Set to null for non-enterprise deployments. | `string` | `null` | no |
 | <a name="input_persist_backend_url"></a> [persist\_backend\_url](#input\_persist\_backend\_url) | S3 connection URL for persist backend | `string` | n/a | yes |
 | <a name="input_pod_labels"></a> [pod\_labels](#input\_pod\_labels) | Labels for the materialize instance pod | `map(string)` | `{}` | no |
 | <a name="input_request_rollout"></a> [request\_rollout](#input\_request\_rollout) | UUID to request a rollout (v1alpha1 only, ignored for v1) | `string` | `"00000000-0000-0000-0000-000000000001"` | no |

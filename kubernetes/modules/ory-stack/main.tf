@@ -1,6 +1,6 @@
 locals {
-  # When materialize_namespace is set, the module wires Materialize-side resources
-  # (OAuth2 client, network policies, console LB). When null, those are skipped.
+  # When set, the module creates the OAuth2 client CRD and the ory-side ingress
+  # policy from the materialize namespace. Null skips Materialize integration.
   wire_materialize = var.materialize_namespace != null
 
   # Polis is optional and gated by var.enable_polis.
@@ -441,40 +441,6 @@ resource "kubernetes_service_v1" "ory_lb" {
 # Materialize integration (gated by var.materialize_namespace)
 # -----------------------------------------------------------------------------
 
-# Materialize console HTTPS LoadBalancer. The console redirects away from
-# non-canonical ports so OIDC needs the browser to hit it on 443.
-resource "kubernetes_service_v1" "console_https_lb" {
-  count = local.wire_materialize ? 1 : 0
-
-  metadata {
-    name        = "${var.materialize_instance_name}-console-https"
-    namespace   = var.materialize_namespace
-    annotations = var.lb_annotations
-  }
-
-  spec {
-    type                    = "LoadBalancer"
-    load_balancer_class     = var.lb_load_balancer_class
-    external_traffic_policy = var.lb_external_traffic_policy
-
-    selector = {
-      "materialize.cloud/app"                    = "console"
-      "materialize.cloud/mz-resource-id"         = var.materialize_instance_resource_id
-      "materialize.cloud/organization-name"      = var.materialize_instance_name
-      "materialize.cloud/organization-namespace" = var.materialize_namespace
-    }
-
-    port {
-      name        = "https"
-      port        = 443
-      target_port = 8080
-      protocol    = "TCP"
-    }
-  }
-
-  wait_for_load_balancer = true
-}
-
 # OAuth2Client CRD: Hydra Maester watches for these and creates/manages the
 # OAuth2 client via Hydra's admin API. The Secret named here is populated by
 # Hydra Maester with the generated client_id and client_secret.
@@ -528,37 +494,8 @@ data "kubernetes_secret_v1" "oauth2_client" {
   depends_on = [kubectl_manifest.materialize_oauth2_client]
 }
 
-# Network policies bridging materialize <-> ory namespaces -------------------
-
-resource "kubernetes_network_policy_v1" "materialize_to_ory_egress" {
-  count = local.wire_materialize ? 1 : 0
-
-  metadata {
-    name      = "allow-ory-egress"
-    namespace = var.materialize_namespace
-  }
-
-  spec {
-    pod_selector {}
-    policy_types = ["Egress"]
-
-    egress {
-      to {
-        namespace_selector {
-          match_labels = {
-            "kubernetes.io/metadata.name" = var.namespace
-          }
-        }
-      }
-    }
-  }
-
-  # Wait for the materialize namespace to exist. console_https_lb already
-  # depends on var.materialize_instance_resource_id (which references the
-  # caller's materialize_instance module), so this chains the dep without
-  # the module having to know about materialize_instance directly.
-  depends_on = [kubernetes_service_v1.console_https_lb]
-}
+# Network policies. The materialize -> ory egress policy is owned by the
+# materialize-instance module (it lives in the materialize namespace).
 
 # Allow Ory pods to receive traffic from Materialize, from within the ory
 # namespace, and from external sources on the three public ports.

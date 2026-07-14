@@ -55,8 +55,8 @@ resource "aws_vpc_security_group_ingress_rule" "nlb_http" {
 resource "aws_vpc_security_group_ingress_rule" "nlb_console" {
   for_each          = var.create_security_group ? toset(var.ingress_cidr_blocks) : toset([])
   description       = "Allow Materialize Console/Health from ${each.value}"
-  from_port         = 8080
-  to_port           = 8080
+  from_port         = var.console_listener_port
+  to_port           = var.console_listener_port
   ip_protocol       = "tcp"
   security_group_id = aws_security_group.nlb[0].id
   cidr_ipv4         = each.value
@@ -116,6 +116,7 @@ module "target_console" {
   vpc_id             = var.vpc_id
   preserve_client_ip = true
   port               = 8080
+  listener_port      = var.console_listener_port
   service_name       = "mz${var.mz_resource_id}-console"
   health_check_path  = "/"
   tags               = var.tags
