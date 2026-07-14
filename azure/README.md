@@ -104,9 +104,18 @@ Your Azure project needs several APIs enabled. See the [examples/simple/README.m
 The AWS and GCP examples run a node-local DNS cache on every node
 (the [`kubernetes/modules/node-local-dns`](../kubernetes/modules/node-local-dns)
 helm module on EKS, the built-in NodeLocal DNSCache addon on GKE). There is
-currently no equivalent on AKS: these modules use Azure CNI powered by Cilium,
+currently no equivalent here: these modules use Azure CNI powered by Cilium,
 whose eBPF dataplane resolves the kube-dns service IP before iptables runs, so
 a self-deployed node-local-dns can never intercept pod DNS traffic, and the
-managed Cilium does not expose Local Redirect Policies. Once AKS's native
-LocalDNS feature is generally available and supported by the azurerm provider,
-it should be adopted here.
+managed Cilium does not expose Local Redirect Policies.
+
+The path forward is AKS's native
+[LocalDNS](https://learn.microsoft.com/en-us/azure/aks/localdns-custom)
+feature (per-node-pool `--localdns-config`), which sidesteps the interception
+problem entirely by pointing pod resolution at a node-local proxy on
+169.254.10.10. It is blocked on azurerm provider support for
+`localDNSProfile`
+([hashicorp/terraform-provider-azurerm#31342](https://github.com/hashicorp/terraform-provider-azurerm/issues/31342));
+adopting it will also need a Cilium network policy allowing pod egress to
+169.254.10.0/24:53 wherever network policies are enabled, and enabling it
+reimages the node pool.
