@@ -126,6 +126,19 @@ module "coredns" {
   ]
 }
 
+# Install node-local-dns to cache DNS lookups on every node
+module "node_local_dns" {
+  source = "../../../kubernetes/modules/node-local-dns"
+
+  # EKS assigns kube-dns the .10 address of the cluster service CIDR
+  dns_server = cidrhost(module.eks.cluster_service_cidr, 10)
+
+  depends_on = [
+    module.base_node_group,
+    module.coredns,
+  ]
+}
+
 # 2.2 Install Karpenter to manage creation of additional nodes
 module "karpenter" {
   source = "../../modules/karpenter"

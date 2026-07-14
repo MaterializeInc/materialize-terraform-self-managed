@@ -191,6 +191,10 @@ module "gke" {
   labels                            = var.labels
   datapath_provider                 = var.datapath_provider
 
+  # Cache DNS lookups on every node. On Dataplane V2 the GKE addon is the only
+  # working node-local DNS option (see the variable description in the module).
+  enable_node_local_dns = true
+
   # Pinned to STABLE: REGULAR's 1.35.x line regressed cleanup of the per-cluster
   # k8s-<cluster-uid>-node-http-hc firewall on cluster destroy, leaving the VPC
   # un-deletable. STABLE is still on 1.34.x which doesn't have the regression.

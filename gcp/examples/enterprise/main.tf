@@ -213,6 +213,10 @@ module "gke" {
   k8s_apiserver_authorized_networks = var.k8s_apiserver_authorized_networks
   labels                            = var.labels
   datapath_provider                 = var.datapath_provider
+
+  # Cache DNS lookups on every node. On Dataplane V2 the GKE addon is the only
+  # working node-local DNS option (see the variable description in the module).
+  enable_node_local_dns = true
 }
 
 # Create and configure generic node pool for all workloads except Materialize

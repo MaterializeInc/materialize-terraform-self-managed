@@ -98,3 +98,15 @@ provider "helm" {
 ### Required Features
 
 Your Azure project needs several APIs enabled. See the [examples/simple/README.md](./examples/simple/README.md#required-features) for the complete list of required APIs and how to enable them.
+
+### NodeLocal DNSCache
+
+The AWS and GCP examples run a node-local DNS cache on every node
+(the [`kubernetes/modules/node-local-dns`](../kubernetes/modules/node-local-dns)
+helm module on EKS, the built-in NodeLocal DNSCache addon on GKE). There is
+currently no equivalent on AKS: these modules use Azure CNI powered by Cilium,
+whose eBPF dataplane resolves the kube-dns service IP before iptables runs, so
+a self-deployed node-local-dns can never intercept pod DNS traffic, and the
+managed Cilium does not expose Local Redirect Policies. Once AKS's native
+LocalDNS feature is generally available and supported by the azurerm provider,
+it should be adopted here.

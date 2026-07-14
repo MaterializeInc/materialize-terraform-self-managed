@@ -101,6 +101,9 @@ resource "google_container_cluster" "primary" {
     gce_persistent_disk_csi_driver_config {
       enabled = var.gce_persistent_disk_csi_driver_enabled
     }
+    dns_cache_config {
+      enabled = var.enable_node_local_dns
+    }
   }
 
   # https://docs.cloud.google.com/kubernetes-engine/docs/how-to/user-managed-firewall-rules#disable-in-new-cluster

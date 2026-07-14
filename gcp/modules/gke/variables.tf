@@ -102,6 +102,13 @@ variable "gce_persistent_disk_csi_driver_enabled" {
   nullable    = false
 }
 
+variable "enable_node_local_dns" {
+  description = "Whether to enable GKE's NodeLocal DNSCache addon, which runs a DNS cache on every node. This is the supported way to get node-local DNS on GKE: with Dataplane V2 a self-deployed node-local-dns cannot intercept kube-dns traffic (service IPs are rewritten in eBPF before iptables sees them). Note: NodeLocal DNSCache caches cluster records for up to 5s even when CoreDNS serves TTL-0 records, and toggling this on an existing cluster recreates all node pools."
+  type        = bool
+  default     = false
+  nullable    = false
+}
+
 variable "labels" {
   description = "Labels to apply to all resources"
   type        = map(string)
