@@ -83,7 +83,9 @@ locals {
   ]
 
   database_config = {
-    tier                    = "db-custom-2-4096"
+    tier = "db-custom-N4-2-4096"
+    # N4 instances only support Hyperdisk Balanced, not PD_SSD.
+    disk_type               = "HYPERDISK_BALANCED"
     database                = { name = "materialize", charset = "UTF8", collation = "en_US.UTF8" }
     user_name               = "materialize"
     db_version              = "POSTGRES_18"
@@ -225,6 +227,7 @@ module "generic_nodepool" {
   min_nodes             = var.generic_nodepool.min_nodes
   max_nodes             = var.generic_nodepool.max_nodes
   machine_type          = var.generic_nodepool.machine_type
+  disk_type             = var.generic_nodepool.disk_type
   disk_size_gb          = var.generic_nodepool.disk_size_gb
   service_account_email = module.gke.service_account_email
   labels                = local.generic_node_labels
@@ -244,6 +247,7 @@ module "materialize_nodepool" {
   min_nodes             = var.materialize_nodepool.min_nodes
   max_nodes             = var.materialize_nodepool.max_nodes
   machine_type          = var.materialize_nodepool.machine_type
+  disk_type             = var.materialize_nodepool.disk_type
   disk_size_gb          = var.materialize_nodepool.disk_size_gb
   service_account_email = module.gke.service_account_email
   labels                = merge(var.labels, local.materialize_node_labels)
@@ -286,6 +290,7 @@ module "database" {
   network_id = module.networking.network_id
 
   tier                    = local.database_config.tier
+  disk_type               = local.database_config.disk_type
   db_version              = local.database_config.db_version
   backup_retained_backups = local.database_config.backup_retained_backups
 

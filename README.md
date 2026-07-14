@@ -172,6 +172,48 @@ We follow semantic versioning with our tags. If a particular version requires ad
 
 ### Upgrade Notes
 
+#### v5.0.0
+
+The GCP examples default to new machine types for higher performance and due to capacity constraints with the previous types:
+
+- Generic node pool: `e2-standard-8` → `c4-standard-8`
+- Materialize node pool: `n2-highmem-8` → `c4a-highmem-8-lssd` (Arm-based; local SSDs are bundled, so `local_ssd_count` is now 2)
+- Cloud SQL: `db-custom-2-4096` → `db-custom-N4-2-4096` with `HYPERDISK_BALANCED` disk (N4 does not support `PD_SSD`)
+
+The nodepool module gained a `disk_type` variable. C4 and C4A only support Hyperdisk boot disks, and an existing node pool keeps its old disk type when the machine type changes, so set `disk_type = "hyperdisk-balanced"` (the examples now do) when moving to these machine types.
+
+**Impact on existing deployments:**
+
+These changes are for the examples. You are not required to change your existing infrastructure at this time, but future testing and performance profiling will be done using the newer machine and disk types. As such, we recommend updating your configuration at your convenience.
+
+- **Node pools**: Do not change the machine type on an existing materialize node pool. Instead, migrate blue-green:
+  1. Bump `ref=<tag>` on all modules, keeping your existing machine types, `disk_type`, and database tier unchanged. The tag bump alone doesn't modify existing node pools (`disk_type` defaults to `null`), and it makes the new `disk_type` variable available for the next step. Don't set `disk_type` on the old pool — Hyperdisk is not supported on the older machine series.
+  2. Add a new nodepool module instance with the new machine type and `disk_type` (use a new `prefix` so the pool gets a distinct name), keeping the old pool unchanged. For a swap-enabled pool, also set a distinct `disk_setup_name` (e.g. `disk-setup-v2`) — it names the disk-setup namespace and daemonset, which otherwise collide with the old pool's. Also update the `local_ssd_count` for the new instance type (`c4a-highmem-8-lssd` has 2, for example).
+  3. `terraform apply` to create the new node pool.
+  4. Add a decommission taint to the old pool's `node_taints`, for example:
+
+     ```hcl
+     node_taints = [
+       # ... existing taints ...
+       {
+         key    = "materialize.cloud/decommissioned"
+         value  = "true"
+         effect = "NO_SCHEDULE"
+       }
+     ]
+     ```
+
+     Taints update in place (no pool replacement) on the provider versions these modules require. Running pods are not evicted, but no new pods schedule to the old pool, and the cluster autoscaler will not scale it up for pending pods, since they don't tolerate the taint. Use a taint key the Materialize pods don't tolerate (not `materialize.cloud/workload` or `kubernetes.io/arch`).
+  5. `terraform apply` to apply the decommision taint to the old pool.
+  6. Prepare a rollout of your Materialize instances by setting the `force_rollout` field to a new UUID. If you have reverted back into the `v1alpha1` version of the Materialize CRD, also set `request_rollout` to the same UUID.
+  7. `terraform apply` to perform the rollout.
+  8. Verify the new environmentd and clusterd pods are only scheduled onto the new pool.
+  9. Remove the old nodepool module instance from your configuration.
+  10. `terraform apply` to delete the old pool.
+- **Cloud SQL**: Do **not** adopt the new tier and disk type on an existing instance. `disk_type` changes force instance replacement, which destroys the Materialize metadata database, and Cloud SQL reserves deleted instance names for up to a week, so the recreate also fails with a 409. Keep existing instances pinned to their current tier (`db-custom-2-4096`) and disk type (`PD_SSD`); the N4 default is for new deployments only.
+
+C4, C4A, and N4 are not available in every region. Verify availability in your region before upgrading, or keep the previous types.
+
 #### v4.0.0
 
 Default to v1 of the Materialize CRD.

@@ -88,19 +88,26 @@ locals {
   ]
 
   gke_config = {
-    machine_type = "n2-highmem-8"
+    # C4A local SSDs are only available on -lssd machine variants.
+    machine_type = "c4a-highmem-8-lssd"
+    # C4A/C4 only support Hyperdisk boot disks. Explicit so that pools
+    # upgraded from an older machine series don't keep pd-balanced.
+    disk_type    = "hyperdisk-balanced"
     disk_size_gb = 100
     min_nodes    = 2
     max_nodes    = 5
   }
 
   database_config = {
-    tier      = "db-custom-2-4096"
+    tier = "db-custom-N4-2-4096"
+    # N4 instances only support Hyperdisk Balanced, not PD_SSD.
+    disk_type = "HYPERDISK_BALANCED"
     database  = { name = "materialize", charset = "UTF8", collation = "en_US.UTF8" }
     user_name = "materialize"
   }
 
-  local_ssd_count = 1
+  # c4a-highmem-8-lssd bundles exactly 2 local SSDs; the count must match.
+  local_ssd_count = 2
   swap_enabled    = true
 
   database_statement_timeout = "15min"
@@ -202,7 +209,8 @@ module "generic_nodepool" {
   project_id            = var.project_id
   min_nodes             = 2
   max_nodes             = 5
-  machine_type          = "e2-standard-8"
+  machine_type          = "c4-standard-8"
+  disk_type             = "hyperdisk-balanced"
   disk_size_gb          = 50
   service_account_email = module.gke.service_account_email
   labels                = local.generic_node_labels
@@ -223,6 +231,7 @@ module "materialize_nodepool" {
   min_nodes             = local.gke_config.min_nodes
   max_nodes             = local.gke_config.max_nodes
   machine_type          = local.gke_config.machine_type
+  disk_type             = local.gke_config.disk_type
   disk_size_gb          = local.gke_config.disk_size_gb
   service_account_email = module.gke.service_account_email
   labels                = merge(var.labels, local.materialize_node_labels)
@@ -273,7 +282,8 @@ module "database" {
   # block the next attempt with a 409 "instance already exists" error.
   random_instance_name = true
 
-  tier = local.database_config.tier
+  tier      = local.database_config.tier
+  disk_type = local.database_config.disk_type
 
   labels = var.labels
 }
