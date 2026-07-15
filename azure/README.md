@@ -103,19 +103,36 @@ Your Azure project needs several APIs enabled. See the [examples/simple/README.m
 
 The AWS and GCP examples run a node-local DNS cache on every node
 (the [`kubernetes/modules/node-local-dns`](../kubernetes/modules/node-local-dns)
-helm module on EKS, the built-in NodeLocal DNSCache addon on GKE). There is
-currently no equivalent here: these modules use Azure CNI powered by Cilium,
-whose eBPF dataplane resolves the kube-dns service IP before iptables runs, so
-a self-deployed node-local-dns can never intercept pod DNS traffic, and the
-managed Cilium does not expose Local Redirect Policies.
+helm module on EKS, the built-in NodeLocal DNSCache addon on GKE). Azure is
+deliberately skipped for now. Options considered:
 
-The path forward is AKS's native
-[LocalDNS](https://learn.microsoft.com/en-us/azure/aks/localdns-custom)
-feature (per-node-pool `--localdns-config`), which sidesteps the interception
-problem entirely by pointing pod resolution at a node-local proxy on
-169.254.10.10. It is blocked on azurerm provider support for
-`localDNSProfile`
-([hashicorp/terraform-provider-azurerm#31342](https://github.com/hashicorp/terraform-provider-azurerm/issues/31342));
-adopting it will also need a Cilium network policy allowing pod egress to
-169.254.10.0/24:53 wherever network policies are enabled, and enabling it
-reimages the node pool.
+- **The helm module (iptables interception)** cannot work here. These modules
+  use Azure CNI powered by Cilium, whose eBPF dataplane resolves the kube-dns
+  service IP before iptables runs, so the NOTRACK rules that make the chart
+  work on EKS never see pod DNS traffic.
+- **Cilium Local Redirect Policy** (how Materialize's cloud platform runs
+  node-local-dns on its self-managed Cilium) is unavailable: AKS's managed
+  Cilium does not enable LRP and does not accept custom Cilium CRDs.
+- **Pointing kubelet's `--cluster-dns` at a node-local cache** (what the GKE
+  addon does, managed) is not exposed by AKS's `kubelet_config`, so it would
+  require a privileged DaemonSet that rewrites kubelet config on the host and
+  restarts it. Rejected: unsupported by AKS, undone by every node
+  image upgrade/reimage, and it inverts the failure mode -- with interception
+  a crashed cache falls back to kube-dns, while a kubelet pointed only at a
+  dead local cache takes down DNS for every pod on the node.
+- **AKS's native
+  [LocalDNS](https://learn.microsoft.com/en-us/azure/aks/localdns-custom)**
+  (per-node-pool `--localdns-config`) is the right path: it points pod
+  resolution at a node-local proxy on 169.254.10.10 run as a systemd unit, so
+  no interception is needed and it survives pod-level failures. It is blocked
+  on azurerm provider support for `localDNSProfile`
+  ([hashicorp/terraform-provider-azurerm#31342](https://github.com/hashicorp/terraform-provider-azurerm/issues/31342)).
+  A `local-exec` provisioner running `az aks nodepool update --localdns-config`
+  would work today, but until the provider is localDNSProfile-aware, any later
+  azurerm update to a node pool can silently drop the profile and reimage the
+  pool, so it was not worth the fragility.
+
+When adopting LocalDNS once the provider supports it, note that enabling it
+reimages the node pool, and namespaces with network policies enabled need
+egress to 169.254.10.0/24:53 allowed (Cilium default-denies unlisted
+destinations, and LocalDNS moves pod resolution off the kube-dns service IP).
