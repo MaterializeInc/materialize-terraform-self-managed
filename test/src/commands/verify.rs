@@ -39,6 +39,9 @@ pub async fn phase_verify(dir: &Path) -> Result<()> {
         println!("\nVerifying pods in namespace {instance_namespace}...");
         verify_pods_running(&kubeconfig, instance_namespace).await?;
 
+        println!("\nVerifying node-local-dns...");
+        verify_node_local_dns(&kubeconfig, provider).await?;
+
         if let Some(endpoint) = outputs.load_balancer_endpoint() {
             println!("\nVerifying Materialize SQL connectivity at {endpoint}...");
             verify_sql_connection(endpoint, &outputs).await?;
@@ -269,6 +272,46 @@ async fn check_expected_pods(kubeconfig: &Path, namespace: &str) -> Result<()> {
     for (name, phase) in &pods {
         println!("  [ok] {name}: {phase}");
     }
+    Ok(())
+}
+
+/// Waits for the node-local-dns DaemonSet to be ready. It is deployed by the
+/// node-local-dns helm module on AWS and by the NodeLocal DNSCache addon on
+/// GCP; AKS has no supported node-local DNS option (see azure/README.md).
+async fn verify_node_local_dns(kubeconfig: &Path, provider: CloudProvider) -> Result<()> {
+    if matches!(provider, CloudProvider::Azure) {
+        println!("  Skipping node-local-dns check (not supported on AKS).");
+        return Ok(());
+    }
+
+    const MAX_ATTEMPTS: u32 = 10;
+    const INTERVAL: std::time::Duration = std::time::Duration::from_secs(10);
+
+    retry(
+        MAX_ATTEMPTS,
+        INTERVAL,
+        |attempt, err| {
+            println!(
+                "  Attempt {attempt}/{MAX_ATTEMPTS}: {err:#}, retrying in {}s...",
+                INTERVAL.as_secs()
+            );
+        },
+        || async {
+            run_cmd(kubectl(kubeconfig).args([
+                "rollout",
+                "status",
+                "daemonset/node-local-dns",
+                "-n",
+                "kube-system",
+                "--timeout=60s",
+            ]))
+            .await
+        },
+    )
+    .await
+    .context("node-local-dns DaemonSet did not become ready within timeout")?;
+
+    println!("  node-local-dns DaemonSet is ready.");
     Ok(())
 }
 
