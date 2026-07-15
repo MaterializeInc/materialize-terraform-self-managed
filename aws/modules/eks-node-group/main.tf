@@ -43,11 +43,14 @@ resource "terraform_data" "eni_cleanup" {
     profile           = var.aws_profile
   }
 
+  # NOTE: local-exec scripts in this module must stay POSIX sh compatible
+  # (no bashisms): terraform runs them with its default /bin/sh, which may
+  # be dash, busybox sh (e.g. in Materialize's BYOC stack-deployer image),
+  # or another minimal shell.
   provisioner "local-exec" {
-    when        = destroy
-    interpreter = ["/usr/bin/env", "bash", "-c"]
-    command     = <<-SCRIPT
-      set -euo pipefail
+    when    = destroy
+    command = <<-SCRIPT
+      set -eu
 
       SG_ID="${self.triggers_replace.security_group_id}"
       REGION="${self.triggers_replace.region}"
@@ -64,7 +67,7 @@ resource "terraform_data" "eni_cleanup" {
       NODE_GROUP_PREFIX="${self.triggers_replace.node_group_name}"
 
       delete_eni() {
-        local ENI_ID="$1"
+        ENI_ID="$1"
         echo "  Deleting $ENI_ID..."
         # The ENI may have been deleted between the list call and now
         # (e.g. by the VPC CNI). Treat NotFound as success.

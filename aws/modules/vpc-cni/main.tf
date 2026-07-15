@@ -13,11 +13,14 @@ resource "terraform_data" "annotate_existing_resources" {
     KUBECONFIG_DATA = var.kubeconfig_data
   }
 
+  # NOTE: local-exec scripts in this module must stay POSIX sh compatible
+  # (no bashisms): terraform runs them with its default /bin/sh, which may
+  # be dash, busybox sh (e.g. in Materialize's BYOC stack-deployer image),
+  # or another minimal shell.
   provisioner "local-exec" {
-    interpreter = ["/usr/bin/env", "bash", "-c"]
     environment = self.input
     command     = <<-EOF
-      set -euo pipefail
+      set -eu
 
       kubeconfig_file=$(mktemp)
       trap "rm -f '$${kubeconfig_file}'" EXIT

@@ -277,17 +277,20 @@ resource "kubernetes_deployment" "coredns" {
 resource "terraform_data" "scale_down_kube_dns_autoscaler" {
   count            = var.disable_default_coredns_autoscaler ? 1 : 0
   triggers_replace = [var.cluster_identifier, var.coredns_autoscaler_deployment_to_scale_down, local.namespace]
+  # NOTE: local-exec scripts in this module must stay POSIX sh compatible
+  # (no bashisms): terraform runs them with its default /bin/sh, which may
+  # be dash, busybox sh (e.g. in Materialize's BYOC stack-deployer image),
+  # or another minimal shell.
   provisioner "local-exec" {
-    interpreter = ["/usr/bin/env", "bash", "-c"]
-    when        = create
-    on_failure  = fail
+    when       = create
+    on_failure = fail
     environment = {
       KUBECONFIG_DATA = var.kubeconfig_data
       DEPLOYMENT_NAME = var.coredns_autoscaler_deployment_to_scale_down
       NAMESPACE       = local.namespace
     }
     command = <<-EOT
-      set -euo pipefail
+      set -eu
 
       kubeconfig_file=$(mktemp)
       trap "rm -f '$${kubeconfig_file}'" EXIT
@@ -310,9 +313,8 @@ resource "terraform_data" "scale_down_kube_dns" {
   count            = var.disable_default_coredns ? 1 : 0
   triggers_replace = [var.cluster_identifier, var.coredns_deployment_to_scale_down, local.namespace]
   provisioner "local-exec" {
-    interpreter = ["/usr/bin/env", "bash", "-c"]
-    when        = create
-    on_failure  = fail
+    when       = create
+    on_failure = fail
     environment = {
       KUBECONFIG_DATA = var.kubeconfig_data
       DEPLOYMENT_NAME = var.coredns_deployment_to_scale_down
@@ -320,7 +322,7 @@ resource "terraform_data" "scale_down_kube_dns" {
     }
 
     command = <<-EOT
-      set -euo pipefail
+      set -eu
 
       kubeconfig_file=$(mktemp)
       trap "rm -f '$${kubeconfig_file}'" EXIT
