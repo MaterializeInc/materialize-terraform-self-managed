@@ -106,10 +106,14 @@ The AWS and GCP examples run a node-local DNS cache on every node
 helm module on EKS, the built-in NodeLocal DNSCache addon on GKE). Azure is
 deliberately skipped for now. Options considered:
 
-- **The helm module (iptables interception)** cannot work here. These modules
-  use Azure CNI powered by Cilium, whose eBPF dataplane resolves the kube-dns
-  service IP before iptables runs, so the NOTRACK rules that make the chart
-  work on EKS never see pod DNS traffic.
+- **The helm module (iptables interception)** cannot work here. The chart's
+  default mode changes nothing on the node or in kubelet: the DaemonSet itself
+  binds the kube-dns service IP on a dummy interface, and pods keep querying
+  that IP as usual. That only works when service traffic actually leaves the
+  pod addressed to the service IP. These modules use Azure CNI powered by
+  Cilium, whose eBPF dataplane resolves the kube-dns service IP at connection
+  time, so the NOTRACK rules and locally bound IP that make the chart work on
+  EKS never see pod DNS traffic.
 - **Cilium Local Redirect Policy** (how Materialize's cloud platform runs
   node-local-dns on its self-managed Cilium) is unavailable: AKS's managed
   Cilium does not enable LRP and does not accept custom Cilium CRDs.
