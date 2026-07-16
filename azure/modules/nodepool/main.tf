@@ -15,7 +15,7 @@ locals {
     } : {}
   )
 
-  disk_setup_name = "disk-setup"
+  disk_setup_name = var.disk_setup_name
 
   disk_setup_labels = merge(
     var.labels,
@@ -115,6 +115,14 @@ resource "kubernetes_daemonset" "disk_setup" {
                   key      = "materialize.cloud/swap"
                   operator = "In"
                   values   = ["true"]
+                }
+                # Scope to this module instance's pool so multiple swap-enabled
+                # pools (e.g. during a blue-green machine type migration) each
+                # run only their own disk-setup daemonset.
+                match_expressions {
+                  key      = "kubernetes.azure.com/agentpool"
+                  operator = "In"
+                  values   = [local.nodepool_name]
                 }
               }
             }
