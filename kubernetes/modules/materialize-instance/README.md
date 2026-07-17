@@ -1,7 +1,7 @@
 ## Requirements
 
 | Name | Version |
-| ---- | ------- |
+|------|---------|
 | <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | >= 1.0 |
 | <a name="requirement_kubectl"></a> [kubectl](#requirement\_kubectl) | 2.4.1 |
 | <a name="requirement_kubernetes"></a> [kubernetes](#requirement\_kubernetes) | >= 2.10.0, < 2.39.0 |
@@ -9,7 +9,7 @@
 ## Providers
 
 | Name | Version |
-| ---- | ------- |
+|------|---------|
 | <a name="provider_kubectl"></a> [kubectl](#provider\_kubectl) | 2.4.1 |
 | <a name="provider_kubernetes"></a> [kubernetes](#provider\_kubernetes) | >= 2.10.0, < 2.39.0 |
 
@@ -20,7 +20,7 @@ No modules.
 ## Resources
 
 | Name | Type |
-| ---- | ---- |
+|------|------|
 | [kubectl_manifest.materialize_instance](https://registry.terraform.io/providers/alekc/kubectl/2.4.1/docs/resources/manifest) | resource |
 | [kubernetes_config_map.system_params](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/config_map) | resource |
 | [kubernetes_namespace.instance](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/namespace) | resource |
@@ -34,7 +34,7 @@ No modules.
 ## Inputs
 
 | Name | Description | Type | Default | Required |
-| ---- | ----------- | ---- | ------- | :------: |
+|------|-------------|------|---------|:--------:|
 | <a name="input_authenticator_kind"></a> [authenticator\_kind](#input\_authenticator\_kind) | Kind of authenticator to use for Materialize instance | `string` | `"None"` | no |
 | <a name="input_balancer_cpu_request"></a> [balancer\_cpu\_request](#input\_balancer\_cpu\_request) | CPU request for balancer | `string` | `"100m"` | no |
 | <a name="input_balancer_memory_limit"></a> [balancer\_memory\_limit](#input\_balancer\_memory\_limit) | Memory limit for balancer | `string` | `"256Mi"` | no |
@@ -47,7 +47,7 @@ No modules.
 | <a name="input_enable_network_policies"></a> [enable\_network\_policies](#input\_enable\_network\_policies) | Enable default-deny-ingress network policy for the instance namespace. Helm chart creates specific allow policies. | `bool` | `true` | no |
 | <a name="input_environmentd_extra_args"></a> [environmentd\_extra\_args](#input\_environmentd\_extra\_args) | Extra command line arguments for environmentd | `list(string)` | `[]` | no |
 | <a name="input_environmentd_extra_env"></a> [environmentd\_extra\_env](#input\_environmentd\_extra\_env) | Extra environment variables for environmentd | <pre>list(object({<br/>    name  = string<br/>    value = string<br/>  }))</pre> | `[]` | no |
-| <a name="input_environmentd_version"></a> [environmentd\_version](#input\_environmentd\_version) | Version of environmentd to use | `string` | `"v26.32.0"` | no |
+| <a name="input_environmentd_version"></a> [environmentd\_version](#input\_environmentd\_version) | Version of environmentd to use | `string` | `"v26.33.0"` | no |
 | <a name="input_external_login_password_mz_system"></a> [external\_login\_password\_mz\_system](#input\_external\_login\_password\_mz\_system) | Password for external login to mz\_system. Must be set if authenticator\_kind is 'Password', 'Sasl', or 'Oidc'. | `string` | `null` | no |
 | <a name="input_force_rollout"></a> [force\_rollout](#input\_force\_rollout) | UUID to force a rollout | `string` | `"00000000-0000-0000-0000-000000000001"` | no |
 | <a name="input_instance_name"></a> [instance\_name](#input\_instance\_name) | Name of the Materialize instance | `string` | n/a | yes |
@@ -70,7 +70,7 @@ No modules.
 ## Outputs
 
 | Name | Description |
-| ---- | ----------- |
+|------|-------------|
 | <a name="output_instance_name"></a> [instance\_name](#output\_instance\_name) | Name of the Materialize instance |
 | <a name="output_instance_namespace"></a> [instance\_namespace](#output\_instance\_namespace) | Namespace of the Materialize instance |
 | <a name="output_instance_resource_id"></a> [instance\_resource\_id](#output\_instance\_resource\_id) | Resource ID of the Materialize instance |
