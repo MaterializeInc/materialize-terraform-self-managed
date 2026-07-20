@@ -1,0 +1,58 @@
+name: Regenerate Docs
+
+# Regenerate module README docs on PRs carrying the "regenerate-docs" label
+# (Renovate applies it via renovate.json) and commit them back to the PR
+# branch. The lint.yml "Check Generated Docs" job fails when a dependency bump
+# changes module inputs/outputs; this keeps those PRs green without manual
+# intervention.
+
+on:
+  pull_request:
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - labeled
+
+permissions:
+  contents: write
+
+jobs:
+  docs:
+    name: Regenerate Docs
+    # Gate on the label. The bot-token push DOES retrigger this workflow
+    # (synchronize), but the second run finds docs already current, so the
+    # "git diff --quiet" check no-ops and it cannot loop.
+    if: contains(github.event.pull_request.labels.*.name, 'regenerate-docs')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ github.head_ref }}
+          # NOT the default GITHUB_TOKEN: commits it pushes emit no events, so
+          # they never re-trigger the required "ci-success" check on the new
+          # commit, leaving "Check Generated Docs" red. The bot token's pushes
+          # do trigger CI, flipping the check green.
+          token: ${{ secrets.MATERIALIZE_BOT_TOKEN }}
+
+      - name: Setup terraform-docs
+        uses: jaxxstorm/action-install-gh-release@25e24d2d23ae098373794ef1d6faecb48ee52da8 # v3.0.0
+        with:
+          repo: terraform-docs/terraform-docs
+          tag: v0.24.0
+
+      - name: Generate docs
+        run: .github/scripts/generate-docs.sh
+
+      - name: Commit updated docs
+        run: |
+          if git diff --quiet; then
+            echo "Docs already up to date."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "chore: regenerate module docs"
+          git push

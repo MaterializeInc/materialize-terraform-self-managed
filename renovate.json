@@ -3,5 +3,8 @@
   "extends": [
     "config:recommended"
   ],
-  "rangeStrategy": "widen"
+  "rangeStrategy": "widen",
+  "labels": [
+    "regenerate-docs"
+  ]
 }
