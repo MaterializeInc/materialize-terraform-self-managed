@@ -201,6 +201,10 @@ module "nodepool_generic" {
   node_labels    = local.generic_node_labels
   expire_after   = "168h"
 
+  # Generic workloads can tolerate eviction, so cap how long draining
+  # pods can delay node replacement.
+  termination_grace_period = "300s"
+
   kubeconfig_data = local.kubeconfig_data
 
   depends_on = [
@@ -245,6 +249,12 @@ module "nodepool_materialize" {
   # the node should have all pods removed from it and be consolidated. You may
   # also delete the node after all clusterd and environmentd pods have been moved off.
   expire_after = "Never"
+
+  # WARNING: leave termination_grace_period unset here. If set, Karpenter
+  # will replace drifted nodes (e.g. after an instance type change) even
+  # though Materialize pods carry the karpenter.sh/do-not-disrupt
+  # annotation, force-evicting them once the deadline passes. Unset, those
+  # pods block disruption until a Materialize rollout moves them.
 
   kubeconfig_data = local.kubeconfig_data
 

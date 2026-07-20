@@ -172,6 +172,39 @@ We follow semantic versioning with our tags. If a particular version requires ad
 
 ### Upgrade Notes
 
+#### v6.0.0
+
+The AWS `karpenter-nodepool` module no longer hardcodes `terminationGracePeriod: 300s` on Karpenter NodePools. A new `termination_grace_period` variable controls it and defaults to `null` (unset).
+
+With a `terminationGracePeriod` set, Karpenter replaces drifted nodes (for example, after changing the node pool's instance types) even when pods carry the `karpenter.sh/do-not-disrupt` annotation — the annotation and PDBs only delay eviction until the node's termination deadline. Materialize instance pods were therefore force-evicted about 5 minutes after any node pool change. With it unset, do-not-disrupt pods block disruption until a Materialize rollout moves them.
+
+The AWS examples now set `termination_grace_period = "300s"` on the generic pool (matching the previously hardcoded value; its workloads tolerate eviction) and leave it unset on the materialize pool.
+
+**Impact on existing deployments:**
+
+Karpenter stamps `terminationGracePeriod` into each NodeClaim when the node is created and never updates it afterwards; changing the NodePool only marks existing nodes as Drifted. Existing materialize nodes were created with `300s` baked in, so the first `terraform apply` that changes the NodePool template (including removing `terminationGracePeriod`) drift-replaces them, and their baked-in deadline bypasses do-not-disrupt one final time. Materialize pods restart with a short interruption.
+
+If a one-time restart of your Materialize instances is acceptable, bump `ref=<tag>` and apply. The replacement nodes are created without `terminationGracePeriod`, and node pool changes from then on respect do-not-disrupt.
+
+To migrate without downtime, keep the old pool's template unchanged and move pods to a new pool first, similar to the GCP node pool migration in v5.0.0:
+
+1. Bump `ref=<tag>` on all modules, and set `termination_grace_period = "300s"` on your existing materialize nodepool module instance. This matches the value the module previously hardcoded, so the NodePool template is unchanged and no nodes drift. Keep the generic pool at `"300s"` (as the examples do) and its nodes don't drift either.
+2. `terraform apply`. There should be no changes to the `termination_grace_period` on the node pools.
+3. Add a second materialize nodepool module instance with a new `name` (for example `materialize2`), the same `nodeclass_name`, labels, and taints, but `termination_grace_period` should be unset.
+4. `terraform init && terraform apply` to create the new NodePool. It has no nodes yet.
+5. Prevent the old NodePool from provisioning new nodes by setting `limits = { cpu = "0" }` on the old materialize nodepool module instance. Limits are not part of the NodePool template, so this does not drift the existing nodes.
+6. `terraform apply` to cap the old NodePool. Do this before cordoning: if the pool were still uncapped when its nodes are cordoned, any pending pods could cause Karpenter to provision fresh (uncordoned) nodes from the old pool.
+7. Cordon the old pool's nodes so the rollout's new pods cannot be scheduled onto them. Cordoning only blocks new scheduling; the pods already running there are unaffected:
+
+   ```bash
+   kubectl cordon -l karpenter.sh/nodepool=materialize
+   ```
+8. Prepare a rollout of your Materialize instances by setting the `force_rollout` field to a new UUID. If you have reverted to the `v1alpha1` version of the Materialize CRD, also set `request_rollout` to the same UUID.
+9. `terraform apply` to perform the rollout. The old pool's nodes are cordoned and the pool is capped, so Karpenter provisions capacity from the new pool for the new-generation pods.
+10. Verify the new environmentd and clusterd pods are running on the new pool's nodes. Once the old nodes are empty, Karpenter consolidates them away (`WhenEmpty`, after 60s); cordoning does not block this.
+11. Remove the old nodepool module instance (with its `termination_grace_period = "300s"` pin and `limits` cap) from your configuration.
+12. `terraform apply` to delete the old NodePool.
+
 #### v5.0.0
 
 The GCP examples default to new machine types for higher performance and due to capacity constraints with the previous types:

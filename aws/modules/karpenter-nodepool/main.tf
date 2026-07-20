@@ -44,37 +44,46 @@ resource "kubectl_manifest" "nodepool" {
       "metadata" : {
         "name" : var.name,
       },
-      "spec" : {
-        "disruption" : var.disruption,
-        "template" : {
-          "metadata" : {
-            "labels" : var.node_labels,
-          },
-          "spec" : {
-            "expireAfter" : var.expire_after,
-            "nodeClassRef" : {
-              "group" : "karpenter.k8s.aws",
-              "kind" : "EC2NodeClass",
-              "name" : var.nodeclass_name,
+      "spec" : merge(
+        {
+          "disruption" : var.disruption,
+          "template" : {
+            "metadata" : {
+              "labels" : var.node_labels,
             },
-            "requirements" : [
+            "spec" : merge(
               {
-                "key" : "node.kubernetes.io/instance-type",
-                "operator" : "In",
-                "values" : var.instance_types,
+                "expireAfter" : var.expire_after,
+                "nodeClassRef" : {
+                  "group" : "karpenter.k8s.aws",
+                  "kind" : "EC2NodeClass",
+                  "name" : var.nodeclass_name,
+                },
+                "requirements" : [
+                  {
+                    "key" : "node.kubernetes.io/instance-type",
+                    "operator" : "In",
+                    "values" : var.instance_types,
+                  },
+                  # TODO zone?
+                  {
+                    "key" : "karpenter.sh/capacity-type",
+                    "operator" : "In",
+                    "values" : ["on-demand"],
+                  },
+                ],
+                "taints" : var.node_taints,
               },
-              # TODO zone?
-              {
-                "key" : "karpenter.sh/capacity-type",
-                "operator" : "In",
-                "values" : ["on-demand"],
-              },
-            ],
-            "taints" : var.node_taints,
-            "terminationGracePeriod" : "300s",
+              var.termination_grace_period != null ? {
+                "terminationGracePeriod" : var.termination_grace_period,
+              } : {},
+            ),
           },
         },
-      },
+        var.limits != null ? {
+          "limits" : var.limits,
+        } : {},
+      ),
     }
   )
 
