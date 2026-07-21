@@ -17,7 +17,7 @@
 
 | Name | Source | Version |
 | ---- | ------ | ------- |
-| <a name="module_virtual_network"></a> [virtual\_network](#module\_virtual\_network) | Azure/avm-res-network-virtualnetwork/azurerm | 0.10.0 |
+| <a name="module_virtual_network"></a> [virtual\_network](#module\_virtual\_network) | Azure/avm-res-network-virtualnetwork/azurerm | 0.19.0 |
 
 ## Resources
 
