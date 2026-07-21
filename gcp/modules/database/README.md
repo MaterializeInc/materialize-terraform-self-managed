@@ -13,7 +13,7 @@ No providers.
 
 | Name | Source | Version |
 | ---- | ------ | ------- |
-| <a name="module_postgresql"></a> [postgresql](#module\_postgresql) | terraform-google-modules/sql-db/google//modules/postgresql | 26.2.2 |
+| <a name="module_postgresql"></a> [postgresql](#module\_postgresql) | terraform-google-modules/sql-db/google//modules/postgresql | 28.1.0 |
 
 ## Resources
 
