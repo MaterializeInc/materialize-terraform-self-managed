@@ -340,6 +340,10 @@ module "operator" {
     module.nodepool_generic,
     module.coredns,
     module.vpc_cni,
+    # The operator Helm chart renders cert-manager Certificate/Issuer resources
+    # for its own TLS, so cert-manager (its CRDs) must be installed first. The
+    # simple example already declares this; keep the enterprise example in sync.
+    module.cert_manager,
   ]
 }
 
