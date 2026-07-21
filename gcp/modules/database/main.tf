@@ -10,7 +10,7 @@ locals {
 }
 module "postgresql" {
   source  = "terraform-google-modules/sql-db/google//modules/postgresql"
-  version = "26.2.2"
+  version = "28.1.0"
 
   name                 = "${var.prefix}-pg"
   random_instance_name = var.random_instance_name
