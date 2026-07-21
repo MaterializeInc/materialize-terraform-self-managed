@@ -80,7 +80,8 @@ the GCP modules create:
 | `roles/servicenetworking.networksAdmin` | Private Services Access peering used by Cloud SQL's private IP |
 | `roles/container.admin` | GKE cluster and node pools (also grants the creating identity cluster-admin RBAC, which the Kubernetes and Helm providers rely on) |
 | `roles/cloudsql.admin` | Cloud SQL instance, databases, and users |
-| `roles/storage.admin` | Cloud Storage bucket, HMAC keys, and bucket IAM bindings |
+| `roles/storage.admin` | Cloud Storage bucket and bucket IAM bindings |
+| `roles/storage.hmacKeyAdmin` | HMAC key for the GCS S3-compatible persist backend (see note — `roles/storage.admin` does **not** include HMAC key permissions) |
 | `roles/iam.serviceAccountAdmin` | Creating the GKE node and Materialize Workload Identity service accounts and setting their IAM policy |
 | `roles/iam.serviceAccountUser` | Allowing GKE nodes to run as the node service account (`actAs`) |
 
@@ -94,6 +95,7 @@ for role in \
   roles/container.admin \
   roles/cloudsql.admin \
   roles/storage.admin \
+  roles/storage.hmacKeyAdmin \
   roles/iam.serviceAccountAdmin \
   roles/iam.serviceAccountUser; do
   gcloud projects add-iam-policy-binding "$PROJECT" \
@@ -106,6 +108,13 @@ done
 > add peering for service 'servicenetworking.googleapis.com'` — even when the
 > Service Networking **API** is enabled. The API and the IAM role are separate
 > requirements: enabling the API is necessary but not sufficient.
+
+> **Also commonly missed:** `roles/storage.admin` does **not** grant HMAC key
+> permissions (`storage.hmacKeys.*`). The GCP storage module creates an HMAC key
+> for the S3-compatible persist backend, so without `roles/storage.hmacKeyAdmin`
+> apply/plan fails with `Error 403: ... does not have storage.hmacKeys.get
+> access`. Project **Owner/Editor** includes these permissions implicitly, which
+> is why this only surfaces under least privilege.
 
 ### Authenticating to GKE from CI (Workload Identity Federation)
 
