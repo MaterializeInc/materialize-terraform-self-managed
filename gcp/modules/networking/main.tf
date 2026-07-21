@@ -3,7 +3,7 @@ locals {
     name              = "${var.prefix}-default-route"
     description       = "route through IGW to access internet"
     destination_range = "0.0.0.0/0"
-    tags              = "egress-inet"
+    tags              = ["egress-inet"]
     next_hop_internet = "true"
   }
   router_name = "${var.prefix}-router"
