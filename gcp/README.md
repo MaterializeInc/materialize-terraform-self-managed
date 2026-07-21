@@ -100,3 +100,7 @@ provider "helm" {
 ### Required APIs
 
 Your GCP project needs several APIs enabled. See the [examples/simple/README.md](./examples/simple/README.md#required-apis) for the complete list of required APIs and how to enable them.
+
+### Required IAM roles
+
+The identity running Terraform must be able to create every resource in these modules. Deploying as a project Owner/Editor covers this; for a least-privilege or CI (Workload Identity Federation) principal, see [Required IAM roles](./examples/simple/README.md#required-iam-roles) in the simple example. Note that enabling an API is separate from being granted the IAM role that uses it — most notably `servicenetworking.googleapis.com` (API) versus `roles/servicenetworking.networksAdmin` (role) for Cloud SQL's private IP.

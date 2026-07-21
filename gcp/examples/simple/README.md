@@ -62,6 +62,56 @@ gcloud services enable iam.googleapis.com                     # For managing IAM
 gcloud services enable storage.googleapis.com                 # For Cloud Storage buckets
 ```
 
+## Required IAM roles
+
+The identity that runs Terraform — a user via `gcloud auth application-default
+login`, or a CI service account / Workload Identity Federation principal — must
+be able to create every resource in these modules. If you deploy as a project
+**Owner** or **Editor** (common for interactive use), this is already covered
+and you can skip this section.
+
+If you run under **least privilege** (recommended for CI), grant the deploying
+principal these roles on the project. This is a working starting point for what
+the GCP modules create:
+
+| Role | Needed for |
+|------|------------|
+| `roles/compute.networkAdmin` | VPC, subnets, routes, and firewall rules |
+| `roles/servicenetworking.networksAdmin` | Private Services Access peering used by Cloud SQL's private IP |
+| `roles/container.admin` | GKE cluster and node pools (also grants the creating identity cluster-admin RBAC, which the Kubernetes and Helm providers rely on) |
+| `roles/cloudsql.admin` | Cloud SQL instance, databases, and users |
+| `roles/storage.admin` | Cloud Storage bucket, HMAC keys, and bucket IAM bindings |
+| `roles/iam.serviceAccountAdmin` | Creating the GKE node and Materialize Workload Identity service accounts and setting their IAM policy |
+| `roles/iam.serviceAccountUser` | Allowing GKE nodes to run as the node service account (`actAs`) |
+
+```bash
+# Example: grant the roles to a CI service account on the project
+PROJECT=my-gcp-project
+PRINCIPAL="serviceAccount:terraform@my-gcp-project.iam.gserviceaccount.com"
+for role in \
+  roles/compute.networkAdmin \
+  roles/servicenetworking.networksAdmin \
+  roles/container.admin \
+  roles/cloudsql.admin \
+  roles/storage.admin \
+  roles/iam.serviceAccountAdmin \
+  roles/iam.serviceAccountUser; do
+  gcloud projects add-iam-policy-binding "$PROJECT" \
+    --member="$PRINCIPAL" --role="$role" --condition=None
+done
+```
+
+> **Commonly missed:** without `roles/servicenetworking.networksAdmin`, apply
+> fails at the private-services connection with `Error 403: Permission denied to
+> add peering for service 'servicenetworking.googleapis.com'` — even when the
+> Service Networking **API** is enabled. The API and the IAM role are separate
+> requirements: enabling the API is necessary but not sufficient.
+
+If you extend these modules — for example a cert-manager ACME DNS-01 issuer that
+manages a Cloud DNS zone, or resources that create service-account keys or
+project IAM bindings — grant the matching roles as well (`roles/dns.admin`,
+`roles/iam.serviceAccountKeyAdmin`, `roles/resourcemanager.projectIamAdmin`).
+
 ## Getting Started
 
 ### Step 1: Set Required Variables
