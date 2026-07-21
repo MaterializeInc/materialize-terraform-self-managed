@@ -71,8 +71,12 @@ be able to create every resource in these modules. If you deploy as a project
 and you can skip this section.
 
 If you run under **least privilege** (recommended for CI), grant the deploying
-principal these roles on the project. This is a working starting point for what
-the GCP modules create:
+principal these roles on the project. Project Owner/Editor bundles most of these
+implicitly, so a gap does not appear until you drop to least privilege — and
+then it surfaces as a separate `403` (or `401`) partway through an apply, often
+after real infrastructure has already been created. The set below is a working
+starting point for what the GCP modules create, validated end-to-end against a
+full deployment:
 
 | Role | Needed for |
 |------|------------|
@@ -82,7 +86,7 @@ the GCP modules create:
 | `roles/cloudsql.admin` | Cloud SQL instance, databases, and users |
 | `roles/storage.admin` | Cloud Storage bucket and bucket IAM bindings |
 | `roles/storage.hmacKeyAdmin` | HMAC key for the GCS S3-compatible persist backend (see note — `roles/storage.admin` does **not** include HMAC key permissions) |
-| `roles/iam.serviceAccountAdmin` | Creating the GKE node and Materialize Workload Identity service accounts and setting their IAM policy |
+| `roles/iam.serviceAccountAdmin` | Creating the GKE node and Materialize Workload Identity service accounts **and** setting their IAM policy for the Workload Identity binding. The narrower `roles/iam.serviceAccountCreator` is not enough — it lacks `iam.serviceAccounts.setIamPolicy`, so the binding fails with a `403`. |
 | `roles/iam.serviceAccountUser` | Allowing GKE nodes to run as the node service account (`actAs`) |
 
 ```bash
@@ -110,11 +114,10 @@ done
 > requirements: enabling the API is necessary but not sufficient.
 
 > **Also commonly missed:** `roles/storage.admin` does **not** grant HMAC key
-> permissions (`storage.hmacKeys.*`). The GCP storage module creates an HMAC key
-> for the S3-compatible persist backend, so without `roles/storage.hmacKeyAdmin`
-> apply/plan fails with `Error 403: ... does not have storage.hmacKeys.get
-> access`. Project **Owner/Editor** includes these permissions implicitly, which
-> is why this only surfaces under least privilege.
+> permissions (`storage.hmacKeys.*`), despite the name. The GCP storage module
+> creates an HMAC key for the S3-compatible persist backend, so without
+> `roles/storage.hmacKeyAdmin` apply/plan fails with `Error 403: ... does not
+> have storage.hmacKeys.get access`.
 
 ### Authenticating to GKE from CI (Workload Identity Federation)
 
