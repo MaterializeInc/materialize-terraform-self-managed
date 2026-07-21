@@ -107,6 +107,39 @@ done
 > Service Networking **API** is enabled. The API and the IAM role are separate
 > requirements: enabling the API is necessary but not sufficient.
 
+### Authenticating to GKE from CI (Workload Identity Federation)
+
+These modules configure the `kubernetes` and `helm` providers with a token from
+`data.google_client_config`, i.e. the identity Terraform runs as. GKE maps that
+identity to Kubernetes RBAC — and it resolves the mapping for a Google
+**service account**, not for a **direct Workload Identity Federation
+principal**. So if CI authenticates as the federated principal directly, cluster
+creation (a Google API call) succeeds, but every `kubernetes_*` / `helm_*`
+resource then fails with:
+
+```
+Error: Unauthorized
+```
+
+This is an authentication (HTTP 401) failure, not a missing IAM role — adding
+project roles will not fix it.
+
+**Fix:** have CI impersonate a Google service account instead of using the
+federated principal directly. With
+[`google-github-actions/auth`](https://github.com/google-github-actions/auth):
+
+```yaml
+- uses: google-github-actions/auth@v2
+  with:
+    workload_identity_provider: ${{ vars.WIF_PROVIDER }}
+    service_account: terraform@my-gcp-project.iam.gserviceaccount.com  # impersonate
+```
+
+Grant that service account the roles in the table above (its
+`roles/container.admin` is what supplies the cluster-admin RBAC mapping), and
+grant the federated principal `roles/iam.serviceAccountTokenCreator` on the
+service account so it may impersonate it.
+
 If you extend these modules — for example a cert-manager ACME DNS-01 issuer that
 manages a Cloud DNS zone, or resources that create service-account keys or
 project IAM bindings — grant the matching roles as well (`roles/dns.admin`,
