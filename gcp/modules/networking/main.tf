@@ -3,7 +3,7 @@ locals {
     name              = "${var.prefix}-default-route"
     description       = "route through IGW to access internet"
     destination_range = "0.0.0.0/0"
-    tags              = "egress-inet"
+    tags              = ["egress-inet"]
     next_hop_internet = "true"
   }
   router_name = "${var.prefix}-router"
@@ -19,7 +19,7 @@ locals {
 
 module "vpc" {
   source  = "terraform-google-modules/network/google"
-  version = "11.1.1"
+  version = "18.1.2"
 
   project_id   = var.project_id
   network_name = "${var.prefix}-network"

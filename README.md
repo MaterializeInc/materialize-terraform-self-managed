@@ -172,6 +172,10 @@ We follow semantic versioning with our tags. If a particular version requires ad
 
 ### Upgrade Notes
 
+#### v7.0.0
+
+The GCP `networking` module now requires a list of strings rather than a single string for `var.routes.tags`.
+
 #### v6.0.0
 
 The AWS `karpenter-nodepool` module no longer hardcodes `terminationGracePeriod: 300s` on Karpenter NodePools. A new `termination_grace_period` variable controls it and defaults to `null` (unset).
