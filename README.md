@@ -172,6 +172,16 @@ We follow semantic versioning with our tags. If a particular version requires ad
 
 ### Upgrade Notes
 
+#### v8.0.0
+
+The GCP modules now require the `hashicorp/google` provider `>= 7.22, < 8` (previously `>= 6.31, < 6.51.0`). This is required by the upgrade of the upstream `terraform-google-modules/sql-db/google` module to v28, which no longer supports google provider 6.x.
+
+**Impact on existing deployments:**
+
+- `terraform init -upgrade` is required to install the 7.x provider and update your lockfile. If your root module has other provider constraints capping `hashicorp/google` below 7.x, init will fail until those are raised as well.
+- This crosses the google provider 6.x → 7.x major version boundary. The modules in this repository do not use any of the fields removed in 7.0, but if you manage additional GCP resources in the same configuration, review the [google provider 7.0 upgrade guide](https://registry.terraform.io/providers/hashicorp/google/latest/docs/guides/version_7_upgrade) for changes affecting them.
+- Run `terraform plan` against your existing state before applying and review any unexpected diffs introduced by the provider upgrade.
+
 #### v7.0.0
 
 The GCP `networking` module now requires a list of strings rather than a single string for `var.routes.tags`.

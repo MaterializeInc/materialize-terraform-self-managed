@@ -3,7 +3,7 @@
 | Name | Version |
 | ---- | ------- |
 | <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | >= 1.0 |
-| <a name="requirement_google"></a> [google](#requirement\_google) | >= 6.31, < 6.51.0 |
+| <a name="requirement_google"></a> [google](#requirement\_google) | >= 7.22, < 8 |
 
 ## Providers
 
@@ -13,7 +13,7 @@ No providers.
 
 | Name | Source | Version |
 | ---- | ------ | ------- |
-| <a name="module_postgresql"></a> [postgresql](#module\_postgresql) | terraform-google-modules/sql-db/google//modules/postgresql | 26.2.2 |
+| <a name="module_postgresql"></a> [postgresql](#module\_postgresql) | terraform-google-modules/sql-db/google//modules/postgresql | 28.1.0 |
 
 ## Resources
 
