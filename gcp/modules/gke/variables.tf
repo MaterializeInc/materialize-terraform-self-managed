@@ -136,3 +136,10 @@ variable "k8s_apiserver_authorized_networks" {
   }]
   nullable = false
 }
+
+variable "enable_upgrade_notifications" {
+  description = "Publish GKE upgrade notifications to a Pub/Sub topic and let orchestratord's service account subscribe to them and read node pool state. Required for the operator module's enable_node_upgrade_rollout_trigger."
+  type        = bool
+  default     = true
+  nullable    = false
+}

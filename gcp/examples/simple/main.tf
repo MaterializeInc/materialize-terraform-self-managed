@@ -4,6 +4,14 @@ provider "google" {
   default_labels = var.labels
 }
 
+# Used by the nodepool module for autoscaled blue-green upgrade settings,
+# which are not yet available in the GA google provider.
+provider "google-beta" {
+  project        = var.project_id
+  region         = var.region
+  default_labels = var.labels
+}
+
 # Configure kubernetes provider with GKE cluster credentials
 data "google_client_config" "default" {}
 
@@ -195,6 +203,10 @@ module "gke" {
   # working node-local DNS option (see the variable description in the module).
   enable_node_local_dns = true
 
+  # Publish upgrade notifications to Pub/Sub for the node upgrade rollout
+  # trigger (see the operator module below).
+  enable_upgrade_notifications = var.enable_node_upgrade_rollout_trigger
+
   # Pinned to STABLE: REGULAR's 1.35.x line regressed cleanup of the per-cluster
   # k8s-<cluster-uid>-node-http-hc firewall on cluster destroy, leaving the VPC
   # un-deletable. STABLE is still on 1.34.x which doesn't have the regression.
@@ -342,6 +354,20 @@ module "operator" {
 
   # node selector for operator and metrics-server workloads
   operator_node_selector = local.generic_node_labels
+
+  # Trigger rollouts of Materialize instances when GKE upgrades the node
+  # pools they run on, so that their pods move to the replacement nodes
+  # gracefully instead of being evicted.
+  enable_node_upgrade_rollout_trigger    = var.enable_node_upgrade_rollout_trigger
+  node_upgrade_notification_subscription = module.gke.upgrade_notification_subscription
+  cluster_name                           = module.gke.cluster_name
+  cluster_location                       = module.gke.cluster_location
+  node_upgrade_watched_node_pools        = [module.materialize_nodepool.node_pool_name]
+  # Grant the operator workload identity access for its Pub/Sub subscription
+  # and GKE API reads.
+  operator_service_account_annotations = var.enable_node_upgrade_rollout_trigger ? {
+    "iam.gke.io/gcp-service-account" = module.gke.workload_identity_sa_email
+  } : {}
 
 
   # Enable Prometheus scrape annotations when observability is enabled

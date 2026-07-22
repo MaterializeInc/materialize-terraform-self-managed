@@ -204,3 +204,10 @@ variable "datapath_provider" {
     error_message = "Datapath provider must be one of ADVANCED_DATAPATH, LEGACY_DATAPATH, or DATAPATH_PROVIDER_UNSPECIFIED"
   }
 }
+
+variable "enable_node_upgrade_rollout_trigger" {
+  description = "Trigger rollouts of Materialize instances when GKE upgrades the node pools they run on, moving their pods to the replacement nodes gracefully instead of letting GKE evict them."
+  type        = bool
+  default     = true
+  nullable    = false
+}
