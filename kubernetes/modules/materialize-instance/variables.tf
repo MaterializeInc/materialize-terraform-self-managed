@@ -168,6 +168,13 @@ variable "authenticator_kind" {
   }
 }
 
+variable "enable_rbac" {
+  description = "Enable role-based access control (sets spec.enableRbac on the Materialize CR). Defaults to true for a secure-by-default posture. When false, the operator launches environmentd with enable_rbac_checks=false and privilege checks are not enforced."
+  type        = bool
+  default     = true
+  nullable    = false
+}
+
 variable "external_login_password_mz_system" {
   description = "Password for external login to mz_system. Must be set if authenticator_kind is 'Password', 'Sasl', or 'Oidc'."
   type        = string
