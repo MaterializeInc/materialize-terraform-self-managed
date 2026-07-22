@@ -51,9 +51,9 @@ locals {
     adminPassword = local.admin_password
 
     persistence = {
-      enabled      = true
-      size         = var.storage_size
-      storageClass = var.storage_class
+      enabled          = true
+      size             = var.storage_size
+      storageClassName = var.storage_class
     }
 
     resources = {
