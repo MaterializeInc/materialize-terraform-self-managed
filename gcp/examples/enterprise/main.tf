@@ -404,6 +404,7 @@ module "operator" {
     module.gke,
     module.generic_nodepool,
     module.coredns,
+    module.cert_manager,
   ]
 }
 
