@@ -5,6 +5,7 @@
   ],
   "rangeStrategy": "widen",
   "labels": [
-    "regenerate-docs"
+    "regenerate-docs",
+    "dependencies"
   ]
 }
