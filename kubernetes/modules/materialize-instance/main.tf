@@ -44,6 +44,7 @@ resource "kubectl_manifest" "materialize_instance" {
         environmentdImageRef         = "materialize/environmentd:${var.environmentd_version}"
         backendSecretName            = "${var.instance_name}-materialize-backend"
         authenticatorKind            = var.authenticator_kind
+        enableRbac                   = var.enable_rbac
         serviceAccountAnnotations    = var.service_account_annotations
         podLabels                    = var.pod_labels
         rolloutStrategy              = var.rollout_strategy
