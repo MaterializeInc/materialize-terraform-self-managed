@@ -46,6 +46,7 @@ No modules.
 | <a name="input_namespace"></a> [namespace](#input\_namespace) | The namespace where the Materialize Operator will be installed | `string` | n/a | yes |
 | <a name="input_network_name"></a> [network\_name](#input\_network\_name) | The name of the VPC network | `string` | n/a | yes |
 | <a name="input_networking_mode"></a> [networking\_mode](#input\_networking\_mode) | The networking mode for the GKE cluster | `string` | `"VPC_NATIVE"` | no |
+| <a name="input_orchestratord_service_account_name"></a> [orchestratord\_service\_account\_name](#input\_orchestratord\_service\_account\_name) | The name of the operator's Kubernetes service account bound to the workload identity service account. Must match the Materialize operator chart's serviceAccount.name value (the operator module leaves this at the chart default, "orchestratord"). | `string` | `"orchestratord"` | no |
 | <a name="input_prefix"></a> [prefix](#input\_prefix) | Prefix to be used for resource names | `string` | n/a | yes |
 | <a name="input_project_id"></a> [project\_id](#input\_project\_id) | The ID of the project where resources will be created | `string` | n/a | yes |
 | <a name="input_region"></a> [region](#input\_region) | The region where resources will be created | `string` | n/a | yes |

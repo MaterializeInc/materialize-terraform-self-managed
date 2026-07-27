@@ -198,6 +198,6 @@ resource "google_service_account_iam_binding" "workload_identity" {
   service_account_id = google_service_account.workload_identity_sa.name
   role               = "roles/iam.workloadIdentityUser"
   members = [
-    "serviceAccount:${var.project_id}.svc.id.goog[${var.namespace}/orchestratord]"
+    "serviceAccount:${var.project_id}.svc.id.goog[${var.namespace}/${var.orchestratord_service_account_name}]"
   ]
 }

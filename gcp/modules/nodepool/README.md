@@ -54,7 +54,7 @@ No modules.
 | <a name="input_service_account_email"></a> [service\_account\_email](#input\_service\_account\_email) | The email of the service account to use for the nodes | `string` | n/a | yes |
 | <a name="input_swap_enabled"></a> [swap\_enabled](#input\_swap\_enabled) | Whether to enable swap on the local NVMe disks. | `bool` | `true` | no |
 | <a name="input_upgrade_node_pool_soak_duration"></a> [upgrade\_node\_pool\_soak\_duration](#input\_upgrade\_node\_pool\_soak\_duration) | How long GKE keeps the drained blue pool around before deleting it during a node pool upgrade, as a duration in seconds (e.g. "3600s"). When null, GKE's default is used. | `string` | `null` | no |
-| <a name="input_upgrade_wait_for_drain_duration"></a> [upgrade\_wait\_for\_drain\_duration](#input\_upgrade\_wait\_for\_drain\_duration) | How long GKE waits after cordoning the blue pool before draining it during an (autoscaled blue-green) node pool upgrade. This is the window in which workloads can move to the replacement nodes gracefully. Between 0 and 7 days, as a duration in seconds (e.g. "604800s"). | `string` | `"604800s"` | no |
+| <a name="input_upgrade_wait_for_drain_duration"></a> [upgrade\_wait\_for\_drain\_duration](#input\_upgrade\_wait\_for\_drain\_duration) | How long GKE waits after cordoning the blue pool before draining it during an (autoscaled blue-green) node pool upgrade. This is the window in which workloads can move to the replacement nodes gracefully. Between 0 and 7 days, as a duration in seconds (e.g. "604800s"). | `string` | `"259200s"` | no |
 | <a name="input_workload_metadata_mode"></a> [workload\_metadata\_mode](#input\_workload\_metadata\_mode) | Mode for workload metadata configuration | `string` | `"GKE_METADATA"` | no |
 
 ## Outputs

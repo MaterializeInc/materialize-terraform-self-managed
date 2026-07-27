@@ -36,6 +36,13 @@ variable "namespace" {
   nullable    = false
 }
 
+variable "orchestratord_service_account_name" {
+  description = "The name of the operator's Kubernetes service account bound to the workload identity service account. Must match the Materialize operator chart's serviceAccount.name value (the operator module leaves this at the chart default, \"orchestratord\")."
+  type        = string
+  default     = "orchestratord"
+  nullable    = false
+}
+
 variable "networking_mode" {
   description = "The networking mode for the GKE cluster"
   type        = string

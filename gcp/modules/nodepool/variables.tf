@@ -158,7 +158,7 @@ variable "pause_container_resource_config" {
 variable "upgrade_wait_for_drain_duration" {
   description = "How long GKE waits after cordoning the blue pool before draining it during an (autoscaled blue-green) node pool upgrade. This is the window in which workloads can move to the replacement nodes gracefully. Between 0 and 7 days, as a duration in seconds (e.g. \"604800s\")."
   type        = string
-  default     = "604800s" # 7 days, the maximum
+  default     = "259200s" # 3 days, the GKE default (maximum is 7 days)
   nullable    = false
 }
 
