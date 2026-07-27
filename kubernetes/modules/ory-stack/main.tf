@@ -430,6 +430,13 @@ resource "kubernetes_service_v1" "ory_lb" {
 
   wait_for_load_balancer = true
 
+  lifecycle {
+    ignore_changes = [
+      metadata[0].annotations["networking.gke.io/target-pool"],
+      metadata[0].annotations["cloud.google.com/neg"],
+    ]
+  }
+
   depends_on = [
     module.ory_kratos,
     module.ory_hydra,
