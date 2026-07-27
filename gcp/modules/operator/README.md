@@ -29,14 +29,18 @@ No modules.
 | [kubernetes_network_policy_v1.allow_api_server_egress](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/network_policy_v1) | resource |
 | [kubernetes_network_policy_v1.allow_api_server_ingress_to_conversion_webhook](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/network_policy_v1) | resource |
 | [kubernetes_network_policy_v1.allow_kube_system_egress](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/network_policy_v1) | resource |
+| [kubernetes_network_policy_v1.allow_metadata_server_egress](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/network_policy_v1) | resource |
 | [kubernetes_network_policy_v1.allow_monitoring_ingress](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/network_policy_v1) | resource |
 
 ## Inputs
 
 | Name | Description | Type | Default | Required |
 | ---- | ----------- | ---- | ------- | :------: |
+| <a name="input_cluster_location"></a> [cluster\_location](#input\_cluster\_location) | The location (region or zone) of the GKE cluster. Required when enable\_node\_upgrade\_rollout\_trigger is set. | `string` | `null` | no |
+| <a name="input_cluster_name"></a> [cluster\_name](#input\_cluster\_name) | The name of the GKE cluster. Required when enable\_node\_upgrade\_rollout\_trigger is set. | `string` | `null` | no |
 | <a name="input_enable_license_key_checks"></a> [enable\_license\_key\_checks](#input\_enable\_license\_key\_checks) | Enable license key checks. | `bool` | `true` | no |
 | <a name="input_enable_network_policies"></a> [enable\_network\_policies](#input\_enable\_network\_policies) | Enable network policies for the operator namespace | `bool` | `true` | no |
+| <a name="input_enable_node_upgrade_rollout_trigger"></a> [enable\_node\_upgrade\_rollout\_trigger](#input\_enable\_node\_upgrade\_rollout\_trigger) | Have orchestratord trigger rollouts of Materialize instances when GKE upgrades the node pools they run on, moving their pods to the replacement nodes gracefully instead of letting GKE evict them. Requires install\_v1\_crd, the gke module's enable\_upgrade\_notifications, and node pools using the (autoscaled) blue-green upgrade strategy. | `bool` | `false` | no |
 | <a name="input_helm_chart"></a> [helm\_chart](#input\_helm\_chart) | Chart name from repository or local path to chart. For local charts, set the path to the chart directory. | `string` | `"materialize-operator"` | no |
 | <a name="input_helm_repository"></a> [helm\_repository](#input\_helm\_repository) | Repository URL for the Materialize operator Helm chart. Leave empty if using local chart. | `string` | `"https://materializeinc.github.io/materialize/"` | no |
 | <a name="input_helm_values"></a> [helm\_values](#input\_helm\_values) | Values to pass to the Helm chart | `any` | `{}` | no |
@@ -48,8 +52,11 @@ No modules.
 | <a name="input_metrics_server_version"></a> [metrics\_server\_version](#input\_metrics\_server\_version) | Version of metrics-server to install | `string` | `"3.12.2"` | no |
 | <a name="input_monitoring_namespace"></a> [monitoring\_namespace](#input\_monitoring\_namespace) | Namespace for monitoring resources | `string` | `"monitoring"` | no |
 | <a name="input_name_prefix"></a> [name\_prefix](#input\_name\_prefix) | Prefix for all resource names (replaces separate namespace and environment variables) | `string` | n/a | yes |
+| <a name="input_node_upgrade_notification_subscription"></a> [node\_upgrade\_notification\_subscription](#input\_node\_upgrade\_notification\_subscription) | The Pub/Sub subscription receiving GKE upgrade notifications (the gke module's upgrade\_notification\_subscription output). Required when enable\_node\_upgrade\_rollout\_trigger is set. | `string` | `null` | no |
+| <a name="input_node_upgrade_watched_node_pools"></a> [node\_upgrade\_watched\_node\_pools](#input\_node\_upgrade\_watched\_node\_pools) | The node pools whose upgrades trigger Materialize rollouts. An empty list watches all node pools. | `list(string)` | `[]` | no |
 | <a name="input_operator_namespace"></a> [operator\_namespace](#input\_operator\_namespace) | Namespace for the Materialize operator | `string` | `"materialize"` | no |
 | <a name="input_operator_node_selector"></a> [operator\_node\_selector](#input\_operator\_node\_selector) | Node selector for operator pods and metrics-server. | `map(string)` | `{}` | no |
+| <a name="input_operator_service_account_annotations"></a> [operator\_service\_account\_annotations](#input\_operator\_service\_account\_annotations) | Annotations to add to the operator's Kubernetes service account, e.g. iam.gke.io/gcp-service-account to link it to a GCP service account via workload identity (required for enable\_node\_upgrade\_rollout\_trigger). | `map(string)` | `{}` | no |
 | <a name="input_operator_version"></a> [operator\_version](#input\_operator\_version) | Version of the Materialize operator to install | `string` | `"v26.34.1"` | no |
 | <a name="input_orchestratord_version"></a> [orchestratord\_version](#input\_orchestratord\_version) | Version of the Materialize orchestrator to install | `string` | `null` | no |
 | <a name="input_region"></a> [region](#input\_region) | Region/Zone for the operator Helm values. | `string` | n/a | yes |

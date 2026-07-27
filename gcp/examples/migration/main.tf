@@ -37,6 +37,13 @@ provider "google" {
   # explicitly on resources that need them (Cloud SQL, GCS, node pools).
 }
 
+# Used by the nodepool module for autoscaled blue-green upgrade settings,
+# which are not yet available in the GA google provider.
+provider "google-beta" {
+  project = var.project_id
+  region  = var.region
+}
+
 data "google_client_config" "default" {}
 
 provider "kubernetes" {
@@ -387,8 +394,10 @@ resource "google_sql_user" "materialize" {
 # MODULE: Materialize Node Pool
 # =============================================================================
 # The nodepool module's google_container_node_pool resource has the same
-# structure as the old module. The kubernetes resources (disk setup daemonset)
-# will be recreated with shorter names but that's non-disruptive.
+# structure as the old module, except that it now configures blue-green
+# upgrade settings, which are applied in-place (non-disruptive). The
+# kubernetes resources (disk setup daemonset) will be recreated with shorter
+# names but that's non-disruptive.
 # =============================================================================
 
 module "materialize_nodepool" {

@@ -36,7 +36,8 @@ locals {
 }
 
 resource "google_container_node_pool" "primary_nodes" {
-  provider = google
+  # google-beta is required for upgrade_settings.blue_green_settings.autoscaled_rollout_policy.
+  provider = google-beta
 
   name     = "${var.prefix}-nodepool"
   location = var.region
@@ -46,6 +47,26 @@ resource "google_container_node_pool" "primary_nodes" {
   autoscaling {
     min_node_count = var.min_nodes
     max_node_count = var.max_nodes
+  }
+
+  # GKE upgrades node pools automatically (e.g. to roll out new node images)
+  # and this cannot be disabled, only delayed. Autoscaled blue-green upgrades
+  # create the replacement (green) pool empty, cordon all of the original
+  # (blue) nodes, and then wait for up to wait_for_drain_duration before
+  # draining anything, with the cluster autoscaler scaling up the green pool
+  # as pods move over. That wait is the window in which orchestratord
+  # gracefully rolls Materialize instances onto the green nodes (see the
+  # operator module's enable_node_upgrade_rollout_trigger).
+  #
+  # Requires a GKE control plane version of 1.34.0-gke.2201000 or later.
+  upgrade_settings {
+    strategy = "BLUE_GREEN"
+    blue_green_settings {
+      autoscaled_rollout_policy {
+        wait_for_drain_duration = var.upgrade_wait_for_drain_duration
+      }
+      node_pool_soak_duration = var.upgrade_node_pool_soak_duration
+    }
   }
 
   network_config {

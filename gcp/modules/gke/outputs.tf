@@ -33,3 +33,8 @@ output "workload_identity_sa_email" {
   description = "The email of the Workload Identity service account"
   value       = google_service_account.workload_identity_sa.email
 }
+
+output "upgrade_notification_subscription" {
+  description = "The Pub/Sub subscription (projects/{project}/subscriptions/{name}) on which orchestratord receives GKE upgrade notifications. Null unless enable_upgrade_notifications is set."
+  value       = var.enable_upgrade_notifications ? google_pubsub_subscription.orchestratord_upgrade_notifications[0].id : null
+}
