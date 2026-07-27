@@ -72,3 +72,9 @@ variable "enable_observability" {
   type        = bool
   default     = false
 }
+
+variable "materialize_version" {
+  description = "Materialize release for both the operator Helm chart and environmentd, which must not drift. Null uses each module's default."
+  type        = string
+  default     = null
+}

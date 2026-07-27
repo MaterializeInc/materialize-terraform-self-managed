@@ -96,3 +96,9 @@ variable "datapath_provider" {
     error_message = "Datapath provider must be one of ADVANCED_DATAPATH, LEGACY_DATAPATH, or DATAPATH_PROVIDER_UNSPECIFIED"
   }
 }
+
+variable "materialize_version" {
+  description = "Materialize release for both the operator Helm chart and environmentd, which must not drift. Null uses each module's default."
+  type        = string
+  default     = null
+}
