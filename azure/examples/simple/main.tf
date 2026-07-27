@@ -72,7 +72,7 @@ locals {
   }
 
   database_config = {
-    sku_name                      = "GP_Standard_D2s_v3"
+    sku_name                      = "GP_Standard_D2ds_v5"
     postgres_version              = "15"
     storage_mb                    = 32768
     backup_retention_days         = 7
@@ -183,7 +183,7 @@ module "aks" {
   api_server_subnet_id               = module.networking.api_server_subnet_id
 
   # Default node pool with autoscaling (runs all workloads except Materialize)
-  default_node_pool_vm_size             = "Standard_D4ps_v5"
+  default_node_pool_vm_size             = "Standard_D4ps_v6"
   default_node_pool_enable_auto_scaling = true
   default_node_pool_min_count           = 2
   default_node_pool_max_count           = 5
