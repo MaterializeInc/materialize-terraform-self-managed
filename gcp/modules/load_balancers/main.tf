@@ -30,7 +30,8 @@ resource "kubernetes_service" "console_load_balancer" {
       # on any changes to the Materialize CR.
       metadata[0].name,
       spec[0].selector["materialize.cloud/name"],
-      metadata[0].annotations["cloud.google.com/neg"]
+      metadata[0].annotations["cloud.google.com/neg"],
+      metadata[0].annotations["networking.gke.io/target-pool"]
     ]
   }
   wait_for_load_balancer = true
@@ -73,7 +74,8 @@ resource "kubernetes_service" "balancerd_load_balancer" {
       # on any changes to the Materialize CR.
       metadata[0].name,
       spec[0].selector["materialize.cloud/name"],
-      metadata[0].annotations["cloud.google.com/neg"]
+      metadata[0].annotations["cloud.google.com/neg"],
+      metadata[0].annotations["networking.gke.io/target-pool"]
     ]
   }
   wait_for_load_balancer = true
