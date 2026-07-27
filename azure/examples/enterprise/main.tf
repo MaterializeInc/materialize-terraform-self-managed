@@ -68,7 +68,7 @@ locals {
   }
 
   database_config = {
-    sku_name                      = "GP_Standard_D2s_v3"
+    sku_name                      = "GP_Standard_D2ds_v5"
     postgres_version              = "18"
     storage_mb                    = 32768
     backup_retention_days         = 35
@@ -80,7 +80,7 @@ locals {
 
   # Ory database configuration (separate Postgres instance)
   ory_database_config = {
-    sku_name                      = "B_Standard_B1ms"
+    sku_name                      = "GP_Standard_D2ds_v5"
     postgres_version              = "18"
     storage_mb                    = 32768
     backup_retention_days         = 35
