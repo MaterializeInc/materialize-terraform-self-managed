@@ -1,0 +1,70 @@
+name: Tag
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: read
+
+# Serialize runs so concurrent pushes cannot race on computing the next
+# version. A superseded pending run is skipped, its commits are picked up by
+# the newest run since every run considers everything since the latest tag.
+concurrency:
+  group: tag-main
+
+jobs:
+  tag:
+    name: Tag and Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create release for merged changes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e \
+          latest=$(gh api --paginate "repos/$GITHUB_REPOSITORY/tags" --jq '.[].name' \
+            | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n 1)
+          echo "Latest release: $latest"
+
+          # Everything merged since the latest release is part of this
+          # release, not just the commits of this push.
+          prs=$(gh api "repos/$GITHUB_REPOSITORY/compare/$latest...$GITHUB_SHA" --jq '.commits[].sha' \
+            | while read -r sha; do
+                gh api "repos/$GITHUB_REPOSITORY/commits/$sha/pulls" \
+                  --jq '.[] | select(.merged_at != null) | .number'
+              done | sort -un)
+
+          # The highest bump level across all merged PRs wins. Commits without
+          # a PR or without version labels are released with the next labeled
+          # PR.
+          bump=""
+          for pr in $prs; do
+            while IFS= read -r label; do
+              case "$label" in
+                breaking-change) bump=major ;;
+                enhancement) if [ "$bump" != major ]; then bump=minor; fi ;;
+                bug|dependencies|documentation|github_actions) if [ -z "$bump" ]; then bump=patch; fi ;;
+              esac
+            done < <(gh api "repos/$GITHUB_REPOSITORY/pulls/$pr" --jq '.labels[].name')
+          done
+
+          if [ -z "$bump" ]; then
+            echo "No version label on any PR merged since $latest, not creating a release"
+            exit 0
+          fi
+
+          IFS=. read -r major minor patch <<< "${latest#v}"
+          case "$bump" in
+            major) version="v$((major + 1)).0.0" ;;
+            minor) version="v$major.$((minor + 1)).0" ;;
+            patch) version="v$major.$minor.$((patch + 1))" ;;
+          esac
+
+          echo "Creating release $version ($bump bump from $latest)"
+          gh release create "$version" \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "$version" \
+            --generate-notes

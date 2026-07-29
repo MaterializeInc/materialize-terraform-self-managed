@@ -36,6 +36,13 @@ variable "namespace" {
   nullable    = false
 }
 
+variable "orchestratord_service_account_name" {
+  description = "The name of the operator's Kubernetes service account bound to the workload identity service account. Must match the Materialize operator chart's serviceAccount.name value (the operator module leaves this at the chart default, \"orchestratord\")."
+  type        = string
+  default     = "orchestratord"
+  nullable    = false
+}
+
 variable "networking_mode" {
   description = "The networking mode for the GKE cluster"
   type        = string
@@ -135,4 +142,11 @@ variable "k8s_apiserver_authorized_networks" {
     display_name = "Authorized networks"
   }]
   nullable = false
+}
+
+variable "enable_upgrade_notifications" {
+  description = "Publish GKE upgrade notifications to a Pub/Sub topic and let orchestratord's service account subscribe to them and read node pool state. Required for the operator module's enable_node_upgrade_rollout_trigger."
+  type        = bool
+  default     = true
+  nullable    = false
 }

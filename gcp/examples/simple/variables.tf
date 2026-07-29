@@ -102,3 +102,10 @@ variable "materialize_version" {
   type        = string
   default     = null
 }
+
+variable "enable_node_upgrade_rollout_trigger" {
+  description = "Trigger rollouts of Materialize instances when GKE upgrades the node pools they run on, moving their pods to the replacement nodes gracefully instead of letting GKE evict them."
+  type        = bool
+  default     = true
+  nullable    = false
+}

@@ -4,13 +4,14 @@
 | ---- | ------- |
 | <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | >= 1.0 |
 | <a name="requirement_google"></a> [google](#requirement\_google) | >= 7.22, < 8 |
+| <a name="requirement_google-beta"></a> [google-beta](#requirement\_google-beta) | >= 7.22, < 8 |
 | <a name="requirement_kubernetes"></a> [kubernetes](#requirement\_kubernetes) | >= 2.10.0, < 2.39.0 |
 
 ## Providers
 
 | Name | Version |
 | ---- | ------- |
-| <a name="provider_google"></a> [google](#provider\_google) | >= 7.22, < 8 |
+| <a name="provider_google-beta"></a> [google-beta](#provider\_google-beta) | >= 7.22, < 8 |
 | <a name="provider_kubernetes"></a> [kubernetes](#provider\_kubernetes) | >= 2.10.0, < 2.39.0 |
 
 ## Modules
@@ -21,7 +22,7 @@ No modules.
 
 | Name | Type |
 | ---- | ---- |
-| [google_container_node_pool.primary_nodes](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/container_node_pool) | resource |
+| [google-beta_google_container_node_pool.primary_nodes](https://registry.terraform.io/providers/hashicorp/google-beta/latest/docs/resources/google_container_node_pool) | resource |
 | [kubernetes_cluster_role.disk_setup](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/cluster_role) | resource |
 | [kubernetes_cluster_role_binding.disk_setup](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/cluster_role_binding) | resource |
 | [kubernetes_daemonset.disk_setup](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/daemonset) | resource |
@@ -52,6 +53,8 @@ No modules.
 | <a name="input_region"></a> [region](#input\_region) | The region where the cluster is located | `string` | n/a | yes |
 | <a name="input_service_account_email"></a> [service\_account\_email](#input\_service\_account\_email) | The email of the service account to use for the nodes | `string` | n/a | yes |
 | <a name="input_swap_enabled"></a> [swap\_enabled](#input\_swap\_enabled) | Whether to enable swap on the local NVMe disks. | `bool` | `true` | no |
+| <a name="input_upgrade_node_pool_soak_duration"></a> [upgrade\_node\_pool\_soak\_duration](#input\_upgrade\_node\_pool\_soak\_duration) | How long GKE keeps the drained blue pool around before deleting it during a node pool upgrade, as a duration in seconds (e.g. "3600s"). When null, GKE's default is used. | `string` | `null` | no |
+| <a name="input_upgrade_wait_for_drain_duration"></a> [upgrade\_wait\_for\_drain\_duration](#input\_upgrade\_wait\_for\_drain\_duration) | How long GKE waits after cordoning the blue pool before draining it during an (autoscaled blue-green) node pool upgrade. This is the window in which workloads can move to the replacement nodes gracefully. Between 0 and 7 days, as a duration in seconds (e.g. "604800s"). | `string` | `"259200s"` | no |
 | <a name="input_workload_metadata_mode"></a> [workload\_metadata\_mode](#input\_workload\_metadata\_mode) | Mode for workload metadata configuration | `string` | `"GKE_METADATA"` | no |
 
 ## Outputs

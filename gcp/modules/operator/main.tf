@@ -58,6 +58,13 @@ locals {
         providers = {
           gcp = {
             enabled = true
+            nodeUpgradeRolloutTrigger = {
+              enabled                  = var.enable_node_upgrade_rollout_trigger
+              notificationSubscription = var.node_upgrade_notification_subscription
+              clusterName              = var.cluster_name
+              clusterLocation          = var.cluster_location
+              watchedNodePools         = var.node_upgrade_watched_node_pools
+            }
           }
         }
       }
@@ -67,6 +74,10 @@ locals {
       # Node selector and tolerations for operator pods
       nodeSelector = var.operator_node_selector
       tolerations  = var.tolerations
+    }
+
+    serviceAccount = {
+      annotations = var.operator_service_account_annotations
     }
 
     # Materialize workload configurations
@@ -102,6 +113,18 @@ resource "helm_release" "materialize_operator" {
   ]
 
   depends_on = [kubernetes_namespace.materialize]
+
+  lifecycle {
+    precondition {
+      condition = !var.enable_node_upgrade_rollout_trigger || (
+        var.node_upgrade_notification_subscription != null
+        && var.cluster_name != null
+        && var.cluster_location != null
+        && var.install_v1_crd
+      )
+      error_message = "enable_node_upgrade_rollout_trigger requires node_upgrade_notification_subscription, cluster_name, cluster_location, and install_v1_crd."
+    }
+  }
 }
 
 
@@ -156,6 +179,53 @@ resource "kubernetes_network_policy_v1" "allow_api_server_egress" {
       ports {
         protocol = "TCP"
         port     = 443
+      }
+    }
+  }
+}
+
+# Allow egress to the GKE metadata server so orchestratord can obtain
+# workload identity credentials for the node upgrade rollout trigger.
+# Credential requests go to 169.254.169.254:80 (plain HTTP); on Dataplane V2
+# the gke-metadata-server also answers on 169.254.169.252:988, and Cilium can
+# enforce policy on the post-DNAT destination, so allow both.
+resource "kubernetes_network_policy_v1" "allow_metadata_server_egress" {
+  count = var.enable_network_policies && var.enable_node_upgrade_rollout_trigger ? 1 : 0
+
+  metadata {
+    name      = "allow-metadata-server-egress"
+    namespace = kubernetes_namespace.materialize.metadata[0].name
+  }
+
+  spec {
+    pod_selector {
+      match_labels = {
+        "app.kubernetes.io/name" = "materialize-operator"
+      }
+    }
+    policy_types = ["Egress"]
+
+    egress {
+      to {
+        ip_block {
+          cidr = "169.254.169.254/32"
+        }
+      }
+      ports {
+        protocol = "TCP"
+        port     = 80
+      }
+    }
+
+    egress {
+      to {
+        ip_block {
+          cidr = "169.254.169.252/32"
+        }
+      }
+      ports {
+        protocol = "TCP"
+        port     = 988
       }
     }
   }

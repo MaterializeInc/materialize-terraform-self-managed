@@ -3,23 +3,54 @@ name: PR
 on:
   pull_request:
     branches: [main]
+    # labeled and unlabeled are included so the version-label check reruns
+    # when labels change.
+    types: [opened, reopened, synchronize, labeled, unlabeled]
 
 jobs:
   lint:
     uses: ./.github/workflows/lint.yml
     secrets: inherit
 
+  version-label:
+    name: Version Label
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check for a version label
+        env:
+          LABELS: ${{ toJson(github.event.pull_request.labels.*.name) }}
+        run: |
+          matches=$(echo "$LABELS" | jq '[.[] | select(
+            . == "breaking-change" or
+            . == "enhancement" or
+            . == "bug" or
+            . == "dependencies" or
+            . == "documentation" or
+            . == "github_actions" or
+            . == "ignore-for-release"
+          )] | length')
+          if [ "$matches" -eq 0 ]; then
+            echo "This PR has no label determining the version bump of the release created after merging. Add at least one of:"
+            echo "  breaking-change: major release"
+            echo "  enhancement: minor release"
+            echo "  bug, dependencies, documentation, github_actions: patch release"
+            echo "  ignore-for-release: no release, ships with the next labeled PR"
+            exit 1
+          fi
+          echo "Version labels found: $LABELS"
+
   ci-success:
     runs-on: ubuntu-latest
     needs:
       - lint
+      - version-label
     if: always()
     steps:
       - uses: technote-space/workflow-conclusion-action@45ce8e0eb155657ab8ccf346ade734257fd196a5 # v3.0.3
-      - name: Verify lint passed
+      - name: Verify all checks passed
         if: env.WORKFLOW_CONCLUSION != 'success'
         run: |
-          echo "Lint checks failed: ${{ env.WORKFLOW_CONCLUSION }}"
+          echo "Checks failed: ${{ env.WORKFLOW_CONCLUSION }}"
           exit 1
       - name: Success
         run: echo "All PR checks passed"

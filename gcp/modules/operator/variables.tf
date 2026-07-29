@@ -155,3 +155,42 @@ variable "enable_network_policies" {
   default     = true
   nullable    = false
 }
+
+variable "enable_node_upgrade_rollout_trigger" {
+  description = "Have orchestratord trigger rollouts of Materialize instances when GKE upgrades the node pools they run on, moving their pods to the replacement nodes gracefully instead of letting GKE evict them. Requires install_v1_crd, the gke module's enable_upgrade_notifications, and node pools using the (autoscaled) blue-green upgrade strategy."
+  type        = bool
+  default     = false
+  nullable    = false
+}
+
+variable "node_upgrade_notification_subscription" {
+  description = "The Pub/Sub subscription receiving GKE upgrade notifications (the gke module's upgrade_notification_subscription output). Required when enable_node_upgrade_rollout_trigger is set."
+  type        = string
+  default     = null
+}
+
+variable "cluster_name" {
+  description = "The name of the GKE cluster. Required when enable_node_upgrade_rollout_trigger is set."
+  type        = string
+  default     = null
+}
+
+variable "cluster_location" {
+  description = "The location (region or zone) of the GKE cluster. Required when enable_node_upgrade_rollout_trigger is set."
+  type        = string
+  default     = null
+}
+
+variable "node_upgrade_watched_node_pools" {
+  description = "The node pools whose upgrades trigger Materialize rollouts. An empty list watches all node pools."
+  type        = list(string)
+  default     = []
+  nullable    = false
+}
+
+variable "operator_service_account_annotations" {
+  description = "Annotations to add to the operator's Kubernetes service account, e.g. iam.gke.io/gcp-service-account to link it to a GCP service account via workload identity (required for enable_node_upgrade_rollout_trigger)."
+  type        = map(string)
+  default     = {}
+  nullable    = false
+}
