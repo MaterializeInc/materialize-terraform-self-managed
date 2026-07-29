@@ -20,9 +20,11 @@ resource "kubectl_manifest" "self_signed_root_ca_certificate" {
       "namespace" = var.namespace
     }
     "spec" = {
-      "isCA"       = true
-      "commonName" = "${var.name_prefix}-self-signed-ca"
-      "secretName" = "${var.name_prefix}-root-ca"
+      "isCA"        = true
+      "commonName"  = "${var.name_prefix}-self-signed-ca"
+      "secretName"  = "${var.name_prefix}-root-ca"
+      "duration"    = "8760h"
+      "renewBefore" = "2880h"
       "privateKey" = {
         "algorithm"      = "RSA"
         "encoding"       = "PKCS8"
