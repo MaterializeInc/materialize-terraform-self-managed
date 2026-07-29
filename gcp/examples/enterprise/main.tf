@@ -90,6 +90,9 @@ locals {
     }
   ]
 
+  # Use the first 3 available zones for explicit multi-zone node distribution
+  node_locations = slice(data.google_compute_zones.available.names, 0, min(3, length(data.google_compute_zones.available.names)))
+
   database_config = {
     tier = "db-custom-N4-2-4096"
     # N4 instances only support Hyperdisk Balanced, not PD_SSD.
@@ -195,6 +198,13 @@ locals {
   }
 }
 
+# Fetch available zones for explicit multi-zone cluster configuration
+data "google_compute_zones" "available" {
+  project = var.project_id
+  region  = var.region
+  status  = "UP"
+}
+
 # Configure networking infrastructure including VPC, subnets, and CIDR blocks
 module "networking" {
   source = "../../modules/networking"
@@ -229,6 +239,9 @@ module "gke" {
   # Publish upgrade notifications to Pub/Sub for the node upgrade rollout
   # trigger (see the operator module below).
   enable_upgrade_notifications = var.enable_node_upgrade_rollout_trigger
+
+  # Explicit multi-zone configuration for production HA
+  node_locations = local.node_locations
 }
 
 # Create and configure generic node pool for all workloads except Materialize

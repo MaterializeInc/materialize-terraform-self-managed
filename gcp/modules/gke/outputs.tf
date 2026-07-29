@@ -38,3 +38,8 @@ output "upgrade_notification_subscription" {
   description = "The Pub/Sub subscription (projects/{project}/subscriptions/{name}) on which orchestratord receives GKE upgrade notifications. Null unless enable_upgrade_notifications is set."
   value       = var.enable_upgrade_notifications ? google_pubsub_subscription.orchestratord_upgrade_notifications[0].id : null
 }
+
+output "node_locations" {
+  description = "The zones where cluster nodes are created"
+  value       = google_container_cluster.primary.node_locations
+}

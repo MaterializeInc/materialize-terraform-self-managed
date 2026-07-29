@@ -41,6 +41,10 @@ resource "google_container_cluster" "primary" {
   location = var.region
   project  = var.project_id
 
+  # Zones where nodes are created. For regional clusters, controls which zones
+  # host nodes (the control plane is already replicated across zones).
+  node_locations = var.node_locations
+
   networking_mode = var.networking_mode
   network         = var.network_name
   subnetwork      = var.subnet_name
