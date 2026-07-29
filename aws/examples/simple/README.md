@@ -260,6 +260,67 @@ instance_types_materialize = ["r7gd.8xlarge"]
 
 ---
 
+## Multi-AZ Architecture
+
+This deployment is designed for high availability across multiple AWS Availability Zones (AZs).
+
+### How Multi-AZ Works
+
+| Component | Multi-AZ Behavior |
+|-----------|-------------------|
+| **VPC/Subnets** | One private and one public subnet per AZ (3 AZs by default). Subnets map 1:1 with the `availability_zones` list. |
+| **EKS Control Plane** | Automatically distributed across multiple AZs by AWS for high availability. |
+| **EKS Node Groups** | Base node group spans all private subnets, placing nodes across all AZs. |
+| **Karpenter** | EC2NodeClass includes all private subnets, allowing Karpenter to provision nodes in any AZ based on workload demands. |
+| **EBS Volumes** | StorageClass uses `WaitForFirstConsumer` binding mode, ensuring volumes are created in the same AZ as the scheduled pod (EBS volumes are AZ-scoped). |
+| **Network Load Balancer** | Deployed across all subnets with cross-zone load balancing enabled by default. |
+| **RDS Database** | Defaults to single-AZ in this example. Set `multi_az = true` for production to enable synchronous standby replication. |
+| **NAT Gateway** | Single NAT Gateway by default (cost-saving). Set `single_nat_gateway = false` for HA (one NAT per AZ). |
+
+### Production Recommendations
+
+For production deployments, consider these changes:
+
+```hcl
+# In module "networking"
+single_nat_gateway = false  # One NAT Gateway per AZ for HA
+
+# In module "database"
+multi_az = true  # Synchronous standby in different AZ
+```
+
+---
+
+## Cross-AZ Data Transfer Costs
+
+AWS charges for data transfer between Availability Zones. Understanding these costs is important for production deployments.
+
+### Cost Overview
+
+| Traffic Type | Cost (approx.) | Notes |
+|--------------|----------------|-------|
+| Cross-AZ data transfer | ~$0.01/GB | Applies to traffic between AZs within the same region |
+| Same-AZ data transfer | Free | Traffic within the same AZ |
+| NAT Gateway processing | ~$0.045/GB | Plus ~$0.045/hour per gateway |
+
+### Where Cross-AZ Costs Apply
+
+1. **NLB Cross-Zone Load Balancing**: Enabled by default (`enable_cross_zone_load_balancing = true`). Traffic routed to targets in different AZs incurs cross-AZ charges. Disable with `enable_cross_zone_load_balancing = false` if cost is a concern and clients can be AZ-aware.
+
+2. **Pod-to-Pod Communication**: Pods on nodes in different AZs incur cross-AZ charges. Kubernetes does not provide AZ-aware service routing by default.
+
+3. **EKS Control Plane**: Communication between nodes and the EKS API server may cross AZs (AWS-managed, not directly configurable).
+
+4. **NAT Gateway**: With a single NAT Gateway (default), traffic from private subnets in other AZs crosses AZ boundaries. Multi-NAT (`single_nat_gateway = false`) keeps traffic within each AZ but increases fixed costs.
+
+### Cost Optimization Tips
+
+- **For dev/test**: Single NAT Gateway and single-AZ RDS reduce costs significantly.
+- **For production**: The HA benefits of multi-AZ typically outweigh the cross-AZ transfer costs. Budget ~$0.01/GB for cross-AZ traffic.
+- **Monitor costs**: Use AWS Cost Explorer to track "EC2-Other" charges, which include cross-AZ data transfer.
+
+---
+
 ## Notes
 
 * You can customize each module independently.

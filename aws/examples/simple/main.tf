@@ -51,6 +51,14 @@ provider "kubectl" {
 }
 
 # 1. Create network infrastructure
+#
+# Multi-AZ Topology:
+# - Creates one private and one public subnet in each availability zone
+# - Subnets map 1:1 with the availability_zones list (index 0 -> AZ a, etc.)
+# - Private subnets host EKS nodes; public subnets host NAT Gateway and
+#   internet-facing load balancers
+# - By default, a single NAT Gateway is used (cost-saving); set
+#   single_nat_gateway = false for HA (one NAT per AZ, higher cost)
 module "networking" {
   source      = "../../modules/networking"
   name_prefix = var.name_prefix
@@ -66,6 +74,9 @@ module "networking" {
 }
 
 # 2. Create EKS cluster
+#
+# Multi-AZ: The EKS control plane is automatically distributed across
+# multiple AZs by AWS for high availability.
 module "eks" {
   source                                   = "../../modules/eks"
   name_prefix                              = var.name_prefix
@@ -157,6 +168,10 @@ module "node_local_dns" {
 }
 
 # 2.2 Install Karpenter to manage creation of additional nodes
+#
+# Multi-AZ: Karpenter provisions nodes across all AZs automatically.
+# The EC2NodeClass resources (defined below) include all private subnet
+# IDs in their subnetSelectorTerms, enabling Karpenter to spread nodes.
 module "karpenter" {
   source = "../../modules/karpenter"
 
@@ -287,6 +302,11 @@ module "aws_lbc" {
 }
 
 # 4. Install EBS CSI Driver for dynamic EBS volume provisioning
+#
+# Multi-AZ: The gp3 StorageClass uses WaitForFirstConsumer binding mode,
+# which delays volume provisioning until a pod is scheduled. This ensures
+# EBS volumes are created in the same AZ as the node running the pod,
+# avoiding cross-AZ attachment failures (EBS volumes are AZ-scoped).
 module "ebs_csi_driver" {
   source = "../../modules/ebs-csi-driver"
 
@@ -383,6 +403,10 @@ resource "random_password" "external_login_password_mz_system" {
 }
 
 # 7. Setup dedicated database instance for Materialize
+#
+# Multi-AZ: The database defaults to single-AZ (multi_az = false) for this
+# demo/non-production example. For production, set multi_az = true to enable
+# synchronous standby replication in a different AZ for automatic failover.
 module "database" {
   source                    = "../../modules/database"
   name_prefix               = var.name_prefix
@@ -393,7 +417,7 @@ module "database" {
   database_name             = "materialize"
   database_username         = "materialize"
   database_password         = random_password.database_password.result
-  multi_az                  = false
+  multi_az                  = false # Set to true for production HA
   database_subnet_ids       = module.networking.private_subnet_ids
   vpc_id                    = module.networking.vpc_id
   cluster_name              = module.eks.cluster_name
@@ -513,6 +537,12 @@ module "grafana" {
 }
 
 # 11. Setup dedicated NLB for Materialize instance
+#
+# Multi-AZ: The NLB is deployed across all subnets (public for internet-
+# facing, private for internal). Cross-zone load balancing is enabled by
+# default (enable_cross_zone_load_balancing = true), ensuring traffic is
+# distributed evenly across targets in all AZs regardless of client AZ.
+# Note: Cross-zone LB incurs ~$0.01/GB for cross-AZ data transfer.
 module "materialize_nlb" {
   source = "../../modules/nlb"
 

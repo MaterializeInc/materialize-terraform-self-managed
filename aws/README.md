@@ -59,6 +59,20 @@ Depending on your needs, you can use the modules individually or combine them to
 
 ---
 
+## Multi-AZ Support
+
+These modules are designed for high availability across multiple AWS Availability Zones:
+
+- **Networking**: Creates one private and one public subnet per AZ via `availability_zones` list
+- **EKS**: Control plane is automatically HA across AZs; node groups span all private subnets
+- **Karpenter**: EC2NodeClass references all subnets, enabling node provisioning in any AZ
+- **EBS CSI**: StorageClass uses `WaitForFirstConsumer` to co-locate volumes with pods
+- **NLB**: Cross-zone load balancing enabled by default for even traffic distribution
+
+For detailed multi-AZ architecture documentation and cross-AZ data transfer cost considerations, see [`examples/simple/README.md`](./examples/simple/README.md#multi-az-architecture).
+
+---
+
 ## Getting Started
 
 ### Example Deployment
