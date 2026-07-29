@@ -373,7 +373,7 @@ module "ory_selfservice_ui" {
   # Pull the OEL build through the registry proxy (same as Kratos/Hydra/Polis)
   # rather than the community Docker Hub image, which ships unpatched CVEs.
   image_repository   = local.selfservice_ui_image_repository
-  image_tag          = var.selfservice_ui_image_tag
+  image_tag          = coalesce(var.selfservice_ui_image_tag, var.oel_image_tag)
   image_pull_secrets = [kubernetes_secret.ory_oel_registry.metadata[0].name]
 
   # Server-side calls from the UI pod to Kratos's public API. When the issuer

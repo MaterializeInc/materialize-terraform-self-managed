@@ -96,10 +96,9 @@ variable "oel_image_tag" {
 }
 
 variable "selfservice_ui_image_tag" {
-  description = "Tag for the OEL selfservice UI image pulled through the registry proxy."
+  description = "Tag for the OEL selfservice UI image. Defaults to oel_image_tag when null, so it tracks the other OEL images unless overridden."
   type        = string
-  default     = "v25.4.0"
-  nullable    = false
+  default     = null
 }
 
 variable "license_key_jwt" {
