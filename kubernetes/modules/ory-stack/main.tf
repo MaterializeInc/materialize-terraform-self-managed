@@ -29,6 +29,12 @@ locals {
   polis_chart_full       = "${var.oel_registry}/helm-oel-polis/polis-oel"
   polis_chart_repository = trimprefix(local.polis_chart_full, "${local.oel_registry_host}/")
 
+  # OEL image for the selfservice UI. Pulled through the registry proxy like the
+  # other Ory components so it stays patched, the community Docker Hub image
+  # ships an outdated base with many unpatched CVEs.
+  # TODO(security): confirm the exact OEL repository path with the registry team.
+  selfservice_ui_image_repository = "${var.oel_registry}/ory-enterprise-kratos/kratos-selfservice-ui-node-oel"
+
   # External URLs that the browser (and Materialize, for OIDC issuer matching)
   # sees. FQDNs resolve to the LB IPs and are terminated by cert-manager certs.
   # No trailing slash on any of them: matters for OIDC issuer-string comparison
@@ -364,6 +370,12 @@ module "ory_selfservice_ui" {
 
   namespace = var.namespace
 
+  # Pull the OEL build through the registry proxy (same as Kratos/Hydra/Polis)
+  # rather than the community Docker Hub image, which ships unpatched CVEs.
+  image_repository   = local.selfservice_ui_image_repository
+  image_tag          = var.selfservice_ui_image_tag
+  image_pull_secrets = [kubernetes_secret.ory_oel_registry.metadata[0].name]
+
   # Server-side calls from the UI pod to Kratos's public API. When the issuer
   # signs cluster.local hostnames (self-signed default) we can use the in-cluster
   # service URL directly. Otherwise the cert only covers the external hostname,
@@ -383,6 +395,7 @@ module "ory_selfservice_ui" {
 
   depends_on = [
     kubectl_manifest.ory_certificate,
+    kubernetes_secret.ory_oel_registry,
   ]
 }
 
