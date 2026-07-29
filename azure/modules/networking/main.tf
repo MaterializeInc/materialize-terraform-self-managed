@@ -28,7 +28,7 @@ resource "azurerm_nat_gateway_public_ip_association" "main" {
 # Virtual Network using Azure Verified Module
 module "virtual_network" {
   source  = "Azure/avm-res-network-virtualnetwork/azurerm"
-  version = "0.10.0"
+  version = "0.19.0"
 
   name                = "${var.prefix}-vnet"
   location            = var.location
