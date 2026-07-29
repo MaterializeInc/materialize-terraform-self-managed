@@ -27,6 +27,16 @@ locals {
   conversion_webhook_rule_source_ranges = (local.master_ipv4_cidr_block != "" && local.master_ipv4_cidr_block != null) ? local.master_ipv4_cidr_block : "0.0.0.0/0"
 }
 
+# GKE Cluster
+#
+# Multi-zone support: Setting location to a region (e.g., "us-central1") creates
+# a regional cluster with the control plane replicated across zones for high
+# availability. By default, nodes can be created in any zone within the region.
+# Use the node_locations variable to restrict nodes to specific zones.
+#
+# Note on Persistent Disks: GCP PDs are zonal. When using PVCs with zonal PDs,
+# ensure your StorageClass uses volumeBindingMode: WaitForFirstConsumer so the
+# PD is created in the same zone as the scheduled pod.
 resource "google_container_cluster" "primary" {
   provider = google
 
@@ -37,9 +47,10 @@ resource "google_container_cluster" "primary" {
     google_service_account.workload_identity_sa,
   ]
 
-  name     = "${var.prefix}-gke"
-  location = var.region
-  project  = var.project_id
+  name           = "${var.prefix}-gke"
+  location       = var.region
+  node_locations = var.node_locations
+  project        = var.project_id
 
   networking_mode = var.networking_mode
   network         = var.network_name

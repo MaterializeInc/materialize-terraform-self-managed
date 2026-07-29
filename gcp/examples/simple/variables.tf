@@ -9,6 +9,36 @@ variable "region" {
   default     = "us-central1"
 }
 
+variable "zones" {
+  description = <<-EOT
+    List of zones within the region where GKE nodes can be created (e.g., ["us-central1-a", "us-central1-b"]).
+    If not specified (null), GKE will use all available zones in the region.
+
+    IMPORTANT: All zones must be within the specified region. For example, if region is "us-central1",
+    valid zones are "us-central1-a", "us-central1-b", "us-central1-c", "us-central1-f".
+    Using zones from a different region will cause deployment failures.
+
+    Multi-zone considerations:
+    - GCP Persistent Disks are zonal resources, meaning a PD can only be attached to a node in the same zone.
+    - The default storage class 'standard-rwo' uses 'WaitForFirstConsumer' binding mode, which ensures
+      PDs are created in the same zone as the scheduled pod.
+    - For high availability, use at least 2 zones. For cost optimization, you can limit to fewer zones.
+
+    Example:
+      zones = ["us-central1-a", "us-central1-b", "us-central1-c"]  # Multi-zone HA
+      zones = ["us-central1-a"]  # Single-zone (lower cost, no zone redundancy)
+      zones = null  # Use all zones in the region (default)
+  EOT
+  type        = list(string)
+  default     = null
+  nullable    = true
+
+  validation {
+    condition     = var.zones == null || length(var.zones) > 0
+    error_message = "If specified, zones must contain at least one zone."
+  }
+}
+
 variable "labels" {
   description = "Labels to apply to resources created."
   type        = map(string)

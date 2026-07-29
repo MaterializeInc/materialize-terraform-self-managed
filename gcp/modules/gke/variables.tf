@@ -118,3 +118,20 @@ variable "k8s_apiserver_authorized_networks" {
   }]
   nullable = false
 }
+
+variable "node_locations" {
+  description = <<-EOT
+    List of zones where nodes can be created (e.g., ["us-central1-a", "us-central1-b"]).
+    If not specified, GKE will automatically use all zones in the region for a regional cluster.
+
+    Use this to:
+    - Limit node placement to specific zones for cost optimization
+    - Ensure nodes run in zones with specific machine types available
+    - Control the distribution of workloads across zones
+
+    Note: All specified zones must be within the cluster's region.
+  EOT
+  type        = list(string)
+  default     = null
+  nullable    = true
+}

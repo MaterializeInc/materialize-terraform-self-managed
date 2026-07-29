@@ -33,3 +33,8 @@ output "workload_identity_sa_email" {
   description = "The email of the Workload Identity service account"
   value       = google_service_account.workload_identity_sa.email
 }
+
+output "node_locations" {
+  description = "The zones where cluster nodes can be created"
+  value       = google_container_cluster.primary.node_locations
+}

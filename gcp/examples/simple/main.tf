@@ -152,7 +152,10 @@ locals {
       }
     }]
   })
-  storage_class = "standard-rwo" # default storage class in gcp
+  # GKE's default 'standard-rwo' uses volumeBindingMode: WaitForFirstConsumer,
+  # which is essential for multi-zone clusters - it ensures PDs are created in
+  # the same zone as the scheduled pod. See gcp/modules/storage-class for custom options.
+  storage_class = "standard-rwo"
 }
 
 # Configure networking infrastructure including VPC, subnets, and CIDR blocks
@@ -167,6 +170,14 @@ module "networking" {
 }
 
 # Set up Google Kubernetes Engine (GKE) cluster
+#
+# Multi-zone configuration: By default, this creates a regional cluster with nodes
+# distributed across all zones in the region. Use var.zones to restrict nodes to
+# specific zones (e.g., for cost optimization or specific machine type availability).
+#
+# Note on Persistent Disks: GCP PDs are zonal resources. The default 'standard-rwo'
+# StorageClass uses WaitForFirstConsumer binding mode, ensuring volumes are created
+# in the same zone as the scheduled pod. This is critical for multi-zone deployments.
 module "gke" {
   source = "../../modules/gke"
 
@@ -182,6 +193,10 @@ module "gke" {
   namespace                         = local.materialize_operator_namespace
   k8s_apiserver_authorized_networks = var.k8s_apiserver_authorized_networks
   labels                            = var.labels
+
+  # Optional: Restrict nodes to specific zones. If null, uses all zones in the region.
+  # Example: ["us-central1-a", "us-central1-b"] for 2-zone HA deployment
+  node_locations = var.zones
 
   # Pinned to STABLE: REGULAR's 1.35.x line regressed cleanup of the per-cluster
   # k8s-<cluster-uid>-node-http-hc firewall on cluster destroy, leaving the VPC

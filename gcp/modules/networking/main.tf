@@ -17,6 +17,14 @@ locals {
   }
 }
 
+# VPC and Subnets
+#
+# Note on multi-zone support: GCP subnets are regional resources (not zonal),
+# meaning a single subnet automatically spans all zones within its region. This
+# design works seamlessly with regional GKE clusters - nodes in any zone can use
+# the same subnet and IP ranges. No subnet changes are needed for multi-zone
+# deployments; the same subnet configuration supports both single-zone and
+# multi-zone GKE clusters.
 module "vpc" {
   source  = "terraform-google-modules/network/google"
   version = "11.1.1"
