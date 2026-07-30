@@ -24,6 +24,24 @@ resource "random_password" "secrets_cipher" {
   special = false
 }
 
+# The entire provider list — including client secrets — lives in this Secret
+# and reaches Kratos as a single JSON-valued environment variable, so the
+# Helm-rendered ConfigMap never carries a credential.
+resource "kubernetes_secret" "upstream_oidc_providers_env" {
+  count = length(var.upstream_oidc_providers) > 0 ? 1 : 0
+
+  metadata {
+    name      = "${var.release_name}-upstream-oidc-providers"
+    namespace = local.namespace
+  }
+
+  data = {
+    providers = jsonencode(local.upstream_oidc_provider_objects)
+  }
+
+  type = "Opaque"
+}
+
 locals {
   namespace = var.create_namespace ? kubernetes_namespace.kratos[0].metadata[0].name : var.namespace
 
@@ -66,25 +84,22 @@ locals {
     }
   } : {}
 
-  tls_deployment_config = local.tls_enabled ? {
-    deployment = {
-      extraVolumes = [
-        {
-          name = "tls-cert"
-          secret = {
-            secretName = var.tls_cert_secret_name
-          }
-        },
-      ]
-      extraVolumeMounts = [
-        {
-          name      = "tls-cert"
-          mountPath = local.tls_mount_dir
-          readOnly  = true
-        },
-      ]
-    }
-  } : {}
+  tls_volumes = local.tls_enabled ? [
+    {
+      name = "tls-cert"
+      secret = {
+        secretName = var.tls_cert_secret_name
+      }
+    },
+  ] : []
+
+  tls_volume_mounts = local.tls_enabled ? [
+    {
+      name      = "tls-cert"
+      mountPath = local.tls_mount_dir
+      readOnly  = true
+    },
+  ] : []
 
   smtp_config = var.smtp_connection_uri != null ? {
     courier = {
@@ -118,6 +133,62 @@ locals {
 
   upstream_oidc_mapper_data_uri = "base64://${base64encode(local.upstream_oidc_mapper_jsonnet)}"
 
+  # The provider objects as Kratos expects them. They only ever land in a
+  # Kubernetes Secret, never in the Helm-rendered ConfigMap.
+  upstream_oidc_provider_objects = [
+    for p in var.upstream_oidc_providers : merge(
+      {
+        id            = p.id
+        provider      = p.provider
+        client_id     = p.client_id
+        client_secret = p.client_secret
+        issuer_url    = p.issuer_url
+        scope         = p.scope
+        mapper_url    = local.upstream_oidc_mapper_data_uri
+      },
+      p.label != null ? { label = p.label } : {},
+    )
+  ]
+
+  # The provider list reaches Kratos as one JSON-valued environment variable;
+  # configx decodes JSON env values into arrays and the variable takes
+  # precedence over the (provider-less) file configuration. This is the
+  # delivery mechanism Ory recommends for keeping provider secrets out of the
+  # chart's ConfigMap: https://github.com/ory/k8s/issues/423
+  upstream_oidc_extra_env = length(var.upstream_oidc_providers) > 0 ? [
+    {
+      name = "SELFSERVICE_METHODS_OIDC_CONFIG_PROVIDERS"
+      valueFrom = {
+        secretKeyRef = {
+          name = kubernetes_secret.upstream_oidc_providers_env[0].metadata[0].name
+          key  = "providers"
+        }
+      }
+    },
+  ] : []
+
+  # Roll the pods when the provider list changes: the chart's checksum
+  # annotation only covers the ConfigMap, and environment variables are
+  # immutable for running pods. The annotation lands on the pod template, so a
+  # changed hash triggers a rolling restart.
+  upstream_oidc_env_annotations = length(var.upstream_oidc_providers) > 0 ? {
+    "checksum/upstream-oidc-providers" = sha256(jsonencode(local.upstream_oidc_provider_objects))
+  } : {}
+
+  deployment_config = length(local.tls_volumes) > 0 || length(local.upstream_oidc_extra_env) > 0 ? {
+    deployment = merge(
+      length(local.tls_volumes) > 0 ? {
+        extraVolumes      = local.tls_volumes
+        extraVolumeMounts = local.tls_volume_mounts
+      } : {},
+      length(local.upstream_oidc_extra_env) > 0 ? { extraEnv = local.upstream_oidc_extra_env } : {},
+      length(local.upstream_oidc_env_annotations) > 0 ? { annotations = local.upstream_oidc_env_annotations } : {},
+    )
+  } : {}
+
+  # The providers themselves are delivered exclusively via the environment
+  # variable; enabled-with-no-providers is valid configuration for workloads
+  # that never receive it (migration job, courier).
   upstream_oidc_config = length(var.upstream_oidc_providers) > 0 ? {
     kratos = {
       config = {
@@ -125,22 +196,6 @@ locals {
           methods = {
             oidc = {
               enabled = true
-              config = {
-                providers = [
-                  for p in var.upstream_oidc_providers : merge(
-                    {
-                      id            = p.id
-                      provider      = p.provider
-                      client_id     = p.client_id
-                      client_secret = p.client_secret
-                      issuer_url    = p.issuer_url
-                      scope         = p.scope
-                      mapper_url    = local.upstream_oidc_mapper_data_uri
-                    },
-                    p.label != null ? { label = p.label } : {},
-                  )
-                ]
-              }
             }
           }
         }
@@ -239,7 +294,7 @@ locals {
   default_helm_values_with_extras = provider::deepmerge::mergo(
     provider::deepmerge::mergo(
       provider::deepmerge::mergo(local.default_helm_values, local.tls_kratos_config),
-      local.tls_deployment_config,
+      local.deployment_config,
     ),
     local.upstream_oidc_config,
   )

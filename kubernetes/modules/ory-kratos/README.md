@@ -35,6 +35,7 @@ No modules.
 | ---- | ---- |
 | [helm_release.kratos](https://registry.terraform.io/providers/hashicorp/helm/latest/docs/resources/release) | resource |
 | [kubernetes_namespace.kratos](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/namespace) | resource |
+| [kubernetes_secret.upstream_oidc_providers_env](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/secret) | resource |
 | [random_password.secrets_cipher](https://registry.terraform.io/providers/hashicorp/random/latest/docs/resources/password) | resource |
 | [random_password.secrets_cookie](https://registry.terraform.io/providers/hashicorp/random/latest/docs/resources/password) | resource |
 | [random_password.secrets_default](https://registry.terraform.io/providers/hashicorp/random/latest/docs/resources/password) | resource |
