@@ -71,12 +71,7 @@ be able to create every resource in these modules. If you deploy as a project
 and you can skip this section.
 
 If you run under **least privilege** (recommended for CI), grant the deploying
-principal these roles on the project. Project Owner/Editor bundles most of these
-implicitly, so a gap does not appear until you drop to least privilege — and
-then it surfaces as a separate `403` (or `401`) partway through an apply, often
-after real infrastructure has already been created. The set below is a working
-starting point for what the GCP modules create, validated end-to-end against a
-full deployment:
+principal these roles on the project.
 
 | Role | Needed for |
 |------|------------|
