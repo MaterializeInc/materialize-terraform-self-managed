@@ -74,6 +74,26 @@ variable "tags" {
   default     = {}
 }
 
+variable "zones" {
+  description = "List of availability zones for the node pool. Azure supports zones 1, 2, and 3. Defaults to all three zones for production-ready high availability. Use a single zone (e.g., [\"1\"]) for dev/test environments."
+  type        = list(string)
+  default     = ["1", "2", "3"]
+  nullable    = false
+
+  validation {
+    condition = alltrue([
+      for zone in var.zones :
+      contains(["1", "2", "3"], zone)
+    ])
+    error_message = "Zones must be \"1\", \"2\", or \"3\"."
+  }
+
+  validation {
+    condition     = length(var.zones) > 0
+    error_message = "At least one zone must be specified."
+  }
+}
+
 variable "labels" {
   description = "Additional labels to apply to Kubernetes resources"
   type        = map(string)

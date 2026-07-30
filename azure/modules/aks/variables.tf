@@ -233,6 +233,26 @@ variable "load_balancer_sku" {
   }
 }
 
+variable "availability_zones" {
+  description = "List of availability zones for the default node pool. Azure supports zones 1, 2, and 3. Defaults to all three zones for production-ready high availability. Use a single zone (e.g., [\"1\"]) for dev/test environments."
+  type        = list(string)
+  default     = ["1", "2", "3"]
+  nullable    = false
+
+  validation {
+    condition = alltrue([
+      for zone in var.availability_zones :
+      contains(["1", "2", "3"], zone)
+    ])
+    error_message = "Availability zones must be \"1\", \"2\", or \"3\"."
+  }
+
+  validation {
+    condition     = length(var.availability_zones) > 0
+    error_message = "At least one availability zone must be specified."
+  }
+}
+
 # ============================================================================
 # API Server VNet Integration (Recommended for better performance)
 # ============================================================================

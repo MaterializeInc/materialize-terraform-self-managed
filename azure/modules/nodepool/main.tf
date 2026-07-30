@@ -39,6 +39,7 @@ resource "azurerm_kubernetes_cluster_node_pool" "primary_nodes" {
   node_count                  = local.node_count
   vnet_subnet_id              = var.subnet_id
   os_disk_size_gb             = var.disk_size_gb
+  zones                       = var.zones
 
   node_labels = local.node_labels
 
