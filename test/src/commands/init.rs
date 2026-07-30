@@ -204,6 +204,18 @@ fn build_tfvars(provider_args: &InitProvider, test_run_id: &str) -> Result<TfVar
                 ("Owner".into(), common.owner.clone()),
                 ("Purpose".into(), common.purpose.clone()),
                 ("TestRun".into(), test_run_id.into()),
+                // The scratch account's RequireTagsScratch SCP
+                // (MaterializeInc/i2) denies resource creation unless these
+                // four (case-sensitive) tags are present.
+                ("owner".into(), common.owner.clone()),
+                ("reason".into(), common.reason.clone()),
+                ("team".into(), common.team.clone()),
+                (
+                    "deleteAfter".into(),
+                    (chrono::Utc::now() + chrono::Duration::hours(common.delete_after_hours))
+                        .format("%Y-%m-%dT%H:%M:%SZ")
+                        .to_string(),
+                ),
             ]),
         },
         InitProvider::Azure {

@@ -303,7 +303,12 @@ resource "kubernetes_storage_class" "gp3" {
       type      = "gp3"
       encrypted = "true"
     },
-    var.kms_key_id != null ? { kmsKeyId = var.kms_key_id } : {}
+    var.kms_key_id != null ? { kmsKeyId = var.kms_key_id } : {},
+    # Volumes provisioned by the CSI driver are created by its IRSA role, so
+    # neither provider default_tags nor instance tags reach them. Tag them
+    # explicitly to satisfy tag-enforcement policies (e.g. the scratch
+    # account's RequireTagsScratch SCP).
+    { for i, k in keys(var.tags) : "tagSpecification_${i + 1}" => "${k}=${var.tags[k]}" }
   )
 
   depends_on = [helm_release.ebs_csi_driver]
