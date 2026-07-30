@@ -50,6 +50,28 @@ provider "kubectl" {
   lazy_load        = true
 }
 
+# ==============================================================================
+# Multi-AZ Network Topology
+# ==============================================================================
+# This configuration creates a VPC with subnets distributed across 3 availability
+# zones for high availability:
+#
+# - Private subnets (10.0.1.0/24, 10.0.2.0/24, 10.0.3.0/24): One per AZ, used for
+#   EKS nodes, Materialize workloads, and RDS. Traffic egresses via NAT gateway(s).
+#
+# - Public subnets (10.0.101.0/24, 10.0.102.0/24, 10.0.103.0/24): One per AZ, used
+#   for NAT gateways and public-facing load balancers.
+#
+# The availability_zones list determines the number of AZs used. Each element must
+# have a corresponding CIDR block in private_subnet_cidrs and public_subnet_cidrs.
+#
+# NAT Gateway Options (via single_nat_gateway variable in networking module):
+# - single_nat_gateway = true (default): One NAT gateway for all AZs. Lower cost
+#   but creates a single point of failure and cross-AZ traffic charges.
+# - single_nat_gateway = false: One NAT gateway per AZ. Higher availability and
+#   keeps traffic within each AZ, but increases cost.
+# ==============================================================================
+
 # 1. Create network infrastructure
 module "networking" {
   source      = "../../modules/networking"
@@ -84,12 +106,22 @@ module "eks" {
   ]
 }
 
+# ==============================================================================
+# Multi-AZ Node Distribution
+# ==============================================================================
+# The base node group uses subnet_ids from all private subnets, enabling EKS to
+# distribute nodes across all configured availability zones. This ensures:
+# - Karpenter controller pods can survive an AZ failure
+# - CoreDNS replicas are spread for DNS high availability
+# - System workloads remain available during zone outages
+# ==============================================================================
+
 # 2.1 Create base node group for Karpenter and coredns
 module "base_node_group" {
   source = "../../modules/eks-node-group"
 
   cluster_name                      = module.eks.cluster_name
-  subnet_ids                        = module.networking.private_subnet_ids
+  subnet_ids                        = module.networking.private_subnet_ids # Spans all AZs
   node_group_name                   = "${var.name_prefix}-base"
   instance_types                    = local.instance_types_base
   swap_enabled                      = false
@@ -174,6 +206,19 @@ module "karpenter" {
   ]
 }
 
+# ==============================================================================
+# Karpenter Multi-AZ Provisioning
+# ==============================================================================
+# EC2NodeClasses define where Karpenter can launch nodes. By passing all private
+# subnet IDs, Karpenter can provision nodes in any availability zone based on:
+# - Pod topology spread constraints
+# - Instance type availability per zone
+# - Zone-specific capacity
+#
+# Karpenter automatically selects the optimal zone for each node based on the
+# pending pod's requirements and available capacity.
+# ==============================================================================
+
 # Create a generic nodeclass and nodepool for all workloads except Materialize.
 module "ec2nodeclass_generic" {
   source = "../../modules/karpenter-ec2nodeclass"
@@ -183,7 +228,7 @@ module "ec2nodeclass_generic" {
   instance_types     = local.instance_types_generic
   instance_profile   = module.karpenter.node_instance_profile
   security_group_ids = [module.eks.node_security_group_id]
-  subnet_ids         = module.networking.private_subnet_ids
+  subnet_ids         = module.networking.private_subnet_ids # Enables multi-AZ provisioning
   swap_enabled       = false
   tags               = var.tags
 
@@ -223,7 +268,7 @@ module "ec2nodeclass_materialize" {
   instance_types     = local.instance_types_materialize
   instance_profile   = module.karpenter.node_instance_profile
   security_group_ids = [module.eks.node_security_group_id]
-  subnet_ids         = module.networking.private_subnet_ids
+  subnet_ids         = module.networking.private_subnet_ids # Enables multi-AZ provisioning
   swap_enabled       = true
   tags               = var.tags
 
@@ -285,6 +330,18 @@ module "aws_lbc" {
     module.coredns,
   ]
 }
+
+# ==============================================================================
+# EBS CSI Driver - Zone-Aware Storage
+# ==============================================================================
+# The EBS CSI driver creates a gp3 StorageClass with WaitForFirstConsumer binding
+# mode. This ensures EBS volumes are provisioned in the same availability zone as
+# the pod that will use them, avoiding cross-AZ volume attachment failures.
+#
+# When a PVC is created, the volume is not provisioned until a pod references it.
+# At that point, the scheduler picks a node (and thus an AZ), and the EBS volume
+# is created in that same AZ.
+# ==============================================================================
 
 # 4. Install EBS CSI Driver for dynamic EBS volume provisioning
 module "ebs_csi_driver" {
@@ -382,6 +439,19 @@ resource "random_password" "external_login_password_mz_system" {
   override_special = "!#$%&*()-_=+[]{}<>:?"
 }
 
+# ==============================================================================
+# RDS Database - Multi-AZ Considerations
+# ==============================================================================
+# The database uses multi_az = false by default for cost savings in development/
+# test environments. For production deployments, set multi_az = true to enable:
+# - Synchronous standby replica in a different AZ
+# - Automatic failover during AZ outages or maintenance
+# - Enhanced durability with synchronous replication
+#
+# The database_subnet_ids span all AZs, allowing RDS to place the primary and
+# standby (if multi_az = true) in different availability zones.
+# ==============================================================================
+
 # 7. Setup dedicated database instance for Materialize
 module "database" {
   source                    = "../../modules/database"
@@ -393,7 +463,7 @@ module "database" {
   database_name             = "materialize"
   database_username         = "materialize"
   database_password         = random_password.database_password.result
-  multi_az                  = false
+  multi_az                  = false # Set to true for production HA
   database_subnet_ids       = module.networking.private_subnet_ids
   vpc_id                    = module.networking.vpc_id
   cluster_name              = module.eks.cluster_name
@@ -512,6 +582,21 @@ module "grafana" {
   ]
 }
 
+# ==============================================================================
+# Network Load Balancer - Cross-Zone Load Balancing
+# ==============================================================================
+# The NLB is deployed across all subnets (private or public depending on
+# internal_load_balancer setting). Cross-zone load balancing is enabled by
+# default, which:
+# - Distributes traffic evenly across all healthy targets in all AZs
+# - Improves availability when target capacity is uneven across zones
+# - Note: Cross-zone traffic incurs inter-AZ data transfer charges
+#
+# For cost optimization with balanced target distribution, you can disable
+# cross-zone load balancing, but this may cause uneven load if AZ capacity
+# differs.
+# ==============================================================================
+
 # 11. Setup dedicated NLB for Materialize instance
 module "materialize_nlb" {
   source = "../../modules/nlb"
@@ -521,7 +606,7 @@ module "materialize_nlb" {
   namespace                        = local.materialize_instance_namespace
   subnet_ids                       = var.internal_load_balancer ? module.networking.private_subnet_ids : module.networking.public_subnet_ids
   internal                         = var.internal_load_balancer
-  enable_cross_zone_load_balancing = true
+  enable_cross_zone_load_balancing = true # Ensures even traffic distribution across AZs
   vpc_id                           = module.networking.vpc_id
   mz_resource_id                   = module.materialize_instance.instance_resource_id
   node_security_group_id           = module.eks.node_security_group_id

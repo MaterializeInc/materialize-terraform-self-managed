@@ -83,6 +83,101 @@ module "eks" {
 # See full working setup in the examples/simple/main.tf file
 ```
 
+---
+
+## Multi-AZ Configuration
+
+These modules are designed for multi-AZ deployments to provide high availability. This section explains how availability zone configuration flows through the infrastructure.
+
+### How It Works
+
+The `availability_zones` parameter in the networking module determines the AZ topology for your entire deployment:
+
+```hcl
+module "networking" {
+  source = "../../modules/networking"
+
+  vpc_cidr             = "10.0.0.0/16"
+  availability_zones   = ["us-east-1a", "us-east-1b", "us-east-1c"]  # 3 AZs
+  private_subnet_cidrs = ["10.0.1.0/24", "10.0.2.0/24", "10.0.3.0/24"]
+  public_subnet_cidrs  = ["10.0.101.0/24", "10.0.102.0/24", "10.0.103.0/24"]
+  # ...
+}
+```
+
+Each availability zone gets:
+- One **private subnet** for EKS nodes, Materialize workloads, and RDS
+- One **public subnet** for NAT gateways and public-facing load balancers
+
+The networking module outputs `private_subnet_ids` and `public_subnet_ids`, which downstream modules use to distribute resources across all configured AZs.
+
+### Component Distribution
+
+| Component | Multi-AZ Behavior |
+|-----------|-------------------|
+| **EKS Node Groups** | Nodes distributed across all private subnets/AZs via `subnet_ids` |
+| **Karpenter EC2NodeClass** | Can provision nodes in any AZ via `subnet_ids`; selects optimal zone per pod |
+| **EBS Volumes** | Created in same AZ as the consuming pod (`WaitForFirstConsumer` binding) |
+| **Network Load Balancer** | Deployed in all configured subnets; cross-zone LB enabled by default |
+| **RDS Database** | Supports multi-AZ with synchronous standby (`multi_az = true`) |
+| **S3 Bucket** | Regionally replicated by AWS (inherently multi-AZ) |
+
+### NAT Gateway Options
+
+The networking module's `single_nat_gateway` variable controls NAT gateway topology:
+
+| Setting | Behavior | Cost | Availability |
+|---------|----------|------|--------------|
+| `true` (default) | One NAT gateway shared by all AZs | Lower | Single point of failure; cross-AZ traffic |
+| `false` | One NAT gateway per AZ | Higher | No cross-AZ dependency; traffic stays in-zone |
+
+For production workloads, consider `single_nat_gateway = false` to eliminate NAT gateway as a single point of failure.
+
+### EBS Storage and Zone Affinity
+
+The EBS CSI driver creates a `gp3` StorageClass with `WaitForFirstConsumer` volume binding mode. This ensures:
+
+1. PVCs remain unbound until a pod references them
+2. The scheduler picks a node (and thus an AZ) for the pod
+3. The EBS volume is provisioned in the same AZ as the selected node
+
+This prevents cross-AZ volume attachment failures, which would occur if a volume were created in a different AZ than its pod.
+
+### RDS Multi-AZ
+
+The database module defaults to `multi_az = false` for cost savings. For production:
+
+```hcl
+module "database" {
+  source   = "../../modules/database"
+  multi_az = true  # Enable for production
+  # ...
+}
+```
+
+With `multi_az = true`:
+- RDS maintains a synchronous standby in a different AZ
+- Automatic failover occurs during AZ outages or maintenance
+- The `database_subnet_ids` (spanning all AZs) allows RDS to place instances optimally
+
+### Cross-AZ Data Transfer Costs
+
+Multi-AZ deployments incur inter-AZ data transfer charges. Key cost considerations:
+
+| Traffic Type | Cost Implication | Mitigation |
+|--------------|------------------|------------|
+| **NAT Gateway cross-AZ** | Charged when `single_nat_gateway = true` | Use `single_nat_gateway = false` |
+| **NLB cross-zone** | Charged when `enable_cross_zone_load_balancing = true` | Disable if targets are balanced per-AZ |
+| **Pod-to-pod cross-AZ** | Charged for inter-AZ pod communication | Use topology spread constraints |
+| **EBS cross-AZ** | N/A - prevented by `WaitForFirstConsumer` | Already mitigated |
+
+AWS charges approximately $0.01/GB for inter-AZ traffic within the same region. For cost-sensitive workloads, consider:
+- Setting `single_nat_gateway = false` to keep egress traffic in-zone
+- Using pod topology spread constraints to co-locate communicating services
+- Monitoring cross-AZ traffic with VPC Flow Logs
+
+---
+
 ### Providers
 
 Ensure you configure the AWS, Kubernetes, and Helm providers. Here's a minimal setup:
