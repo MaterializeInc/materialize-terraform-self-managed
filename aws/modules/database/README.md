@@ -43,6 +43,7 @@
 | <a name="input_database_subnet_ids"></a> [database\_subnet\_ids](#input\_database\_subnet\_ids) | List of subnet IDs for the database | `list(string)` | n/a | yes |
 | <a name="input_database_username"></a> [database\_username](#input\_database\_username) | Username for the database | `string` | n/a | yes |
 | <a name="input_instance_class"></a> [instance\_class](#input\_instance\_class) | Instance class for the RDS instance | `string` | n/a | yes |
+| <a name="input_iops"></a> [iops](#input\_iops) | Provisioned IOPS. Only valid for gp3 (>=400GiB), io1, io2. Null uses the type's baseline. | `number` | `null` | no |
 | <a name="input_kms_key_deletion_window_in_days"></a> [kms\_key\_deletion\_window\_in\_days](#input\_kms\_key\_deletion\_window\_in\_days) | The waiting period, specified in number of days, after which AWS KMS deletes the KMS key. Valid values are 7-30 days. | `number` | `30` | no |
 | <a name="input_kms_key_enable_rotation"></a> [kms\_key\_enable\_rotation](#input\_kms\_key\_enable\_rotation) | Specifies whether key rotation is enabled for the KMS key. | `bool` | `true` | no |
 | <a name="input_kms_key_id"></a> [kms\_key\_id](#input\_kms\_key\_id) | The ARN for the KMS encryption key. If not specified and create\_kms\_key is false, the default AWS managed key will be used. | `string` | `null` | no |
@@ -52,6 +53,8 @@
 | <a name="input_name_prefix"></a> [name\_prefix](#input\_name\_prefix) | Prefix for all resource names | `string` | n/a | yes |
 | <a name="input_node_security_group_id"></a> [node\_security\_group\_id](#input\_node\_security\_group\_id) | Security group ID of the EKS nodes | `string` | n/a | yes |
 | <a name="input_postgres_version"></a> [postgres\_version](#input\_postgres\_version) | Version of PostgreSQL to use | `string` | `"15"` | no |
+| <a name="input_storage_throughput"></a> [storage\_throughput](#input\_storage\_throughput) | Storage throughput in MiBps. Only valid for gp3 (>=400GiB). Null uses baseline. | `number` | `null` | no |
+| <a name="input_storage_type"></a> [storage\_type](#input\_storage\_type) | EBS storage type (gp2, gp3, io1, io2). Null uses the provider default (gp2). | `string` | `null` | no |
 | <a name="input_tags"></a> [tags](#input\_tags) | Tags to apply to all resources | `map(string)` | `{}` | no |
 | <a name="input_vpc_id"></a> [vpc\_id](#input\_vpc\_id) | ID of the VPC | `string` | n/a | yes |
 
