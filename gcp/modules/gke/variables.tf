@@ -150,3 +150,22 @@ variable "enable_upgrade_notifications" {
   default     = true
   nullable    = false
 }
+
+variable "node_locations" {
+  description = "List of zones where cluster nodes will be created. Must be zones within the cluster's region. When null (the default), GKE distributes nodes across available zones."
+  type        = list(string)
+  default     = null
+  nullable    = true
+
+  validation {
+    condition     = var.node_locations == null ? true : length(var.node_locations) > 0
+    error_message = "node_locations cannot be an empty list. Use null to let GKE choose zones."
+  }
+
+  validation {
+    condition = var.node_locations == null ? true : alltrue([
+      for zone in var.node_locations : can(regex("^[a-z][a-z0-9-]*[0-9]-[a-z]$", zone))
+    ])
+    error_message = "Each zone must be in the format region-zone (e.g., us-central1-a)."
+  }
+}

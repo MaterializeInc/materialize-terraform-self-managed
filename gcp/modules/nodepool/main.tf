@@ -44,6 +44,9 @@ resource "google_container_node_pool" "primary_nodes" {
   cluster  = var.cluster_name
   project  = var.project_id
 
+  # Zones where nodes in this pool are created. When null, inherits from cluster.
+  node_locations = var.node_locations
+
   autoscaling {
     min_node_count = var.min_nodes
     max_node_count = var.max_nodes

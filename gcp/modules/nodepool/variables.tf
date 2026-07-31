@@ -167,3 +167,10 @@ variable "upgrade_node_pool_soak_duration" {
   type        = string
   default     = null
 }
+
+variable "node_locations" {
+  description = "List of zones where nodes in this pool will be created. Must be zones within the cluster's region. When null (the default), inherits node_locations from the cluster."
+  type        = list(string)
+  default     = null
+  nullable    = true
+}

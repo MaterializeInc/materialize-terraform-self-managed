@@ -46,6 +46,7 @@ No modules.
 | <a name="input_namespace"></a> [namespace](#input\_namespace) | The namespace where the Materialize Operator will be installed | `string` | n/a | yes |
 | <a name="input_network_name"></a> [network\_name](#input\_network\_name) | The name of the VPC network | `string` | n/a | yes |
 | <a name="input_networking_mode"></a> [networking\_mode](#input\_networking\_mode) | The networking mode for the GKE cluster | `string` | `"VPC_NATIVE"` | no |
+| <a name="input_node_locations"></a> [node\_locations](#input\_node\_locations) | List of zones where cluster nodes will be created. Must be zones within the cluster's region. When null (the default), GKE distributes nodes across available zones. | `list(string)` | `null` | no |
 | <a name="input_orchestratord_service_account_name"></a> [orchestratord\_service\_account\_name](#input\_orchestratord\_service\_account\_name) | The name of the operator's Kubernetes service account bound to the workload identity service account. Must match the Materialize operator chart's serviceAccount.name value (the operator module leaves this at the chart default, "orchestratord"). | `string` | `"orchestratord"` | no |
 | <a name="input_prefix"></a> [prefix](#input\_prefix) | Prefix to be used for resource names | `string` | n/a | yes |
 | <a name="input_project_id"></a> [project\_id](#input\_project\_id) | The ID of the project where resources will be created | `string` | n/a | yes |
@@ -63,6 +64,7 @@ No modules.
 | <a name="output_cluster_location"></a> [cluster\_location](#output\_cluster\_location) | The location of the GKE cluster |
 | <a name="output_cluster_name"></a> [cluster\_name](#output\_cluster\_name) | The name of the GKE cluster |
 | <a name="output_cluster_private_endpoint"></a> [cluster\_private\_endpoint](#output\_cluster\_private\_endpoint) | The private endpoint of the GKE cluster (used by nodes and VPC resources) |
+| <a name="output_node_locations"></a> [node\_locations](#output\_node\_locations) | The zones where cluster nodes are created |
 | <a name="output_service_account_email"></a> [service\_account\_email](#output\_service\_account\_email) | The email of the GKE service account |
 | <a name="output_upgrade_notification_subscription"></a> [upgrade\_notification\_subscription](#output\_upgrade\_notification\_subscription) | The Pub/Sub subscription (projects/{project}/subscriptions/{name}) on which orchestratord receives GKE upgrade notifications. Null unless enable\_upgrade\_notifications is set. |
 | <a name="output_workload_identity_sa_email"></a> [workload\_identity\_sa\_email](#output\_workload\_identity\_sa\_email) | The email of the Workload Identity service account |
