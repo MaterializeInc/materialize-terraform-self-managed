@@ -10,31 +10,10 @@ resource "terraform_data" "destroyer" {
     KUBECONFIG_DATA = var.kubeconfig_data
   }
 
-  # NOTE: local-exec scripts in this module must stay POSIX sh compatible
-  # (no bashisms): terraform runs them with its default /bin/sh, which may
-  # be dash, busybox sh (e.g. in Materialize's BYOC stack-deployer image),
-  # or another minimal shell.
   provisioner "local-exec" {
     when = destroy
 
-    command = <<-EOF
-      set -eu
-
-      if [ -z "$${KUBECONFIG_DATA}" ]; then
-        echo "Error: KUBECONFIG_DATA is empty"
-        exit 1
-      fi
-
-      kubeconfig_file=$(mktemp)
-      trap "rm -f '$${kubeconfig_file}'" EXIT
-      echo "$${KUBECONFIG_DATA}" > "$${kubeconfig_file}"
-
-      nodeclaims=$(kubectl --kubeconfig "$${kubeconfig_file}" get nodeclaims -l "karpenter.sh/nodepool=$${NODEPOOL_NAME}" -o name)
-      if [ -n "$${nodeclaims}" ]; then
-        echo "$${nodeclaims}" | xargs kubectl --kubeconfig "$${kubeconfig_file}" delete --wait=true
-      fi
-    EOF
-
+    command     = "sh '${path.module}/scripts/delete-nodeclaims.sh'"
     environment = self.input
   }
 }

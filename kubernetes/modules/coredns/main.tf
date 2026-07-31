@@ -277,10 +277,6 @@ resource "kubernetes_deployment" "coredns" {
 resource "terraform_data" "scale_down_kube_dns_autoscaler" {
   count            = var.disable_default_coredns_autoscaler ? 1 : 0
   triggers_replace = [var.cluster_identifier, var.coredns_autoscaler_deployment_to_scale_down, local.namespace]
-  # NOTE: local-exec scripts in this module must stay POSIX sh compatible
-  # (no bashisms): terraform runs them with its default /bin/sh, which may
-  # be dash, busybox sh (e.g. in Materialize's BYOC stack-deployer image),
-  # or another minimal shell.
   provisioner "local-exec" {
     when       = create
     on_failure = fail
@@ -289,23 +285,7 @@ resource "terraform_data" "scale_down_kube_dns_autoscaler" {
       DEPLOYMENT_NAME = var.coredns_autoscaler_deployment_to_scale_down
       NAMESPACE       = local.namespace
     }
-    command = <<-EOT
-      set -eu
-
-      kubeconfig_file=$(mktemp)
-      trap "rm -f '$${kubeconfig_file}'" EXIT
-      echo "$${KUBECONFIG_DATA}" > "$${kubeconfig_file}"
-
-      output=$(kubectl --kubeconfig="$${kubeconfig_file}" scale deployment $${DEPLOYMENT_NAME} -n $${NAMESPACE} --replicas=0 2>&1) || {
-        if echo "$output" | grep -q "no objects passed to scale"; then
-          echo "Deployment $${DEPLOYMENT_NAME} not found, skipping"
-          exit 0
-        fi
-        echo "Error scaling down $${DEPLOYMENT_NAME} deployment: $output"
-        exit 1
-      }
-      echo "Successfully scaled down $${DEPLOYMENT_NAME} to 0 replicas"
-    EOT
+    command = "sh '${path.module}/scripts/scale-down-deployment.sh'"
   }
 }
 
@@ -321,23 +301,7 @@ resource "terraform_data" "scale_down_kube_dns" {
       NAMESPACE       = local.namespace
     }
 
-    command = <<-EOT
-      set -eu
-
-      kubeconfig_file=$(mktemp)
-      trap "rm -f '$${kubeconfig_file}'" EXIT
-      echo "$${KUBECONFIG_DATA}" > "$${kubeconfig_file}"
-
-      output=$(kubectl --kubeconfig="$${kubeconfig_file}" scale deployment $${DEPLOYMENT_NAME} -n $${NAMESPACE} --replicas=0 2>&1) || {
-        if echo "$output" | grep -q "no objects passed to scale"; then
-          echo "Deployment $${DEPLOYMENT_NAME} not found, skipping"
-          exit 0
-        fi
-        echo "Error scaling down kube-dns deployment: $output"
-        exit 1
-      }
-      echo "Successfully scaled down $${DEPLOYMENT_NAME} to 0 replicas"
-    EOT
+    command = "sh '${path.module}/scripts/scale-down-deployment.sh'"
   }
 
   depends_on = [terraform_data.scale_down_kube_dns_autoscaler]

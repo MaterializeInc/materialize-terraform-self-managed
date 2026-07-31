@@ -13,39 +13,9 @@ resource "terraform_data" "annotate_existing_resources" {
     KUBECONFIG_DATA = var.kubeconfig_data
   }
 
-  # NOTE: local-exec scripts in this module must stay POSIX sh compatible
-  # (no bashisms): terraform runs them with its default /bin/sh, which may
-  # be dash, busybox sh (e.g. in Materialize's BYOC stack-deployer image),
-  # or another minimal shell.
   provisioner "local-exec" {
     environment = self.input
-    command     = <<-EOF
-      set -eu
-
-      kubeconfig_file=$(mktemp)
-      trap "rm -f '$${kubeconfig_file}'" EXIT
-      echo "$${KUBECONFIG_DATA}" > "$${kubeconfig_file}"
-
-      helm_annotate() {
-        kubectl --kubeconfig "$${kubeconfig_file}" annotate "$@" meta.helm.sh/release-name=aws-vpc-cni meta.helm.sh/release-namespace=kube-system --overwrite
-        kubectl --kubeconfig "$${kubeconfig_file}" label "$@" app.kubernetes.io/managed-by=Helm --overwrite
-      }
-
-      # Namespaced resources
-      helm_annotate daemonset aws-node -n kube-system
-      helm_annotate serviceaccount aws-node -n kube-system
-      helm_annotate configmap amazon-vpc-cni -n kube-system
-
-      # Cluster-scoped resources
-      helm_annotate clusterrole aws-node
-      helm_annotate clusterrolebinding aws-node
-
-      # Add IRSA annotation to service account
-      kubectl --kubeconfig "$${kubeconfig_file}" annotate serviceaccount aws-node -n kube-system \
-        eks.amazonaws.com/role-arn="$${ROLE_ARN}" --overwrite
-
-      echo "VPC CNI resources annotated for Helm adoption."
-    EOF
+    command     = "sh '${path.module}/scripts/annotate-for-helm-adoption.sh'"
   }
 }
 
