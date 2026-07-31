@@ -234,22 +234,22 @@ variable "load_balancer_sku" {
 }
 
 variable "availability_zones" {
-  description = "List of availability zones for the default node pool. Azure supports zones 1, 2, and 3. Defaults to all three zones for production-ready high availability. Use a single zone (e.g., [\"1\"]) for dev/test environments."
+  description = "List of availability zones for the default node pool. Azure supports zones 1, 2, and 3. When null (the default), Azure distributes nodes without zone pinning. Set to [\"1\", \"2\", \"3\"] for production HA or [\"1\"] for dev/test."
   type        = list(string)
-  default     = ["1", "2", "3"]
-  nullable    = false
+  default     = null
+  nullable    = true
 
   validation {
-    condition = alltrue([
+    condition     = var.availability_zones == null ? true : length(var.availability_zones) > 0
+    error_message = "availability_zones cannot be an empty list. Use null to let Azure choose."
+  }
+
+  validation {
+    condition = var.availability_zones == null ? true : alltrue([
       for zone in var.availability_zones :
       contains(["1", "2", "3"], zone)
     ])
     error_message = "Availability zones must be \"1\", \"2\", or \"3\"."
-  }
-
-  validation {
-    condition     = length(var.availability_zones) > 0
-    error_message = "At least one availability zone must be specified."
   }
 }
 

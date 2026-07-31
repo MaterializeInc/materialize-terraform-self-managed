@@ -46,7 +46,7 @@ No modules.
 | <a name="input_swap_enabled"></a> [swap\_enabled](#input\_swap\_enabled) | Whether to enable swap on the local NVMe disks. | `bool` | `false` | no |
 | <a name="input_tags"></a> [tags](#input\_tags) | Tags to apply to resources | `map(string)` | `{}` | no |
 | <a name="input_vm_size"></a> [vm\_size](#input\_vm\_size) | VM size for AKS nodes | `string` | n/a | yes |
-| <a name="input_zones"></a> [zones](#input\_zones) | List of availability zones for the node pool. Azure supports zones 1, 2, and 3. Defaults to all three zones for production-ready high availability. Use a single zone (e.g., ["1"]) for dev/test environments. | `list(string)` | <pre>[<br/>  "1",<br/>  "2",<br/>  "3"<br/>]</pre> | no |
+| <a name="input_zones"></a> [zones](#input\_zones) | List of availability zones for the node pool. Azure supports zones 1, 2, and 3. When null (the default), Azure distributes nodes without zone pinning. Set to ["1", "2", "3"] for production HA. | `list(string)` | `null` | no |
 
 ## Outputs
 

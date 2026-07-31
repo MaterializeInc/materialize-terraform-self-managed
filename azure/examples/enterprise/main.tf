@@ -57,6 +57,9 @@ locals {
     log_analytics_workspace_id = null
   }
 
+  # Explicit multi-zone configuration for production HA
+  availability_zones = ["1", "2", "3"]
+
   node_pool_config = {
     vm_size              = "Standard_E4pds_v6"
     auto_scaling_enabled = true
@@ -226,6 +229,9 @@ module "aks" {
   enable_azure_monitor       = local.aks_config.enable_azure_monitor
   log_analytics_workspace_id = local.aks_config.log_analytics_workspace_id
 
+  # Explicit multi-zone configuration for production HA
+  availability_zones = local.availability_zones
+
   tags = var.tags
 }
 
@@ -248,6 +254,9 @@ module "materialize_nodepool" {
   vm_size      = local.node_pool_config.vm_size
   disk_size_gb = local.node_pool_config.disk_size_gb
   swap_enabled = local.node_pool_config.swap_enabled
+
+  # Explicit multi-zone configuration for production HA
+  zones = local.availability_zones
 
   labels = local.materialize_node_labels
 
