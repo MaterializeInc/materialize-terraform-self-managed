@@ -80,7 +80,10 @@ pub struct CommonInitArgs {
     #[arg(long, default_value = "Integration test")]
     pub purpose: String,
     /// Value for the `reason` tag required by the scratch account SCP (AWS only).
-    #[arg(long, default_value = "materialize-terraform-self-managed integration test")]
+    #[arg(
+        long,
+        default_value = "materialize-terraform-self-managed integration test"
+    )]
     pub reason: String,
     /// Value for the `team` tag required by the scratch account SCP (AWS only).
     #[arg(long, default_value = "cloud")]
