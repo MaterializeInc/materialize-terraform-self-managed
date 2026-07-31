@@ -390,6 +390,8 @@ module "self_signed_cluster_issuer" {
 module "operator" {
   source = "../../modules/operator"
 
+  operator_version = var.materialize_version
+
   name_prefix    = var.name_prefix
   aws_region     = var.aws_region
   aws_account_id = data.aws_caller_identity.current.account_id
@@ -497,6 +499,7 @@ module "storage" {
 # 9. Setup Materialize instance
 module "materialize_instance" {
   source               = "../../../kubernetes/modules/materialize-instance"
+  environmentd_version = var.materialize_version
   instance_name        = local.materialize_instance_name
   instance_namespace   = local.materialize_instance_namespace
   metadata_backend_url = local.metadata_backend_url

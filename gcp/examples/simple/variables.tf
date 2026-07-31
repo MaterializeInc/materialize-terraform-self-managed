@@ -97,6 +97,12 @@ variable "datapath_provider" {
   }
 }
 
+variable "materialize_version" {
+  description = "Materialize release for both the operator Helm chart and environmentd, which must not drift. Null uses each module's default."
+  type        = string
+  default     = null
+}
+
 variable "enable_node_upgrade_rollout_trigger" {
   description = "Trigger rollouts of Materialize instances when GKE upgrades the node pools they run on, moving their pods to the replacement nodes gracefully instead of letting GKE evict them."
   type        = bool
