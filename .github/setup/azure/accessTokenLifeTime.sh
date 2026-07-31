@@ -14,7 +14,7 @@ POLICY_RESPONSE=$(az rest --method POST \
   }')
 
 # 2. Extract policy ID and get application ID
-POLICY_ID=$(echo $POLICY_RESPONSE | jq -r '.id')
+POLICY_ID=$(echo "$POLICY_RESPONSE" | jq -r '.id')
 APP_ID=$(az ad app list --display-name "mz-self-managed-github-actions" --query "[0].id" -o tsv)
 
 echo "Policy ID: $POLICY_ID"

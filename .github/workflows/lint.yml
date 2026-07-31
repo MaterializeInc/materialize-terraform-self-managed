@@ -132,17 +132,15 @@ jobs:
           fi
           echo "No inline heredoc commands found."
 
-      # The module scripts run under terraform's default /bin/sh (dash, or
-      # busybox sh in the BYOC stack-deployer image), so their shebang is
-      # #!/bin/sh and shellcheck checks them as POSIX sh. The repo's other .sh
-      # scripts are bash and have their own findings to clear first, so they
-      # are not covered yet.
-      - name: ShellCheck module scripts
+      # Every script is checked in the dialect its shebang declares: the module
+      # scripts say #!/bin/sh, so they are held to POSIX sh, while the tooling
+      # scripts under .github are bash.
+      - name: ShellCheck shell scripts
         run: |
           set -euo pipefail
-          files=$(git ls-files '*/modules/*/scripts/*.sh')
+          files=$(git ls-files '*.sh')
           if [ -z "$files" ]; then
-            echo "::error::Found no module scripts to check; the glob is wrong."
+            echo "::error::Found no .sh files to check; the glob is wrong."
             exit 1
           fi
           echo "$files"
