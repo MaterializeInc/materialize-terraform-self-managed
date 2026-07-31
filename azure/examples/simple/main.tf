@@ -61,6 +61,13 @@ locals {
     log_analytics_workspace_id = null
   }
 
+  # Multi-zone configuration for production HA. Azure subnets automatically span
+  # all zones, so no networking changes are needed. Setting availability_zones
+  # pins AKS node pools to specific zones for predictable placement.
+  # The managed-csi storage class uses WaitForFirstConsumer binding, ensuring
+  # persistent volumes are provisioned in the same zone as the consuming pod.
+  availability_zones = ["1", "2", "3"]
+
   node_pool_config = {
     vm_size              = "Standard_E4pds_v6"
     auto_scaling_enabled = true
@@ -186,6 +193,9 @@ module "aks" {
   enable_azure_monitor       = local.aks_config.enable_azure_monitor
   log_analytics_workspace_id = local.aks_config.log_analytics_workspace_id
 
+  # Multi-zone configuration for production HA
+  availability_zones = local.availability_zones
+
   tags = var.tags
 
   depends_on = [azurerm_resource_group.materialize]
@@ -210,6 +220,9 @@ module "materialize_nodepool" {
   vm_size      = local.node_pool_config.vm_size
   disk_size_gb = local.node_pool_config.disk_size_gb
   swap_enabled = local.node_pool_config.swap_enabled
+
+  # Multi-zone configuration for production HA
+  zones = local.availability_zones
 
   labels = local.materialize_node_labels
 
