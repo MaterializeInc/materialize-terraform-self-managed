@@ -31,6 +31,24 @@ variable "max_allocated_storage" {
   nullable    = false
 }
 
+variable "storage_type" {
+  description = "EBS storage type (gp2, gp3, io1, io2). Null uses the provider default (gp2)."
+  type        = string
+  default     = null
+}
+
+variable "iops" {
+  description = "Provisioned IOPS. Only valid for gp3 (>=400GiB), io1, io2. Null uses the type's baseline."
+  type        = number
+  default     = null
+}
+
+variable "storage_throughput" {
+  description = "Storage throughput in MiBps. Only valid for gp3 (>=400GiB). Null uses baseline."
+  type        = number
+  default     = null
+}
+
 variable "database_name" {
   description = "Name of the database to create"
   type        = string
