@@ -85,9 +85,8 @@ pub struct CommonInitArgs {
     /// Value for the `team` tag required by the scratch account SCP (AWS only).
     #[arg(long, default_value = "cloud")]
     pub team: String,
-    /// Hours from now used to compute the `deleteAfter` tag required by the
-    /// scratch account SCP (AWS only).
-    #[arg(long, default_value_t = 24)]
+    /// Hours from now used to compute the `After` tag required.
+    #[arg(long, default_value_t = 96)]
     pub delete_after_hours: i64,
     /// Materialize license key (conflicts with --license-key-file).
     #[arg(
