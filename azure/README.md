@@ -140,3 +140,60 @@ When adopting LocalDNS once the provider supports it, note that enabling it
 reimages the node pool, and namespaces with network policies enabled need
 egress to 169.254.10.0/24:53 allowed (Cilium default-denies unlisted
 destinations, and LocalDNS moves pod resolution off the kube-dns service IP).
+
+### Multi-Zone Configuration
+
+These modules support deploying AKS clusters across multiple availability zones
+for production high availability.
+
+#### Networking
+
+Azure Virtual Networks and subnets are **regional** resources that automatically
+span all availability zones within a region. No special networking configuration
+is required for multi-zone deployments—the same VNet and subnet configuration
+works regardless of zone selection.
+
+Reference: [Azure Virtual Network FAQ](https://learn.microsoft.com/en-us/azure/virtual-network/virtual-networks-faq#can-vnets-span-availability-zones)
+
+#### AKS Node Pools
+
+Configure availability zones via the `availability_zones` variable on the AKS
+module and the `zones` variable on node pool modules:
+
+```hcl
+module "aks" {
+  source = "../../modules/aks"
+  # ...
+  availability_zones = ["1", "2", "3"]  # Production HA
+}
+
+module "materialize_nodepool" {
+  source = "../../modules/nodepool"
+  # ...
+  zones = ["1", "2", "3"]  # Match AKS default pool zones
+}
+```
+
+When `availability_zones`/`zones` is `null` (the default), Azure distributes
+nodes across zones automatically without explicit pinning. For production,
+explicitly setting `["1", "2", "3"]` ensures nodes are distributed across all
+three zones.
+
+#### Storage Classes and Managed Disks
+
+Azure Managed Disks are **zonal** resources—a disk created in zone 1 can only be
+attached to a VM in zone 1. AKS's built-in `managed-csi` storage class uses
+`volumeBindingMode: WaitForFirstConsumer`, which defers disk provisioning until
+a pod is scheduled. This ensures the disk is created in the same zone as the
+node running the pod.
+
+**Important**: If a pod with a zonal persistent volume is rescheduled to a
+different zone, it will fail to start because the existing disk cannot be
+attached to nodes in other zones. For stateful workloads requiring zone
+mobility, consider:
+
+- Using zone-redundant storage (ZRS) for Premium SSD v2 or Ultra Disks
+- Designing for zone-specific stateful sets with anti-affinity rules
+- Using Azure Files (which is zone-redundant) for shared storage
+
+Reference: [Azure Disk CSI Driver](https://learn.microsoft.com/en-us/azure/aks/azure-disk-csi)
