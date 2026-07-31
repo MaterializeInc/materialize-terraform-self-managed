@@ -20,7 +20,7 @@ This example provisions the following infrastructure:
 
 ### Compute
 - **AKS Cluster**: Version 1.34 with Cilium networking (network plugin: azure, data plane: cilium, policy: cilium)
-- **Default Node Pool**: Standard_D4pds_v6 VMs, autoscaling 2-5 nodes, labeled for generic workloads
+- **Default Node Pool**: Standard_D4ps_v6 VMs, autoscaling 2-5 nodes, labeled for generic workloads
 - **Materialize Node Pool**: Standard_E4pds_v6 VMs with 100GB disk, autoscaling 2-5 nodes, swap enabled, dedicated taints for Materialize workloads
 - **Managed Identities**:
   - AKS cluster identity: Used by AKS control plane to provision Azure resources (creating load balancers when Materialize LoadBalancer services are created, managing network interfaces)
@@ -28,7 +28,7 @@ This example provisions the following infrastructure:
 
 ### Database
 - **Azure PostgreSQL Flexible Server**: Version 15
-- **SKU**: GP_Standard_D2s_v3 (2 vCores, 4GB memory)
+- **SKU**: GP_Standard_D2ds_v5 (2 vCores, 8GB memory)
 - **Storage**: 32GB with 7-day backup retention
 - **Network Access**: Public Network Access is disabled, Private access only (no public endpoint)
 - **Database**: `materialize` database pre-created
