@@ -100,3 +100,53 @@ provider "helm" {
 ### Required APIs
 
 Your GCP project needs several APIs enabled. See the [examples/simple/README.md](./examples/simple/README.md#required-apis) for the complete list of required APIs and how to enable them.
+
+---
+
+## Multi-Zone Clusters and Persistent Disk Topology
+
+GKE regional clusters automatically distribute nodes across multiple zones for high availability. This section explains how zone selection interacts with GCP Persistent Disks.
+
+### How It Works
+
+**Networking (Regional):**
+- GCP subnets are regional resources that span all zones in a region
+- The networking module creates regional subnets, so no changes are needed for multi-zone clusters
+- Pods in any zone can use the same subnet
+
+**Storage (Zonal):**
+- GCP Persistent Disks are zonal resources tied to a specific zone
+- Pods using a PersistentVolumeClaim (PVC) must schedule in the same zone as their Persistent Disk
+- GKE's default `standard-rwo` StorageClass uses `volumeBindingMode: WaitForFirstConsumer`, which delays PD creation until a pod is scheduled, ensuring the PD is created in the pod's zone
+
+### Zone Selection
+
+The GKE module's `node_locations` parameter controls which zones host cluster nodes:
+
+- **Default (null)**: Uses first 3 available zones in the region for high availability
+- **Explicit list**: Restricts nodes to specified zones
+
+```hcl
+module "gke" {
+  source = "../../modules/gke"
+  # ...
+
+  # Default: first 3 zones in region (HA)
+  # For single-zone: node_locations = ["us-central1-a"]
+  # For custom zones: node_locations = ["us-central1-a", "us-central1-f"]
+}
+```
+
+**When to customize zones:**
+- **Single zone**: Lower cost, simpler for dev/test
+- **Multiple zones**: Production HA, requires capacity in each zone
+- **Specific zones**: Match machine type availability (e.g., C4A Arm instances)
+
+### Persistent Disk Considerations
+
+GCP Persistent Disks are zonal. The `standard-rwo` StorageClass uses `WaitForFirstConsumer` binding, which:
+1. Delays PD creation until pod scheduling
+2. Creates PD in same zone as scheduled pod
+3. Binds pod to that zone for future restarts
+
+For HA with stateful workloads, use multiple zones and let the scheduler place pods where capacity exists.

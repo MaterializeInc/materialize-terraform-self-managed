@@ -26,6 +26,9 @@ module "vpc" {
   mtu          = var.mtu
 
   auto_create_subnetworks = false
+  # GCP subnets are regional resources (not zonal). A single subnet spans all
+  # zones within its region, so no changes are needed for multi-zone GKE
+  # clusters: pods in any zone can use the same subnet.
   subnets = [
     for subnet in var.subnets : {
       subnet_name           = subnet.name
