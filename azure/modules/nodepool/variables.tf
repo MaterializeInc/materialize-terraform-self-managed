@@ -74,6 +74,26 @@ variable "tags" {
   default     = {}
 }
 
+variable "zones" {
+  description = "List of availability zones for the node pool. Azure supports zones 1, 2, and 3. When null (the default), Azure distributes nodes without zone pinning. Set to [\"1\", \"2\", \"3\"] for production HA."
+  type        = list(string)
+  default     = null
+  nullable    = true
+
+  validation {
+    condition     = var.zones == null ? true : length(var.zones) > 0
+    error_message = "zones cannot be an empty list. Use null to let Azure choose."
+  }
+
+  validation {
+    condition = var.zones == null ? true : alltrue([
+      for zone in var.zones :
+      contains(["1", "2", "3"], zone)
+    ])
+    error_message = "Zones must be \"1\", \"2\", or \"3\"."
+  }
+}
+
 variable "labels" {
   description = "Additional labels to apply to Kubernetes resources"
   type        = map(string)

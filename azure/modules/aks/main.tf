@@ -47,6 +47,7 @@ resource "azurerm_kubernetes_cluster" "aks" {
     vnet_subnet_id               = var.subnet_id
     os_disk_size_gb              = var.default_node_pool_os_disk_size_gb
     node_labels                  = var.default_node_pool_node_labels
+    zones                        = var.availability_zones
 
     upgrade_settings {
       max_surge                     = "10%"
