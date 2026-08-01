@@ -124,6 +124,10 @@ Complete support for deploying Materialize on Google Cloud Platform with GKE, Cl
 - Cloud provider credentials configured
 - kubectl (for managing Kubernetes resources)
 - Appropriate cloud provider CLI tools (aws-cli, az, or gcloud)
+- Linux or macOS. Some modules clean up cloud resources through `local-exec`
+  provisioners, which Terraform runs with `/bin/sh` — unavailable when
+  Terraform runs from Windows directly, since it uses `cmd` there. On Windows,
+  run Terraform from WSL.
 
 ### Quick Start
 
