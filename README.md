@@ -172,6 +172,16 @@ We follow semantic versioning with our tags. If a particular version requires ad
 
 ### Upgrade Notes
 
+#### v9.0.0
+
+The `materialize-instance` module now enables role-based access control by default. A new `enable_rbac` variable (bool, default `true`) sets `spec.enableRbac` on the Materialize CR. Previously the module never set the field, so it fell back to the CRD default (`false`) and the operator launched environmentd with `enable_rbac_checks=false`, meaning privilege checks were not enforced.
+
+**Impact on existing deployments:**
+
+- Bumping `ref=<tag>` turns on privilege checks for existing instances. Any role that was relying on unenforced privileges loses access until it is granted the privileges it needs. `mz_system` remains a superuser, so bootstrap and admin automation running as `mz_system` is unaffected.
+- Review the grants for your application roles before applying. See [Access control](https://materialize.com/docs/security/self-managed/access-control/) and [`GRANT PRIVILEGE`](https://materialize.com/docs/sql/grant-privilege/) for the privileges each object type requires.
+- To keep the previous behavior, set `enable_rbac = false` on the `materialize-instance` module.
+
 #### v8.0.0
 
 The GCP modules now require the `hashicorp/google` provider `>= 7.22, < 8` (previously `>= 6.31, < 6.51.0`). This is required by the upgrade of the upstream `terraform-google-modules/sql-db/google` module to v28, which no longer supports google provider 6.x.
