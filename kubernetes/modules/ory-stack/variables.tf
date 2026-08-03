@@ -127,6 +127,13 @@ variable "materialize_console_fqdn" {
   default     = null
 }
 
+variable "materialize_console_extra_fqdns" {
+  description = "Additional FQDNs the Materialize console is served on (e.g. a VPN or tailnet hostname fronting the same pods). Each is registered alongside materialize_console_fqdn as an OAuth2 redirect URI, post-logout URI, and Hydra CORS origin, so sign-in completes from every origin."
+  type        = list(string)
+  default     = []
+  nullable    = false
+}
+
 # Load balancer cloud-specific knobs ------------------------------------------
 
 variable "lb_annotations" {

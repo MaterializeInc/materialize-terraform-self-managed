@@ -3,6 +3,15 @@ locals {
   # policy from the materialize namespace. Null skips Materialize integration.
   wire_materialize = var.materialize_namespace != null
 
+  # Every browser origin the console is served on: the primary FQDN plus any
+  # extras (e.g. a VPN or tailnet hostname fronting the same pods). Feeds the
+  # OAuth2 redirect URIs, post-logout URIs, and Hydra CORS, so sign-in works
+  # from each origin.
+  materialize_console_fqdns = concat(
+    var.materialize_console_fqdn != null ? [var.materialize_console_fqdn] : [],
+    var.materialize_console_extra_fqdns,
+  )
+
   # Polis is optional and gated by var.enable_polis.
   wire_polis = var.enable_polis
 
@@ -299,7 +308,7 @@ module "ory_hydra" {
 
   tls_cert_secret_name = "hydra-tls"
 
-  cors_allowed_origins = local.wire_materialize ? ["https://${var.materialize_console_fqdn}"] : []
+  cors_allowed_origins = local.wire_materialize ? [for fqdn in local.materialize_console_fqdns : "https://${fqdn}"] : []
 
   login_url   = "${local.ui_external_url}/login"
   consent_url = "${local.ui_external_url}/consent"
@@ -470,9 +479,9 @@ resource "kubectl_manifest" "materialize_oauth2_client" {
       responseTypes = ["code", "id_token"]
       scope         = var.oauth2_client_scope
       audience      = var.oauth2_client_audience
-      redirectUris  = ["https://${var.materialize_console_fqdn}/auth/callback"]
+      redirectUris  = [for fqdn in local.materialize_console_fqdns : "https://${fqdn}/auth/callback"]
       postLogoutRedirectUris = var.oauth2_client_post_logout_redirect_uris != null ? var.oauth2_client_post_logout_redirect_uris : [
-        "https://${var.materialize_console_fqdn}/",
+        for fqdn in local.materialize_console_fqdns : "https://${fqdn}/"
       ]
       # First-party SPA client, no third-party consent needed. Skipping the
       # consent screen also avoids the first-login footgun where users click
