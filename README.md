@@ -127,7 +127,7 @@ Complete support for deploying Materialize on Google Cloud Platform with GKE, Cl
 - Linux or macOS. Some modules clean up cloud resources through `local-exec`
   provisioners, which Terraform runs with `/bin/sh` — unavailable when
   Terraform runs from Windows directly, since it uses `cmd` there. On Windows,
-  run Terraform from WSL.
+  run Terraform from WSL (Best-Effort only).
 
 ### Quick Start
 
