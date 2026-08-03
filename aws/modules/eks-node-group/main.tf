@@ -44,77 +44,15 @@ resource "terraform_data" "eni_cleanup" {
   }
 
   provisioner "local-exec" {
-    when        = destroy
-    interpreter = ["/usr/bin/env", "bash", "-c"]
-    command     = <<-SCRIPT
-      set -euo pipefail
-
-      SG_ID="${self.triggers_replace.security_group_id}"
-      REGION="${self.triggers_replace.region}"
-      PROFILE="${self.triggers_replace.profile}"
-
-      PROFILE_ARGS=""
-      if [ -n "$PROFILE" ]; then
-        PROFILE_ARGS="--profile $PROFILE"
-      fi
-
-      echo "Cleaning up orphaned ENIs for security group $SG_ID in $REGION..."
-
-      CLUSTER_NAME="${self.triggers_replace.cluster_name}"
-      NODE_GROUP_PREFIX="${self.triggers_replace.node_group_name}"
-
-      delete_eni() {
-        local ENI_ID="$1"
-        echo "  Deleting $ENI_ID..."
-        # The ENI may have been deleted between the list call and now
-        # (e.g. by the VPC CNI). Treat NotFound as success.
-        DELETE_OUTPUT=$(aws ec2 delete-network-interface \
-          --network-interface-id "$ENI_ID" \
-          --region "$REGION" $PROFILE_ARGS 2>&1) || {
-          if echo "$DELETE_OUTPUT" | grep -q "InvalidNetworkInterfaceID.NotFound"; then
-            echo "  Already deleted, skipping."
-            return 0
-          fi
-          echo "$DELETE_OUTPUT" >&2
-          return 1
-        }
-      }
-
-      # ENIs come in two tag styles:
-      # 1. EKS-managed: eks:cluster-name + eks:nodegroup-name
-      # 2. VPC CNI-managed: cluster.k8s.amazonaws.com/name
-      echo "Cleaning up EKS-tagged ENIs..."
-      EKS_ENIS=$(aws ec2 describe-network-interfaces \
-        --filters \
-          "Name=group-id,Values=$SG_ID" \
-          "Name=status,Values=available" \
-          "Name=tag:eks:cluster-name,Values=$CLUSTER_NAME" \
-        --query "NetworkInterfaces[?TagSet[?Key=='eks:nodegroup-name' && starts_with(Value, '$NODE_GROUP_PREFIX')]].NetworkInterfaceId" \
-        --output text \
-        --region "$REGION" $PROFILE_ARGS)
-
-      for ENI_ID in $EKS_ENIS; do
-        [ "$ENI_ID" = "None" ] && continue
-        delete_eni "$ENI_ID"
-      done
-
-      echo "Cleaning up VPC CNI-tagged ENIs..."
-      CNI_ENIS=$(aws ec2 describe-network-interfaces \
-        --filters \
-          "Name=group-id,Values=$SG_ID" \
-          "Name=status,Values=available" \
-          "Name=tag:cluster.k8s.amazonaws.com/name,Values=$CLUSTER_NAME" \
-        --query "NetworkInterfaces[*].NetworkInterfaceId" \
-        --output text \
-        --region "$REGION" $PROFILE_ARGS)
-
-      for ENI_ID in $CNI_ENIS; do
-        [ "$ENI_ID" = "None" ] && continue
-        delete_eni "$ENI_ID"
-      done
-
-      echo "ENI cleanup complete."
-    SCRIPT
+    when = destroy
+    environment = {
+      SG_ID             = self.triggers_replace.security_group_id
+      CLUSTER_NAME      = self.triggers_replace.cluster_name
+      NODE_GROUP_PREFIX = self.triggers_replace.node_group_name
+      REGION            = self.triggers_replace.region
+      PROFILE           = self.triggers_replace.profile
+    }
+    command = "sh '${path.module}/scripts/eni-cleanup.sh'"
   }
 }
 
