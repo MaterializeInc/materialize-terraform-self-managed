@@ -177,10 +177,12 @@ locals {
 
   deployment_config = length(local.tls_volumes) > 0 || length(local.upstream_oidc_extra_env) > 0 ? {
     deployment = merge(
-      length(local.tls_volumes) > 0 ? {
-        extraVolumes      = local.tls_volumes
-        extraVolumeMounts = local.tls_volume_mounts
-      } : {},
+      # One attribute per conditional: a multi-attribute object and {} cannot
+      # unify as a map when the attribute types differ, so a two-attribute
+      # branch fails with "Inconsistent conditional result types" as soon as
+      # TLS is enabled.
+      length(local.tls_volumes) > 0 ? { extraVolumes = local.tls_volumes } : {},
+      length(local.tls_volumes) > 0 ? { extraVolumeMounts = local.tls_volume_mounts } : {},
       length(local.upstream_oidc_extra_env) > 0 ? { extraEnv = local.upstream_oidc_extra_env } : {},
       length(local.upstream_oidc_env_annotations) > 0 ? { annotations = local.upstream_oidc_env_annotations } : {},
     )
