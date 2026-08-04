@@ -43,6 +43,7 @@ AWS Specific Modules:
 | [`modules/aws-lbc`](./modules/aws-lbc)                | AWS Load Balancer Controller for NLB management            |
 | [`modules/nlb`](./modules/nlb)                        | Network Load Balancer for Materialize instance access      |
 | [`modules/operator`](./modules/operator)              | Materialize Kubernetes operator installation               |
+| [`modules/monitoring`](./modules/monitoring)           | Observability stack (Loki, Thanos, Grafana, Alloy) with S3 buckets and IRSA roles |
 
 **Cloud-Agnostic Kubernetes Modules:**
 
