@@ -105,7 +105,7 @@ variable "node_security_group_id" {
 }
 
 variable "backup_retention_period" {
-  description = "Number of days to retain backups"
+  description = "Number of days to retain automated backups. Enables point-in-time recovery (PITR) within this window, so the effective RPO is a few minutes. Set to 0 to disable automated backups (not recommended)."
   type        = number
   default     = 7
   nullable    = false
@@ -115,6 +115,20 @@ variable "backup_window" {
   description = "Preferred backup window"
   type        = string
   default     = "03:00-06:00"
+  nullable    = false
+}
+
+variable "skip_final_snapshot" {
+  description = "Whether to skip the final snapshot when the database is destroyed. Defaults to true. Set to false in production so that destroying the database leaves a recovery snapshot behind."
+  type        = bool
+  default     = true
+  nullable    = false
+}
+
+variable "final_snapshot_identifier_prefix" {
+  description = "Prefix for the final snapshot name taken when skip_final_snapshot is false. The RDS module appends the DB identifier and a random suffix to keep it unique. Ignored when skip_final_snapshot is true."
+  type        = string
+  default     = "final"
   nullable    = false
 }
 
