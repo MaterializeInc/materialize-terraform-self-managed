@@ -1,0 +1,13 @@
+# Keep LF endings on checkout regardless of core.autocrlf, so that a clone made
+# on Windows still works when Terraform is run from WSL.
+#
+# The shell scripts are the reason this file exists: /bin/sh treats a trailing
+# CR as part of the token and fails with errors like `$'\r': command not found`.
+# Terraform's local-exec provisioners run them, so CRLF turns into an apply or
+# destroy failure rather than something caught at review time.
+*.sh text eol=lf
+
+# .tf files matter too, because heredoc bodies end up inside Kubernetes objects
+# — the CoreDNS module's Corefile is one — where stray CRs would be carried
+# through into the rendered config.
+*.tf text eol=lf
