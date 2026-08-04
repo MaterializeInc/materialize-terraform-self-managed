@@ -23,8 +23,13 @@ variable "orchestratord_image_repository" {
   default     = null
 
   validation {
-    condition     = var.orchestratord_image_repository == null ? true : (length(var.orchestratord_image_repository) > 0 && !can(regex("[:@]", reverse(split("/", var.orchestratord_image_repository))[0])))
-    error_message = "orchestratord_image_repository must be a repository without a tag or digest. Use orchestratord_version to set the tag."
+    condition = var.orchestratord_image_repository == null ? true : alltrue([
+      length(var.orchestratord_image_repository) > 0,
+      !can(regex("\\s|://", var.orchestratord_image_repository)),
+      length(reverse(split("/", var.orchestratord_image_repository))[0]) > 0,
+      !can(regex("[:@]", reverse(split("/", var.orchestratord_image_repository))[0])),
+    ])
+    error_message = "orchestratord_image_repository must be a repository path with no tag, digest, whitespace, URL scheme, or trailing slash, for example \"myregistry.example.com/materialize/orchestratord\". Leave null to use the Helm chart's default. Use orchestratord_version to set the tag."
   }
 }
 
