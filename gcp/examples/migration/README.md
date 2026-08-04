@@ -112,7 +112,7 @@ See `terraform.tfvars.example` for the full list with inline documentation and g
 
 | Variable | Default | How to Verify |
 |----------|---------|---------------|
-| `region` | `us-central1` | `gcloud container clusters list --format="value(location)"` |
+| `region` | `us-east1` | `gcloud container clusters list --format="value(location)"` |
 | `subnet_cidr` | `10.0.0.0/20` | `gcloud compute networks subnets describe <prefix>-subnet --region=<region> --format="value(ipCidrRange)"` |
 | `database_tier` | `db-custom-2-4096` | `gcloud sql instances describe <prefix>-pg --format="value(settings.tier)"` |
 | `database_version` | `POSTGRES_15` | `gcloud sql instances describe <prefix>-pg --format="value(databaseVersion)"` |

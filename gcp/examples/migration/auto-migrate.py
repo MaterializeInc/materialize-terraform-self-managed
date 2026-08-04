@@ -252,7 +252,7 @@ class GCPStateMigrator(BaseStateMigrator):
         if 'region' in old_values:
             tfvars_content += f'region = "{old_values["region"]}"\n'
         else:
-            tfvars_content += 'region = "us-central1"  # TODO: Update this\n'
+            tfvars_content += 'region = "us-east1"  # TODO: Update this\n'
 
         if 'prefix' in old_values:
             tfvars_content += f'prefix = "{old_values["prefix"]}"\n'

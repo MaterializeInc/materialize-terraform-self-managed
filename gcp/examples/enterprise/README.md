@@ -45,7 +45,7 @@ Create a `terraform.tfvars` file:
 
 ```hcl
 project_id  = "my-gcp-project-id"
-region      = "us-central1"
+region      = "us-east1"
 name_prefix = "mz-enterprise"
 
 # Materialize license key JWT. Used both by Materialize and as the password
@@ -86,7 +86,7 @@ labels = {
 - `ory_hydra_fqdn`, `ory_ui_fqdn`, `ory_kratos_fqdn`, `materialize_console_fqdn`, `materialize_balancerd_fqdn`: Public hostnames for the five browser-facing endpoints (Hydra OAuth2, Kratos public API, selfservice UI, Materialize console, and balancerd, which serves the SQL-over-HTTP endpoint the console JS calls from the browser)
 
 **Optional Variables:**
-- `region`: GCP region (defaults to `us-central1`)
+- `region`: GCP region (defaults to `us-east1`)
 - `ingress_cidr_blocks`: List of CIDR blocks allowed to reach the LoadBalancer frontends (no effect when `internal_load_balancer = true`)
 - `internal_load_balancer`: Whether to use internal LBs (defaults to `true`). Set to `false` for prod-like demos validated against real DNS.
 - `enable_observability`: Enable Prometheus and Grafana monitoring stack (defaults to `true`)

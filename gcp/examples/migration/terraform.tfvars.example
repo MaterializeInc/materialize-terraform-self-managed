@@ -11,7 +11,7 @@ project_id = "your-project-id"
 
 # GCP Region
 # Run: gcloud container clusters list --format="value(location)"
-region = "us-central1"
+region = "us-east1"
 
 # Resource name prefix — MUST match your existing deployment
 # Run: gcloud container clusters list --format="value(name)" | sed 's/-gke$//'
