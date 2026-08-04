@@ -33,7 +33,7 @@
 | Name | Description | Type | Default | Required |
 | ---- | ----------- | ---- | ------- | :------: |
 | <a name="input_allocated_storage"></a> [allocated\_storage](#input\_allocated\_storage) | Allocated storage for the RDS instance (in GB) | `number` | `50` | no |
-| <a name="input_backup_retention_period"></a> [backup\_retention\_period](#input\_backup\_retention\_period) | Number of days to retain backups | `number` | `7` | no |
+| <a name="input_backup_retention_period"></a> [backup\_retention\_period](#input\_backup\_retention\_period) | Number of days to retain automated backups. Enables point-in-time recovery (PITR) within this window, so the effective RPO is a few minutes. Set to 0 to disable automated backups (not recommended). | `number` | `7` | no |
 | <a name="input_backup_window"></a> [backup\_window](#input\_backup\_window) | Preferred backup window | `string` | `"03:00-06:00"` | no |
 | <a name="input_cluster_name"></a> [cluster\_name](#input\_cluster\_name) | Name of the EKS cluster | `string` | n/a | yes |
 | <a name="input_cluster_security_group_id"></a> [cluster\_security\_group\_id](#input\_cluster\_security\_group\_id) | Security group ID of the EKS cluster | `string` | n/a | yes |
@@ -42,6 +42,7 @@
 | <a name="input_database_password"></a> [database\_password](#input\_database\_password) | Password for the database | `string` | n/a | yes |
 | <a name="input_database_subnet_ids"></a> [database\_subnet\_ids](#input\_database\_subnet\_ids) | List of subnet IDs for the database | `list(string)` | n/a | yes |
 | <a name="input_database_username"></a> [database\_username](#input\_database\_username) | Username for the database | `string` | n/a | yes |
+| <a name="input_final_snapshot_identifier_prefix"></a> [final\_snapshot\_identifier\_prefix](#input\_final\_snapshot\_identifier\_prefix) | Prefix for the final snapshot name taken when skip\_final\_snapshot is false. The RDS module appends the DB identifier and a random suffix to keep it unique. Ignored when skip\_final\_snapshot is true. | `string` | `"final"` | no |
 | <a name="input_instance_class"></a> [instance\_class](#input\_instance\_class) | Instance class for the RDS instance | `string` | n/a | yes |
 | <a name="input_iops"></a> [iops](#input\_iops) | Provisioned IOPS. Only valid for gp3 (>=400GiB), io1, io2. Null uses the type's baseline. | `number` | `null` | no |
 | <a name="input_kms_key_deletion_window_in_days"></a> [kms\_key\_deletion\_window\_in\_days](#input\_kms\_key\_deletion\_window\_in\_days) | The waiting period, specified in number of days, after which AWS KMS deletes the KMS key. Valid values are 7-30 days. | `number` | `30` | no |
@@ -53,6 +54,7 @@
 | <a name="input_name_prefix"></a> [name\_prefix](#input\_name\_prefix) | Prefix for all resource names | `string` | n/a | yes |
 | <a name="input_node_security_group_id"></a> [node\_security\_group\_id](#input\_node\_security\_group\_id) | Security group ID of the EKS nodes | `string` | n/a | yes |
 | <a name="input_postgres_version"></a> [postgres\_version](#input\_postgres\_version) | Version of PostgreSQL to use | `string` | `"15"` | no |
+| <a name="input_skip_final_snapshot"></a> [skip\_final\_snapshot](#input\_skip\_final\_snapshot) | Whether to skip the final snapshot when the database is destroyed. Defaults to true. Set to false in production so that destroying the database leaves a recovery snapshot behind. | `bool` | `true` | no |
 | <a name="input_storage_throughput"></a> [storage\_throughput](#input\_storage\_throughput) | Storage throughput in MiBps. Only valid for gp3 (>=400GiB). Null uses baseline. | `number` | `null` | no |
 | <a name="input_storage_type"></a> [storage\_type](#input\_storage\_type) | EBS storage type (gp2, gp3, io1, io2). Null uses the provider default (gp2). | `string` | `null` | no |
 | <a name="input_tags"></a> [tags](#input\_tags) | Tags to apply to all resources | `map(string)` | `{}` | no |

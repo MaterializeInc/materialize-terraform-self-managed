@@ -63,7 +63,11 @@ module "db" {
   maintenance_window      = var.maintenance_window
   backup_window           = var.backup_window
   backup_retention_period = var.backup_retention_period
-  skip_final_snapshot     = true
+
+  # When false, the RDS module auto-generates a unique final snapshot identifier
+  # from final_snapshot_identifier_prefix (default "final") plus a random suffix.
+  skip_final_snapshot              = var.skip_final_snapshot
+  final_snapshot_identifier_prefix = var.final_snapshot_identifier_prefix
 
   tags = var.tags
 
