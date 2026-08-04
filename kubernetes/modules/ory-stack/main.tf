@@ -381,6 +381,10 @@ module "ory_selfservice_ui" {
   node_selector = var.node_selector
   extra_env     = var.selfservice_ui_extra_env
 
+  # Unlike Kratos/Hydra/Polis this image is public and comes from Docker Hub,
+  # not the OEL registry proxy, so it needs its own override to be mirrorable.
+  image_repository = var.selfservice_ui_image_repository
+
   depends_on = [
     kubectl_manifest.ory_certificate,
   ]

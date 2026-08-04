@@ -78,8 +78,13 @@ variable "coredns_image_repository" {
   nullable    = false
 
   validation {
-    condition     = length(var.coredns_image_repository) > 0 && !can(regex("[:@]", reverse(split("/", var.coredns_image_repository))[0]))
-    error_message = "coredns_image_repository must be a non-empty repository without a tag or digest. Use coredns_version to set the tag."
+    condition = alltrue([
+      length(var.coredns_image_repository) > 0,
+      !can(regex("\\s|://", var.coredns_image_repository)),
+      length(reverse(split("/", var.coredns_image_repository))[0]) > 0,
+      !can(regex("[:@]", reverse(split("/", var.coredns_image_repository))[0])),
+    ])
+    error_message = "coredns_image_repository must be a repository path with no tag, digest, whitespace, URL scheme, or trailing slash, for example \"myregistry.example.com/coredns/coredns\". Use coredns_version to set the tag."
   }
 }
 
