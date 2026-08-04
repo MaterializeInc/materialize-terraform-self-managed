@@ -109,6 +109,22 @@ variable "oel_registry_secret_name" {
   nullable    = false
 }
 
+variable "selfservice_ui_image_repository" {
+  description = "Image repository for the Ory selfservice UI, without a tag. This image is public and pulled from Docker Hub (oryd/kratos-selfservice-ui-node) rather than through the OEL registry proxy, so override it to use a mirror or pull-through cache and avoid Docker Hub rate limits. Leave null to use the ory-selfservice-ui module's default."
+  type        = string
+  default     = null
+
+  validation {
+    condition = var.selfservice_ui_image_repository == null ? true : alltrue([
+      length(var.selfservice_ui_image_repository) > 0,
+      !can(regex("\\s|://", var.selfservice_ui_image_repository)),
+      length(reverse(split("/", var.selfservice_ui_image_repository))[0]) > 0,
+      !can(regex("[:@]", reverse(split("/", var.selfservice_ui_image_repository))[0])),
+    ])
+    error_message = "selfservice_ui_image_repository must be a repository path with no tag, digest, whitespace, URL scheme, or trailing slash, for example \"myregistry.example.com/oryd/kratos-selfservice-ui-node\"."
+  }
+}
+
 # TLS -------------------------------------------------------------------------
 
 variable "cert_issuer_ref" {
