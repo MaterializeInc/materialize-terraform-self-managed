@@ -9,7 +9,8 @@
 # Run: gcloud config get-value project
 project_id = "your-project-id"
 
-# GCP Region
+# GCP Region — MUST match your existing deployment, not necessarily the
+# us-east1 default used by the simple/enterprise examples for new deployments.
 # Run: gcloud container clusters list --format="value(location)"
 region = "us-central1"
 

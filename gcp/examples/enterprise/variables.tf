@@ -6,7 +6,7 @@ variable "project_id" {
 variable "region" {
   description = "The region where resources will be created"
   type        = string
-  default     = "us-central1"
+  default     = "us-east1"
 }
 
 variable "labels" {

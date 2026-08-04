@@ -1,5 +1,5 @@
 project_id  = "my-gcp-project-id"
-region      = "us-central1"
+region      = "us-east1"
 name_prefix = "mz-enterprise"
 license_key = "your-materialize-license-key"
 

@@ -154,7 +154,7 @@ The Materialize license key can be provided in three ways (in order of precedenc
 | Argument | Description |
 |---|---|
 | `--project-id` | GCP project ID |
-| `--region` | GCP region (e.g. `us-central1`) |
+| `--region` | GCP region (e.g. `us-east1`) |
 
 ### Azure
 

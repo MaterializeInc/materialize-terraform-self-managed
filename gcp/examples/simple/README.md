@@ -71,7 +71,7 @@ Before running Terraform, create a `terraform.tfvars` file with the following va
 ```hcl
 project_id  = "my-gcp-project"
 name_prefix = "simple-demo"
-region      = "us-central1"
+region      = "us-east1"
 license_key = "your-materialize-license-key"  # Optional: Get from https://materialize.com/self-managed/
 labels = {
   environment = "demo"

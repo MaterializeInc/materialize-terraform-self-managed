@@ -132,8 +132,8 @@ module "gke" {
   # ...
 
   # Default: first 3 zones in region (HA)
-  # For single-zone: node_locations = ["us-central1-a"]
-  # For custom zones: node_locations = ["us-central1-a", "us-central1-f"]
+  # For single-zone: node_locations = ["us-east1-b"]
+  # For custom zones: node_locations = ["us-east1-b", "us-east1-d"]
 }
 ```
 
