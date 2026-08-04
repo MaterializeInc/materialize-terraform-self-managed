@@ -42,6 +42,9 @@ pub async fn phase_verify(dir: &Path) -> Result<()> {
         println!("\nVerifying node-local-dns...");
         verify_node_local_dns(&kubeconfig, provider).await?;
 
+        println!("\nVerifying the default DNS deployments were scaled down...");
+        verify_default_dns_scaled_down(&kubeconfig, provider).await?;
+
         if let Some(endpoint) = outputs.load_balancer_endpoint() {
             println!("\nVerifying Materialize SQL connectivity at {endpoint}...");
             verify_sql_connection(endpoint, &outputs).await?;
@@ -312,6 +315,63 @@ async fn verify_node_local_dns(kubeconfig: &Path, provider: CloudProvider) -> Re
     .context("node-local-dns DaemonSet did not become ready within timeout")?;
 
     println!("  node-local-dns DaemonSet is ready.");
+    Ok(())
+}
+
+/// The kube-system deployments that kubernetes/modules/coredns scales to zero,
+/// so that only its custom CoreDNS serves DNS. Names differ per provider and
+/// match what {provider}/examples/simple passes to the module.
+///
+/// AWS lists no autoscaler on purpose: EKS ships no CoreDNS autoscaler
+/// deployment, so aws/examples/simple sets
+/// `disable_default_coredns_autoscaler = false` and nothing scales it.
+fn scaled_down_dns_deployments(provider: CloudProvider) -> &'static [&'static str] {
+    match provider {
+        CloudProvider::Aws => &["coredns"],
+        CloudProvider::Gcp => &["kube-dns", "kube-dns-autoscaler"],
+        CloudProvider::Azure => &["coredns", "coredns-autoscaler"],
+    }
+}
+
+/// Checks that the provider's default DNS deployments really are at zero
+/// replicas.
+///
+/// The scale-down runs in a local-exec provisioner, and it treats a missing
+/// deployment as success, so a wrong deployment name leaves the default DNS
+/// running and still reports a clean apply. Nothing else here would notice:
+/// Materialize comes up fine with two DNS stacks. Reading the replica count
+/// back is what turns that silent no-op into a failure.
+///
+/// A deployment that does not exist at all is accepted, matching the
+/// provisioner's own contract — the provider may never have created it.
+async fn verify_default_dns_scaled_down(kubeconfig: &Path, provider: CloudProvider) -> Result<()> {
+    for deployment in scaled_down_dns_deployments(provider) {
+        // --ignore-not-found keeps an absent deployment on the success path,
+        // so it is distinguishable from a genuine kubectl failure.
+        let replicas = run_cmd_output(kubectl(kubeconfig).args([
+            "get",
+            "deployment",
+            deployment,
+            "-n",
+            "kube-system",
+            "--ignore-not-found",
+            "-o",
+            "jsonpath={.spec.replicas}",
+        ]))
+        .await
+        .with_context(|| format!("Failed to read replica count for {deployment}"))?;
+
+        match replicas.as_str() {
+            "" => println!("  {deployment} does not exist, nothing to scale down."),
+            "0" => println!("  [ok] {deployment} is scaled to 0 replicas."),
+            other => bail!(
+                "expected deployment {deployment} in kube-system to be scaled to 0 \
+                 replicas, found {other}. The default DNS stack is still running \
+                 alongside the custom CoreDNS."
+            ),
+        }
+    }
+
     Ok(())
 }
 
