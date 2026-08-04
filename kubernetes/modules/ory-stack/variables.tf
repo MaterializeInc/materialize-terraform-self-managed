@@ -137,10 +137,25 @@ variable "materialize_console_extra_fqdns" {
 # Load balancer cloud-specific knobs ------------------------------------------
 
 variable "lb_annotations" {
-  description = "Annotations applied to the public LoadBalancer Services (Hydra, Kratos, UI). Use this to set cloud-specific LB knobs (Azure internal flag, GKE LB type, AWS LBC settings)."
+  description = "Annotations applied to all the public LoadBalancer Services (Hydra, Kratos, UI, and Polis when enabled). Use this to set cloud-specific LB knobs (Azure internal flag, GKE LB type, AWS LBC settings). Per-service values in lb_overrides are merged on top."
   type        = map(string)
   default     = {}
   nullable    = false
+}
+
+variable "lb_overrides" {
+  description = "Per-service overrides for the LoadBalancer Services, keyed by service role: hydra, kratos, ui (the Ory selfservice UI, as in ui_fqdn and the lb_addresses output), polis. annotations are merged over lb_annotations, with the override winning on key collisions; use this to mix internal and external LBs, e.g. internal Hydra/Kratos/selfservice UI with an internet-facing Polis for SCIM. source_ranges sets spec.loadBalancerSourceRanges, which the cloud controller enforces in the provider firewall; unlike lb_source_cidrs it restricts ingress even on clusters whose datapath does not enforce NetworkPolicy."
+  type = map(object({
+    annotations   = optional(map(string), {})
+    source_ranges = optional(list(string))
+  }))
+  default  = {}
+  nullable = false
+
+  validation {
+    condition     = alltrue([for key in keys(var.lb_overrides) : contains(["hydra", "kratos", "ui", "polis"], key)])
+    error_message = "lb_overrides keys must be one of: hydra, kratos, ui, polis."
+  }
 }
 
 variable "lb_load_balancer_class" {
@@ -156,7 +171,7 @@ variable "lb_external_traffic_policy" {
 }
 
 variable "lb_source_cidrs" {
-  description = "CIDR blocks allowed to reach the Ory public ports (Hydra 4444, Kratos 4433, selfservice UI 3000) via the NetworkPolicy. Defaults to all sources; tighten to your LB or office CIDR ranges to restrict ingress."
+  description = "CIDR blocks allowed to reach the Ory public ports (Hydra 4444, Kratos 4433, selfservice UI 3000) via the NetworkPolicy. Defaults to all sources; tighten to your LB or office CIDR ranges to restrict ingress. NOTE: NetworkPolicy only takes effect on clusters whose datapath enforces it (GKE Dataplane V2, or a NetworkPolicy provider like Calico); on other clusters this input is silently ignored. For firewall-level enforcement that works everywhere, set source_ranges in lb_overrides instead."
   type        = list(string)
   default     = ["0.0.0.0/0"]
   nullable    = false

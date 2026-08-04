@@ -60,25 +60,30 @@ locals {
 
   # Public LoadBalancer Service map (Kratos public, Hydra public, selfservice UI,
   # and Polis when enabled). Selectors target the app.kubernetes.io/* labels
-  # emitted by the upstream charts.
+  # emitted by the upstream charts. role is the key callers use in lb_overrides,
+  # matching the lb_addresses output keys.
   ory_lb_services = merge({
     kratos-public-lb = {
+      role         = "kratos"
       app_name     = "kratos"
       app_instance = "kratos"
       target_port  = 4433
     }
     hydra-public-lb = {
+      role         = "hydra"
       app_name     = "hydra"
       app_instance = "hydra"
       target_port  = 4444
     }
     ory-selfservice-ui-lb = {
+      role         = "ui"
       app_name     = "kratos-selfservice-ui-node"
       app_instance = module.ory_selfservice_ui.service_name
       target_port  = module.ory_selfservice_ui.port
     }
     }, local.wire_polis ? {
     polis-public-lb = {
+      role         = "polis"
       app_name     = "polis"
       app_instance = "polis"
       target_port  = 8443
@@ -416,13 +421,16 @@ resource "kubernetes_service_v1" "ory_lb" {
   metadata {
     name        = each.key
     namespace   = var.namespace
-    annotations = var.lb_annotations
+    annotations = merge(var.lb_annotations, try(var.lb_overrides[each.value.role].annotations, {}))
   }
 
   spec {
     type                    = "LoadBalancer"
     load_balancer_class     = var.lb_load_balancer_class
     external_traffic_policy = var.lb_external_traffic_policy
+    # Enforced by the cloud controller in the provider firewall, so it applies
+    # even when the cluster datapath ignores NetworkPolicy (see lb_source_cidrs).
+    load_balancer_source_ranges = try(var.lb_overrides[each.value.role].source_ranges, null)
 
     selector = {
       "app.kubernetes.io/name"     = each.value.app_name
