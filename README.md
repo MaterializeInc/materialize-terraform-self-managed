@@ -167,6 +167,46 @@ module "materialize_instance" {
 
 Set the `ref=` portion to point at the latest tagged version of this repository.
 
+### Container Image Repositories
+
+By default the modules pull container images from Docker Hub. Docker Hub enforces
+pull rate limits, which can throttle or fail image pulls on larger clusters, so
+each image repository can be pointed at a mirror or pull-through cache instead.
+Image *tags* stay controlled by the existing version variables — set the
+repository without a tag or digest.
+
+| Module | Variable | Default |
+|---|---|---|
+| `kubernetes/modules/materialize-instance` | `environmentd_image_repository` | `materialize/environmentd` |
+| `{aws,azure,gcp}/modules/operator` | `orchestratord_image_repository` | Helm chart default (`materialize/orchestratord`) |
+| `kubernetes/modules/coredns` | `coredns_image_repository` | `coredns/coredns` |
+| `{aws,azure,gcp}/modules/nodepool`[^dsi] | `disk_setup_image` | `materialize/ephemeral-storage-setup-image:<version>` |
+
+[^dsi]: `aws/modules/eks-node-group` and `aws/modules/karpenter-ec2nodeclass` on AWS. Unlike the others, `disk_setup_image` is a full image reference including the tag.
+
+```hcl
+module "materialize_instance" {
+  source = "github.com/MaterializeInc/materialize-terraform-self-managed//kubernetes/modules/materialize-instance?ref=<tag>"
+
+  environmentd_image_repository = "myregistry.example.com/materialize/environmentd"
+  # ... additional configuration
+}
+```
+
+Note that the operator derives the `clusterd`, `balancerd`, and `console` image
+references from `environmentdImageRef`, reusing everything before the final `/`
+as the namespace. Overriding `environmentd_image_repository` therefore redirects
+those three images too, but only if the mirror preserves the upstream path
+layout — that is, all four images must be reachable as
+`<your-prefix>/materialize/<image>`. A pull-through cache of Docker Hub
+satisfies this automatically.
+
+Modules that install third-party Helm charts (cert-manager, metrics-server,
+Prometheus, Grafana, node-local-dns, and the AWS addons) mostly pull from
+registries without rate limits, such as `registry.k8s.io`, `quay.io`, and public
+ECR. Where those modules accept a `helm_values` variable, you can override the
+chart's own image values to redirect them.
+
 ## Migrating from the legacy modules
 
 The tooling for migrating from the legacy modules ([terraform-aws-materialize](https://github.com/MaterializeInc/terraform-aws-materialize), [terraform-google-materialize](https://github.com/MaterializeInc/terraform-google-materialize) and [terraform-azurerm-materialize](https://github.com/MaterializeInc/terraform-azurerm-materialize)) has been removed and is no longer supported. You can still find it under `<cloud>/examples/migration` in [earlier releases](https://github.com/MaterializeInc/materialize-terraform-self-managed/tree/v18.0.0) for reference, but we no longer maintain it.
