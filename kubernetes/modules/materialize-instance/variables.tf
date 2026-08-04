@@ -57,6 +57,27 @@ variable "environmentd_version" {
   nullable    = false
 }
 
+variable "environmentd_image_repository" {
+  description = <<-EOT
+    Image repository for environmentd, without a tag. Override this to pull
+    Materialize images from a mirror or pull-through cache instead of Docker Hub,
+    for example "myregistry.example.com/materialize/environmentd".
+
+    The operator derives the clusterd, balancerd, and console image references
+    from this one by reusing everything before the final "/", so overriding this
+    redirects those images as well. Mirrors must therefore preserve the upstream
+    path layout (a "materialize/<image>" namespace under the mirror prefix).
+  EOT
+  type        = string
+  default     = "materialize/environmentd"
+  nullable    = false
+
+  validation {
+    condition     = length(var.environmentd_image_repository) > 0 && !can(regex("[:@]", reverse(split("/", var.environmentd_image_repository))[0]))
+    error_message = "environmentd_image_repository must be a non-empty repository without a tag or digest. Use environmentd_version to set the tag."
+  }
+}
+
 variable "environmentd_extra_env" {
   description = "Extra environment variables for environmentd"
   type = list(object({
