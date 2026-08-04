@@ -60,9 +60,14 @@ locals {
         installV1CRD           = var.install_v1_crd
         enableUserNamespaces   = var.enable_user_namespaces
       }
-      image = var.orchestratord_version == null ? {} : {
-        tag = var.orchestratord_version
-      },
+      image = merge(
+        var.orchestratord_image_repository == null ? {} : {
+          repository = var.orchestratord_image_repository
+        },
+        var.orchestratord_version == null ? {} : {
+          tag = var.orchestratord_version
+        },
+      ),
       cloudProvider = {
         type   = "gcp"
         region = var.region
