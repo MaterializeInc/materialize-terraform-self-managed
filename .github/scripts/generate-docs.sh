@@ -30,20 +30,18 @@ fi
 
 echo "📁 Found module directories:"
 for dir in "${MODULE_DIRS[@]}"; do
-  echo "   ${dir#$REPO_ROOT/}"
+  echo "   ${dir#"$REPO_ROOT"/}"
 done
 echo
 
 # Loop through each discovered module directory
 for MODULE_BASE_DIR in "${MODULE_DIRS[@]}"; do
-  echo "🔍 Searching for modules in: ${MODULE_BASE_DIR#$REPO_ROOT/}"
+  echo "🔍 Searching for modules in: ${MODULE_BASE_DIR#"$REPO_ROOT"/}"
 
   # Find all modules with variables.tf in this directory
-  MODULES_FOUND=false
   find "$MODULE_BASE_DIR" -type f -name "variables.tf" | while read -r tf_file; do
     MODULE_DIR="$(dirname "$tf_file")"
-    echo "📄 Updating docs for module: ${MODULE_DIR#$REPO_ROOT/}"
-    MODULES_FOUND=true
+    echo "📄 Updating docs for module: ${MODULE_DIR#"$REPO_ROOT"/}"
 
     config="$TFDOCS_CONFIG"
     if [ -f "${MODULE_DIR}/.terraform-docs.yml" ]; then
@@ -54,7 +52,7 @@ for MODULE_BASE_DIR in "${MODULE_DIRS[@]}"; do
 
   # Check if any modules were found in this directory
   if ! find "$MODULE_BASE_DIR" -type f -name "variables.tf" -print -quit | grep -q .; then
-    echo "   ℹ️  No modules with variables.tf found in ${MODULE_BASE_DIR#$REPO_ROOT/}"
+    echo "   ℹ️  No modules with variables.tf found in ${MODULE_BASE_DIR#"$REPO_ROOT"/}"
   fi
   echo
 done
