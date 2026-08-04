@@ -65,16 +65,26 @@ variable "environmentd_image_repository" {
 
     The operator derives the clusterd, balancerd, and console image references
     from this one by reusing everything before the final "/", so overriding this
-    redirects those images as well. Mirrors must therefore preserve the upstream
-    path layout (a "materialize/<image>" namespace under the mirror prefix).
+    redirects those images as well. The mirror must therefore host all four
+    images as siblings under one path; the final path segment is the only part
+    that varies.
+
+    Note that the console image tag is not derived from environmentd_version. It
+    follows the operator image tag, so a mirror must also stock the console image
+    at the operator's version.
   EOT
   type        = string
   default     = "materialize/environmentd"
   nullable    = false
 
   validation {
-    condition     = length(var.environmentd_image_repository) > 0 && !can(regex("[:@]", reverse(split("/", var.environmentd_image_repository))[0]))
-    error_message = "environmentd_image_repository must be a non-empty repository without a tag or digest. Use environmentd_version to set the tag."
+    condition = alltrue([
+      length(var.environmentd_image_repository) > 0,
+      !can(regex("\\s|://", var.environmentd_image_repository)),
+      length(reverse(split("/", var.environmentd_image_repository))[0]) > 0,
+      !can(regex("[:@]", reverse(split("/", var.environmentd_image_repository))[0])),
+    ])
+    error_message = "environmentd_image_repository must be a repository path with no tag, digest, whitespace, URL scheme, or trailing slash, for example \"myregistry.example.com/materialize/environmentd\". Use environmentd_version to set the tag."
   }
 }
 
