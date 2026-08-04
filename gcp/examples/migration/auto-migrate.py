@@ -252,7 +252,10 @@ class GCPStateMigrator(BaseStateMigrator):
         if 'region' in old_values:
             tfvars_content += f'region = "{old_values["region"]}"\n'
         else:
-            tfvars_content += 'region = "us-east1"  # TODO: Update this\n'
+            # us-central1, not the us-east1 default used for new deployments:
+            # this fallback only fires when the old state had no region, and
+            # that old deployment is where it already is, not where new ones go.
+            tfvars_content += 'region = "us-central1"  # TODO: Update this\n'
 
         if 'prefix' in old_values:
             tfvars_content += f'prefix = "{old_values["prefix"]}"\n'

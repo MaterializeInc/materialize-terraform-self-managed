@@ -182,20 +182,23 @@ The `materialize-instance` module now enables role-based access control by defau
 - Review the grants for your application roles before applying. See [Access control](https://materialize.com/docs/security/self-managed/access-control/) and [`GRANT PRIVILEGE`](https://materialize.com/docs/sql/grant-privilege/) for the privileges each object type requires.
 - To keep the previous behavior, set `enable_rbac = false` on the `materialize-instance` module.
 
-The GCP examples now default `region` to `us-east1` (previously `us-central1`), for capacity availability. This affects the `region` variable defaults in `gcp/examples/simple`, `gcp/examples/enterprise`, and `gcp/examples/migration`. The reusable `gcp/modules/*` take `region` as a required input and are unchanged.
+The GCP examples now default `region` to `us-east1` (previously `us-central1`), for capacity availability. This affects the `region` variable defaults in `gcp/examples/simple` and `gcp/examples/enterprise`. `gcp/examples/migration` deliberately keeps `us-central1`, because its `region` describes an existing deployment being adopted into new state rather than where new deployments should go. The reusable `gcp/modules/*` take `region` as a required input and are unchanged.
 
 **Impact on existing deployments:**
 
-- **If you deployed a GCP example without setting `region`, you must now set it explicitly to `us-central1` before upgrading.** Otherwise the new default applies and `terraform plan` will show a full teardown and recreation of every regional resource — GKE cluster, Cloud SQL instance, GCS bucket, VPC and subnet, and load balancers — in `us-east1`. That plan is destructive and loses data.
+- **If you deployed the simple or enterprise GCP example without setting `region`, you must now set it explicitly to `us-central1` before upgrading.** Otherwise the new default applies and `terraform plan` will show a destructive, data-losing teardown and recreation of every regional resource in `us-east1`:
 
   ```hcl
   region = "us-central1"
   ```
 
   After setting it, confirm `terraform plan` reports no changes to regional resources.
+- Regional resources that are replaced: the GKE cluster and its node pools (the node pools are a separate `nodepool` module, so they are replaced independently of the cluster), the Cloud SQL instance, the GCS bucket, the subnet, the Cloud Router and Cloud NAT, and the load balancer forwarding rules.
+- The VPC network itself is **not** replaced — `google_compute_network` is global, as are the firewall rules, the private-services `google_compute_global_address`, and the service networking peering connection. Only the regional resources above churn.
+- Pay particular attention to Cloud NAT: recreating it in a new region changes your egress IP addresses, which breaks any downstream allowlists that pin them, and makes any static regional `nat_ips` addresses unusable in the new region.
 - If you already pass `region` explicitly (including all consumers of `gcp/modules/*`), there is no impact.
 - To actually move an existing deployment to `us-east1`, treat it as a new deployment plus a data migration. GCP cannot relocate these resources in place, so there is no in-place `terraform apply` path between regions.
-- `gcp/README.md`'s `node_locations` examples now use `us-east1-b` and `us-east1-d`. `node_locations` must name zones inside the cluster's region, so copies of the old `us-central1-*` examples fail validation under the new default. Note `us-east1` has no `-a` zone.
+- `gcp/README.md`'s `node_locations` examples now use `us-east1-b` and `us-east1-d`. `node_locations` must name zones inside the cluster's region. The module only regex-checks the `region-zone` string shape, so copies of the old `us-central1-*` examples pass `terraform validate` and `plan` and then fail at apply from the GKE API. Note `us-east1` has no `-a` zone.
 
 #### v8.0.0
 
