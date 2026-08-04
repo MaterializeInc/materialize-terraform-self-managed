@@ -454,33 +454,29 @@ module "operator" {
   ]
 }
 
-module "prometheus" {
+module "monitoring" {
   count  = var.enable_observability ? 1 : 0
-  source = "../../../kubernetes/modules/prometheus"
+  source = "../../modules/monitoring"
 
-  namespace        = "monitoring"
-  create_namespace = false # operator creates the "monitoring" namespace
-  node_selector    = local.generic_node_labels
-  storage_class    = local.storage_class
+  prefix     = var.name_prefix
+  project_id = var.project_id
+  region     = var.region
+
+  namespace = "monitoring"
+  # The operator module creates the "monitoring" namespace.
+  create_namespace = false
+
+  node_selector = local.generic_node_labels
+
+  materialize_instance_namespace = local.materialize_instance_namespace
+  materialize_operator_namespace = local.materialize_operator_namespace
+
   depends_on = [
     module.operator,
+    module.gke,
+    module.generic_nodepool,
     module.coredns,
   ]
-}
-
-module "grafana" {
-  count  = var.enable_observability ? 1 : 0
-  source = "../../../kubernetes/modules/grafana"
-
-  namespace     = "monitoring"
-  storage_class = local.storage_class
-  # operator creates the "monitoring" namespace
-  create_namespace = false
-  prometheus_url   = module.prometheus[0].prometheus_url
-  node_selector    = local.generic_node_labels
-
-  # Wait for the operator to create the "monitoring" namespace.
-  depends_on = [module.operator]
 }
 
 # Deploy Materialize instance with configured backend connections
