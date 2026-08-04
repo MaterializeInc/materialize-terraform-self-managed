@@ -35,6 +35,36 @@ output "polis_db_encryption_key" {
   sensitive   = true
 }
 
+output "hydra_secrets_system" {
+  description = "Hydra system secret (generated or supplied). Persist in a durable store: a Hydra database restore needs this exact value to decrypt."
+  value       = module.ory_hydra.secrets_system
+  sensitive   = true
+}
+
+output "hydra_secrets_cookie" {
+  description = "Hydra cookie secret (generated or supplied)."
+  value       = module.ory_hydra.secrets_cookie
+  sensitive   = true
+}
+
+output "kratos_secrets_default" {
+  description = "Kratos default secret (generated or supplied)."
+  value       = module.ory_kratos.secrets_default
+  sensitive   = true
+}
+
+output "kratos_secrets_cookie" {
+  description = "Kratos cookie secret (generated or supplied)."
+  value       = module.ory_kratos.secrets_cookie
+  sensitive   = true
+}
+
+output "kratos_secrets_cipher" {
+  description = "Kratos cipher secret (generated or supplied). Persist in a durable store: a Kratos database restore needs this exact value to decrypt identity fields."
+  value       = module.ory_kratos.secrets_cipher
+  sensitive   = true
+}
+
 output "oauth2_client_secret_name" {
   description = "Name of the Secret that holds the Hydra-Maester-generated OAuth2 client credentials. Null when materialize_namespace is not set."
   value       = local.wire_materialize ? var.oauth2_client_name : null
