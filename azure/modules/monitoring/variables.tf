@@ -16,12 +16,6 @@ variable "location" {
   nullable    = false
 }
 
-variable "tenant_id" {
-  description = "Entra tenant ID. Null reads it from the provider's own credentials, which is right unless the identities live in a different tenant than the one Terraform authenticated to."
-  type        = string
-  default     = null
-}
-
 variable "namespace" {
   description = "Namespace the monitoring stack is installed into. Also the namespace half of every federated-credential subject."
   type        = string

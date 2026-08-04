@@ -22,11 +22,11 @@
 #   * One identity per backend rather than the cluster's shared identity: Loki and
 #     Thanos each get a container and a role assignment scoped to it, so neither
 #     can read the other's data. That mirrors the AWS and GCP wrappers.
-#   * Thanos cannot use the workload-identity webhook. The bundled Thanos chart
-#     has no pod-label lever, and the webhook only mutates labelled pods, so the
-#     monitoring module injects the projected token and the `AZURE_*` variables
-#     directly. The federated credential below is what that token exchanges
-#     against, so it is required either way.
+#   * The webhook only mutates pods labelled `azure.workload.identity/use`, and
+#     the monitoring module applies that label — via `loki.podLabels` for Loki and
+#     `thanos.global.commonLabels` for Thanos, which has no `podLabels` of its
+#     own. The federated credentials below are what the projected tokens exchange
+#     against.
 #   * The `monitoring` namespace is created by the operator module in the
 #     supported topology, so `create_namespace` defaults to false. Keep a
 #     `depends_on` for the operator or the release can race the namespace.
@@ -40,14 +40,7 @@
 # without paying for two accounts, and Azure's account-name constraints (globally
 # unique, 3-24 chars, alphanumeric) are awkward enough to want only one.
 
-# Read from the provider's own credentials rather than threaded through every
-# example. Overridable for the unusual case where the identities live in a
-# different tenant than the one Terraform authenticated to.
-data "azurerm_client_config" "current" {}
-
 locals {
-  tenant_id = coalesce(var.tenant_id, data.azurerm_client_config.current.tenant_id)
-
   # The chart renders deterministic ServiceAccount names, and the federated
   # credential subjects below have to match them exactly. The monitoring module
   # emits the resolved subjects as an output; these are the same names, needed
@@ -191,13 +184,10 @@ module "monitoring" {
     thanos_bucket = azurerm_storage_container.telemetry["thanos"].name
 
     azure_storage_account = azurerm_storage_account.telemetry.name
-    azure_tenant_id       = local.tenant_id
 
-    # One client ID for the module's manual Thanos wiring. Loki and Thanos have
-    # separate identities, and the module takes a single pair — so this is the
-    # Thanos one, matching the identity whose credential Thanos exchanges against.
-    azure_client_id = azurerm_user_assigned_identity.telemetry["thanos"].client_id
-
+    # Each backend's own identity. The Entra webhook reads the client ID from the
+    # annotation and resolves the tenant and authority host itself, so nothing
+    # else needs threading through.
     loki_service_account_annotations = {
       "azure.workload.identity/client-id" = azurerm_user_assigned_identity.telemetry["loki"].client_id
     }
