@@ -437,6 +437,11 @@ module "monitoring" {
   node_selector = local.generic_node_labels
   storage_class = local.storage_class
 
+  # Optional fan-out to Cloud Monitoring, on top of the bundled Thanos. Off by
+  # default because GCM bills per custom metric; the tier is the cost lever.
+  enable_google_cloud_metrics         = false
+  google_cloud_metrics_min_importance = "recommended"
+
   materialize_instance_namespace = local.materialize_instance_namespace
   materialize_operator_namespace = local.materialize_operator_namespace
 

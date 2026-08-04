@@ -57,6 +57,9 @@ locals {
     thanos = "thanos-thanos"
   }
 
+  # Not in the map above: the gateway binds to Cloud Monitoring, not a bucket.
+  gateway_service_account = "alloy-gateway"
+
   buckets = {
     loki = {
       name           = "${var.prefix}-mzmon-logs-${var.project_id}"
@@ -164,6 +167,38 @@ resource "google_service_account_iam_member" "workload_identity" {
 }
 
 # ==============================================================================
+# Google Cloud Monitoring
+# ==============================================================================
+# Separate from the loop above: the gateway writes metrics, not objects, so it
+# gets a project-level role and no bucket.
+
+resource "google_service_account" "gateway" {
+  count = var.enable_google_cloud_metrics ? 1 : 0
+
+  account_id   = substr("${var.prefix}-mzmon-gateway", 0, 30)
+  display_name = "materialize-monitoring gateway"
+  project      = var.project_id
+}
+
+# metricWriter is write-only: it can publish time series and create metric
+# descriptors, and cannot read anything back.
+resource "google_project_iam_member" "gateway_metric_writer" {
+  count = var.enable_google_cloud_metrics ? 1 : 0
+
+  project = var.project_id
+  role    = "roles/monitoring.metricWriter"
+  member  = "serviceAccount:${google_service_account.gateway[0].email}"
+}
+
+resource "google_service_account_iam_member" "gateway_workload_identity" {
+  count = var.enable_google_cloud_metrics ? 1 : 0
+
+  service_account_id = google_service_account.gateway[0].name
+  role               = "roles/iam.workloadIdentityUser"
+  member             = "serviceAccount:${var.project_id}.svc.id.goog[${var.namespace}/${local.gateway_service_account}]"
+}
+
+# ==============================================================================
 # The stack
 # ==============================================================================
 
@@ -206,12 +241,23 @@ module "monitoring" {
     thanos_service_account_annotations = {
       "iam.gke.io/gcp-service-account" = google_service_account.telemetry["thanos"].email
     }
+    # Only set when Cloud Monitoring is on; the gateway needs no bucket access.
+    gateway_service_account_annotations = var.enable_google_cloud_metrics ? {
+      "iam.gke.io/gcp-service-account" = google_service_account.gateway[0].email
+    } : {}
   }
+
+  google_cloud_metrics = var.enable_google_cloud_metrics ? {
+    min_importance = var.google_cloud_metrics_min_importance
+    prefix         = var.google_cloud_metrics_prefix
+  } : null
 
   additional_values = var.additional_values
 
   depends_on = [
     google_storage_bucket_iam_member.telemetry,
     google_service_account_iam_member.workload_identity,
+    google_project_iam_member.gateway_metric_writer,
+    google_service_account_iam_member.gateway_workload_identity,
   ]
 }

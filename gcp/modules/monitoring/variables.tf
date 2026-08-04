@@ -130,6 +130,31 @@ variable "storage_class" {
   default     = null
 }
 
+variable "enable_google_cloud_metrics" {
+  description = <<-EOT
+    Also export metrics to Google Cloud Monitoring from the Alloy gateway. Thanos is unaffected.
+
+    Creates a service account with `roles/monitoring.metricWriter` (write-only) and binds the
+    gateway's in-cluster ServiceAccount to it via Workload Identity.
+  EOT
+  type        = bool
+  default     = false
+  nullable    = false
+}
+
+variable "google_cloud_metrics_min_importance" {
+  description = "Metric tier to export: `essential`, `recommended`, `extended`, `diagnostic`, or `all`. Each tier includes the ones below it. A cost control — Cloud Monitoring bills per custom metric."
+  type        = string
+  default     = "recommended"
+  nullable    = false
+}
+
+variable "google_cloud_metrics_prefix" {
+  description = "Metric name prefix in Cloud Monitoring. Null uses the chart's default (`workload.googleapis.com/mzmon`)."
+  type        = string
+  default     = null
+}
+
 variable "tolerations" {
   description = "Tolerations for the monitoring workloads, including the Alloy agent DaemonSet."
   type = list(object({
