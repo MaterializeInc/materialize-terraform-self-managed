@@ -182,6 +182,21 @@ The `materialize-instance` module now enables role-based access control by defau
 - Review the grants for your application roles before applying. See [Access control](https://materialize.com/docs/security/self-managed/access-control/) and [`GRANT PRIVILEGE`](https://materialize.com/docs/sql/grant-privilege/) for the privileges each object type requires.
 - To keep the previous behavior, set `enable_rbac = false` on the `materialize-instance` module.
 
+The GCP examples now default `region` to `us-east1` (previously `us-central1`), for capacity availability. This affects the `region` variable defaults in `gcp/examples/simple`, `gcp/examples/enterprise`, and `gcp/examples/migration`. The reusable `gcp/modules/*` take `region` as a required input and are unchanged.
+
+**Impact on existing deployments:**
+
+- **If you deployed a GCP example without setting `region`, you must now set it explicitly to `us-central1` before upgrading.** Otherwise the new default applies and `terraform plan` will show a full teardown and recreation of every regional resource — GKE cluster, Cloud SQL instance, GCS bucket, VPC and subnet, and load balancers — in `us-east1`. That plan is destructive and loses data.
+
+  ```hcl
+  region = "us-central1"
+  ```
+
+  After setting it, confirm `terraform plan` reports no changes to regional resources.
+- If you already pass `region` explicitly (including all consumers of `gcp/modules/*`), there is no impact.
+- To actually move an existing deployment to `us-east1`, treat it as a new deployment plus a data migration. GCP cannot relocate these resources in place, so there is no in-place `terraform apply` path between regions.
+- `gcp/README.md`'s `node_locations` examples now use `us-east1-b` and `us-east1-d`. `node_locations` must name zones inside the cluster's region, so copies of the old `us-central1-*` examples fail validation under the new default. Note `us-east1` has no `-a` zone.
+
 #### v8.0.0
 
 The GCP modules now require the `hashicorp/google` provider `>= 7.22, < 8` (previously `>= 6.31, < 6.51.0`). This is required by the upgrade of the upstream `terraform-google-modules/sql-db/google` module to v28, which no longer supports google provider 6.x.
