@@ -420,7 +420,7 @@ module "materialize_nodepool" {
   local_ssd_count = var.materialize_node_pool_local_ssd_count
 
   # Pin to old version to avoid unintended daemonset image upgrade
-  disk_setup_image = "materialize/ephemeral-storage-setup-image:v0.4.0"
+  disk_setup_image = var.disk_setup_image
 
   # MIGRATION: The old module used "${prefix}-disk-setup" for disk setup
   # resource names. The new module defaults to "disk-setup". We must pass
