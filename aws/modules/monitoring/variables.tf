@@ -134,6 +134,12 @@ variable "node_selector" {
   nullable    = false
 }
 
+variable "storage_class" {
+  description = "StorageClass for the PVC-backed monitoring workloads (Alertmanager, the Loki ruler, and Thanos receive/compactor/store-gateway). Null uses the cluster default, which on EKS is `gp2`; the examples pass the `gp3` class from the `ebs-csi-driver` module."
+  type        = string
+  default     = null
+}
+
 variable "tolerations" {
   description = "Tolerations for the monitoring workloads, including the Alloy agent DaemonSet."
   type = list(object({

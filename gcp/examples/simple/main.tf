@@ -167,7 +167,30 @@ locals {
       }
     }]
   })
-  storage_class = "standard-rwo" # default storage class in gcp
+  # Not `standard-rwo`: the node pools are C4/C4A, which take only Hyperdisk —
+  # same constraint as their boot disks above. Every default GKE class is
+  # Persistent Disk, so a PVC on those pools never attaches.
+  storage_class = kubernetes_storage_class.hyperdisk_balanced.metadata[0].name
+}
+
+# GKE ships no Hyperdisk class, so create one. Not marked default — taking that
+# from `standard-rwo` would change provisioning for every other workload.
+resource "kubernetes_storage_class" "hyperdisk_balanced" {
+  metadata {
+    name = "hyperdisk-balanced"
+  }
+
+  storage_provisioner = "pd.csi.storage.gke.io"
+  parameters = {
+    type = "hyperdisk-balanced"
+  }
+
+  # Late binding so the disk lands in the zone the pod is scheduled to.
+  volume_binding_mode    = "WaitForFirstConsumer"
+  allow_volume_expansion = true
+  reclaim_policy         = "Delete"
+
+  depends_on = [module.gke]
 }
 
 # Configure networking infrastructure including VPC, subnets, and CIDR blocks
@@ -412,6 +435,7 @@ module "monitoring" {
   create_namespace = false
 
   node_selector = local.generic_node_labels
+  storage_class = local.storage_class
 
   materialize_instance_namespace = local.materialize_instance_namespace
   materialize_operator_namespace = local.materialize_operator_namespace

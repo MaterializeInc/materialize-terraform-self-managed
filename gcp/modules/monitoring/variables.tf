@@ -118,6 +118,18 @@ variable "node_selector" {
   nullable    = false
 }
 
+variable "storage_class" {
+  description = <<-EOT
+    StorageClass for the PVC-backed monitoring workloads (Alertmanager, the Loki ruler, and Thanos
+    receive/compactor/store-gateway). Null uses the cluster default.
+
+    Must be a Hyperdisk class on C4/C4A/N4, which take only Hyperdisk — every default GKE class is
+    Persistent Disk and fails to attach there. The examples create one and pass it here.
+  EOT
+  type        = string
+  default     = null
+}
+
 variable "tolerations" {
   description = "Tolerations for the monitoring workloads, including the Alloy agent DaemonSet."
   type = list(object({

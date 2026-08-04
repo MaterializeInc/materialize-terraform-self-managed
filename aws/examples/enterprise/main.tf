@@ -554,6 +554,7 @@ module "monitoring" {
   cluster_oidc_issuer_url = module.eks.cluster_oidc_issuer_url
 
   node_selector = local.generic_node_labels
+  storage_class = module.ebs_csi_driver.storage_class_name
 
   materialize_instance_namespace = local.materialize_instance_namespace
   materialize_operator_namespace = local.operator_namespace
@@ -564,6 +565,7 @@ module "monitoring" {
     module.operator,
     module.nodepool_generic,
     module.coredns,
+    module.ebs_csi_driver,
   ]
 }
 

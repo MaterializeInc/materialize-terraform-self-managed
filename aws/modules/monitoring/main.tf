@@ -229,14 +229,15 @@ resource "aws_iam_role_policy" "telemetry" {
 
 module "monitoring" {
   # Pinned to a released tag. The module and the chart it installs are one
-  # release, so this ref names the chart version too.
+  # release, and the module reads its chart version out of the chart beside it —
+  # so this ref alone names the chart version, with nothing to keep in sync.
   #
   # Developing against an unreleased module: point this at a local checkout
   # (`../../../../materialize-monitoring/terraform/modules/materialize-monitoring`)
   # for the duration. It must stay a *relative* path — an absolute one makes
   # Terraform copy the module without the chart directory beside it, and the
   # sizing profiles stop resolving.
-  source = "github.com/MaterializeInc/materialize-monitoring//terraform/modules/materialize-monitoring?ref=materialize-monitoring/v0.8.0"
+  source = "github.com/MaterializeInc/materialize-monitoring//terraform/modules/materialize-monitoring?ref=materialize-monitoring/v0.10.0"
 
   namespace        = var.namespace
   create_namespace = var.create_namespace
@@ -248,6 +249,7 @@ module "monitoring" {
   sizing        = var.sizing
   node_selector = var.node_selector
   tolerations   = var.tolerations
+  storage_class = var.storage_class
 
   materialize_instance_namespace = var.materialize_instance_namespace
   materialize_operator_namespace = var.materialize_operator_namespace
