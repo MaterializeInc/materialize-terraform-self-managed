@@ -180,43 +180,34 @@ terraform output -raw grafana_admin_password
 
 #### Pre-configured Dashboards
 
-The deployment includes Materialize dashboards under the "kubernetes/grafana" folder:
-- **Environment Overview** - Overall Materialize environment health
-- **Freshness Overview** - Data freshness monitoring
+Dashboards are delivered by grafana-operator from the released chart, as `GrafanaManifest` resources rather than files copied into this repository — so they track the chart version rather than drifting from it.
+
+The current set is the **Environment Overview** (`env-top`). Confirm it landed:
+
+```bash
+kubectl --namespace monitoring get grafanamanifest,grafanadatasource
+```
+
+Helm does not wait for this: it waits for the operator's Deployment, and pushing the content into Grafana happens afterwards and can fail on its own.
+
+See the [dashboard documentation](https://materializeinc.github.io/materialize-monitoring/dashboards/) for what each one covers.
 
 ---
 
-## Prometheus Resource Sizing Recommendations
+## Observability Resource Sizing
 
-The default Prometheus resource limits (500m CPU / 512Mi memory request, 1 CPU / 1Gi memory limit) are suitable for small deployments monitoring a single Materialize environment with default scrape intervals.
-
-For production deployments, consider increasing resources based on:
-- **Number of scrape targets**: More targets = more memory for time series
-- **Scrape interval**: Lower intervals increase CPU and memory usage
-- **Retention period**: Longer retention requires more storage and memory
-- **Query complexity**: Heavy dashboard usage increases CPU needs
-
-Example configuration for medium workload in `main.tf`:
+The monitoring stack is sized by a **profile** rather than by per-component variables. The chart's defaults target a medium deployment; `sizing = "small"` and `sizing = "large"` are deltas from it.
 
 ```hcl
-module "prometheus" {
-  source = "../../../kubernetes/modules/prometheus"
+module "monitoring" {
   # ...
-  server_resources = {
-    requests = {
-      cpu    = "1000m"
-      memory = "2Gi"
-    }
-    limits = {
-      cpu    = "2000m"
-      memory = "4Gi"
-    }
-  }
-  storage_size = "100Gi"
+  sizing = "small"
 }
 ```
 
----
+Sizing is driven by ingest throughput and stream cardinality, not by stored volume — object storage grows on its own and is managed by retention rather than by provisioning. For the throughput envelope each tier assumes, and for what to scale when queries feel slow, see [Production Best Practices](https://materializeinc.github.io/materialize-monitoring/operating/production-best-practices/).
+
+Note that the stack runs more components than the single Prometheus it replaces — microservice Loki, Thanos, Grafana, Alertmanager, kube-state-metrics, and two Alloy roles — so the generic node pool may need to grow before the first apply schedules cleanly.
 
 ## Cluster Sizes and Instance Types
 

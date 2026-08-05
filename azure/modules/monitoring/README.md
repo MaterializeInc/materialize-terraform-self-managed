@@ -19,7 +19,7 @@
 
 | Name | Source | Version |
 | ---- | ------ | ------- |
-| <a name="module_monitoring"></a> [monitoring](#module\_monitoring) | github.com/MaterializeInc/materialize-monitoring//terraform/modules/materialize-monitoring | materialize-monitoring/v0.11.0 |
+| <a name="module_monitoring"></a> [monitoring](#module\_monitoring) | github.com/MaterializeInc/materialize-monitoring//terraform/modules/materialize-monitoring | materialize-monitoring/v0.12.0 |
 
 ## Resources
 
