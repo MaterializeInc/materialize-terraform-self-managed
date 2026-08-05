@@ -160,7 +160,13 @@ module "monitoring" {
   # for the duration. It must stay a *relative* path — an absolute one makes
   # Terraform copy the module without the chart directory beside it, and the
   # sizing profiles stop resolving.
-  source = "github.com/MaterializeInc/materialize-monitoring//terraform/modules/materialize-monitoring?ref=materialize-monitoring/v0.12.0"
+  #
+  # The tag's `/` is percent-encoded deliberately. Terraform 1.9 (which CI pins)
+  # splits the source on the first `/` inside the `ref` query value, silently
+  # truncating it to `?ref=materialize-monitoring` and failing the clone with
+  # `pathspec 'materialize-monitoring' did not match`. Newer Terraform parses it
+  # correctly, so this only reproduces on the pinned version.
+  source = "github.com/MaterializeInc/materialize-monitoring//terraform/modules/materialize-monitoring?ref=materialize-monitoring%2Fv0.12.0"
 
   namespace        = var.namespace
   create_namespace = var.create_namespace
