@@ -123,28 +123,61 @@ resource "aws_s3_bucket_versioning" "telemetry" {
 # Thanos's compactor both enforce their own. A bucket rule that expires sooner
 # than they expect deletes blocks they still reference.
 resource "aws_s3_bucket_lifecycle_configuration" "telemetry" {
-  for_each = { for k, v in local.buckets : k => v if v.retention_days != null }
+  for_each = local.buckets
 
   bucket = aws_s3_bucket.telemetry[each.key].id
 
+  # Housekeeping is unconditional. It used to live inside the retention rule,
+  # which meant the whole configuration was skipped whenever `retention_days` was
+  # null — the default — so the two cleanups below silently never ran.
+
+  # An interrupted multipart upload leaves parts that are billed and do not show
+  # up in a normal object listing, so nothing else ever reclaims them. Both
+  # backends use multipart uploads for large blocks and chunks.
   rule {
-    id     = "expire-telemetry"
+    id     = "abort-incomplete-multipart-upload"
     status = "Enabled"
 
     filter {}
 
-    expiration {
-      days = each.value.retention_days
-    }
-
-    # Versioning keeps a copy of every deleted object; without this the bucket
-    # grows even as the compactor deletes.
-    noncurrent_version_expiration {
-      noncurrent_days = 7
-    }
-
     abort_incomplete_multipart_upload {
       days_after_initiation = 7
+    }
+  }
+
+  # Versioning keeps a copy of every object the compactors delete, and both of
+  # them delete constantly. Without this the bucket grows without bound even
+  # though retention appears to be working.
+  dynamic "rule" {
+    for_each = var.enable_bucket_versioning ? [1] : []
+
+    content {
+      id     = "expire-noncurrent-versions"
+      status = "Enabled"
+
+      filter {}
+
+      noncurrent_version_expiration {
+        noncurrent_days = 7
+      }
+    }
+  }
+
+  # Retention itself is a backstop, not the primary control — see the header.
+  # Off by default, which is why it has to be the conditional part rather than
+  # the gate on everything else.
+  dynamic "rule" {
+    for_each = each.value.retention_days == null ? [] : [each.value.retention_days]
+
+    content {
+      id     = "expire-telemetry"
+      status = "Enabled"
+
+      filter {}
+
+      expiration {
+        days = rule.value
+      }
     }
   }
 
