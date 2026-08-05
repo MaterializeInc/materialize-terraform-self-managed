@@ -243,6 +243,10 @@ module "ory_kratos" {
   create_namespace = false
   dsn              = var.kratos_dsn
 
+  secrets_default = var.kratos_secrets_default
+  secrets_cookie  = var.kratos_secrets_cookie
+  secrets_cipher  = var.kratos_secrets_cipher
+
   image_repository   = "${var.oel_registry}/ory-enterprise-kratos/kratos-oel"
   image_tag          = var.oel_image_tag
   image_pull_secrets = [kubernetes_secret.ory_oel_registry.metadata[0].name]
@@ -306,6 +310,9 @@ module "ory_hydra" {
 
   dsn        = var.hydra_dsn
   issuer_url = local.hydra_external_url
+
+  secrets_system = var.hydra_secrets_system
+  secrets_cookie = var.hydra_secrets_cookie
 
   image_repository   = "${var.oel_registry}/ory-enterprise/hydra-oel"
   image_tag          = var.oel_image_tag

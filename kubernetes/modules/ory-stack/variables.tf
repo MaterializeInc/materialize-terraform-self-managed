@@ -276,6 +276,46 @@ variable "polis_chart_version" {
   nullable    = false
 }
 
+# Component secrets. Provide these (e.g. from a secret manager) to make the
+# stack recoverable: they encrypt data at rest, so a database restore needs the
+# exact same values. When left null, the sub-modules generate random secrets
+# that live only in Terraform state.
+
+variable "hydra_secrets_system" {
+  description = "Hydra system secret. Encrypts data at rest in Hydra's database, including its signing keys. When null, a random secret is generated. Losing or rotating it makes the existing Hydra database unreadable."
+  type        = string
+  default     = null
+  sensitive   = true
+}
+
+variable "hydra_secrets_cookie" {
+  description = "Hydra cookie secret used to sign the login and consent session cookies. When null, a random secret is generated."
+  type        = string
+  default     = null
+  sensitive   = true
+}
+
+variable "kratos_secrets_default" {
+  description = "Kratos default secret used for signing and encryption. When null, a random secret is generated. Rotating invalidates existing sessions."
+  type        = string
+  default     = null
+  sensitive   = true
+}
+
+variable "kratos_secrets_cookie" {
+  description = "Kratos cookie secret used to sign session and CSRF cookies. When null, a random secret is generated."
+  type        = string
+  default     = null
+  sensitive   = true
+}
+
+variable "kratos_secrets_cipher" {
+  description = "Kratos cipher secret used to encrypt identity credentials and recovery data at rest. When null, a random 32-character secret is generated. Losing or rotating it makes the existing encrypted fields unreadable."
+  type        = string
+  default     = null
+  sensitive   = true
+}
+
 variable "polis_admin_api_keys" {
   description = "Bearer token for Polis admin APIs. When null, the module generates a random 32-character key. Persist across applies, rotating invalidates admin-tool access."
   type        = string
