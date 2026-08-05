@@ -212,7 +212,7 @@ module "monitoring" {
   # for the duration. It must stay a *relative* path — an absolute one makes
   # Terraform copy the module without the chart directory beside it, and the
   # sizing profiles stop resolving.
-  source = "github.com/MaterializeInc/materialize-monitoring//terraform/modules/materialize-monitoring?ref=materialize-monitoring/v0.10.0"
+  source = "github.com/MaterializeInc/materialize-monitoring//terraform/modules/materialize-monitoring?ref=materialize-monitoring/v0.12.0"
 
   namespace        = var.namespace
   create_namespace = var.create_namespace
