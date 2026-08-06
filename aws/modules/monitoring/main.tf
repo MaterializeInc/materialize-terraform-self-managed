@@ -54,6 +54,8 @@ locals {
 
   oidc_issuer_host = trimprefix(var.cluster_oidc_issuer_url, "https://")
 
+  bucket_encryption_uses_kms = var.bucket_encryption_mode == "SSE-KMS"
+
   common_tags = merge(var.tags, {
     ManagedBy = "terraform"
     Component = "materialize-monitoring"
@@ -106,10 +108,24 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "telemetry" {
 
   bucket = each.value.id
 
+  lifecycle {
+    precondition {
+      condition     = !(local.bucket_encryption_uses_kms && var.bucket_kms_key_arn == null)
+      error_message = "Set bucket_kms_key_arn when bucket_encryption_mode is SSE-KMS."
+    }
+  }
+
   rule {
     apply_server_side_encryption_by_default {
-      sse_algorithm = "AES256"
+      sse_algorithm     = local.bucket_encryption_uses_kms ? "aws:kms" : "AES256"
+      kms_master_key_id = local.bucket_encryption_uses_kms ? var.bucket_kms_key_arn : null
     }
+
+    # S3 Bucket Keys cut KMS request volume, and therefore KMS billing, by
+    # reusing one data key across many objects instead of calling KMS per
+    # object. Both backends write a very large number of small objects, so this
+    # is the difference between a rounding error and a line item.
+    bucket_key_enabled = local.bucket_encryption_uses_kms
   }
 }
 
@@ -253,6 +269,21 @@ data "aws_iam_policy_document" "bucket_access" {
     effect    = "Allow"
     actions   = ["s3:AbortMultipartUpload", "s3:ListMultipartUploadParts", "s3:ListBucketMultipartUploads"]
     resources = [aws_s3_bucket.telemetry[each.key].arn, "${aws_s3_bucket.telemetry[each.key].arn}/*"]
+  }
+
+  # Bucket permissions alone are not enough under SSE-KMS: S3 evaluates the key
+  # policy separately, so without this every PutObject fails with AccessDenied
+  # and every GetObject fails to decrypt — while the bucket policy above looks
+  # entirely correct. GenerateDataKey covers writes, Decrypt covers reads, and
+  # both are needed for multipart.
+  dynamic "statement" {
+    for_each = local.bucket_encryption_uses_kms ? [var.bucket_kms_key_arn] : []
+
+    content {
+      effect    = "Allow"
+      actions   = ["kms:Decrypt", "kms:GenerateDataKey"]
+      resources = [statement.value]
+    }
   }
 }
 

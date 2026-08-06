@@ -46,7 +46,7 @@ variable "cluster_oidc_issuer_url" {
 }
 
 variable "iam_permissions_boundary" {
-  description = "Optional permissions boundary applied to the IAM roles this module creates."
+  description = "Optional permissions boundary applied to the IAM roles this module creates. No other AWS module in this repository takes one yet; the intent is that they should, and this is the first. Leaving it null keeps the previous behaviour, so adding it elsewhere later is additive."
   type        = string
   default     = null
 }
@@ -60,6 +60,24 @@ variable "bucket_force_destroy" {
   type        = bool
   default     = false
   nullable    = false
+}
+
+variable "bucket_encryption_mode" {
+  description = "Server-side encryption for the telemetry buckets. SSE-S3 by default; SSE-KMS requires `bucket_kms_key_arn` and grants the two backend roles `kms:Decrypt` and `kms:GenerateDataKey` on that key. Matches the option `aws/modules/storage` offers for the Materialize persist bucket."
+  type        = string
+  default     = "SSE-S3"
+  nullable    = false
+
+  validation {
+    condition     = contains(["SSE-S3", "SSE-KMS"], var.bucket_encryption_mode)
+    error_message = "bucket_encryption_mode must be either \"SSE-S3\" or \"SSE-KMS\"."
+  }
+}
+
+variable "bucket_kms_key_arn" {
+  description = "ARN of the KMS key to use when `bucket_encryption_mode` is SSE-KMS. A customer-managed key, not an alias — the IAM grant needs the ARN. Bucket Keys are enabled alongside it, because both backends write enough small objects for per-object KMS calls to show up on the bill."
+  type        = string
+  default     = null
 }
 
 variable "enable_bucket_versioning" {

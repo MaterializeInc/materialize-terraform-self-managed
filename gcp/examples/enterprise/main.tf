@@ -210,6 +210,12 @@ data "google_compute_zones" "available" {
 
 # GKE ships no Hyperdisk class, so create one. Not marked default — taking that
 # from `standard-rwo` would change provisioning for every other workload.
+#
+# Deliberately not gated on `enable_observability`, even though monitoring is
+# the only module that reads it today. On C4/C4A node pools any workload
+# needing a PVC hits the same Persistent Disk wall, so the class is generally
+# useful; tying it to the observability flag would mean turning monitoring off
+# silently removes a class other workloads may already be bound to.
 resource "kubernetes_storage_class" "hyperdisk_balanced" {
   metadata {
     name = "hyperdisk-balanced"

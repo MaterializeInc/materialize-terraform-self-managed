@@ -102,9 +102,12 @@ locals {
   )
 
   materialize_instance_namespace = "materialize-environment"
-  # Matches the operator module's own default; named here so the monitoring
-  # module scopes its scrape targets to the same namespace.
+  # Named here rather than left to each module's default, and passed to both
+  # the operator and monitoring modules, so the two cannot drift apart: the
+  # operator creates these namespaces and monitoring scopes its scrape targets
+  # to them.
   materialize_operator_namespace = "materialize"
+  monitoring_namespace           = "monitoring"
   materialize_instance_name      = "main"
 
   # Common node scheduling configuration
@@ -336,6 +339,10 @@ module "operator" {
   # node selector for operator and metrics-server workloads
   operator_node_selector = local.generic_node_labels
 
+  # The operator creates both namespaces; monitoring is a consumer of them.
+  operator_namespace   = local.materialize_operator_namespace
+  monitoring_namespace = local.monitoring_namespace
+
   # Enable Prometheus scrape annotations when observability is enabled
   helm_values = var.enable_observability ? {
     observability = {
@@ -365,7 +372,7 @@ module "monitoring" {
   resource_group_name = azurerm_resource_group.materialize.name
   location            = var.location
 
-  namespace = "monitoring"
+  namespace = local.monitoring_namespace
   # The operator module creates the "monitoring" namespace.
   create_namespace = false
 
