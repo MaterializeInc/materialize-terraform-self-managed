@@ -1,6 +1,8 @@
 terraform {
-  # `optional()` in object type constraints requires 1.3.
-  required_version = ">= 1.3.0"
+  # The repo-wide floor, but this module cannot follow it back down: the module
+  # source in main.tf pins a tag whose name contains a `/`, and Terraform
+  # truncated the ref there until 1.10 (hashicorp/terraform#35552).
+  required_version = ">= 1.10"
 
   required_providers {
     aws = {
