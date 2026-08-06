@@ -8,7 +8,7 @@ Migrate from the old `gcp-old/` monolithic module to the new `materialize-terraf
 
 ## Quick Start
 
-**Prerequisites:** Terraform CLI (>= 1.8), Python 3.7+, gcloud CLI, kubectl, access to your old Terraform state
+**Prerequisites:** Terraform CLI (>= 1.10), Python 3.7+, gcloud CLI, kubectl, access to your old Terraform state
 
 ```bash
 # CRITICAL: Verify old state access first
@@ -131,7 +131,7 @@ See `terraform.tfvars.example` for the full list with inline documentation and g
 | Aspect | Old Module | New Module | Migration Impact |
 |--------|-----------|------------|------------------|
 | **Structure** | Monolithic (`gcp-old/`) | Modular (`gcp/modules/*` + `kubernetes/modules/*`) | State paths change |
-| **Terraform** | `>= 1.0` | `>= 1.8` | Terraform version bump |
+| **Terraform** | `>= 1.0` | `>= 1.10` | Terraform version bump |
 | **Google Provider** | `>= 6.0` | `>= 6.31, < 7` | Tighter version constraint |
 | **Networking** | Direct resources (VPC, subnet, route) | `terraform-google-modules/network/google` + Cloud NAT | Migration keeps old resources inline |
 | **GKE** | Basic cluster + system node pool | Adds private_cluster_config, master_authorized_networks, L4 LB subsetting | Migration keeps old config inline |
