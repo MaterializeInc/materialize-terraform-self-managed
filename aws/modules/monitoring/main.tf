@@ -21,10 +21,14 @@
 #   * The operator module also installs metrics-server, which the Materialize
 #     Console depends on for cluster metrics. If you disable it there, set
 #     `install_metrics_server = true` here in the same change.
-#   * Bucket lifecycle rules are off by default. Loki and Thanos both enforce
-#     their own retention, and Thanos keeps blocks per downsampling resolution
-#     (raw / 5m / 1h) — a bucket rule expiring sooner deletes blocks the
-#     compactor still references. Use them only as a backstop above that.
+#   * Bucket *retention* is off by default, but housekeeping always runs.
+#     Aborting incomplete multipart uploads and expiring noncurrent versions are
+#     unconditional, because nothing else ever reclaims either and both grow
+#     without bound. Only `logs_retention_days` / `metrics_retention_days` are
+#     opt-in: Loki and Thanos both enforce their own retention, and Thanos keeps
+#     blocks per downsampling resolution (raw / 5m / 1h), so a bucket rule
+#     expiring sooner deletes blocks the compactor still references. Use those
+#     two only as a backstop above what the compactors already do.
 #   * Grafana is ClusterIP today (the chart exposes no ingress values yet), so
 #     `grafana_url` is in-cluster: reach it with
 #     `kubectl -n monitoring port-forward svc/grafana 3000:80` and
@@ -148,18 +152,22 @@ resource "aws_s3_bucket_lifecycle_configuration" "telemetry" {
   # Versioning keeps a copy of every object the compactors delete, and both of
   # them delete constantly. Without this the bucket grows without bound even
   # though retention appears to be working.
-  dynamic "rule" {
-    for_each = var.enable_bucket_versioning ? [1] : []
+  #
+  # Unconditional rather than gated on `enable_bucket_versioning`, because S3
+  # versioning cannot be turned back off — destroying the versioning resource
+  # *suspends* it, which stops new versions but keeps every one already written.
+  # Gating this rule on the same variable would remove the only thing that
+  # expires them in the very apply that suspends versioning, stranding them
+  # permanently. On a bucket that was never versioned the rule simply never
+  # matches.
+  rule {
+    id     = "expire-noncurrent-versions"
+    status = "Enabled"
 
-    content {
-      id     = "expire-noncurrent-versions"
-      status = "Enabled"
+    filter {}
 
-      filter {}
-
-      noncurrent_version_expiration {
-        noncurrent_days = 7
-      }
+    noncurrent_version_expiration {
+      noncurrent_days = 7
     }
   }
 
@@ -283,6 +291,15 @@ module "monitoring" {
   # Null means "use whatever the pinned module ships with", which is the
   # supported path — the module and the chart are one release.
   chart_version = var.chart_version
+
+  # Null on any of these means "use the monitoring module's own default": each
+  # is declared `nullable = false` with a default there, and Terraform
+  # substitutes the default when a caller passes null. None of the three is
+  # reachable through `additional_values`, so without forwarding them a mirrored
+  # registry or a cluster that already owns the CRDs has no way through.
+  chart_registry         = var.chart_registry
+  enable_monitoring_crds = var.enable_monitoring_crds
+  install_timeout        = var.install_timeout
 
   sizing        = var.sizing
   node_selector = var.node_selector

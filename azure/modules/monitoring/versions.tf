@@ -7,9 +7,11 @@ terraform {
   required_providers {
     azurerm = {
       source = "hashicorp/azurerm"
-      # Matches the constraint the other azure modules use, so a root that
-      # composes them resolves a single provider version.
-      version = ">= 3.75.0, < 4.76.0"
+      # Upper bound matches the other azure modules so a root composing them
+      # resolves a single provider version. The floor is higher than theirs
+      # because `azurerm_storage_container` here sets `storage_account_id`,
+      # which only exists in 4.x — on a 3.x provider this module does not parse.
+      version = ">= 4.0.0, < 4.76.0"
     }
     helm = {
       source  = "hashicorp/helm"

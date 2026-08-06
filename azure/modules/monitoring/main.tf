@@ -30,10 +30,15 @@
 #   * The `monitoring` namespace is created by the operator module in the
 #     supported topology, so `create_namespace` defaults to false. Keep a
 #     `depends_on` for the operator or the release can race the namespace.
-#   * Container lifecycle rules are off by default. Loki and Thanos both enforce
-#     their own retention, and Thanos keeps blocks per downsampling resolution
-#     (raw / 5m / 1h) — a lifecycle rule deleting sooner removes blocks the
-#     compactor still references.
+#   * There are no container lifecycle rules, and no variables to configure
+#     them — unlike AWS and GCP, which take `logs_retention_days`,
+#     `metrics_retention_days`, and `enable_bucket_versioning`. Loki and Thanos
+#     each enforce their own retention, so nothing is unbounded, but Azure has
+#     neither the retention backstop the other two clouds offer nor blob
+#     versioning for recovery. Adding an `azurerm_storage_management_policy`
+#     here is tracked separately; if it lands, note that Thanos keeps blocks per
+#     downsampling resolution (raw / 5m / 1h), so a policy deleting sooner than
+#     it expects removes blocks the compactor still references.
 #
 # One storage account with a container per backend rather than an account per
 # backend: role assignments scope to a container, so isolation is preserved
@@ -69,8 +74,12 @@ resource "random_string" "unique" {
 
 # Account names are globally unique, lowercase alphanumeric, and capped at 24
 # characters — hence the suffix and the `replace`.
+#
+# Not truncated to 24 here: `var.prefix` is validated so that the whole name
+# fits, because a `substr` would trim from the right and eat the very suffix
+# that makes the name unique.
 resource "azurerm_storage_account" "telemetry" {
-  name                = substr(replace("${var.prefix}mzmon${random_string.unique.result}", "-", ""), 0, 24)
+  name                = replace("${var.prefix}mzmon${random_string.unique.result}", "-", "")
   resource_group_name = var.resource_group_name
   location            = var.location
 
@@ -171,6 +180,15 @@ module "monitoring" {
   create_namespace = var.create_namespace
 
   chart_version = var.chart_version
+
+  # Null on any of these means "use the monitoring module's own default": each
+  # is declared `nullable = false` with a default there, and Terraform
+  # substitutes the default when a caller passes null. None of the three is
+  # reachable through `additional_values`, so without forwarding them a mirrored
+  # registry or a cluster that already owns the CRDs has no way through.
+  chart_registry         = var.chart_registry
+  enable_monitoring_crds = var.enable_monitoring_crds
+  install_timeout        = var.install_timeout
 
   sizing        = var.sizing
   node_selector = var.node_selector

@@ -485,6 +485,12 @@ module "monitoring" {
   project_id = var.project_id
   region     = var.region
 
+  # Matches what these examples already pass to `module.storage`. Loki and
+  # Thanos start writing immediately, and neither S3 nor GCS will delete a
+  # non-empty bucket, so without this `terraform destroy` wedges on the
+  # telemetry buckets. Set to false for anything you cannot afford to lose.
+  bucket_force_destroy = true
+
   namespace = "monitoring"
   # The operator module creates the "monitoring" namespace.
   create_namespace = false

@@ -1,7 +1,17 @@
 variable "prefix" {
-  description = "Prefix for the storage account and identity names this module creates."
+  description = "Prefix for the storage account and identity names this module creates. Hyphens are stripped for the storage account name, and what remains is capped at 13 characters: the account name is limited to 24, of which `mzmon` and the 6-character uniqueness suffix take 11."
   type        = string
   nullable    = false
+
+  # The suffix is the only thing making this name globally unique, so it is the
+  # one part that must never be truncated. Past 13 stripped characters a
+  # `substr` to 24 starts eating it, and past 19 none of it survives — at which
+  # point two deployments sharing a prefix collide on a name that has to be
+  # unique across all of Azure.
+  validation {
+    condition     = length(replace(var.prefix, "-", "")) <= 13
+    error_message = "prefix must be at most 13 characters once hyphens are removed; the storage account name is capped at 24 and `mzmon` plus the uniqueness suffix uses 11."
+  }
 }
 
 variable "resource_group_name" {
@@ -89,6 +99,24 @@ variable "tags" {
 # ==============================================================================
 # Passed through to the monitoring module
 # ==============================================================================
+
+variable "chart_registry" {
+  description = "OCI registry holding the materialize-monitoring charts. Override for a mirrored or air-gapped registry; there is no way to reach this through `additional_values`."
+  type        = string
+  default     = null
+}
+
+variable "enable_monitoring_crds" {
+  description = "Install the materialize-monitoring-crds chart (prometheus-operator and grafana-operator CRDs). Set false when the cluster already has them from elsewhere, such as kube-prometheus-stack or a platform team that owns CRDs centrally. Null uses the monitoring module's default."
+  type        = bool
+  default     = null
+}
+
+variable "install_timeout" {
+  description = "Timeout for each Helm release, in seconds. Null uses the monitoring module's default, which is well above Helm's 300s because a first install brings up Loki, Thanos, Grafana, and both Alloy roles together."
+  type        = number
+  default     = null
+}
 
 variable "chart_version" {
   description = "Override the materialize-monitoring chart version. Leave null to use the version the pinned module ships with — the two are one release."

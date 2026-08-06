@@ -3,7 +3,7 @@
 | Name | Version |
 | ---- | ------- |
 | <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | >= 1.10 |
-| <a name="requirement_azurerm"></a> [azurerm](#requirement\_azurerm) | >= 3.75.0, < 4.76.0 |
+| <a name="requirement_azurerm"></a> [azurerm](#requirement\_azurerm) | >= 4.0.0, < 4.76.0 |
 | <a name="requirement_helm"></a> [helm](#requirement\_helm) | >= 2.5.0, < 2.18.0 |
 | <a name="requirement_kubernetes"></a> [kubernetes](#requirement\_kubernetes) | >= 2.10.0, < 2.39.0 |
 | <a name="requirement_random"></a> [random](#requirement\_random) | >= 3.5.0, < 3.10.0 |
@@ -12,7 +12,7 @@
 
 | Name | Version |
 | ---- | ------- |
-| <a name="provider_azurerm"></a> [azurerm](#provider\_azurerm) | >= 3.75.0, < 4.76.0 |
+| <a name="provider_azurerm"></a> [azurerm](#provider\_azurerm) | >= 4.0.0, < 4.76.0 |
 | <a name="provider_random"></a> [random](#provider\_random) | >= 3.5.0, < 3.10.0 |
 
 ## Modules
@@ -38,10 +38,13 @@
 | ---- | ----------- | ---- | ------- | :------: |
 | <a name="input_account_replication_type"></a> [account\_replication\_type](#input\_account\_replication\_type) | Replication for the telemetry storage account. LRS is the default because both backends treat object storage as replaceable — Loki re-ingests and Thanos re-uploads — so paying for ZRS buys less here than for the Materialize persist account. | `string` | `"LRS"` | no |
 | <a name="input_additional_values"></a> [additional\_values](#input\_additional\_values) | Raw YAML documents appended to the Helm values, last, so they override everything the modules compute. | `list(string)` | `[]` | no |
+| <a name="input_chart_registry"></a> [chart\_registry](#input\_chart\_registry) | OCI registry holding the materialize-monitoring charts. Override for a mirrored or air-gapped registry; there is no way to reach this through `additional_values`. | `string` | `null` | no |
 | <a name="input_chart_version"></a> [chart\_version](#input\_chart\_version) | Override the materialize-monitoring chart version. Leave null to use the version the pinned module ships with — the two are one release. | `string` | `null` | no |
 | <a name="input_create_namespace"></a> [create\_namespace](#input\_create\_namespace) | Whether the monitoring module creates the namespace. False by default because the operator module already creates `monitoring`. | `bool` | `false` | no |
+| <a name="input_enable_monitoring_crds"></a> [enable\_monitoring\_crds](#input\_enable\_monitoring\_crds) | Install the materialize-monitoring-crds chart (prometheus-operator and grafana-operator CRDs). Set false when the cluster already has them from elsewhere, such as kube-prometheus-stack or a platform team that owns CRDs centrally. Null uses the monitoring module's default. | `bool` | `null` | no |
 | <a name="input_grafana_admin_password"></a> [grafana\_admin\_password](#input\_grafana\_admin\_password) | Grafana admin password. Generated when null. | `string` | `null` | no |
 | <a name="input_install_metrics_server"></a> [install\_metrics\_server](#input\_install\_metrics\_server) | Install metrics-server as part of the monitoring stack. Set true when the operator module has `install_metrics_server = false`, or the Materialize Console loses cluster metrics. | `bool` | `false` | no |
+| <a name="input_install_timeout"></a> [install\_timeout](#input\_install\_timeout) | Timeout for each Helm release, in seconds. Null uses the monitoring module's default, which is well above Helm's 300s because a first install brings up Loki, Thanos, Grafana, and both Alloy roles together. | `number` | `null` | no |
 | <a name="input_location"></a> [location](#input\_location) | Azure region for the storage account and identities. | `string` | n/a | yes |
 | <a name="input_loki_container_name"></a> [loki\_container\_name](#input\_loki\_container\_name) | Blob container for Loki chunks and rules. | `string` | `"mzmon-loki"` | no |
 | <a name="input_materialize_instance_namespace"></a> [materialize\_instance\_namespace](#input\_materialize\_instance\_namespace) | Namespace the Materialize instance runs in. | `string` | `"materialize-environment"` | no |
@@ -50,7 +53,7 @@
 | <a name="input_network_rules_default_action"></a> [network\_rules\_default\_action](#input\_network\_rules\_default\_action) | Default action for the storage account's network rules when `subnets` is set. | `string` | `"Deny"` | no |
 | <a name="input_node_selector"></a> [node\_selector](#input\_node\_selector) | Node selector for the centralized monitoring workloads. Not applied to the Alloy agent DaemonSet, which must reach every node. | `map(string)` | `{}` | no |
 | <a name="input_oidc_issuer_url"></a> [oidc\_issuer\_url](#input\_oidc\_issuer\_url) | The AKS cluster's OIDC issuer URL, from the `aks` module. Requires `oidc_issuer_enabled` and `workload_identity_enabled` on the cluster. | `string` | n/a | yes |
-| <a name="input_prefix"></a> [prefix](#input\_prefix) | Prefix for the storage account and identity names this module creates. | `string` | n/a | yes |
+| <a name="input_prefix"></a> [prefix](#input\_prefix) | Prefix for the storage account and identity names this module creates. Hyphens are stripped for the storage account name, and what remains is capped at 13 characters: the account name is limited to 24, of which `mzmon` and the 6-character uniqueness suffix take 11. | `string` | n/a | yes |
 | <a name="input_resource_group_name"></a> [resource\_group\_name](#input\_resource\_group\_name) | Resource group holding the storage account and identities. | `string` | n/a | yes |
 | <a name="input_sizing"></a> [sizing](#input\_sizing) | Deployment size: small, medium, or large. The chart's defaults are medium. | `string` | `"medium"` | no |
 | <a name="input_storage_class"></a> [storage\_class](#input\_storage\_class) | StorageClass for the PVC-backed monitoring workloads (Alertmanager, the Loki ruler, and Thanos receive/compactor/store-gateway). Null uses the cluster default; AKS ships `managed-csi`. | `string` | `null` | no |

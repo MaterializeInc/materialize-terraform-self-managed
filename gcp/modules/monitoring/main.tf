@@ -26,10 +26,15 @@
 #   * The operator module also installs metrics-server, which the Materialize
 #     Console depends on for cluster metrics. If you disable it there, set
 #     `install_metrics_server = true` here in the same change.
-#   * Bucket lifecycle rules are off by default. Loki and Thanos both enforce
-#     their own retention, and Thanos keeps blocks per downsampling resolution
-#     (raw / 5m / 1h) — a bucket rule deleting sooner removes blocks the
-#     compactor still references. Use them only as a backstop above that.
+#   * Bucket *retention* is off by default, but housekeeping always runs.
+#     Aborting abandoned resumable uploads and deleting noncurrent versions are
+#     unconditional, because nothing else ever reclaims either. Soft delete is
+#     explicitly disabled for the same reason it exists — it bills as stored
+#     bytes and duplicates the versioning we already configure. Only
+#     `logs_retention_days` / `metrics_retention_days` are opt-in: Loki and
+#     Thanos both enforce their own retention, and Thanos keeps blocks per
+#     downsampling resolution (raw / 5m / 1h), so a bucket rule deleting sooner
+#     removes blocks the compactor still references.
 #   * Grafana is ClusterIP today (the chart exposes no ingress values yet), so
 #     `grafana_url` is in-cluster: reach it with
 #     `kubectl -n monitoring port-forward svc/grafana 3000:80` and
@@ -92,6 +97,15 @@ resource "google_storage_bucket" "telemetry" {
     enabled = var.enable_bucket_versioning
   }
 
+  # Off, not defaulted. New buckets get a 7-day soft-delete retention that is
+  # billed as stored bytes, so with versioning and the noncurrent rule below we
+  # would pay twice for everything the compactors delete — once as a noncurrent
+  # version and again as a soft-deleted object. Versioning is the recovery
+  # mechanism we actually configure; this one is invisible and duplicates it.
+  soft_delete_policy {
+    retention_duration_seconds = 0
+  }
+
   # Retention here is a backstop, not the primary control — see the header.
   dynamic "lifecycle_rule" {
     for_each = each.value.retention_days == null ? [] : [each.value.retention_days]
@@ -107,15 +121,17 @@ resource "google_storage_bucket" "telemetry" {
 
   # Versioning keeps a copy of every deleted object; without this the bucket
   # grows even as the compactor deletes.
-  dynamic "lifecycle_rule" {
-    for_each = var.enable_bucket_versioning ? [1] : []
-    content {
-      action {
-        type = "Delete"
-      }
-      condition {
-        days_since_noncurrent_time = 7
-      }
+  #
+  # Unconditional rather than gated on `enable_bucket_versioning`: turning
+  # versioning off does not remove the versions already written, so gating this
+  # would strand them in the same apply that stops new ones. On a bucket that
+  # was never versioned the condition simply never matches.
+  lifecycle_rule {
+    action {
+      type = "Delete"
+    }
+    condition {
+      days_since_noncurrent_time = 7
     }
   }
 
@@ -139,9 +155,10 @@ resource "google_storage_bucket" "telemetry" {
 resource "google_service_account" "telemetry" {
   for_each = local.service_accounts
 
-  # account_id is capped at 30 characters, so the prefix is truncated rather
-  # than allowed to overflow into an apply-time error.
-  account_id   = substr("${var.prefix}-mzmon-${each.key}", 0, 30)
+  # No truncation here on purpose: `var.prefix` is validated at 17 characters,
+  # which is exactly what keeps the longest of these (`-mzmon-thanos`) inside
+  # the 30-character account_id limit.
+  account_id   = "${var.prefix}-mzmon-${each.key}"
   display_name = "materialize-monitoring ${each.key}"
   project      = var.project_id
 }
@@ -223,6 +240,15 @@ module "monitoring" {
   create_namespace = var.create_namespace
 
   chart_version = var.chart_version
+
+  # Null on any of these means "use the monitoring module's own default": each
+  # is declared `nullable = false` with a default there, and Terraform
+  # substitutes the default when a caller passes null. None of the three is
+  # reachable through `additional_values`, so without forwarding them a mirrored
+  # registry or a cluster that already owns the CRDs has no way through.
+  chart_registry         = var.chart_registry
+  enable_monitoring_crds = var.enable_monitoring_crds
+  install_timeout        = var.install_timeout
 
   sizing        = var.sizing
   node_selector = var.node_selector

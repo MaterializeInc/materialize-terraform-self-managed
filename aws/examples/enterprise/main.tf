@@ -538,13 +538,19 @@ module "materialize_instance" {
   ]
 }
 
-# 10. Setup Observability Stack (Prometheus + Grafana)
+# 10. Setup Observability Stack (Grafana, Loki, Thanos, Alloy)
 module "monitoring" {
   count  = var.enable_observability ? 1 : 0
   source = "../../modules/monitoring"
 
   name_prefix = var.name_prefix
   region      = var.aws_region
+
+  # Matches what these examples already pass to `module.storage`. Loki and
+  # Thanos start writing immediately, and neither S3 nor GCS will delete a
+  # non-empty bucket, so without this `terraform destroy` wedges on the
+  # telemetry buckets. Set to false for anything you cannot afford to lose.
+  bucket_force_destroy = true
 
   namespace = local.monitoring_namespace
   # The operator module creates the "monitoring" namespace.

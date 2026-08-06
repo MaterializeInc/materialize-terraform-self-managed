@@ -1,7 +1,17 @@
 variable "prefix" {
-  description = "Prefix for the bucket and service-account names this module creates."
+  description = "Prefix for the bucket and service-account names this module creates. Capped at 17 characters so the longest generated name still fits: a service account `account_id` is limited to 30, and `-mzmon-thanos` takes 13 of them."
   type        = string
   nullable    = false
+
+  # Truncating instead would be worse than failing here. At 23 characters
+  # `-mzmon-<backend>` loses the backend entirely, so loki and thanos both
+  # resolve to `<prefix>-mzmon-` — a duplicate account_id, and a trailing
+  # hyphen that GCP rejects. Fail at plan with a name rather than at apply
+  # with a collision.
+  validation {
+    condition     = length(var.prefix) <= 17
+    error_message = "prefix must be at most 17 characters; a service account account_id is capped at 30 and `-mzmon-thanos` uses 13."
+  }
 }
 
 variable "project_id" {
@@ -76,6 +86,24 @@ variable "labels" {
 # ==============================================================================
 # Passed through to the monitoring module
 # ==============================================================================
+
+variable "chart_registry" {
+  description = "OCI registry holding the materialize-monitoring charts. Override for a mirrored or air-gapped registry; there is no way to reach this through `additional_values`."
+  type        = string
+  default     = null
+}
+
+variable "enable_monitoring_crds" {
+  description = "Install the materialize-monitoring-crds chart (prometheus-operator and grafana-operator CRDs). Set false when the cluster already has them from elsewhere, such as kube-prometheus-stack or a platform team that owns CRDs centrally. Null uses the monitoring module's default."
+  type        = bool
+  default     = null
+}
+
+variable "install_timeout" {
+  description = "Timeout for each Helm release, in seconds. Null uses the monitoring module's default, which is well above Helm's 300s because a first install brings up Loki, Thanos, Grafana, and both Alloy roles together."
+  type        = number
+  default     = null
+}
 
 variable "chart_version" {
   description = "Override the materialize-monitoring chart version. Leave null to use the version the pinned module ships with — the two are one release."

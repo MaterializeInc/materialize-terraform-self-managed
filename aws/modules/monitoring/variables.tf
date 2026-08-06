@@ -1,7 +1,12 @@
 variable "name_prefix" {
-  description = "Prefix for the bucket and IAM role names this module creates."
+  description = "Prefix for the bucket and IAM role names this module creates. Capped at 40 characters so the longest generated name still fits: S3 bucket names are limited to 63, and `-mzmon-metrics-` plus the 8-character random suffix takes 23."
   type        = string
   nullable    = false
+
+  validation {
+    condition     = length(var.name_prefix) <= 40
+    error_message = "name_prefix must be at most 40 characters; S3 bucket names are capped at 63 and `-mzmon-metrics-` plus the random suffix uses 23."
+  }
 }
 
 variable "region" {
@@ -93,6 +98,24 @@ variable "tags" {
 # Passed through to the monitoring module
 # ==============================================================================
 
+variable "chart_registry" {
+  description = "OCI registry holding the materialize-monitoring charts. Override for a mirrored or air-gapped registry; there is no way to reach this through `additional_values`."
+  type        = string
+  default     = null
+}
+
+variable "enable_monitoring_crds" {
+  description = "Install the materialize-monitoring-crds chart (prometheus-operator and grafana-operator CRDs). Set false when the cluster already has them from elsewhere, such as kube-prometheus-stack or a platform team that owns CRDs centrally. Null uses the monitoring module's default."
+  type        = bool
+  default     = null
+}
+
+variable "install_timeout" {
+  description = "Timeout for each Helm release, in seconds. Null uses the monitoring module's default, which is well above Helm's 300s because a first install brings up Loki, Thanos, Grafana, and both Alloy roles together."
+  type        = number
+  default     = null
+}
+
 variable "chart_version" {
   description = "Override the materialize-monitoring chart version. Leave null to use the version the pinned module ships with — the two are one release."
   type        = string
@@ -135,7 +158,7 @@ variable "node_selector" {
 }
 
 variable "storage_class" {
-  description = "StorageClass for the PVC-backed monitoring workloads (Alertmanager, the Loki ruler, and Thanos receive/compactor/store-gateway). Null uses the cluster default, which on EKS is `gp2`; the examples pass the `gp3` class from the `ebs-csi-driver` module."
+  description = "StorageClass for the PVC-backed monitoring workloads (Alertmanager, the Loki ruler, and Thanos receive/compactor/store-gateway). Null uses whatever class the cluster marks default; the examples pass the `gp3` class from the `ebs-csi-driver` module."
   type        = string
   default     = null
 }
