@@ -5,7 +5,7 @@ End-to-end integration tests for the Materialize self-managed Terraform modules.
 ## Prerequisites
 
 - Rust (edition 2024)
-- Terraform >= 1.8
+- Terraform >= 1.10
 - `psql` (PostgreSQL client)
 - Cloud CLI for your provider:
   - **AWS**: `aws` CLI, configured profile

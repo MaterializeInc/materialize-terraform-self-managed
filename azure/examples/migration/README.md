@@ -8,7 +8,7 @@ Migrate from the old `azure-old/` monolithic module to the new `materialize-terr
 
 ## Quick Start
 
-**Prerequisites:** Terraform CLI (>= 1.8), Python 3.7+, Azure CLI, kubectl, access to your old Terraform state
+**Prerequisites:** Terraform CLI (>= 1.10), Python 3.7+, Azure CLI, kubectl, access to your old Terraform state
 
 ```bash
 # CRITICAL: Verify old state access first

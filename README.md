@@ -120,7 +120,7 @@ Complete support for deploying Materialize on Google Cloud Platform with GKE, Cl
 
 ### Prerequisites
 
-- Terraform >= 1.0
+- Terraform >= 1.10
 - Cloud provider credentials configured
 - kubectl (for managing Kubernetes resources)
 - Appropriate cloud provider CLI tools (aws-cli, az, or gcloud)
