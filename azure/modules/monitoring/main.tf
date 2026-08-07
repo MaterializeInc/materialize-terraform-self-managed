@@ -204,6 +204,12 @@ module "monitoring" {
 
   grafana_admin_password = var.grafana_admin_password
 
+  # Explicit rather than inferred from host/password: both are computed here — an
+  # instance endpoint and a generated password — so the module cannot decide
+  # whether they exist at plan time. These two conditions are plan-known.
+  grafana_database_enabled                = local.grafana_database_creating || var.grafana_database_host != null
+  grafana_database_manage_password_secret = local.grafana_database_creating || var.grafana_database_password != null
+
   grafana_database_host     = local.grafana_database_host
   grafana_database_port     = local.grafana_database_port
   grafana_database_name     = var.grafana_database_name
