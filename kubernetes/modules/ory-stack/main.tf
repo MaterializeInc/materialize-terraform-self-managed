@@ -126,6 +126,13 @@ locals {
         }
         selfservice = {
           default_browser_return_url = local.ui_external_url
+          # SSO-only: disable local password login/registration and profile
+          # self-edits so users cannot set their own traits (e.g. groups).
+          # OIDC stays enabled, so IdP just-in-time provisioning still works.
+          methods = {
+            password = { enabled = false }
+            profile  = { enabled = false }
+          }
           flows = {
             login = { ui_url = "${local.ui_external_url}/login" }
             # session hook logs the user in on first OIDC registration; without
