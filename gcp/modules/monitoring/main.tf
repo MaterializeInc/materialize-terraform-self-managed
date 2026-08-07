@@ -27,10 +27,11 @@
 #     Console depends on for cluster metrics. If you disable it there, set
 #     `install_metrics_server = true` here in the same change.
 #   * Bucket *retention* is off by default, but housekeeping always runs.
-#     Aborting abandoned resumable uploads and deleting noncurrent versions are
-#     unconditional, because nothing else ever reclaims either. Soft delete is
-#     explicitly disabled for the same reason it exists — it bills as stored
-#     bytes and duplicates the versioning we already configure. Only
+#     Deleting noncurrent versions is unconditional, because nothing else ever
+#     reclaims them. Soft delete is explicitly disabled for the same reason it
+#     exists — it bills as stored bytes and duplicates the versioning we
+#     already configure. The multipart-abort rule is a safety net for the
+#     S3-compatible path only; see the comment on the rule itself. Only
 #     `logs_retention_days` / `metrics_retention_days` are opt-in: Loki and
 #     Thanos both enforce their own retention, and Thanos keeps blocks per
 #     downsampling resolution (raw / 5m / 1h), so a bucket rule deleting sooner
@@ -135,7 +136,17 @@ resource "google_storage_bucket" "telemetry" {
     }
   }
 
-  # Abandoned resumable uploads otherwise accumulate silently.
+  # This covers XML API multipart uploads, which is *not* the same thing as
+  # resumable uploads — only the former strands billable parts that nothing
+  # reclaims. Loki and Thanos talking to GCS natively use the Go client, which
+  # does resumable uploads, and those session URIs expire on their own after a
+  # week.
+  #
+  # So this rule does nothing on the default configuration, and is kept as a
+  # safety net for the case where something is pointed at these buckets through
+  # the S3-compatible XML API instead. `AbortIncompleteMultipartUpload` is one
+  # of the three GCS lifecycle actions, alongside `Delete` and
+  # `SetStorageClass`, and `age` is one of the three conditions it accepts.
   lifecycle_rule {
     action {
       type = "AbortIncompleteMultipartUpload"
