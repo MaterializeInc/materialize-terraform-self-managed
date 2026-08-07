@@ -27,9 +27,22 @@ variable "kratos_fqdn" {
 }
 
 variable "ui_fqdn" {
-  description = "Fully-qualified domain name for the Ory selfservice UI (e.g. id.example.com)."
+  description = "Fully-qualified domain name for the standalone Ory selfservice UI (e.g. id.example.com). Required when deploy_selfservice_ui is true, ignored otherwise."
   type        = string
+  default     = null
+}
+
+variable "deploy_selfservice_ui" {
+  description = "Deploy the standalone Ory selfservice UI (login/consent/recovery pages) with its own LoadBalancer and TLS certificate. Set to false when another app (e.g. the Materialize console) hosts these pages, and set selfservice_ui_url to that app's URL."
+  type        = bool
+  default     = true
   nullable    = false
+}
+
+variable "selfservice_ui_url" {
+  description = "External base URL that serves the Ory flow pages (login, consent, etc.) when deploy_selfservice_ui is false. Kratos and Hydra redirect the browser here. Ignored when deploy_selfservice_ui is true."
+  type        = string
+  default     = null
 }
 
 variable "polis_fqdn" {

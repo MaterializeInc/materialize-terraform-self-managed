@@ -35,8 +35,11 @@ locals {
   # downstream, which is exact-match.
   hydra_external_url  = "https://${var.hydra_fqdn}"
   kratos_external_url = "https://${var.kratos_fqdn}"
-  ui_external_url     = "https://${var.ui_fqdn}"
-  polis_external_url  = local.wire_polis ? "https://${var.polis_fqdn}" : null
+  # The standalone UI FQDN when we deploy it, otherwise the external URL of
+  # whatever app hosts the Ory flow pages (e.g. the console). Kratos and Hydra
+  # redirect the browser here for login/consent/etc.
+  ui_external_url    = var.deploy_selfservice_ui ? "https://${var.ui_fqdn}" : var.selfservice_ui_url
+  polis_external_url = local.wire_polis ? "https://${var.polis_fqdn}" : null
 
   # Cookie domain shared across the Ory subdomains so flow/session cookies work
   # across sibling FQDNs (Kratos, UI, Hydra). Defaults to the parent domain of
@@ -75,30 +78,36 @@ locals {
       app_instance = "hydra"
       target_port  = 4444
     }
-    ory-selfservice-ui-lb = {
-      role         = "ui"
-      app_name     = "kratos-selfservice-ui-node"
-      app_instance = module.ory_selfservice_ui.service_name
-      target_port  = module.ory_selfservice_ui.port
-    }
-    }, local.wire_polis ? {
-    polis-public-lb = {
-      role         = "polis"
-      app_name     = "polis"
-      app_instance = "polis"
-      target_port  = 8443
-    }
+    },
+    var.deploy_selfservice_ui ? {
+      ory-selfservice-ui-lb = {
+        role         = "ui"
+        app_name     = "kratos-selfservice-ui-node"
+        app_instance = module.ory_selfservice_ui[0].service_name
+        target_port  = module.ory_selfservice_ui[0].port
+      }
+    } : {},
+    local.wire_polis ? {
+      polis-public-lb = {
+        role         = "polis"
+        app_name     = "polis"
+        app_instance = "polis"
+        target_port  = 8443
+      }
   } : {})
 
   # cert-manager Certificate map for the browser-facing services. Polis is added
   # when enabled and its cert is mounted into the chart's TLS-terminating nginx
   # sidecar.
   ory_certs = merge({
-    hydra-tls              = { fqdn = var.hydra_fqdn, cluster_svc = "hydra-public.${var.namespace}.svc.cluster.local" }
-    kratos-tls             = { fqdn = var.kratos_fqdn, cluster_svc = "kratos-public.${var.namespace}.svc.cluster.local" }
-    ory-selfservice-ui-tls = { fqdn = var.ui_fqdn, cluster_svc = null }
-    }, local.wire_polis ? {
-    polis-tls = { fqdn = var.polis_fqdn, cluster_svc = null }
+    hydra-tls  = { fqdn = var.hydra_fqdn, cluster_svc = "hydra-public.${var.namespace}.svc.cluster.local" }
+    kratos-tls = { fqdn = var.kratos_fqdn, cluster_svc = "kratos-public.${var.namespace}.svc.cluster.local" }
+    },
+    var.deploy_selfservice_ui ? {
+      ory-selfservice-ui-tls = { fqdn = var.ui_fqdn, cluster_svc = null }
+    } : {},
+    local.wire_polis ? {
+      polis-tls = { fqdn = var.polis_fqdn, cluster_svc = null }
   } : {})
 
   # Baked-in Kratos config that the enterprise setup requires. Callers can
@@ -344,6 +353,7 @@ module "ory_hydra" {
 # users or collect consent; the UI fills both roles.
 module "ory_selfservice_ui" {
   source = "../ory-selfservice-ui"
+  count  = var.deploy_selfservice_ui ? 1 : 0
 
   namespace = var.namespace
 
@@ -365,7 +375,7 @@ module "ory_selfservice_ui" {
   extra_env     = var.selfservice_ui_extra_env
 
   depends_on = [
-    kubectl_manifest.ory_certificate["ory-selfservice-ui-tls"],
+    kubectl_manifest.ory_certificate,
   ]
 }
 
