@@ -27,9 +27,9 @@ variable "kratos_fqdn" {
 }
 
 variable "ui_fqdn" {
-  description = "Fully-qualified domain name for the standalone Ory selfservice UI (e.g. id.example.com). Required when deploy_selfservice_ui is true, ignored otherwise."
+  description = "Fully-qualified domain name for the standalone Ory selfservice UI (e.g. id.example.com). Used for the UI's hostname and TLS certificate when deploy_selfservice_ui is true; unused (but still required) otherwise."
   type        = string
-  default     = null
+  nullable    = false
 }
 
 variable "deploy_selfservice_ui" {
