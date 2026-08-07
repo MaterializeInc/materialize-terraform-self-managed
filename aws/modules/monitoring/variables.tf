@@ -200,6 +200,166 @@ variable "grafana_admin_password" {
   sensitive   = true
 }
 
+# ==============================================================================
+# Grafana state database
+# ==============================================================================
+
+variable "grafana_database" {
+  description = <<-EOT
+    Provision a dedicated RDS PostgreSQL instance for Grafana's own state.
+
+    Grafana keeps users, service accounts and tokens, annotations, dashboard versions and
+    permissions, preferences, and alert-rule state in a database separate from the observability
+    data in Loki and Thanos. The chart default is SQLite on an `emptyDir`, so all of it is lost on
+    every restart, upgrade, and reschedule. That is tolerable while Grafana is reached through
+    `port-forward` and not once it is exposed, which is why this and `grafana_ingress` belong in
+    the same change.
+
+    Dedicated rather than a database inside the Materialize RDS instance, deliberately: RDS has no
+    API for creating a second database in an existing instance, so sharing one would need the
+    PostgreSQL provider to reach a private endpoint from wherever Terraform runs. A separate
+    instance also keeps Grafana's blast radius away from Materialize's metadata.
+
+    `db.t4g.micro` is enough. Grafana's state is small and its query rate is a handful per page
+    load; this is a durability decision, not a capacity one.
+
+    Null leaves Grafana on SQLite. Point at a database you already run with the
+    `grafana_database_*` variables instead.
+  EOT
+
+  type = object({
+    vpc_id                    = string
+    subnet_ids                = list(string)
+    cluster_name              = string
+    cluster_security_group_id = string
+    node_security_group_id    = string
+
+    instance_class          = optional(string, "db.t4g.micro")
+    postgres_version        = optional(string, "16")
+    allocated_storage       = optional(number, 20)
+    max_allocated_storage   = optional(number, 100)
+    multi_az                = optional(bool, false)
+    backup_retention_period = optional(number, 7)
+    kms_key_id              = optional(string, null)
+    create_kms_key          = optional(bool, true)
+    skip_final_snapshot     = optional(bool, false)
+  })
+
+  default = null
+
+  validation {
+    condition     = var.grafana_database == null || var.grafana_database_host == null
+    error_message = "Set either grafana_database (this module creates the instance) or grafana_database_host (you point at an existing one), not both."
+  }
+}
+
+# The five below point Grafana at a database this module does not create. They
+# are forwarded to the monitoring module untouched, and are mutually exclusive
+# with `grafana_database`.
+
+variable "grafana_database_host" {
+  description = "Hostname of an existing PostgreSQL database for Grafana's state. Mutually exclusive with `grafana_database`. Host only — the port is `grafana_database_port`."
+  type        = string
+  default     = null
+}
+
+variable "grafana_database_port" {
+  description = "Port for `grafana_database_host`."
+  type        = number
+  default     = 5432
+  nullable    = false
+}
+
+variable "grafana_database_name" {
+  description = "Name of the database Grafana owns."
+  type        = string
+  default     = "grafana"
+  nullable    = false
+}
+
+variable "grafana_database_user" {
+  description = "Database user Grafana connects as. Must own `grafana_database_name`: Grafana runs schema migrations at startup, so a read/write-only grant fails them."
+  type        = string
+  default     = "grafana"
+  nullable    = false
+}
+
+variable "grafana_database_password" {
+  description = "Password for `grafana_database_user`. Generated when this module creates the instance. Null with an external host means the connection needs no password."
+  type        = string
+  default     = null
+  sensitive   = true
+}
+
+variable "grafana_database_ssl_mode" {
+  description = "libpq SSL mode for the Grafana database connection. `require` encrypts but does not authenticate the server; `verify-full` also authenticates it but needs the RDS CA bundle mounted, which this module does not do — supply `grafana.ini.database.ca_cert_path` and the matching mount through `additional_values` for that."
+  type        = string
+  default     = "require"
+  nullable    = false
+}
+
+# ==============================================================================
+# Grafana ingress
+# ==============================================================================
+
+variable "grafana_ingress" {
+  description = <<-EOT
+    Expose Grafana through an ALB, provisioned by the AWS Load Balancer Controller from an
+    Ingress the chart renders.
+
+    Ingress rather than this repo's `nlb` module: Grafana is ordinary HTTP wanting host-based
+    routing and a certificate, which is what the controller builds an ALB for. The `nlb` module
+    exists for the Materialize console, whose OIDC redirect and port constraints pushed it onto
+    443 with a target group; none of that applies here. The controller must already be installed —
+    the examples install it as `module.aws_lbc`.
+
+    Internal by default, and public requires an allowlist that is *enforced* rather than merely
+    defaulted, matching the `nlb` module. `ingress_cidr_blocks` becomes
+    `alb.ingress.kubernetes.io/inbound-cidrs`; on an internal load balancer pass your VPC CIDR.
+
+    Set `certificate_arn` unless TLS is terminated somewhere else. Grafana authenticates with a
+    session cookie, so without TLS that cookie and the admin password cross the network in the
+    clear, and the chart warns about exactly that.
+
+    DNS for `host` is yours to create — neither the Ingress nor the controller publishes it.
+
+    Null leaves Grafana on a ClusterIP Service, reachable only with `kubectl port-forward`.
+  EOT
+
+  type = object({
+    host = string
+
+    internal            = optional(bool, true)
+    ingress_cidr_blocks = optional(list(string), null)
+    certificate_arn     = optional(string, null)
+    ingress_class_name  = optional(string, "alb")
+    subnet_ids          = optional(list(string), null)
+    annotations         = optional(map(string), {})
+  })
+
+  default = null
+
+  validation {
+    condition = var.grafana_ingress == null ? true : (
+      var.grafana_ingress.internal ? true : (
+        var.grafana_ingress.ingress_cidr_blocks != null && alltrue([
+          for cidr in var.grafana_ingress.ingress_cidr_blocks : can(cidrhost(cidr, 0))
+        ])
+      )
+    )
+    error_message = "grafana_ingress.ingress_cidr_blocks must be provided and contain valid CIDR notation when exposing Grafana publicly (internal = false)."
+  }
+
+  validation {
+    condition = var.grafana_ingress == null ? true : (
+      var.grafana_ingress.ingress_cidr_blocks == null || alltrue([
+        for cidr in var.grafana_ingress.ingress_cidr_blocks : can(cidrhost(cidr, 0))
+      ])
+    )
+    error_message = "grafana_ingress.ingress_cidr_blocks must contain valid CIDR notation."
+  }
+}
+
 variable "additional_values" {
   description = "Raw YAML documents appended to the Helm values, last, so they override everything the modules compute."
   type        = list(string)

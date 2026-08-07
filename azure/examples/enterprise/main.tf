@@ -472,6 +472,25 @@ module "monitoring" {
   materialize_instance_namespace = local.materialize_instance_namespace
   materialize_operator_namespace = local.materialize_operator_namespace
 
+  # A dedicated Flexible Server for Grafana's own state. Separate from
+  # `module.database` because a Flexible Server has one administrator login and
+  # no ARM resource for additional roles, so sharing one would hand Grafana the
+  # credentials that also own Materialize's metadata — the same reasoning that
+  # gives Ory its own server above.
+  grafana_database = var.enable_grafana_database ? {
+    subnet_id           = module.networking.postgres_subnet_id
+    private_dns_zone_id = module.networking.private_dns_zone_id
+  } : null
+
+  # Internal by default; going public requires `ingress_cidr_blocks`, which the
+  # module enforces rather than merely defaulting. On an internal load balancer
+  # the allowlist is the VNet's own address space.
+  grafana_load_balancer = var.grafana_host == null ? null : {
+    host                = var.grafana_host
+    internal            = var.internal_load_balancer
+    ingress_cidr_blocks = var.internal_load_balancer ? module.networking.vnet_address_space : var.ingress_cidr_blocks
+  }
+
   tags = var.tags
 
   depends_on = [

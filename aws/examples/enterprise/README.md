@@ -84,6 +84,9 @@ tags = {
 - `ingress_cidr_blocks`: List of CIDR blocks allowed to reach the NLB (no effect when `internal_load_balancer = true`)
 - `internal_load_balancer`: Whether to use an internal load balancer (defaults to `true`). Set to `false` for prod-like demos validated against real DNS.
 - `enable_observability`: Enable Prometheus and Grafana monitoring stack (defaults to `true`)
+- `enable_grafana_database`: Give Grafana a dedicated RDS instance for its own state (defaults to `false`). Without it Grafana keeps users, service accounts and tokens, annotations, dashboard versions, and preferences in SQLite on an `emptyDir` and loses all of it on every restart. Costs a `db.t4g.micro`.
+- `grafana_host`: Hostname to expose Grafana on through an ALB (defaults to `null`, which keeps it `ClusterIP` and port-forward-only). Follows `internal_load_balancer` and `ingress_cidr_blocks` the same way the Materialize NLB does. DNS for the name is yours to create. Pair it with `enable_grafana_database` — an exposed Grafana that discards everything its users create is worse than an unreachable one.
+- `grafana_certificate_arn`: ACM certificate for the Grafana ALB listener. Without it the listener is plain HTTP, so Grafana's session cookie crosses the network in the clear.
 - `enable_polis`: Deploy Ory Polis alongside Kratos and Hydra (defaults to `false`). When `true`, also set `ory_polis_fqdn` and create the corresponding DNS record. A dedicated RDS instance is provisioned for the polis database.
 - `ory_polis_fqdn`: Public hostname for Polis. Required when `enable_polis = true`.
 - `polis_helm_values`: Additional Helm values for the Polis chart. Escape hatch for overriding resources, node selectors, tolerations, etc.

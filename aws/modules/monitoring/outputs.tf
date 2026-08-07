@@ -4,13 +4,24 @@ output "namespace" {
 }
 
 output "grafana_url" {
-  description = "In-cluster URL for Grafana. Grafana is ClusterIP-only today, so reaching it means a port-forward."
-  value       = module.monitoring.grafana_url
+  description = "URL for Grafana: the external one when `grafana_ingress` is set, the in-cluster Service otherwise — in which case reaching it means a port-forward. DNS for an external host is yours to create; nothing here publishes it."
+  value       = var.grafana_ingress == null ? module.monitoring.grafana_url : "${local.grafana_scheme}://${var.grafana_ingress.host}"
 }
 
 output "grafana_admin_password" {
   description = "Grafana admin password."
   value       = module.monitoring.grafana_admin_password
+  sensitive   = true
+}
+
+output "grafana_database_endpoint" {
+  description = "`host:port` of the database backing Grafana's state, or null when Grafana is on SQLite."
+  value       = local.grafana_database_host == null ? null : "${local.grafana_database_host}:${local.grafana_database_port}"
+}
+
+output "grafana_database_password" {
+  description = "Password for the Grafana database user. Generated when this module creates the instance."
+  value       = local.grafana_database_effective_password
   sensitive   = true
 }
 

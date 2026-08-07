@@ -180,6 +180,7 @@ We follow semantic versioning with our tags. If a particular version requires ad
 
 We have introduced a new observability stack that replaces the previous Prometheus + Grafana stack. The new stack is cloud-native and supports logs, metrics, and dashboards.
 
+
 `kubernetes/modules/prometheus` and `kubernetes/modules/grafana` are replaced by `aws/modules/monitoring`, `gcp/modules/monitoring`, and `azure/modules/monitoring`, which install the [`materialize-monitoring`](https://github.com/MaterializeInc/materialize-monitoring) charts. The two legacy modules are **removed**, not deprecated in place. If you referenced `kubernetes/modules/prometheus` or `kubernetes/modules/grafana` directly rather than through an example, that reference breaks on this version — pin the previous major until you have migrated to the monitoring module for your cloud.
 
 The old stack vendored a point-in-time dashboard copy and a legacy scrape config, collected metrics only, and ran a single Prometheus on a `ReadWriteOnce` volume with 15 days of retention. The new one adds logs (Loki), object-storage-backed metrics (Thanos), alerting, and the Alloy collection pipeline, and gets its dashboards and scrapers from released chart artifacts rather than copies.
@@ -188,7 +189,8 @@ The old stack vendored a point-in-time dashboard copy and a legacy scrape config
 
 - The `prometheus` and `grafana` Helm releases and their PersistentVolumeClaims are **destroyed**. Up to 15 days of local Prometheus data goes with them — there is no backfill, and the new stack begins collecting at install. Anything hand-created in the old Grafana (dashboards, users, saved queries) does not carry over.
 - The `prometheus_url` output is gone, replaced by `metrics_url` (Thanos Query) and `logs_url` (Loki). Thanos Query is Prometheus-API-compatible, so consumers of the old URL work against the new one — only the host and port change.
-- `grafana_url` and `grafana_admin_password` keep their names and meaning. Grafana remains `ClusterIP`, so reaching it is still `kubectl -n monitoring port-forward svc/grafana 3000:80`.
+- `grafana_url` and `grafana_admin_password` keep their names. `grafana_url` becomes conditional: the external URL once Grafana is exposed, the in-cluster Service otherwise. The default is still `ClusterIP`, so reaching it is still `kubectl -n monitoring port-forward svc/grafana 3000:80`.
+- Grafana can now keep its own state in a database and be reachable without a port-forward. Both are opt-in and belong together — see [Grafana persistence and reachability](#grafana-persistence-and-reachability).
 - New cloud resources are created: storage for each backend (logs and metrics) plus a per-backend cloud identity bound to the in-cluster ServiceAccount.
   - **AWS** — an S3 bucket and an IRSA role per backend.
   - **GCP** — a GCS bucket and a Google service account per backend, bound with `roles/iam.workloadIdentityUser`. Requires Workload Identity on the cluster, which the `gke` module already sets.
@@ -198,6 +200,28 @@ The old stack vendored a point-in-time dashboard copy and a legacy scrape config
 - **Azure only:** the Entra Workload ID webhook only mutates pods labelled `azure.workload.identity/use: "true"`, and the monitoring module applies that label for you. It reaches Thanos through `global.commonLabels` rather than a `podLabels` the Thanos chart does not have, so the label also appears on Thanos object metadata. That is cosmetic — it is not in any workload selector, so it is safe on an existing install.
 
 `enable_observability` keeps its name and its defaults (`false` in `simple`, `true` in `enterprise`).
+
+###### Grafana persistence and reachability
+
+Two opt-in additions to each cloud's monitoring module. They belong together: exposing Grafana without a durable backend turns a bundled extra nobody depended on into the primary interface to the stack — one that silently discards every dashboard, annotation, and API token its users create.
+
+**`grafana_database`** provisions a **dedicated** PostgreSQL instance for Grafana's own state (users, service accounts and tokens, annotations, dashboard versions and permissions, preferences, alert-rule state). Without it Grafana keeps all of that in SQLite on an `emptyDir` and loses it on every restart, upgrade, and reschedule.
+
+Dedicated rather than a database inside the Materialize instance, for reasons that differ by cloud and happen to agree:
+
+| | Why not share |
+|---|---|
+| **AWS** | RDS has no API for adding a database to an existing instance. Sharing would need the PostgreSQL provider to reach a private endpoint from wherever Terraform runs. |
+| **Azure** | A Flexible Server has one administrator login and no ARM resource for additional roles, so Grafana would get the credentials that also own Materialize's metadata. The `enterprise` example already gives Ory its own server for the same reason. |
+| **GCP** | Cloud SQL could share cleanly, but a separate instance keeps Grafana's blast radius away from Materialize's metadata and keeps the three wrappers the same shape. |
+
+The default sizes (`db.t4g.micro`, `db-f1-micro`, `B_Standard_B1ms`) are deliberate: Grafana's state is small and its query rate is a handful per page load. This is a durability decision, not a capacity one. Pass `grafana_database_host` and friends instead to point at a database you already run.
+
+**`grafana_ingress`** (AWS) / **`grafana_load_balancer`** (GCP, Azure) makes Grafana reachable. The split is not L7-versus-L4 — an Ingress and an annotated `LoadBalancer` Service both ask the cloud for a load balancer, and both can terminate TLS in front of Grafana. It follows what each platform's controllers actually consume: AWS goes through the Load Balancer Controller the examples already install, while GKE and AKS take the Service, matching what their `load_balancers` modules already do for the Materialize console.
+
+Both are **internal by default**, and public requires a CIDR allowlist that is *enforced* rather than merely defaulted — the same `validation` block posture as `aws/modules/nlb`. On an internal load balancer, pass your VPC/VNet CIDR; the chart cannot see the internal-scheme annotation, so the allowlist is what makes the intent legible to it.
+
+Neither publishes DNS. The hostname you pass is yours to create, and an ACME challenge against a name that does not resolve is the usual way that gets noticed.
 
 #### v9.0.0
 

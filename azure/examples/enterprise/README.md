@@ -81,6 +81,8 @@ tags = {
 - `ingress_cidr_blocks`: List of CIDR blocks allowed to reach the LoadBalancer frontends (no effect when `internal_load_balancer = true`)
 - `internal_load_balancer`: Whether to use an internal load balancer (defaults to `true`). Set to `false` for prod-like demos validated against real DNS.
 - `enable_observability`: Enable Prometheus and Grafana monitoring stack (defaults to `true`)
+- `enable_grafana_database`: Give Grafana a dedicated PostgreSQL Flexible Server for its own state (defaults to `false`). Without it Grafana keeps users, service accounts and tokens, annotations, dashboard versions, and preferences in SQLite on an `emptyDir` and loses all of it on every restart. Costs a `B_Standard_B1ms`.
+- `grafana_host`: Hostname to expose Grafana on through an Azure load balancer (defaults to `null`, which keeps it `ClusterIP` and port-forward-only). Follows `internal_load_balancer` and `ingress_cidr_blocks`; an internal load balancer is allowlisted to the VNet's own address space. DNS for the name is yours to create. Pair it with `enable_grafana_database` — an exposed Grafana that discards everything its users create is worse than an unreachable one.
 - TLS certificate options (`cert_issuer_ref`, …): see [TLS Certificates](#tls-certificates) below.
 
 ### Step 2: Deploy

@@ -512,6 +512,22 @@ module "monitoring" {
   materialize_instance_namespace = local.materialize_instance_namespace
   materialize_operator_namespace = local.materialize_operator_namespace
 
+  # A dedicated Cloud SQL instance for Grafana's own state, separate from
+  # `module.database` so Grafana's blast radius stays away from Materialize's
+  # metadata.
+  grafana_database = var.enable_grafana_database ? {
+    network_id = module.networking.network_id
+  } : null
+
+  # Internal by default; going public requires `ingress_cidr_blocks`, which the
+  # module enforces rather than merely defaulting. On an internal load balancer
+  # the allowlist is the VPC's own subnet ranges.
+  grafana_load_balancer = var.grafana_host == null ? null : {
+    host                = var.grafana_host
+    internal            = var.internal_load_balancer
+    ingress_cidr_blocks = var.internal_load_balancer ? module.networking.subnets_ips : var.ingress_cidr_blocks
+  }
+
   depends_on = [
     module.operator,
     module.gke,

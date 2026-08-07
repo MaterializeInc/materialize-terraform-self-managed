@@ -159,3 +159,33 @@ variable "materialize_version" {
   type        = string
   default     = null
 }
+
+variable "enable_grafana_database" {
+  description = <<-EOT
+    Give Grafana a dedicated PostgreSQL instance for its own state.
+
+    Off by default because it provisions a real database and therefore costs real money. It is
+    what the chart calls the production shape: without it Grafana keeps its users, service
+    accounts and tokens, annotations, dashboard versions, and preferences in SQLite on an
+    `emptyDir`, and loses all of it on every restart, upgrade, and reschedule.
+
+    Pair it with `grafana_host`. Exposing Grafana without a durable backend turns a bundled extra
+    nobody depended on into the primary interface to the stack, one that silently discards
+    everything its users create in it.
+  EOT
+  type        = bool
+  default     = false
+  nullable    = false
+}
+
+variable "grafana_host" {
+  description = "Hostname to expose Grafana on. Null keeps it on a ClusterIP Service, reachable only with `kubectl port-forward`. Exposure follows `internal_load_balancer` and `ingress_cidr_blocks`, the same as the Materialize load balancer. DNS for this name is yours to create."
+  type        = string
+  default     = null
+}
+
+variable "grafana_certificate_arn" {
+  description = "ACM certificate ARN for the Grafana ALB listener. Null serves plain HTTP, which means Grafana's session cookie and admin password cross the network in the clear — acceptable only on an internal load balancer you trust, and the chart warns either way."
+  type        = string
+  default     = null
+}

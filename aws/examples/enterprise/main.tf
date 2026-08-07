@@ -565,6 +565,27 @@ module "monitoring" {
   materialize_instance_namespace = local.materialize_instance_namespace
   materialize_operator_namespace = local.operator_namespace
 
+  # A dedicated RDS instance for Grafana's own state. RDS has no API for adding
+  # a database to an existing instance, so this is separate from
+  # `module.database` rather than a second database inside it.
+  grafana_database = var.enable_grafana_database ? {
+    vpc_id                    = module.networking.vpc_id
+    subnet_ids                = module.networking.private_subnet_ids
+    cluster_name              = module.eks.cluster_name
+    cluster_security_group_id = module.eks.cluster_security_group_id
+    node_security_group_id    = module.eks.node_security_group_id
+  } : null
+
+  # An ALB through the load-balancer controller installed above. Internal by
+  # default; going public requires `ingress_cidr_blocks`, which the module
+  # enforces rather than merely defaulting.
+  grafana_ingress = var.grafana_host == null ? null : {
+    host                = var.grafana_host
+    internal            = var.internal_load_balancer
+    certificate_arn     = var.grafana_certificate_arn
+    ingress_cidr_blocks = var.internal_load_balancer ? [module.networking.vpc_cidr_block] : var.ingress_cidr_blocks
+  }
+
   tags = var.tags
 
   depends_on = [

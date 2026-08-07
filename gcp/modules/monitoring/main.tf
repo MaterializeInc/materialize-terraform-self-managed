@@ -245,7 +245,10 @@ module "monitoring" {
   # that fix, Terraform truncated the ref at the first slash and treated the rest
   # as a subdirectory, failing the clone with `pathspec 'materialize-monitoring'
   # did not match` (hashicorp/terraform#35552). See versions.tf.
-  source = "github.com/MaterializeInc/materialize-monitoring//terraform/modules/materialize-monitoring?ref=materialize-monitoring/v0.12.0"
+  #
+  # v0.13.0 is where `grafana_database_*` and the chart's `grafana.ingress` /
+  # `grafana.service` values land. This branch does not plan against v0.12.0.
+  source = "github.com/MaterializeInc/materialize-monitoring//terraform/modules/materialize-monitoring?ref=materialize-monitoring/v0.13.0"
 
   namespace        = var.namespace
   create_namespace = var.create_namespace
@@ -272,6 +275,13 @@ module "monitoring" {
 
   grafana_admin_password = var.grafana_admin_password
 
+  grafana_database_host     = local.grafana_database_host
+  grafana_database_port     = local.grafana_database_port
+  grafana_database_name     = var.grafana_database_name
+  grafana_database_user     = var.grafana_database_user
+  grafana_database_password = local.grafana_database_effective_password
+  grafana_database_ssl_mode = var.grafana_database_ssl_mode
+
   object_storage = {
     cloud         = "gcp"
     loki_bucket   = google_storage_bucket.telemetry["loki"].name
@@ -294,7 +304,9 @@ module "monitoring" {
     prefix         = var.google_cloud_metrics_prefix
   } : null
 
-  additional_values = var.additional_values
+  # Load-balancer values ahead of the caller's, so `additional_values` still
+  # overrides anything computed here.
+  additional_values = concat(local.grafana_load_balancer_values, var.additional_values)
 
   depends_on = [
     google_storage_bucket_iam_member.telemetry,
@@ -302,4 +314,108 @@ module "monitoring" {
     google_project_iam_member.gateway_metric_writer,
     google_service_account_iam_member.gateway_workload_identity,
   ]
+}
+
+# ==============================================================================
+# Grafana state database
+# ==============================================================================
+# Reuses this repo's own `database` module rather than an inline
+# `google_sql_database_instance`, so Grafana's instance gets the same backup,
+# maintenance, and private-networking opinions the Materialize database has.
+
+resource "random_password" "grafana_database" {
+  count = var.grafana_database != null && var.grafana_database_password == null ? 1 : 0
+
+  length = 32
+  # Cloud SQL accepts more, but Grafana reads this out of a mounted file and
+  # operators paste it into psql. Alphanumeric avoids both quoting questions.
+  special = false
+}
+
+module "grafana_database" {
+  count  = var.grafana_database == null ? 0 : 1
+  source = "../database"
+
+  project_id = var.project_id
+  region     = var.region
+  prefix     = "${var.prefix}-mzmon-grafana"
+  network_id = var.grafana_database.network_id
+
+  tier       = var.grafana_database.tier
+  db_version = var.grafana_database.db_version
+  edition    = var.grafana_database.edition
+  disk_size  = var.grafana_database.disk_size
+
+  backup_enabled                 = var.grafana_database.backup_enabled
+  point_in_time_recovery_enabled = var.grafana_database.point_in_time_recovery_enabled
+
+  databases = [{ name = var.grafana_database_name }]
+  users     = [{ name = var.grafana_database_user, password = local.grafana_database_password }]
+
+  labels = var.labels
+}
+
+locals {
+  grafana_database_creating = var.grafana_database != null
+
+  # A caller-supplied password wins in both modes; the random one only fills the
+  # gap when this module creates the instance and was given none.
+  grafana_database_password = coalesce(
+    var.grafana_database_password,
+    one(random_password.grafana_database[*].result),
+  )
+
+  # Cloud SQL private IP. `host` on an external instance may be a name.
+  grafana_database_host = local.grafana_database_creating ? (
+    module.grafana_database[0].private_ip
+  ) : var.grafana_database_host
+
+  grafana_database_port = local.grafana_database_creating ? 5432 : var.grafana_database_port
+
+  grafana_database_effective_password = (
+    local.grafana_database_creating ? local.grafana_database_password : var.grafana_database_password
+  )
+}
+
+# ==============================================================================
+# Grafana load balancer
+# ==============================================================================
+
+locals {
+  grafana_scheme = try(var.grafana_load_balancer.tls, false) ? "https" : "http"
+
+  grafana_service_annotations = var.grafana_load_balancer == null ? {} : merge(
+    {
+      # The same annotation the `load_balancers` module uses for the console.
+      "networking.gke.io/load-balancer-type" = var.grafana_load_balancer.internal ? "Internal" : "External"
+    },
+    var.grafana_load_balancer.annotations,
+  )
+
+  grafana_load_balancer_values = var.grafana_load_balancer == null ? [] : [yamlencode({
+    grafana = merge(
+      {
+        service = {
+          type                     = "LoadBalancer"
+          annotations              = local.grafana_service_annotations
+          loadBalancerSourceRanges = var.grafana_load_balancer.ingress_cidr_blocks
+        }
+      },
+      var.grafana_load_balancer.host == null ? {} : {
+        "grafana.ini" = merge(
+          {
+            # Grafana builds share links, alert notification links, and OAuth
+            # redirect URIs from this. All three break silently when it
+            # disagrees with the host users actually reach.
+            server = { root_url = "${local.grafana_scheme}://${var.grafana_load_balancer.host}" }
+          },
+          local.grafana_scheme != "https" ? {} : {
+            # Only once TLS is real: set without it the session cookie is never
+            # sent and nobody can log in.
+            security = { cookie_secure = true }
+          },
+        )
+      },
+    )
+  })]
 }

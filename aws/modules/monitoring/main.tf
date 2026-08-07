@@ -29,10 +29,15 @@
 #     blocks per downsampling resolution (raw / 5m / 1h), so a bucket rule
 #     expiring sooner deletes blocks the compactor still references. Use those
 #     two only as a backstop above what the compactors already do.
-#   * Grafana is ClusterIP today (the chart exposes no ingress values yet), so
-#     `grafana_url` is in-cluster: reach it with
+#   * Grafana is ClusterIP until `grafana_ingress` is set, so `grafana_url` is
+#     in-cluster by default: reach it with
 #     `kubectl -n monitoring port-forward svc/grafana 3000:80` and
-#     `terraform output -raw grafana_admin_password`.
+#     `terraform output -raw grafana_admin_password`. With `grafana_ingress`,
+#     `grafana_url` becomes the external URL and DNS for that name is yours.
+#   * `grafana_ingress` and `grafana_database` belong together. Exposing Grafana
+#     without a durable backend turns a bundled extra nobody depended on into the
+#     primary interface to the stack — one that discards every dashboard,
+#     annotation, and API token its users create on the next restart.
 #   * `node_selector` reaches every centralized workload but deliberately not
 #     the Alloy agent DaemonSet, which must run on every node to collect from
 #     it. `tolerations` do reach the agent, since they widen rather than narrow
@@ -296,6 +301,145 @@ resource "aws_iam_role_policy" "telemetry" {
 }
 
 # ==============================================================================
+# Grafana state database
+# ==============================================================================
+# Reuses this repo's own `database` module rather than an inline `aws_db_instance`,
+# so Grafana's instance gets the same KMS, security-group, subnet-group, and
+# backup opinions the Materialize database already has.
+#
+# Grafana connects as the instance's master user, which on a dedicated instance
+# is the simplest thing that satisfies the requirement that it *own* its
+# database — schema migrations run at every startup.
+
+resource "random_password" "grafana_database" {
+  count = var.grafana_database != null && var.grafana_database_password == null ? 1 : 0
+
+  length = 32
+  # RDS rejects several punctuation characters in a master password, and Grafana
+  # reads this out of a mounted file that operators also paste into psql.
+  # Alphanumeric avoids both problems.
+  special = false
+}
+
+module "grafana_database" {
+  count  = var.grafana_database == null ? 0 : 1
+  source = "../database"
+
+  name_prefix = "${var.name_prefix}-mzmon-grafana"
+
+  postgres_version      = var.grafana_database.postgres_version
+  instance_class        = var.grafana_database.instance_class
+  allocated_storage     = var.grafana_database.allocated_storage
+  max_allocated_storage = var.grafana_database.max_allocated_storage
+  multi_az              = var.grafana_database.multi_az
+
+  database_name     = var.grafana_database_name
+  database_username = var.grafana_database_user
+  database_password = local.grafana_database_password
+
+  database_subnet_ids       = var.grafana_database.subnet_ids
+  vpc_id                    = var.grafana_database.vpc_id
+  cluster_name              = var.grafana_database.cluster_name
+  cluster_security_group_id = var.grafana_database.cluster_security_group_id
+  node_security_group_id    = var.grafana_database.node_security_group_id
+
+  backup_retention_period = var.grafana_database.backup_retention_period
+  create_kms_key          = var.grafana_database.create_kms_key
+  kms_key_id              = var.grafana_database.kms_key_id
+  skip_final_snapshot     = var.grafana_database.skip_final_snapshot
+
+  tags = merge(local.common_tags, { Backend = "grafana" })
+}
+
+locals {
+  grafana_database_creating = var.grafana_database != null
+
+  # A caller-supplied password wins in both modes; the random one only fills the
+  # gap when this module creates the instance and was given none.
+  grafana_database_password = coalesce(
+    var.grafana_database_password,
+    one(random_password.grafana_database[*].result),
+  )
+
+  # `db_instance_endpoint` is already `host:port`, so it is split rather than
+  # re-joined — the module's own port is authoritative over any default here.
+  grafana_database_host = local.grafana_database_creating ? (
+    split(":", module.grafana_database[0].db_instance_endpoint)[0]
+  ) : var.grafana_database_host
+
+  grafana_database_port = local.grafana_database_creating ? (
+    module.grafana_database[0].db_instance_port
+  ) : var.grafana_database_port
+
+  # Null means "no password", which is a legitimate shape for an external host
+  # behind peer authentication or a proxy. Never null for an instance this
+  # module creates.
+  grafana_database_effective_password = (
+    local.grafana_database_creating ? local.grafana_database_password : var.grafana_database_password
+  )
+}
+
+# ==============================================================================
+# Grafana ingress
+# ==============================================================================
+
+locals {
+  grafana_host = try(var.grafana_ingress.host, null)
+
+  # TLS terminates at the ALB against an ACM certificate. Without one the
+  # listener is plain HTTP, and `root_url` has to say so or every share link and
+  # OAuth redirect Grafana builds points at a scheme that does not answer.
+  grafana_scheme = try(var.grafana_ingress.certificate_arn, null) != null ? "https" : "http"
+
+  grafana_ingress_annotations = var.grafana_ingress == null ? {} : merge(
+    {
+      "alb.ingress.kubernetes.io/scheme"           = var.grafana_ingress.internal ? "internal" : "internet-facing"
+      "alb.ingress.kubernetes.io/target-type"      = "ip"
+      "alb.ingress.kubernetes.io/healthcheck-path" = "/api/health"
+      "alb.ingress.kubernetes.io/listen-ports" = var.grafana_ingress.certificate_arn == null ? (
+        jsonencode([{ HTTP = 80 }])
+      ) : jsonencode([{ HTTPS = 443 }])
+    },
+    var.grafana_ingress.certificate_arn == null ? {} : {
+      "alb.ingress.kubernetes.io/certificate-arn" = var.grafana_ingress.certificate_arn
+    },
+    var.grafana_ingress.ingress_cidr_blocks == null ? {} : {
+      "alb.ingress.kubernetes.io/inbound-cidrs" = join(",", var.grafana_ingress.ingress_cidr_blocks)
+    },
+    var.grafana_ingress.subnet_ids == null ? {} : {
+      "alb.ingress.kubernetes.io/subnets" = join(",", var.grafana_ingress.subnet_ids)
+    },
+    var.grafana_ingress.annotations,
+  )
+
+  grafana_ingress_values = var.grafana_ingress == null ? [] : [yamlencode({
+    grafana = {
+      ingress = {
+        enabled          = true
+        ingressClassName = var.grafana_ingress.ingress_class_name
+        hosts            = [var.grafana_ingress.host]
+        annotations      = local.grafana_ingress_annotations
+      }
+      "grafana.ini" = merge(
+        {
+          server = {
+            # Grafana builds share links, alert notification links, and OAuth
+            # redirect URIs from this. All three break silently when it
+            # disagrees with the host users actually reach.
+            root_url = "${local.grafana_scheme}://${var.grafana_ingress.host}"
+          }
+        },
+        local.grafana_scheme != "https" ? {} : {
+          # Only once TLS is real: set on a plain-HTTP listener the session
+          # cookie is never sent and nobody can log in.
+          security = { cookie_secure = true }
+        },
+      )
+    }
+  })]
+}
+
+# ==============================================================================
 # The stack
 # ==============================================================================
 
@@ -314,7 +458,10 @@ module "monitoring" {
   # that fix, Terraform truncated the ref at the first slash and treated the rest
   # as a subdirectory, failing the clone with `pathspec 'materialize-monitoring'
   # did not match` (hashicorp/terraform#35552). See versions.tf.
-  source = "github.com/MaterializeInc/materialize-monitoring//terraform/modules/materialize-monitoring?ref=materialize-monitoring/v0.12.0"
+  #
+  # v0.13.0 is where `grafana_database_*` and the chart's `grafana.ingress` /
+  # `grafana.service` values land. This branch does not plan against v0.12.0.
+  source = "github.com/MaterializeInc/materialize-monitoring//terraform/modules/materialize-monitoring?ref=materialize-monitoring/v0.13.0"
 
   namespace        = var.namespace
   create_namespace = var.create_namespace
@@ -343,6 +490,13 @@ module "monitoring" {
 
   grafana_admin_password = var.grafana_admin_password
 
+  grafana_database_host     = local.grafana_database_host
+  grafana_database_port     = local.grafana_database_port
+  grafana_database_name     = var.grafana_database_name
+  grafana_database_user     = var.grafana_database_user
+  grafana_database_password = local.grafana_database_effective_password
+  grafana_database_ssl_mode = var.grafana_database_ssl_mode
+
   object_storage = {
     cloud         = "aws"
     loki_bucket   = aws_s3_bucket.telemetry["loki"].id
@@ -358,7 +512,9 @@ module "monitoring" {
     }
   }
 
-  additional_values = var.additional_values
+  # Ingress values ahead of the caller's, so `additional_values` still overrides
+  # anything computed here.
+  additional_values = concat(local.grafana_ingress_values, var.additional_values)
 
   depends_on = [
     aws_iam_role_policy.telemetry,
