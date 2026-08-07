@@ -91,7 +91,7 @@ output "lb_addresses" {
   value = {
     hydra  = try({ ip = kubernetes_service_v1.ory_lb["hydra-public-lb"].status[0].load_balancer[0].ingress[0].ip, hostname = kubernetes_service_v1.ory_lb["hydra-public-lb"].status[0].load_balancer[0].ingress[0].hostname }, null)
     kratos = try({ ip = kubernetes_service_v1.ory_lb["kratos-public-lb"].status[0].load_balancer[0].ingress[0].ip, hostname = kubernetes_service_v1.ory_lb["kratos-public-lb"].status[0].load_balancer[0].ingress[0].hostname }, null)
-    ui     = try({ ip = kubernetes_service_v1.ory_lb["ory-selfservice-ui-lb"].status[0].load_balancer[0].ingress[0].ip, hostname = kubernetes_service_v1.ory_lb["ory-selfservice-ui-lb"].status[0].load_balancer[0].ingress[0].hostname }, null)
+    ui     = var.deploy_selfservice_ui ? try({ ip = kubernetes_service_v1.ory_lb["ory-selfservice-ui-lb"].status[0].load_balancer[0].ingress[0].ip, hostname = kubernetes_service_v1.ory_lb["ory-selfservice-ui-lb"].status[0].load_balancer[0].ingress[0].hostname }, null) : null
     polis  = local.wire_polis ? try({ ip = kubernetes_service_v1.ory_lb["polis-public-lb"].status[0].load_balancer[0].ingress[0].ip, hostname = kubernetes_service_v1.ory_lb["polis-public-lb"].status[0].load_balancer[0].ingress[0].hostname }, null) : null
   }
 }
@@ -107,6 +107,6 @@ output "hydra_namespace" {
 }
 
 output "ui_namespace" {
-  description = "Namespace of the selfservice UI deployment (same as namespace; kept for parity with submodule outputs)."
-  value       = module.ory_selfservice_ui.namespace
+  description = "Namespace of the selfservice UI deployment (same as namespace; kept for parity with submodule outputs). Null when deploy_selfservice_ui is false."
+  value       = var.deploy_selfservice_ui ? module.ory_selfservice_ui[0].namespace : null
 }
