@@ -190,7 +190,7 @@ The old stack vendored a point-in-time dashboard copy and a legacy scrape config
 - The `prometheus` and `grafana` Helm releases and their PersistentVolumeClaims are **destroyed**. Up to 15 days of local Prometheus data goes with them — there is no backfill, and the new stack begins collecting at install. Anything hand-created in the old Grafana (dashboards, users, saved queries) does not carry over.
 - The `prometheus_url` output is gone, replaced by `metrics_url` (Thanos Query) and `logs_url` (Loki). Thanos Query is Prometheus-API-compatible, so consumers of the old URL work against the new one — only the host and port change.
 - `grafana_url` and `grafana_admin_password` keep their names. `grafana_url` becomes conditional: the external URL once Grafana is exposed, the in-cluster Service otherwise. The default is still `ClusterIP`, so reaching it is still `kubectl -n monitoring port-forward svc/grafana 3000:80`.
-- Grafana can now keep its own state in a database and be reachable without a port-forward. Both are opt-in and belong together — see [Grafana persistence and reachability](#grafana-persistence-and-reachability).
+- Grafana can now keep its own state in a database and be reachable without a port-forward. The database is **on by default** wherever `enable_observability` is, so an `enterprise` apply provisions one additional small instance; exposure stays opt-in, because it needs a hostname, DNS, and an identity provider that Terraform cannot invent. See [Grafana persistence and reachability](#grafana-persistence-and-reachability).
 - New cloud resources are created: storage for each backend (logs and metrics) plus a per-backend cloud identity bound to the in-cluster ServiceAccount.
   - **AWS** — an S3 bucket and an IRSA role per backend.
   - **GCP** — a GCS bucket and a Google service account per backend, bound with `roles/iam.workloadIdentityUser`. Requires Workload Identity on the cluster, which the `gke` module already sets.
@@ -206,6 +206,8 @@ The old stack vendored a point-in-time dashboard copy and a legacy scrape config
 Two opt-in additions to each cloud's monitoring module. They belong together: exposing Grafana without a durable backend turns a bundled extra nobody depended on into the primary interface to the stack — one that silently discards every dashboard, annotation, and API token its users create.
 
 **`grafana_database`** provisions a **dedicated** PostgreSQL instance for Grafana's own state (users, service accounts and tokens, annotations, dashboard versions and permissions, preferences, alert-rule state). Without it Grafana keeps all of that in SQLite on an `emptyDir` and loses it on every restart, upgrade, and reschedule.
+
+> **This is on by default in both examples**, gated behind `enable_observability` — so a `simple` apply, where observability is off by default, creates nothing new, while an `enterprise` apply now provisions one additional small database instance. That is a deliberate move toward production-quality defaults: the alternative default silently discards everything a user builds in Grafana. Set `enable_grafana_database = false` to opt out, or point the monitoring module at a database you already run with `grafana_database_host` and friends.
 
 Dedicated rather than a database inside the Materialize instance, for reasons that differ by cloud and happen to agree:
 

@@ -225,6 +225,10 @@ variable "grafana_database" {
 
     Null leaves Grafana on SQLite. Point at a database you already run with the
     `grafana_database_*` variables instead.
+
+    The examples enable this whenever `enable_observability` is on: durability is the
+    production default, and the cost of the smallest instance is well below the cost of
+    silently losing everything a user built in Grafana.
   EOT
 
   type = object({
@@ -242,7 +246,9 @@ variable "grafana_database" {
     backup_retention_period = optional(number, 7)
     kms_key_id              = optional(string, null)
     create_kms_key          = optional(bool, true)
-    skip_final_snapshot     = optional(bool, false)
+    # Matches the shared `database` module's own default. The enterprise example
+    # flips it, so a production teardown leaves a recovery snapshot behind.
+    skip_final_snapshot = optional(bool, true)
   })
 
   default = null

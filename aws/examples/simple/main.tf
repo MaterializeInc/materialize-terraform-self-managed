@@ -579,6 +579,22 @@ module "monitoring" {
   materialize_instance_namespace = local.materialize_instance_namespace
   materialize_operator_namespace = local.operator_namespace
 
+  # A dedicated RDS instance for Grafana's own state, so dashboards and API
+  # tokens created in the UI survive a pod restart. RDS has no API for adding a
+  # database to an existing instance, so this is separate from `module.database`
+  # rather than a second database inside it.
+  #
+  # `skip_final_snapshot` stays at the module default (true) here, matching this
+  # example's throwaway posture — the same reason `bucket_force_destroy` is on
+  # and bucket versioning is off.
+  grafana_database = var.enable_grafana_database ? {
+    vpc_id                    = module.networking.vpc_id
+    subnet_ids                = module.networking.private_subnet_ids
+    cluster_name              = module.eks.cluster_name
+    cluster_security_group_id = module.eks.cluster_security_group_id
+    node_security_group_id    = module.eks.node_security_group_id
+  } : null
+
   tags = var.tags
 
   depends_on = [

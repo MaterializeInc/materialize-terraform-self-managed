@@ -457,6 +457,12 @@ module "monitoring" {
   materialize_instance_namespace = local.materialize_instance_namespace
   materialize_operator_namespace = local.materialize_operator_namespace
 
+  # A dedicated Cloud SQL instance for Grafana's own state, so dashboards and API
+  # tokens created in the UI survive a pod restart.
+  grafana_database = var.enable_grafana_database ? {
+    network_id = module.networking.network_id
+  } : null
+
   depends_on = [
     module.operator,
     module.gke,

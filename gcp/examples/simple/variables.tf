@@ -109,3 +109,21 @@ variable "enable_node_upgrade_rollout_trigger" {
   default     = true
   nullable    = false
 }
+
+variable "enable_grafana_database" {
+  description = <<-EOT
+    Give Grafana a dedicated PostgreSQL instance for its own state.
+
+    On by default, and it only applies when `enable_observability` is on — which in this example is
+    off by default, so a plain `terraform apply` creates neither. Without it Grafana keeps its
+    users, service accounts and tokens, annotations, dashboard versions, and preferences in SQLite
+    on an `emptyDir`, and loses all of it on every restart, upgrade, and reschedule.
+
+    It provisions the smallest instance the cloud offers, which is enough: Grafana's state is small
+    and its query rate is a handful per page load. Turn it off if you would rather accept losing
+    that state than pay for the instance.
+  EOT
+  type        = bool
+  default     = true
+  nullable    = false
+}

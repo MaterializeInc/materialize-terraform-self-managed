@@ -233,6 +233,10 @@ variable "grafana_database" {
 
     Null leaves Grafana on SQLite. Point at a database you already run with the
     `grafana_database_*` variables instead.
+
+    The examples enable this whenever `enable_observability` is on: durability is the
+    production default, and the cost of the smallest instance is well below the cost of
+    silently losing everything a user built in Grafana.
   EOT
 
   type = object({

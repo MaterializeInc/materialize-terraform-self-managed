@@ -174,17 +174,18 @@ variable "enable_grafana_database" {
   description = <<-EOT
     Give Grafana a dedicated PostgreSQL instance for its own state.
 
-    Off by default because it provisions a real database and therefore costs real money. It is
-    what the chart calls the production shape: without it Grafana keeps its users, service
-    accounts and tokens, annotations, dashboard versions, and preferences in SQLite on an
-    `emptyDir`, and loses all of it on every restart, upgrade, and reschedule.
+    On by default, and it only applies when `enable_observability` is on — no observability stack
+    means no Grafana to keep state for. Without it Grafana keeps its users, service accounts and
+    tokens, annotations, dashboard versions, and preferences in SQLite on an `emptyDir`, and loses
+    all of it on every restart, upgrade, and reschedule.
 
-    Pair it with `grafana_host`. Exposing Grafana without a durable backend turns a bundled extra
-    nobody depended on into the primary interface to the stack, one that silently discards
-    everything its users create in it.
+    It provisions the smallest instance the cloud offers, which is enough: Grafana's state is small
+    and its query rate is a handful per page load. Turn it off if you would rather accept losing
+    that state than pay for the instance, or point at a database you already run with the
+    monitoring module's `grafana_database_*` variables.
   EOT
   type        = bool
-  default     = false
+  default     = true
   nullable    = false
 }
 

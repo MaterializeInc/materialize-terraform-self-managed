@@ -574,6 +574,10 @@ module "monitoring" {
     cluster_name              = module.eks.cluster_name
     cluster_security_group_id = module.eks.cluster_security_group_id
     node_security_group_id    = module.eks.node_security_group_id
+
+    # Unlike the `simple` example, leave a recovery snapshot behind on destroy.
+    # This holds every service-account token and alert rule anyone built.
+    skip_final_snapshot = false
   } : null
 
   # An ALB through the load-balancer controller installed above. Internal by

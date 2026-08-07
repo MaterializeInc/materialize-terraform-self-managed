@@ -187,6 +187,8 @@ The Load Balancer operates at Layer 4 (TCP), forwarding connections without inte
 
 Grafana is deployed in the `monitoring` namespace with pre-configured Materialize dashboards.
 
+Its own state — users, service accounts and tokens, annotations, and dashboard versions created through the UI — is kept in a dedicated `db-f1-micro` Cloud SQL instance, provisioned whenever `enable_observability` is on. Set `enable_grafana_database = false` to skip it and accept losing that state on every pod restart.
+
 #### Port Forwarding
 
 ```bash

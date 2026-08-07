@@ -384,6 +384,15 @@ module "monitoring" {
   materialize_instance_namespace = local.materialize_instance_namespace
   materialize_operator_namespace = local.materialize_operator_namespace
 
+  # A dedicated Flexible Server for Grafana's own state, so dashboards and API
+  # tokens created in the UI survive a pod restart. Separate from
+  # `module.database` because a Flexible Server has one administrator login and no
+  # ARM resource for additional roles.
+  grafana_database = var.enable_grafana_database ? {
+    subnet_id           = module.networking.postgres_subnet_id
+    private_dns_zone_id = module.networking.private_dns_zone_id
+  } : null
+
   tags = var.tags
 
   depends_on = [
