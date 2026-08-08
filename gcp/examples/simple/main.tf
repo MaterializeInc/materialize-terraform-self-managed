@@ -463,6 +463,16 @@ module "monitoring" {
     network_id = module.networking.network_id
   } : null
 
+  # Always passed, following the same two root variables the Materialize console
+  # and balancerd load balancers already use. Internal by default; `host` is
+  # optional because an Azure/GCP load balancer answers on an IP, and setting it
+  # is what lets `root_url` be correct.
+  grafana_load_balancer = {
+    internal            = var.internal_load_balancer
+    ingress_cidr_blocks = var.ingress_cidr_blocks
+    host                = var.grafana_host
+  }
+
   depends_on = [
     module.operator,
     module.gke,

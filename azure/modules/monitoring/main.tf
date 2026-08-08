@@ -296,9 +296,15 @@ locals {
 
   # A caller-supplied password wins in both modes; the random one only fills the
   # gap when this module creates the instance and was given none.
-  grafana_database_password = coalesce(
-    var.grafana_database_password,
-    one(random_password.grafana_database[*].result),
+  #
+  # Not `coalesce`: it errors when every argument is null, which is the default
+  # install — no database and no password — so it failed the plan on the one path
+  # that has nothing to decide. Null here means "no password", which is what the
+  # module's own gates are for.
+  grafana_database_password = (
+    var.grafana_database_password != null
+    ? var.grafana_database_password
+    : one(random_password.grafana_database[*].result)
   )
 
   grafana_database_host = local.grafana_database_creating ? (
@@ -352,4 +358,36 @@ locals {
       },
     )
   })]
+}
+
+# The load balancer's own address, so `grafana_url` can name where Grafana
+# actually answers rather than falling back to the in-cluster Service whenever no
+# hostname was supplied.
+#
+# A data source rather than a resource attribute: the Service is created by Helm
+# inside the monitoring module, so Terraform has no handle on it. Read after that
+# module, and tolerant of an address that is not assigned yet — the cloud
+# provisions the load balancer asynchronously, so the first apply can complete
+# before an IP exists. `grafana_url` degrades to the in-cluster name in that
+# window, and the next plan picks the address up.
+data "kubernetes_service" "grafana" {
+  count = var.grafana_load_balancer == null ? 0 : 1
+
+  metadata {
+    # The chart pins `grafana.fullnameOverride`, so the name is static.
+    name      = "grafana"
+    namespace = var.namespace
+  }
+
+  depends_on = [module.monitoring]
+}
+
+locals {
+  # GCP and Azure hand out an IP; the `hostname` branch is there because a
+  # cloud-specific annotation can produce one instead.
+  grafana_load_balancer_address = one([
+    for ing in try(data.kubernetes_service.grafana[0].status[0].load_balancer[0].ingress, []) :
+    coalesce(try(ing.hostname, null), try(ing.ip, null))
+    if coalesce(try(ing.hostname, null), try(ing.ip, null), "") != ""
+  ])
 }

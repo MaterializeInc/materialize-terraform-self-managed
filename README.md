@@ -221,9 +221,28 @@ The default sizes (`db.t4g.micro`, `db-f1-micro`, `B_Standard_B1ms`) are deliber
 
 **`grafana_ingress`** (AWS) / **`grafana_load_balancer`** (GCP, Azure) makes Grafana reachable. The split is not L7-versus-L4 — an Ingress and an annotated `LoadBalancer` Service both ask the cloud for a load balancer, and both can terminate TLS in front of Grafana. It follows what each platform's controllers actually consume: AWS goes through the Load Balancer Controller the examples already install, while GKE and AKS take the Service, matching what their `load_balancers` modules already do for the Materialize console.
 
-Both are **internal by default**, and public requires a CIDR allowlist that is *enforced* rather than merely defaulted — the same `validation` block posture as `aws/modules/nlb`. On an internal load balancer, pass your VPC/VNet CIDR; the chart cannot see the internal-scheme annotation, so the allowlist is what makes the intent legible to it.
+Both are **internal by default**, and both take `internal_load_balancer` and `ingress_cidr_blocks` — the same two root variables the Materialize console and balancerd load balancers already use, with the `validation` block posture copied from `aws/modules/nlb`.
 
-Neither publishes DNS. The hostname you pass is yours to create, and an ACME challenge against a name that does not resolve is the usual way that gets noticed.
+They differ in one way worth knowing, because Kubernetes forces it:
+
+| | Wired | Why |
+|---|---|---|
+| **GCP, Azure** | Unconditionally, alongside the Materialize load balancers | A `LoadBalancer` Service answers on an IP with no hostname, so there is nothing to gate on. `grafana_host` is optional and only fixes `root_url` |
+| **AWS** | Gated on `grafana_host` | The ALB comes from an Ingress, and an Ingress with no hosts renders no rules and routes nothing. A hostname *is* the exposure there |
+
+Neither publishes DNS. Any hostname you pass is yours to create, and an ACME challenge against a name that does not resolve is the usual way that gets noticed.
+
+The allowlist default is `["0.0.0.0/0"]`, inherited from the same variable the console uses. On an internal load balancer that reads as "anything that can reach the VPC", which is the point. On a **public** one it means open to the internet, so **that combination is refused at plan time** for Grafana specifically — narrow `ingress_cidr_blocks` instead.
+
+Grafana is held to a stricter line than the Materialize load balancers deliberately: every datasource behind it reads every metric in Thanos and every log in the tenant, and until an identity provider is configured the generated admin password is the whole of the access control. Read [Authentication](https://materializeinc.github.io/materialize-monitoring/dashboards/grafana/auth/) before exposing it.
+
+Where the allowlist really is enforced somewhere the module cannot see — a security group, an egress firewall, an authenticating proxy — acknowledge it with the chart's own value rather than a wrapper variable, which keeps one way to say it:
+
+```hcl
+additional_values = [
+  yamlencode({ connections = { grafana = { allowPublicAccess = true } } }),
+]
+```
 
 #### v9.0.0
 

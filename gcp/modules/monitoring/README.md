@@ -13,6 +13,7 @@
 | Name | Version |
 | ---- | ------- |
 | <a name="provider_google"></a> [google](#provider\_google) | >= 7.22, < 8 |
+| <a name="provider_kubernetes"></a> [kubernetes](#provider\_kubernetes) | >= 2.10.0, < 2.39.0 |
 | <a name="provider_random"></a> [random](#provider\_random) | >= 3.0.0, < 3.10.0 |
 
 ## Modules
@@ -34,6 +35,7 @@
 | [google_storage_bucket.telemetry](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/storage_bucket) | resource |
 | [google_storage_bucket_iam_member.telemetry](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/storage_bucket_iam_member) | resource |
 | [random_password.grafana_database](https://registry.terraform.io/providers/hashicorp/random/latest/docs/resources/password) | resource |
+| [kubernetes_service.grafana](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/data-sources/service) | data source |
 
 ## Inputs
 
@@ -81,7 +83,8 @@
 | <a name="output_grafana_admin_password"></a> [grafana\_admin\_password](#output\_grafana\_admin\_password) | Grafana admin password. |
 | <a name="output_grafana_database_endpoint"></a> [grafana\_database\_endpoint](#output\_grafana\_database\_endpoint) | `host:port` of the database backing Grafana's state, or null when Grafana is on SQLite. |
 | <a name="output_grafana_database_password"></a> [grafana\_database\_password](#output\_grafana\_database\_password) | Password for the Grafana database user. Generated when this module creates the instance. |
-| <a name="output_grafana_url"></a> [grafana\_url](#output\_grafana\_url) | URL for Grafana: the external one when `grafana_load_balancer` sets a host, the in-cluster Service otherwise — in which case reaching it means a port-forward. With a load balancer but no host, read the address from the Service; nothing here publishes DNS. |
+| <a name="output_grafana_load_balancer_address"></a> [grafana\_load\_balancer\_address](#output\_grafana\_load\_balancer\_address) | The Grafana load balancer's IP or hostname, or null when it is not exposed or the cloud has not assigned one yet. |
+| <a name="output_grafana_url"></a> [grafana\_url](#output\_grafana\_url) | Where Grafana answers, in preference order: the hostname you supplied, else the load balancer's<br/>own address once the cloud has assigned one, else the in-cluster Service — which means a<br/>port-forward.<br/><br/>A load balancer's address is assigned asynchronously, so immediately after the first apply this<br/>can still report the in-cluster name; the next plan picks it up. Nothing here publishes DNS for a<br/>hostname you supply. |
 | <a name="output_logs_bucket"></a> [logs\_bucket](#output\_logs\_bucket) | GCS bucket holding Loki chunks and the ruler's state. |
 | <a name="output_logs_url"></a> [logs\_url](#output\_logs\_url) | Loki read endpoint. |
 | <a name="output_metrics_bucket"></a> [metrics\_bucket](#output\_metrics\_bucket) | GCS bucket holding Thanos blocks. |

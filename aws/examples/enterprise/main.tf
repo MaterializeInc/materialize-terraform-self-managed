@@ -581,13 +581,17 @@ module "monitoring" {
   } : null
 
   # An ALB through the load-balancer controller installed above. Internal by
-  # default; going public requires `ingress_cidr_blocks`, which the module
-  # enforces rather than merely defaulting.
+  # default, following the same two root variables the Materialize NLB uses.
+  #
+  # Gated on `grafana_host`, unlike the GCP and Azure examples which pass their
+  # `grafana_load_balancer` unconditionally. An ALB comes from an Ingress here,
+  # and an Ingress with no hosts renders no rules and routes nothing — so on AWS
+  # a hostname is what exposure *is*, not an optional refinement of it.
   grafana_ingress = var.grafana_host == null ? null : {
     host                = var.grafana_host
     internal            = var.internal_load_balancer
     certificate_arn     = var.grafana_certificate_arn
-    ingress_cidr_blocks = var.internal_load_balancer ? [module.networking.vpc_cidr_block] : var.ingress_cidr_blocks
+    ingress_cidr_blocks = var.ingress_cidr_blocks
   }
 
   tags = var.tags

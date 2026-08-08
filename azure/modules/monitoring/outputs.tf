@@ -4,12 +4,27 @@ output "namespace" {
 }
 
 output "grafana_url" {
-  description = "URL for Grafana: the external one when `grafana_load_balancer` sets a host, the in-cluster Service otherwise — in which case reaching it means a port-forward. With a load balancer but no host, read the address from the Service; nothing here publishes DNS."
+  description = <<-EOT
+    Where Grafana answers, in preference order: the hostname you supplied, else the load balancer's
+    own address once the cloud has assigned one, else the in-cluster Service — which means a
+    port-forward.
+
+    A load balancer's address is assigned asynchronously, so immediately after the first apply this
+    can still report the in-cluster name; the next plan picks it up. Nothing here publishes DNS for a
+    hostname you supply.
+  EOT
   value = (
-    try(var.grafana_load_balancer.host, null) == null
-    ? module.monitoring.grafana_url
-    : "${local.grafana_scheme}://${var.grafana_load_balancer.host}"
+    try(var.grafana_load_balancer.host, null) != null
+    ? "${local.grafana_scheme}://${var.grafana_load_balancer.host}"
+    : local.grafana_load_balancer_address != null
+    ? "${local.grafana_scheme}://${local.grafana_load_balancer_address}"
+    : module.monitoring.grafana_url
   )
+}
+
+output "grafana_load_balancer_address" {
+  description = "The Grafana load balancer's IP or hostname, or null when it is not exposed or the cloud has not assigned one yet."
+  value       = local.grafana_load_balancer_address
 }
 
 output "grafana_database_endpoint" {

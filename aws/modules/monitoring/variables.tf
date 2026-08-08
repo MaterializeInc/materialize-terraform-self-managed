@@ -364,6 +364,34 @@ variable "grafana_ingress" {
     )
     error_message = "grafana_ingress.ingress_cidr_blocks must contain valid CIDR notation."
   }
+
+  validation {
+    condition = var.grafana_ingress == null ? true : (
+      var.grafana_ingress.internal
+      || !anytrue([
+        for cidr in coalesce(var.grafana_ingress.ingress_cidr_blocks, []) :
+        contains(["0.0.0.0/0", "::/0"], trimspace(cidr))
+      ])
+      # The acknowledgement is the chart's own `connections.grafana.allowPublicAccess`,
+      # set through `additional_values` like any other chart value. Deliberately not
+      # a variable of its own: there should be exactly one way to say this, and
+      # saying it should take a moment's thought.
+      || anytrue([
+        for doc in var.additional_values :
+        try(yamldecode(doc).connections.grafana.allowPublicAccess, false)
+      ])
+    )
+    error_message = <<-EOT
+      grafana_ingress is public (internal = false) with an unrestricted allowlist (0.0.0.0/0 or ::/0).
+      Narrow ingress_cidr_blocks to the ranges that should reach Grafana.
+      Every datasource behind Grafana reads every metric in Thanos and every log in the tenant, and
+      until an identity provider is configured the generated admin password is the whole of the
+      access control — which is why this is refused here but merely defaulted for the Materialize
+      load balancers.
+      If the allowlist is enforced somewhere this module cannot see, acknowledge it through the
+      chart: additional_values = [yamlencode({ connections = { grafana = { allowPublicAccess = true } } })].
+    EOT
+  }
 }
 
 variable "additional_values" {

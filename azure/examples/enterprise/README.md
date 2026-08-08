@@ -82,7 +82,7 @@ tags = {
 - `internal_load_balancer`: Whether to use an internal load balancer (defaults to `true`). Set to `false` for prod-like demos validated against real DNS.
 - `enable_observability`: Enable Prometheus and Grafana monitoring stack (defaults to `true`)
 - `enable_grafana_database`: Give Grafana a dedicated PostgreSQL Flexible Server for its own state (defaults to `true`, and only applies when `enable_observability` is on). Without it Grafana keeps users, service accounts and tokens, annotations, dashboard versions, and preferences in SQLite on an `emptyDir` and loses all of it on every restart. Costs a `B_Standard_B1ms`.
-- `grafana_host`: Hostname to expose Grafana on through an Azure load balancer (defaults to `null`, which keeps it `ClusterIP` and port-forward-only). Follows `internal_load_balancer` and `ingress_cidr_blocks`; an internal load balancer is allowlisted to the VNet's own address space. DNS for the name is yours to create. `enable_grafana_database` is on by default, which is what keeps an exposed Grafana from discarding everything its users create.
+- `grafana_host`: Hostname to reach Grafana on (defaults to `null`). The Azure load balancer is created either way and answers on an IP; setting this is what makes Grafana's `root_url` — and so its share links, alert notification links, and OAuth redirect URIs — correct. DNS for the name is yours to create. Exposure follows `internal_load_balancer` and `ingress_cidr_blocks`, the same as the Materialize load balancers.
 - TLS certificate options (`cert_issuer_ref`, …): see [TLS Certificates](#tls-certificates) below.
 
 ### Step 2: Deploy

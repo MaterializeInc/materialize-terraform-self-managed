@@ -356,9 +356,15 @@ locals {
 
   # A caller-supplied password wins in both modes; the random one only fills the
   # gap when this module creates the instance and was given none.
-  grafana_database_password = coalesce(
-    var.grafana_database_password,
-    one(random_password.grafana_database[*].result),
+  #
+  # Not `coalesce`: it errors when every argument is null, which is the default
+  # install — no database and no password — so it failed the plan on the one path
+  # that has nothing to decide. Null here means "no password", which is what the
+  # module's own gates are for.
+  grafana_database_password = (
+    var.grafana_database_password != null
+    ? var.grafana_database_password
+    : one(random_password.grafana_database[*].result)
   )
 
   # `db_instance_endpoint` is already `host:port`, so it is split rather than

@@ -482,13 +482,14 @@ module "monitoring" {
     private_dns_zone_id = module.networking.private_dns_zone_id
   } : null
 
-  # Internal by default; going public requires `ingress_cidr_blocks`, which the
-  # module enforces rather than merely defaulting. On an internal load balancer
-  # the allowlist is the VNet's own address space.
-  grafana_load_balancer = var.grafana_host == null ? null : {
-    host                = var.grafana_host
+  # Always passed, following the same two root variables the Materialize console
+  # and balancerd load balancers already use. Internal by default; `host` is
+  # optional because an Azure/GCP load balancer answers on an IP, and setting it
+  # is what lets `root_url` be correct.
+  grafana_load_balancer = {
     internal            = var.internal_load_balancer
-    ingress_cidr_blocks = var.internal_load_balancer ? module.networking.vnet_address_space : var.ingress_cidr_blocks
+    ingress_cidr_blocks = var.ingress_cidr_blocks
+    host                = var.grafana_host
   }
 
   tags = var.tags
