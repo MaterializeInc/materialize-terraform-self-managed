@@ -101,6 +101,46 @@ resource "kubernetes_config_map" "coredns" {
   }
 }
 
+# kube-dns Service exposing CoreDNS on the cluster DNS IP.
+#
+# Platforms normally bootstrap this Service, but EKS clusters created with
+# EKS module v21+ do not bootstrap CoreDNS at all. Without a Service owning
+# the cluster DNS IP, kubelet's configured DNS address routes nowhere, and
+# network policy engines that allowlist service ClusterIPs (such as the AWS
+# VPC CNI network policy agent) deny pod DNS egress entirely.
+resource "kubernetes_service" "kube_dns" {
+  count = var.create_kube_dns_service ? 1 : 0
+
+  metadata {
+    name      = "kube-dns"
+    namespace = local.namespace
+    labels = {
+      "k8s-app"                       = "kube-dns"
+      "kubernetes.io/cluster-service" = "true"
+      "kubernetes.io/name"            = "CoreDNS"
+    }
+  }
+
+  spec {
+    cluster_ip = var.kube_dns_service_cluster_ip
+    selector   = local.labels
+
+    port {
+      name        = "dns"
+      port        = 53
+      protocol    = "UDP"
+      target_port = 53
+    }
+
+    port {
+      name        = "dns-tcp"
+      port        = 53
+      protocol    = "TCP"
+      target_port = 53
+    }
+  }
+}
+
 # Custom CoreDNS Deployment
 resource "kubernetes_deployment" "coredns" {
   metadata {
