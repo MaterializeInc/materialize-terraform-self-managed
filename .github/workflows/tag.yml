@@ -23,7 +23,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          set -e \
+          set -euo pipefail
           latest=$(gh api --paginate "repos/$GITHUB_REPOSITORY/tags" --jq '.[].name' \
             | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n 1)
           echo "Latest release: $latest"
