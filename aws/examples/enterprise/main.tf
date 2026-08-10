@@ -74,7 +74,27 @@ module "eks" {
   tags                                     = var.tags
 }
 
-# 2.1 Create base node group for Karpenter and coredns
+# 2.1 Install VPC CNI with Network Policy support.
+# Must be installed before any node group: clusters created with EKS module
+# v21+ no longer bootstrap a default CNI, and nodes cannot become Ready
+# without one.
+module "vpc_cni" {
+  source = "../../modules/vpc-cni"
+
+  name_prefix       = var.name_prefix
+  oidc_provider_arn = module.eks.oidc_provider_arn
+  oidc_issuer_url   = module.eks.cluster_oidc_issuer_url
+  kubeconfig_data   = local.kubeconfig_data
+
+  enable_network_policy    = true
+  enable_policy_event_logs = true
+
+  tags = var.tags
+
+  depends_on = [module.eks]
+}
+
+# 2.1.1 Create base node group for Karpenter and coredns
 module "base_node_group" {
   source = "../../modules/eks-node-group"
 
@@ -92,23 +112,8 @@ module "base_node_group" {
   aws_region                        = var.aws_region
   aws_profile                       = var.aws_profile
   tags                              = var.tags
-}
 
-# 2.1.1 Install VPC CNI with Network Policy support
-module "vpc_cni" {
-  source = "../../modules/vpc-cni"
-
-  name_prefix       = var.name_prefix
-  oidc_provider_arn = module.eks.oidc_provider_arn
-  oidc_issuer_url   = module.eks.cluster_oidc_issuer_url
-  kubeconfig_data   = local.kubeconfig_data
-
-  enable_network_policy    = true
-  enable_policy_event_logs = true
-
-  tags = var.tags
-
-  depends_on = [module.base_node_group]
+  depends_on = [module.vpc_cni]
 }
 
 module "coredns" {
