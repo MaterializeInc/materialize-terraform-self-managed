@@ -27,6 +27,7 @@
 | [kubernetes_cluster_role_binding.coredns](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/cluster_role_binding) | resource |
 | [kubernetes_config_map.coredns](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/config_map) | resource |
 | [kubernetes_deployment.coredns](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/deployment) | resource |
+| [kubernetes_service.kube_dns](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/service) | resource |
 | [kubernetes_service_account.coredns](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/service_account) | resource |
 | [terraform_data.scale_down_kube_dns](https://registry.terraform.io/providers/hashicorp/terraform/latest/docs/resources/data) | resource |
 | [terraform_data.scale_down_kube_dns_autoscaler](https://registry.terraform.io/providers/hashicorp/terraform/latest/docs/resources/data) | resource |
@@ -41,6 +42,7 @@
 | <a name="input_coredns_version"></a> [coredns\_version](#input\_coredns\_version) | CoreDNS image version | `string` | `"1.11.1"` | no |
 | <a name="input_cpu_request"></a> [cpu\_request](#input\_cpu\_request) | CPU request for CoreDNS container | `string` | `"100m"` | no |
 | <a name="input_create_coredns_service_account"></a> [create\_coredns\_service\_account](#input\_create\_coredns\_service\_account) | Whether to create the CoreDNS service account | `bool` | `false` | no |
+| <a name="input_create_kube_dns_service"></a> [create\_kube\_dns\_service](#input\_create\_kube\_dns\_service) | Whether to create the kube-dns Service that exposes CoreDNS on the cluster DNS IP. Required on clusters whose platform does not bootstrap one (e.g. EKS clusters created with EKS module v21+). Clusters that already have a platform-bootstrapped kube-dns Service must import it into state instead: terraform import 'module.<name>.kubernetes\_service.kube\_dns[0]' kube-system/kube-dns | `bool` | `false` | no |
 | <a name="input_disable_default_coredns"></a> [disable\_default\_coredns](#input\_disable\_default\_coredns) | Whether to scale down the default kube-dns deployment | `bool` | `true` | no |
 | <a name="input_disable_default_coredns_autoscaler"></a> [disable\_default\_coredns\_autoscaler](#input\_disable\_default\_coredns\_autoscaler) | Whether to scale down the default kube-dns autoscaler deployment | `bool` | `true` | no |
 | <a name="input_hpa_cpu_target_utilization"></a> [hpa\_cpu\_target\_utilization](#input\_hpa\_cpu\_target\_utilization) | Target CPU utilization percentage for HPA | `number` | `60` | no |
@@ -53,6 +55,7 @@
 | <a name="input_hpa_scale_up_percent_per_period"></a> [hpa\_scale\_up\_percent\_per\_period](#input\_hpa\_scale\_up\_percent\_per\_period) | Maximum percent to scale up per period | `number` | `100` | no |
 | <a name="input_hpa_scale_up_pods_per_period"></a> [hpa\_scale\_up\_pods\_per\_period](#input\_hpa\_scale\_up\_pods\_per\_period) | Maximum pods to add per period during scale up | `number` | `4` | no |
 | <a name="input_hpa_scale_up_stabilization_window"></a> [hpa\_scale\_up\_stabilization\_window](#input\_hpa\_scale\_up\_stabilization\_window) | Stabilization window for scale up in seconds | `number` | `180` | no |
+| <a name="input_kube_dns_service_cluster_ip"></a> [kube\_dns\_service\_cluster\_ip](#input\_kube\_dns\_service\_cluster\_ip) | ClusterIP for the kube-dns Service. Must match the cluster DNS IP kubelets are configured with, conventionally the 10th address of the service CIDR (e.g. cidrhost(service\_cidr, 10)). | `string` | `null` | no |
 | <a name="input_kubeconfig_data"></a> [kubeconfig\_data](#input\_kubeconfig\_data) | Kubeconfig data for kubectl commands | `string` | n/a | yes |
 | <a name="input_memory_limit"></a> [memory\_limit](#input\_memory\_limit) | Memory limit for CoreDNS container | `string` | `"170Mi"` | no |
 | <a name="input_memory_request"></a> [memory\_request](#input\_memory\_request) | Memory request for CoreDNS container | `string` | `"170Mi"` | no |

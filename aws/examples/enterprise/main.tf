@@ -123,8 +123,13 @@ module "coredns" {
   # in aws coredns autoscaler deployment doesn't exist
   disable_default_coredns_autoscaler = false
   # Clusters created with EKS module v21+ no longer bootstrap the default
-  # CoreDNS, so the service account must be managed here.
+  # CoreDNS, so the service account and kube-dns Service must be managed
+  # here. Clusters created with v20 and earlier already have a bootstrapped
+  # kube-dns Service, which must be imported into state before applying:
+  #   terraform import 'module.coredns.kubernetes_service.kube_dns[0]' kube-system/kube-dns
   create_coredns_service_account = true
+  create_kube_dns_service        = true
+  kube_dns_service_cluster_ip    = cidrhost(module.eks.cluster_service_cidr, 10)
   kubeconfig_data                = local.kubeconfig_data
   cluster_identifier             = module.eks.cluster_name
 
