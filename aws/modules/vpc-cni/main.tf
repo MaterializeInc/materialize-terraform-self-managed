@@ -59,15 +59,23 @@ resource "helm_release" "vpc_cni" {
   version    = var.chart_version
   namespace  = local.namespace
 
-  # Use existing service account (annotated by terraform_data.annotate_existing_resources)
+  # The chart owns the service account. On clusters created with EKS module
+  # v20 and earlier the pre-existing bootstrap service account was annotated
+  # for Helm adoption by terraform_data.annotate_existing_resources; on newer
+  # clusters nothing bootstraps the CNI, so the chart must create it.
   set {
     name  = "serviceAccount.create"
-    value = "false"
+    value = "true"
   }
 
   set {
     name  = "serviceAccount.name"
     value = local.service_account_name
+  }
+
+  set {
+    name  = "serviceAccount.annotations.eks\\.amazonaws\\.com/role-arn"
+    value = aws_iam_role.vpc_cni.arn
   }
 
   # Network Policy configuration
