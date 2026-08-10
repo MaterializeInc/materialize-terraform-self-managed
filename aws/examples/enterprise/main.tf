@@ -122,8 +122,11 @@ module "coredns" {
   node_selector = local.base_node_labels
   # in aws coredns autoscaler deployment doesn't exist
   disable_default_coredns_autoscaler = false
-  kubeconfig_data                    = local.kubeconfig_data
-  cluster_identifier                 = module.eks.cluster_name
+  # Clusters created with EKS module v21+ no longer bootstrap the default
+  # CoreDNS, so the service account must be managed here.
+  create_coredns_service_account = true
+  kubeconfig_data                = local.kubeconfig_data
+  cluster_identifier             = module.eks.cluster_name
 
   depends_on = [
     module.base_node_group,
