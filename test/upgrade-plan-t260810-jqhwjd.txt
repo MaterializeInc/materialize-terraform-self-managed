@@ -1,0 +1,758 @@
+
+Note: Objects have changed outside of Terraform
+
+Terraform detected the following changes made outside of Terraform since the
+last "terraform apply" which may have affected this plan:
+
+  # module.eks.module.eks.aws_eks_cluster.this[0] has changed
+  ~ resource "aws_eks_cluster" "this" {
+        id                            = "t260810-jqhwjd-eks"
+        name                          = "t260810-jqhwjd-eks"
+        tags                          = {
+            "Purpose"               = "Integration test"
+            "TestRun"               = "t260810-jqhwjd"
+            "deleteAfter"           = "2026-08-14T13:54:39Z"
+            "owner"                 = "Alex Hunt"
+            "reason"                = "materialize-terraform-self-managed integration test"
+            "team"                  = "cloud"
+            "terraform-aws-modules" = "eks"
+        }
+        # (12 unchanged attributes hidden)
+
+      + control_plane_scaling_config {
+          + tier = "standard"
+        }
+
+        # (6 unchanged blocks hidden)
+    }
+
+  # module.database.module.db.module.db_instance.aws_db_instance.this[0] has changed
+  ~ resource "aws_db_instance" "this" {
+      + domain_dns_ips                        = []
+        id                                    = "db-OLVIIG6ZLU357GUA7K46OT4OUI"
+        tags                                  = {
+            "Purpose"     = "Integration test"
+            "TestRun"     = "t260810-jqhwjd"
+            "deleteAfter" = "2026-08-14T13:54:39Z"
+            "owner"       = "Alex Hunt"
+            "reason"      = "materialize-terraform-self-managed integration test"
+            "team"        = "cloud"
+        }
+        # (71 unchanged attributes hidden)
+
+        # (1 unchanged block hidden)
+    }
+
+  # module.eks.module.eks.module.kms.aws_kms_key.this[0] has changed
+  ~ resource "aws_kms_key" "this" {
+        id                                 = "a25e7991-d92e-4b73-bc21-78d589831b48"
+      + region                             = "us-east-1"
+        tags                               = {
+            "Purpose"               = "Integration test"
+            "TestRun"               = "t260810-jqhwjd"
+            "deleteAfter"           = "2026-08-14T13:54:39Z"
+            "owner"                 = "Alex Hunt"
+            "reason"                = "materialize-terraform-self-managed integration test"
+            "team"                  = "cloud"
+            "terraform-aws-modules" = "eks"
+        }
+        # (14 unchanged attributes hidden)
+    }
+
+
+Unless you have made equivalent changes to your configuration, or ignored the
+relevant attributes using ignore_changes, the following plan may include
+actions to undo or respond to these changes.
+
+─────────────────────────────────────────────────────────────────────────────
+
+Terraform used the selected providers to generate the following execution
+plan. Resource actions are indicated with the following symbols:
+  + create
+  ~ update in-place
+  - destroy
++/- create replacement and then destroy
+ <= read (data resources)
+
+Terraform will perform the following actions:
+
+  # module.coredns.kubernetes_cluster_role.coredns[0] will be created
+  + resource "kubernetes_cluster_role" "coredns" {
+      + id = (known after apply)
+
+      + metadata {
+          + generation       = (known after apply)
+          + name             = "coredns-custom"
+          + resource_version = (known after apply)
+          + uid              = (known after apply)
+        }
+
+      + rule {
+          + api_groups = [
+              + null,
+            ]
+          + resources  = [
+              + "endpoints",
+              + "services",
+              + "pods",
+              + "namespaces",
+            ]
+          + verbs      = [
+              + "list",
+              + "watch",
+            ]
+        }
+      + rule {
+          + api_groups = [
+              + "discovery.k8s.io",
+            ]
+          + resources  = [
+              + "endpointslices",
+            ]
+          + verbs      = [
+              + "list",
+              + "watch",
+            ]
+        }
+    }
+
+  # module.coredns.kubernetes_cluster_role_binding.coredns[0] will be created
+  + resource "kubernetes_cluster_role_binding" "coredns" {
+      + id = (known after apply)
+
+      + metadata {
+          + generation       = (known after apply)
+          + name             = "coredns-custom"
+          + resource_version = (known after apply)
+          + uid              = (known after apply)
+        }
+
+      + role_ref {
+          + api_group = "rbac.authorization.k8s.io"
+          + kind      = "ClusterRole"
+          + name      = "coredns-custom"
+        }
+
+      + subject {
+          + api_group = (known after apply)
+          + kind      = "ServiceAccount"
+          + name      = "coredns-custom"
+          + namespace = "kube-system"
+        }
+    }
+
+  # module.coredns.kubernetes_deployment.coredns will be updated in-place
+  ~ resource "kubernetes_deployment" "coredns" {
+        id               = "kube-system/coredns-custom"
+        # (1 unchanged attribute hidden)
+
+      ~ spec {
+            # (5 unchanged attributes hidden)
+
+          ~ template {
+              ~ spec {
+                  ~ service_account_name             = "coredns" -> "coredns-custom"
+                    # (17 unchanged attributes hidden)
+
+                    # (4 unchanged blocks hidden)
+                }
+
+                # (1 unchanged block hidden)
+            }
+
+            # (2 unchanged blocks hidden)
+        }
+
+        # (1 unchanged block hidden)
+    }
+
+  # module.coredns.kubernetes_service.kube_dns[0] will be updated in-place
+  ~ resource "kubernetes_service" "kube_dns" {
+        id                     = "kube-system/kube-dns"
+      + wait_for_load_balancer = true
+        # (1 unchanged attribute hidden)
+
+      ~ metadata {
+          ~ annotations      = {
+              - "prometheus.io/port"   = "9153" -> null
+              - "prometheus.io/scrape" = "true" -> null
+            }
+          ~ labels           = {
+              - "eks.amazonaws.com/component"   = "kube-dns" -> null
+              + "kubernetes.io/cluster-service" = "true"
+              + "kubernetes.io/name"            = "CoreDNS"
+                # (1 unchanged element hidden)
+            }
+            name             = "kube-dns"
+            # (5 unchanged attributes hidden)
+        }
+
+      ~ spec {
+          ~ selector                          = {
+              + "provisioned-by" = "materialize"
+                # (1 unchanged element hidden)
+            }
+            # (16 unchanged attributes hidden)
+
+          - port {
+              - name         = "metrics" -> null
+              - node_port    = 0 -> null
+              - port         = 9153 -> null
+              - protocol     = "TCP" -> null
+              - target_port  = "9153" -> null
+                # (1 unchanged attribute hidden)
+            }
+
+            # (2 unchanged blocks hidden)
+        }
+    }
+
+  # module.coredns.kubernetes_service_account.coredns[0] will be created
+  + resource "kubernetes_service_account" "coredns" {
+      + automount_service_account_token = true
+      + default_secret_name             = (known after apply)
+      + id                              = (known after apply)
+
+      + metadata {
+          + generation       = (known after apply)
+          + name             = "coredns-custom"
+          + namespace        = "kube-system"
+          + resource_version = (known after apply)
+          + uid              = (known after apply)
+        }
+    }
+
+  # module.materialize_instance.data.kubernetes_resource.materialize_instance will be read during apply
+  # (depends on a resource or a module with changes pending)
+ <= data "kubernetes_resource" "materialize_instance" {
+      + api_version = "materialize.cloud/v1"
+      + kind        = "Materialize"
+      + object      = (known after apply)
+
+      + metadata {
+          + name      = "main"
+          + namespace = "materialize-environment"
+        }
+    }
+
+  # module.materialize_instance.kubectl_manifest.materialize_instance will be updated in-place
+  ~ resource "kubectl_manifest" "materialize_instance" {
+        id                      = "/apis/materialize.cloud/v1/namespaces/materialize-environment/materializes/main"
+        name                    = "main"
+      ~ yaml_incluster          = (sensitive value)
+        # (16 unchanged attributes hidden)
+
+        # (1 unchanged block hidden)
+    }
+
+  # module.vpc_cni.helm_release.vpc_cni will be updated in-place
+  ~ resource "helm_release" "vpc_cni" {
+        id                         = "aws-vpc-cni"
+      ~ metadata                   = [
+          - {
+              - app_version    = "v1.21.1"
+              - chart          = "aws-vpc-cni"
+              - first_deployed = 1786389101
+              - last_deployed  = 1786389101
+              - name           = "aws-vpc-cni"
+              - namespace      = "kube-system"
+              - notes          = <<-EOT
+                    aws-vpc-cni has been installed or updated. To check the status of pods, run:
+                    
+                    kubectl get pods --namespace kube-system -l "app.kubernetes.io/name=aws-node,app.kubernetes.io/instance=aws-vpc-cni"
+                EOT
+              - revision       = 1
+              - values         = jsonencode(
+                    {
+                      - enableNetworkPolicy = true
+                      - nodeAgent           = {
+                          - enablePolicyEventLogs = true
+                        }
+                      - originalMatchLabels = true
+                      - serviceAccount      = {
+                          - create = false
+                          - name   = "aws-node"
+                        }
+                    }
+                )
+              - version        = "1.21.1"
+            },
+        ] -> (known after apply)
+        name                       = "aws-vpc-cni"
+        # (26 unchanged attributes hidden)
+
+      - set {
+          - name  = "serviceAccount.create" -> null
+          - value = "false" -> null
+            # (1 unchanged attribute hidden)
+        }
+      + set {
+          + name  = "serviceAccount.annotations.eks\\.amazonaws\\.com/role-arn"
+          + value = "arn:aws:iam::400121260767:role/t260810-jqhwjd-vpc-cni"
+            # (1 unchanged attribute hidden)
+        }
+      + set {
+          + name  = "serviceAccount.create"
+          + value = "true"
+            # (1 unchanged attribute hidden)
+        }
+
+        # (4 unchanged blocks hidden)
+    }
+
+  # module.base_node_group.module.node_group.data.aws_caller_identity.current[0] will be read during apply
+  # (depends on a resource or a module with changes pending)
+ <= data "aws_caller_identity" "current" {
+      + account_id = (known after apply)
+      + arn        = (known after apply)
+      + id         = (known after apply)
+      + user_id    = (known after apply)
+    }
+
+  # module.base_node_group.module.node_group.data.aws_eks_cluster_versions.this[0] will be read during apply
+  # (depends on a resource or a module with changes pending)
+ <= data "aws_eks_cluster_versions" "this" {
+      + cluster_type     = "eks"
+      + cluster_versions = (known after apply)
+      + region           = (known after apply)
+      + version_status   = "STANDARD_SUPPORT"
+    }
+
+  # module.base_node_group.module.node_group.data.aws_iam_policy_document.assume_role_policy[0] will be read during apply
+  # (depends on a resource or a module with changes pending)
+ <= data "aws_iam_policy_document" "assume_role_policy" {
+      + id            = (known after apply)
+      + json          = (known after apply)
+      + minified_json = (known after apply)
+
+      + statement {
+          + actions = [
+              + "sts:AssumeRole",
+            ]
+          + sid     = "EKSNodeAssumeRole"
+
+          + principals {
+              + identifiers = [
+                  + "ec2.amazonaws.com",
+                ]
+              + type        = "Service"
+            }
+        }
+    }
+
+  # module.base_node_group.module.node_group.data.aws_partition.current[0] will be read during apply
+  # (depends on a resource or a module with changes pending)
+ <= data "aws_partition" "current" {
+      + dns_suffix         = (known after apply)
+      + id                 = (known after apply)
+      + partition          = (known after apply)
+      + reverse_dns_prefix = (known after apply)
+    }
+
+  # module.base_node_group.module.node_group.aws_iam_role.this[0] will be updated in-place
+  ~ resource "aws_iam_role" "this" {
+      ~ assume_role_policy    = jsonencode(
+            {
+              - Statement = [
+                  - {
+                      - Action    = "sts:AssumeRole"
+                      - Effect    = "Allow"
+                      - Principal = {
+                          - Service = "ec2.amazonaws.com"
+                        }
+                      - Sid       = "EKSNodeAssumeRole"
+                    },
+                ]
+              - Version   = "2012-10-17"
+            }
+        ) -> (known after apply)
+      + description           = "EKS managed node group IAM role"
+        id                    = "t260810-jqhwjd-base-eks-node-group-2026081019100063890000001b"
+        name                  = "t260810-jqhwjd-base-eks-node-group-2026081019100063890000001b"
+        tags                  = {
+            "Purpose"     = "Integration test"
+            "TestRun"     = "t260810-jqhwjd"
+            "deleteAfter" = "2026-08-14T13:54:39Z"
+            "owner"       = "Alex Hunt"
+            "reason"      = "materialize-terraform-self-managed integration test"
+            "team"        = "cloud"
+        }
+        # (10 unchanged attributes hidden)
+    }
+
+  # module.base_node_group.module.node_group.aws_iam_role_policy_attachment.this["AmazonEC2ContainerRegistryReadOnly"] must be replaced
++/- resource "aws_iam_role_policy_attachment" "this" {
+      ~ id         = "t260810-jqhwjd-base-eks-node-group-2026081019100063890000001b-2026081019100153620000001d" -> (known after apply)
+      ~ policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly" -> (known after apply) # forces replacement
+        # (1 unchanged attribute hidden)
+    }
+
+  # module.base_node_group.module.node_group.aws_iam_role_policy_attachment.this["AmazonEKSWorkerNodePolicy"] must be replaced
++/- resource "aws_iam_role_policy_attachment" "this" {
+      ~ id         = "t260810-jqhwjd-base-eks-node-group-2026081019100063890000001b-2026081019100152850000001c" -> (known after apply)
+      ~ policy_arn = "arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy" -> (known after apply) # forces replacement
+        # (1 unchanged attribute hidden)
+    }
+
+  # module.base_node_group.module.node_group.aws_iam_role_policy_attachment.this["AmazonEKS_CNI_Policy"] must be replaced
++/- resource "aws_iam_role_policy_attachment" "this" {
+      ~ id         = "t260810-jqhwjd-base-eks-node-group-2026081019100063890000001b-2026081019100157230000001e" -> (known after apply)
+      ~ policy_arn = "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy" -> (known after apply) # forces replacement
+        # (1 unchanged attribute hidden)
+    }
+
+  # module.eks.module.eks.data.aws_eks_addon_version.this["kube-proxy"] will be read during apply
+  # (depends on a resource or a module with changes pending)
+ <= data "aws_eks_addon_version" "this" {
+      + addon_name         = "kube-proxy"
+      + id                 = (known after apply)
+      + kubernetes_version = "1.34"
+      + most_recent        = true
+      + region             = (known after apply)
+      + version            = (known after apply)
+    }
+
+  # module.eks.module.eks.data.tls_certificate.this[0] will be read during apply
+  # (depends on a resource or a module with changes pending)
+ <= data "tls_certificate" "this" {
+      + certificates = (known after apply)
+      + id           = (known after apply)
+      + url          = "https://oidc.eks.us-east-1.amazonaws.com/id/1D7C549860C008225F5D1C3DA1E9BECB"
+    }
+
+  # module.eks.module.eks.aws_eks_addon.this["kube-proxy"] will be created
+  + resource "aws_eks_addon" "this" {
+      + addon_name                  = "kube-proxy"
+      + addon_version               = (known after apply)
+      + arn                         = (known after apply)
+      + cluster_name                = "t260810-jqhwjd-eks"
+      + configuration_values        = (known after apply)
+      + created_at                  = (known after apply)
+      + id                          = (known after apply)
+      + modified_at                 = (known after apply)
+      + preserve                    = true
+      + region                      = "us-east-1"
+      + resolve_conflicts_on_create = "OVERWRITE"
+      + resolve_conflicts_on_update = "OVERWRITE"
+      + tags                        = {
+          + "Purpose"     = "Integration test"
+          + "TestRun"     = "t260810-jqhwjd"
+          + "deleteAfter" = "2026-08-14T13:54:39Z"
+          + "owner"       = "Alex Hunt"
+          + "reason"      = "materialize-terraform-self-managed integration test"
+          + "team"        = "cloud"
+        }
+      + tags_all                    = {
+          + "Purpose"     = "Integration test"
+          + "TestRun"     = "t260810-jqhwjd"
+          + "deleteAfter" = "2026-08-14T13:54:39Z"
+          + "owner"       = "Alex Hunt"
+          + "reason"      = "materialize-terraform-self-managed integration test"
+          + "team"        = "cloud"
+        }
+
+      + namespace_config (known after apply)
+
+      + timeouts {}
+    }
+
+  # module.eks.module.eks.aws_eks_cluster.this[0] will be updated in-place
+  ~ resource "aws_eks_cluster" "this" {
+        id                            = "t260810-jqhwjd-eks"
+        name                          = "t260810-jqhwjd-eks"
+      ~ tags                          = {
+            "Purpose"               = "Integration test"
+            "TestRun"               = "t260810-jqhwjd"
+            "deleteAfter"           = "2026-08-14T13:54:39Z"
+            "owner"                 = "Alex Hunt"
+            "reason"                = "materialize-terraform-self-managed integration test"
+            "team"                  = "cloud"
+          - "terraform-aws-modules" = "eks" -> null
+        }
+      ~ tags_all                      = {
+          - "terraform-aws-modules" = "eks" -> null
+            # (6 unchanged elements hidden)
+        }
+        # (13 unchanged attributes hidden)
+
+      - timeouts {}
+
+        # (6 unchanged blocks hidden)
+    }
+
+  # module.eks.module.eks.aws_iam_openid_connect_provider.oidc_provider[0] will be updated in-place
+  ~ resource "aws_iam_openid_connect_provider" "oidc_provider" {
+        id              = "arn:aws:iam::400121260767:oidc-provider/oidc.eks.us-east-1.amazonaws.com/id/1D7C549860C008225F5D1C3DA1E9BECB"
+        tags            = {
+            "Name"        = "t260810-jqhwjd-eks-eks-irsa"
+            "Purpose"     = "Integration test"
+            "TestRun"     = "t260810-jqhwjd"
+            "deleteAfter" = "2026-08-14T13:54:39Z"
+            "owner"       = "Alex Hunt"
+            "reason"      = "materialize-terraform-self-managed integration test"
+            "team"        = "cloud"
+        }
+      ~ thumbprint_list = [
+          - "06b25927c42a721631c1efd9431e648fa62e1e39",
+        ] -> (known after apply)
+        # (4 unchanged attributes hidden)
+    }
+
+  # module.eks.module.eks.aws_iam_policy.custom[0] will be destroyed
+  # (because index [0] is out of range for count)
+  - resource "aws_iam_policy" "custom" {
+      - arn              = "arn:aws:iam::400121260767:policy/t260810-jqhwjd-eks-cluster-20260810185759470600000015" -> null
+      - attachment_count = 1 -> null
+      - id               = "arn:aws:iam::400121260767:policy/t260810-jqhwjd-eks-cluster-20260810185759470600000015" -> null
+      - name             = "t260810-jqhwjd-eks-cluster-20260810185759470600000015" -> null
+      - name_prefix      = "t260810-jqhwjd-eks-cluster-" -> null
+      - path             = "/" -> null
+      - policy           = jsonencode(
+            {
+              - Statement = [
+                  - {
+                      - Action    = [
+                          - "ec2:RunInstances",
+                          - "ec2:CreateLaunchTemplate",
+                          - "ec2:CreateFleet",
+                        ]
+                      - Condition = {
+                          - StringEquals = {
+                              - "aws:RequestTag/eks:eks-cluster-name" = "${aws:PrincipalTag/eks:eks-cluster-name}"
+                            }
+                          - StringLike   = {
+                              - "aws:RequestTag/eks:kubernetes-node-class-name" = "*"
+                              - "aws:RequestTag/eks:kubernetes-node-pool-name"  = "*"
+                            }
+                        }
+                      - Effect    = "Allow"
+                      - Resource  = "*"
+                      - Sid       = "Compute"
+                    },
+                  - {
+                      - Action    = [
+                          - "ec2:CreateVolume",
+                          - "ec2:CreateSnapshot",
+                        ]
+                      - Condition = {
+                          - StringEquals = {
+                              - "aws:RequestTag/eks:eks-cluster-name" = "${aws:PrincipalTag/eks:eks-cluster-name}"
+                            }
+                        }
+                      - Effect    = "Allow"
+                      - Resource  = [
+                          - "arn:aws:ec2:*:*:volume/*",
+                          - "arn:aws:ec2:*:*:snapshot/*",
+                        ]
+                      - Sid       = "Storage"
+                    },
+                  - {
+                      - Action    = "ec2:CreateNetworkInterface"
+                      - Condition = {
+                          - StringEquals = {
+                              - "aws:RequestTag/eks:eks-cluster-name"         = "${aws:PrincipalTag/eks:eks-cluster-name}"
+                              - "aws:RequestTag/eks:kubernetes-cni-node-name" = "*"
+                            }
+                        }
+                      - Effect    = "Allow"
+                      - Resource  = "*"
+                      - Sid       = "Networking"
+                    },
+                  - {
+                      - Action    = [
+                          - "elasticloadbalancing:CreateTargetGroup",
+                          - "elasticloadbalancing:CreateRule",
+                          - "elasticloadbalancing:CreateLoadBalancer",
+                          - "elasticloadbalancing:CreateListener",
+                          - "ec2:CreateSecurityGroup",
+                        ]
+                      - Condition = {
+                          - StringEquals = {
+                              - "aws:RequestTag/eks:eks-cluster-name" = "${aws:PrincipalTag/eks:eks-cluster-name}"
+                            }
+                        }
+                      - Effect    = "Allow"
+                      - Resource  = "*"
+                      - Sid       = "LoadBalancer"
+                    },
+                  - {
+                      - Action    = "shield:CreateProtection"
+                      - Condition = {
+                          - StringEquals = {
+                              - "aws:RequestTag/eks:eks-cluster-name" = "${aws:PrincipalTag/eks:eks-cluster-name}"
+                            }
+                        }
+                      - Effect    = "Allow"
+                      - Resource  = "*"
+                      - Sid       = "ShieldProtection"
+                    },
+                  - {
+                      - Action    = "shield:TagResource"
+                      - Condition = {
+                          - StringEquals = {
+                              - "aws:RequestTag/eks:eks-cluster-name" = "${aws:PrincipalTag/eks:eks-cluster-name}"
+                            }
+                        }
+                      - Effect    = "Allow"
+                      - Resource  = "arn:aws:shield::*:protection/*"
+                      - Sid       = "ShieldTagResource"
+                    },
+                ]
+              - Version   = "2012-10-17"
+            }
+        ) -> null
+      - policy_id        = "ANPAV2KIV5LPY5PHTKQGZ" -> null
+      - tags             = {
+          - "Purpose"     = "Integration test"
+          - "TestRun"     = "t260810-jqhwjd"
+          - "deleteAfter" = "2026-08-14T13:54:39Z"
+          - "owner"       = "Alex Hunt"
+          - "reason"      = "materialize-terraform-self-managed integration test"
+          - "team"        = "cloud"
+        } -> null
+      - tags_all         = {
+          - "Purpose"     = "Integration test"
+          - "TestRun"     = "t260810-jqhwjd"
+          - "deleteAfter" = "2026-08-14T13:54:39Z"
+          - "owner"       = "Alex Hunt"
+          - "reason"      = "materialize-terraform-self-managed integration test"
+          - "team"        = "cloud"
+        } -> null
+        # (1 unchanged attribute hidden)
+    }
+
+  # module.eks.module.eks.aws_iam_role_policy_attachment.custom[0] will be destroyed
+  # (because index [0] is out of range for count)
+  - resource "aws_iam_role_policy_attachment" "custom" {
+      - id         = "t260810-jqhwjd-eks-cluster-20260810185759465500000014-20260810185800688600000018" -> null
+      - policy_arn = "arn:aws:iam::400121260767:policy/t260810-jqhwjd-eks-cluster-20260810185759470600000015" -> null
+      - role       = "t260810-jqhwjd-eks-cluster-20260810185759465500000014" -> null
+    }
+
+  # module.eks.module.eks.aws_iam_role_policy_attachment.this["AmazonEKSVPCResourceController"] will be destroyed
+  # (because key ["AmazonEKSVPCResourceController"] is not in for_each map)
+  - resource "aws_iam_role_policy_attachment" "this" {
+      - id         = "t260810-jqhwjd-eks-cluster-20260810185759465500000014-20260810185800657100000016" -> null
+      - policy_arn = "arn:aws:iam::aws:policy/AmazonEKSVPCResourceController" -> null
+      - role       = "t260810-jqhwjd-eks-cluster-20260810185759465500000014" -> null
+    }
+
+  # module.eks.module.eks.aws_security_group_rule.node["ingress_cluster_10251_webhook"] will be created
+  + resource "aws_security_group_rule" "node" {
+      + description              = "Cluster API to node 10251/tcp webhook"
+      + from_port                = 10251
+      + id                       = (known after apply)
+      + protocol                 = "tcp"
+      + region                   = "us-east-1"
+      + security_group_id        = "sg-0f7ba62a9c2027e49"
+      + security_group_rule_id   = (known after apply)
+      + self                     = false
+      + source_security_group_id = "sg-084aa5c2f41b37efa"
+      + to_port                  = 10251
+      + type                     = "ingress"
+    }
+
+  # module.eks.module.eks.time_sleep.this[0] must be replaced
++/- resource "time_sleep" "this" {
+      ~ id              = "2026-08-10T19:10:28Z" -> (known after apply)
+      ~ triggers        = { # forces replacement
+          + "certificate_authority_data"         = "LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSURCVENDQWUyZ0F3SUJBZ0lJU2hZZlJPYnloL1V3RFFZSktvWklodmNOQVFFTEJRQXdGVEVUTUJFR0ExVUUKQXhNS2EzVmlaWEp1WlhSbGN6QWVGdzB5TmpBNE1UQXhPVEF3TkRkYUZ3MHpOakE0TURjeE9UQTFORGRhTUJVeApFekFSQmdOVkJBTVRDbXQxWW1WeWJtVjBaWE13Z2dFaU1BMEdDU3FHU0liM0RRRUJBUVVBQTRJQkR3QXdnZ0VLCkFvSUJBUURiR2JPbll4NHpxaW9UNGJiQnZrWWdHSjVuNFNNRzBGaE9zVmdMVGJIWkNkd01YU09HYjVaTmxJdU8KVkNMSE92MDB0cTVHQS95TEQrRWw0Y3IxS0wrSUJpTEdjeGhXeEZUSENsMkU4UWY3SnVaZnVKd3FSTjJPZlUrMQpvZVQwNXBwbVJwZ3h3UHpjRE9nWGhNQVFYTGdwT1N1aGtQbDQzN2NGSGhzSTBqY05IcnFXQXVVRUdFeDlqcVZTClN4R3dMazRxaTAzNTBoUzhtcGVzcUVtUnk0UkpaNDUyeHJmQXFYOTgyZmtRYWZmbHJQYWNsTG05WVlxVmpTRUQKTDluSXhsSGpnMm0waXZRaGJsOGhCVWZPTmJnbUxtc1RlSDRBelZKUGRBQTRHalhiaGpiNkZBdW00dyttMWtJUwpYY0NLZVRWeEJPTUgwTEVET0xGYTBSWEhpNGNoQWdNQkFBR2pXVEJYTUE0R0ExVWREd0VCL3dRRUF3SUNwREFQCkJnTlZIUk1CQWY4RUJUQURBUUgvTUIwR0ExVWREZ1FXQkJUbTJLaWpnUVZHUkxHK1JpRFhkTStIVzZ2dUdqQVYKQmdOVkhSRUVEakFNZ2dwcmRXSmxjbTVsZEdWek1BMEdDU3FHU0liM0RRRUJDd1VBQTRJQkFRQ2E4a2g0dEM2dwpJSlBBd0tFNW9VdEZTNFpQMVkzN2tWMEs4RUhETUoyTVYrajBkcGFvM2FGRW9vdXpRY21mYnIrcUdzSmgyYlByCnYrcEVYY0cwcTJkUHA0V2FRLzNaT0pIYnYyN0w5NEJmL01yYkF2LzRpYUtqYmd0MkVNUHh3Z2hwZEgwSzdqNTQKaUZ5QXRtbUQ3dXhCb2tIQU5DMUJCQ2JtWkx2NjRJcUVycFhtZm9YRHloMFRIT1NsaTJHczA2dTh5YVhET2pDSApRMkl3Y2wzQmQzcTNjMzVkUWZwRjFDUW5NMllQb2VXYldEOWliNS9DWDhXWUpjZXc1UTI3TFVqbGdIZTJ2V3lLClYvMytzdFhDM1RUMnBMQXd4VmdDbndoOGNUNkE2SGtYbXJIelg4MVkwUTh6NmRYREFseno5TTF0RVRLWEZ6VnUKR1hLbDk1TG5sUTVyCi0tLS0tRU5EIENFUlRJRklDQVRFLS0tLS0K"
+          - "cluster_certificate_authority_data" = "LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSURCVENDQWUyZ0F3SUJBZ0lJU2hZZlJPYnloL1V3RFFZSktvWklodmNOQVFFTEJRQXdGVEVUTUJFR0ExVUUKQXhNS2EzVmlaWEp1WlhSbGN6QWVGdzB5TmpBNE1UQXhPVEF3TkRkYUZ3MHpOakE0TURjeE9UQTFORGRhTUJVeApFekFSQmdOVkJBTVRDbXQxWW1WeWJtVjBaWE13Z2dFaU1BMEdDU3FHU0liM0RRRUJBUVVBQTRJQkR3QXdnZ0VLCkFvSUJBUURiR2JPbll4NHpxaW9UNGJiQnZrWWdHSjVuNFNNRzBGaE9zVmdMVGJIWkNkd01YU09HYjVaTmxJdU8KVkNMSE92MDB0cTVHQS95TEQrRWw0Y3IxS0wrSUJpTEdjeGhXeEZUSENsMkU4UWY3SnVaZnVKd3FSTjJPZlUrMQpvZVQwNXBwbVJwZ3h3UHpjRE9nWGhNQVFYTGdwT1N1aGtQbDQzN2NGSGhzSTBqY05IcnFXQXVVRUdFeDlqcVZTClN4R3dMazRxaTAzNTBoUzhtcGVzcUVtUnk0UkpaNDUyeHJmQXFYOTgyZmtRYWZmbHJQYWNsTG05WVlxVmpTRUQKTDluSXhsSGpnMm0waXZRaGJsOGhCVWZPTmJnbUxtc1RlSDRBelZKUGRBQTRHalhiaGpiNkZBdW00dyttMWtJUwpYY0NLZVRWeEJPTUgwTEVET0xGYTBSWEhpNGNoQWdNQkFBR2pXVEJYTUE0R0ExVWREd0VCL3dRRUF3SUNwREFQCkJnTlZIUk1CQWY4RUJUQURBUUgvTUIwR0ExVWREZ1FXQkJUbTJLaWpnUVZHUkxHK1JpRFhkTStIVzZ2dUdqQVYKQmdOVkhSRUVEakFNZ2dwcmRXSmxjbTVsZEdWek1BMEdDU3FHU0liM0RRRUJDd1VBQTRJQkFRQ2E4a2g0dEM2dwpJSlBBd0tFNW9VdEZTNFpQMVkzN2tWMEs4RUhETUoyTVYrajBkcGFvM2FGRW9vdXpRY21mYnIrcUdzSmgyYlByCnYrcEVYY0cwcTJkUHA0V2FRLzNaT0pIYnYyN0w5NEJmL01yYkF2LzRpYUtqYmd0MkVNUHh3Z2hwZEgwSzdqNTQKaUZ5QXRtbUQ3dXhCb2tIQU5DMUJCQ2JtWkx2NjRJcUVycFhtZm9YRHloMFRIT1NsaTJHczA2dTh5YVhET2pDSApRMkl3Y2wzQmQzcTNjMzVkUWZwRjFDUW5NMllQb2VXYldEOWliNS9DWDhXWUpjZXc1UTI3TFVqbGdIZTJ2V3lLClYvMytzdFhDM1RUMnBMQXd4VmdDbndoOGNUNkE2SGtYbXJIelg4MVkwUTh6NmRYREFseno5TTF0RVRLWEZ6VnUKR1hLbDk1TG5sUTVyCi0tLS0tRU5EIENFUlRJRklDQVRFLS0tLS0K" -> null
+          - "cluster_endpoint"                   = "https://1D7C549860C008225F5D1C3DA1E9BECB.gr7.us-east-1.eks.amazonaws.com" -> null
+          - "cluster_name"                       = "t260810-jqhwjd-eks" -> null
+          - "cluster_service_cidr"               = "172.20.0.0/16" -> null
+          - "cluster_version"                    = "1.34" -> null
+          + "endpoint"                           = "https://1D7C549860C008225F5D1C3DA1E9BECB.gr7.us-east-1.eks.amazonaws.com"
+          + "kubernetes_version"                 = "1.34"
+          + "name"                               = "t260810-jqhwjd-eks"
+          + "service_cidr"                       = "172.20.0.0/16"
+        }
+        # (1 unchanged attribute hidden)
+    }
+
+  # module.materialize_nlb.module.target_console.kubectl_manifest.target_group_binding will be updated in-place
+  ~ resource "kubectl_manifest" "target_group_binding" {
+        id                      = "/apis/elbv2.k8s.aws/v1beta1/namespaces/materialize-environment/targetgroupbindings/t260810-jqhwjd-main-console"
+        name                    = "t260810-jqhwjd-main-console"
+      ~ yaml_body               = (sensitive value)
+      ~ yaml_body_parsed        = <<-EOT
+            apiVersion: elbv2.k8s.aws/v1beta1
+            kind: TargetGroupBinding
+            metadata:
+              name: t260810-jqhwjd-main-console
+              namespace: materialize-environment
+            spec:
+              serviceRef:
+                name: mz96sovjsv23-console
+                port: 8080
+              targetGroupARN: arn:aws:elasticloadbalancing:us-east-1:400121260767:targetgroup/t260810-jqhwjd-main-console/bdb4b7f9420b32b4
+        EOT -> (known after apply)
+      ~ yaml_incluster          = (sensitive value)
+        # (15 unchanged attributes hidden)
+    }
+
+  # module.materialize_nlb.module.target_http.kubectl_manifest.target_group_binding will be updated in-place
+  ~ resource "kubectl_manifest" "target_group_binding" {
+        id                      = "/apis/elbv2.k8s.aws/v1beta1/namespaces/materialize-environment/targetgroupbindings/t260810-jqhwjd-main-http"
+        name                    = "t260810-jqhwjd-main-http"
+      ~ yaml_body               = (sensitive value)
+      ~ yaml_body_parsed        = <<-EOT
+            apiVersion: elbv2.k8s.aws/v1beta1
+            kind: TargetGroupBinding
+            metadata:
+              name: t260810-jqhwjd-main-http
+              namespace: materialize-environment
+            spec:
+              serviceRef:
+                name: mz96sovjsv23-balancerd
+                port: 6876
+              targetGroupARN: arn:aws:elasticloadbalancing:us-east-1:400121260767:targetgroup/t260810-jqhwjd-main-http/c2e88f51cd1ac809
+        EOT -> (known after apply)
+      ~ yaml_incluster          = (sensitive value)
+        # (15 unchanged attributes hidden)
+    }
+
+  # module.materialize_nlb.module.target_pgwire.kubectl_manifest.target_group_binding will be updated in-place
+  ~ resource "kubectl_manifest" "target_group_binding" {
+        id                      = "/apis/elbv2.k8s.aws/v1beta1/namespaces/materialize-environment/targetgroupbindings/t260810-jqhwjd-main-pgwire"
+        name                    = "t260810-jqhwjd-main-pgwire"
+      ~ yaml_body               = (sensitive value)
+      ~ yaml_body_parsed        = <<-EOT
+            apiVersion: elbv2.k8s.aws/v1beta1
+            kind: TargetGroupBinding
+            metadata:
+              name: t260810-jqhwjd-main-pgwire
+              namespace: materialize-environment
+            spec:
+              serviceRef:
+                name: mz96sovjsv23-balancerd
+                port: 6875
+              targetGroupARN: arn:aws:elasticloadbalancing:us-east-1:400121260767:targetgroup/t260810-jqhwjd-main-pgwire/a1117a6f02d9bc44
+        EOT -> (known after apply)
+      ~ yaml_incluster          = (sensitive value)
+        # (15 unchanged attributes hidden)
+    }
+
+  # module.eks.module.eks.module.kms.aws_kms_key.this[0] will be updated in-place
+  ~ resource "aws_kms_key" "this" {
+        id                                 = "a25e7991-d92e-4b73-bc21-78d589831b48"
+      ~ tags                               = {
+            "Purpose"               = "Integration test"
+            "TestRun"               = "t260810-jqhwjd"
+            "deleteAfter"           = "2026-08-14T13:54:39Z"
+            "owner"                 = "Alex Hunt"
+            "reason"                = "materialize-terraform-self-managed integration test"
+            "team"                  = "cloud"
+          - "terraform-aws-modules" = "eks" -> null
+        }
+      ~ tags_all                           = {
+          - "terraform-aws-modules" = "eks" -> null
+            # (6 unchanged elements hidden)
+        }
+        # (14 unchanged attributes hidden)
+    }
+
+Plan: 9 to add, 11 to change, 7 to destroy.
+
+Changes to Outputs:
+  ~ materialize_instance_resource_id          = "96sovjsv23" -> (known after apply)
