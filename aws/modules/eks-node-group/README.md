@@ -3,7 +3,7 @@
 | Name | Version |
 | ---- | ------- |
 | <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | >= 1.10 |
-| <a name="requirement_aws"></a> [aws](#requirement\_aws) | ~> 5.0, < 5.101.0 |
+| <a name="requirement_aws"></a> [aws](#requirement\_aws) | ~> 6.0 |
 | <a name="requirement_kubernetes"></a> [kubernetes](#requirement\_kubernetes) | ~> 2.0, < 2.39.0 |
 
 ## Providers
@@ -16,7 +16,7 @@
 
 | Name | Source | Version |
 | ---- | ------ | ------- |
-| <a name="module_node_group"></a> [node\_group](#module\_node\_group) | terraform-aws-modules/eks/aws//modules/eks-managed-node-group | ~> 20.0 |
+| <a name="module_node_group"></a> [node\_group](#module\_node\_group) | terraform-aws-modules/eks/aws//modules/eks-managed-node-group | ~> 21.0 |
 
 ## Resources
 
