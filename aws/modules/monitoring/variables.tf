@@ -348,9 +348,11 @@ variable "grafana_ingress" {
   validation {
     condition = var.grafana_ingress == null ? true : (
       var.grafana_ingress.internal ? true : (
-        var.grafana_ingress.ingress_cidr_blocks != null && alltrue([
-          for cidr in var.grafana_ingress.ingress_cidr_blocks : can(cidrhost(cidr, 0))
-        ])
+        var.grafana_ingress.ingress_cidr_blocks == null ? false : (
+          length(var.grafana_ingress.ingress_cidr_blocks) > 0 && alltrue([
+            for cidr in var.grafana_ingress.ingress_cidr_blocks : can(cidrhost(cidr, 0))
+          ])
+        )
       )
     )
     error_message = "grafana_ingress.ingress_cidr_blocks must be provided and contain valid CIDR notation when exposing Grafana publicly (internal = false)."

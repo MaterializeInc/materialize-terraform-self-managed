@@ -189,7 +189,7 @@ Grafana is deployed in the `monitoring` namespace with pre-configured Materializ
 
 Its own state — users, service accounts and tokens, annotations, and dashboard versions created through the UI — is kept in a dedicated `db-f1-micro` Cloud SQL instance, provisioned whenever `enable_observability` is on. Set `enable_grafana_database = false` to skip it and accept losing that state on every pod restart.
 
-Grafana also gets an GCP load balancer whenever `enable_observability` is on — internal by default, following the same `internal_load_balancer` and `ingress_cidr_blocks` variables as the Materialize load balancers. Read its address from the Service, or set `grafana_host` so Grafana's own links are correct too. The port-forward below works regardless.
+Grafana also gets a GCP load balancer whenever `enable_observability` is on — internal by default, following the same `internal_load_balancer` and `ingress_cidr_blocks` variables as the Materialize load balancers. Read its address from the Service, or set `grafana_host` so Grafana's own links are correct too. The port-forward below works regardless.
 
 #### Port Forwarding
 
