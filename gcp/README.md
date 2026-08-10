@@ -29,6 +29,7 @@ GCP Specific Modules:
 | [`modules/storage`](./modules/storage)          | Cloud Storage bucket with HMAC keys for S3-compatible access   |
 | [`modules/load_balancers`](./modules/load_balancers) | GCP Load Balancers for Materialize instance access      |
 | [`modules/operator`](./modules/operator)        | Materialize Kubernetes operator installation                   |
+| [`modules/monitoring`](./modules/monitoring)     | Observability stack (Loki, Thanos, Grafana, Alloy) with GCS buckets and Workload Identity |
 
 **Cloud-Agnostic Kubernetes Modules:**
 

@@ -167,7 +167,36 @@ locals {
       }
     }]
   })
-  storage_class = "standard-rwo" # default storage class in gcp
+  # Not `standard-rwo`: the node pools are C4/C4A, which take only Hyperdisk —
+  # same constraint as their boot disks above. Every default GKE class is
+  # Persistent Disk, so a PVC on those pools never attaches.
+  storage_class = kubernetes_storage_class.hyperdisk_balanced.metadata[0].name
+}
+
+# GKE ships no Hyperdisk class, so create one. Not marked default — taking that
+# from `standard-rwo` would change provisioning for every other workload.
+#
+# Deliberately not gated on `enable_observability`, even though monitoring is
+# the only module that reads it today. On C4/C4A node pools any workload
+# needing a PVC hits the same Persistent Disk wall, so the class is generally
+# useful; tying it to the observability flag would mean turning monitoring off
+# silently removes a class other workloads may already be bound to.
+resource "kubernetes_storage_class" "hyperdisk_balanced" {
+  metadata {
+    name = "hyperdisk-balanced"
+  }
+
+  storage_provisioner = "pd.csi.storage.gke.io"
+  parameters = {
+    type = "hyperdisk-balanced"
+  }
+
+  # Late binding so the disk lands in the zone the pod is scheduled to.
+  volume_binding_mode    = "WaitForFirstConsumer"
+  allow_volume_expansion = true
+  reclaim_policy         = "Delete"
+
+  depends_on = [module.gke]
 }
 
 # Configure networking infrastructure including VPC, subnets, and CIDR blocks
@@ -399,35 +428,40 @@ module "operator" {
   ]
 }
 
-module "prometheus" {
+module "monitoring" {
   count  = var.enable_observability ? 1 : 0
-  source = "../../../kubernetes/modules/prometheus"
+  source = "../../modules/monitoring"
 
-  namespace        = "monitoring"
-  create_namespace = false # operator creates the "monitoring" namespace
-  node_selector    = local.generic_node_labels
-  storage_class    = local.storage_class
+  prefix     = var.name_prefix
+  project_id = var.project_id
+  region     = var.region
+
+  # Matches what these examples already pass to `module.storage`. Loki and
+  # Thanos start writing immediately, and neither S3 nor GCS will delete a
+  # non-empty bucket, so without this `terraform destroy` wedges on the
+  # telemetry buckets. Set to false for anything you cannot afford to lose.
+  bucket_force_destroy = true
+
+  namespace = "monitoring"
+  # The operator module creates the "monitoring" namespace.
+  create_namespace = false
+
+  node_selector = local.generic_node_labels
+  storage_class = local.storage_class
+
+  # Optional fan-out to Cloud Monitoring, on top of the bundled Thanos. Off by
+  # default because GCM bills per custom metric; the tier is the cost lever.
+  enable_google_cloud_metrics         = false
+  google_cloud_metrics_min_importance = "recommended"
+
+  materialize_instance_namespace = local.materialize_instance_namespace
+  materialize_operator_namespace = local.materialize_operator_namespace
+
   depends_on = [
     module.operator,
     module.gke,
     module.generic_nodepool,
     module.coredns,
-  ]
-}
-
-module "grafana" {
-  count  = var.enable_observability ? 1 : 0
-  source = "../../../kubernetes/modules/grafana"
-
-  namespace     = "monitoring"
-  storage_class = local.storage_class
-  # operator creates the "monitoring" namespace
-  create_namespace = false
-  prometheus_url   = module.prometheus[0].prometheus_url
-  node_selector    = local.generic_node_labels
-
-  depends_on = [
-    module.prometheus,
   ]
 }
 

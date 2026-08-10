@@ -128,18 +128,23 @@ output "rds_kms_key_arn" {
 }
 
 # Observability outputs (only when enabled)
-output "prometheus_url" {
-  description = "Internal URL for Prometheus server"
-  value       = var.enable_observability ? module.prometheus[0].prometheus_url : null
+output "metrics_url" {
+  description = "Thanos Query endpoint. Prometheus-API-compatible, so anything that spoke to the old Prometheus URL works against it."
+  value       = var.enable_observability ? module.monitoring[0].metrics_url : null
+}
+
+output "logs_url" {
+  description = "Loki read endpoint."
+  value       = var.enable_observability ? module.monitoring[0].logs_url : null
 }
 
 output "grafana_url" {
-  description = "Internal URL for Grafana"
-  value       = var.enable_observability ? module.grafana[0].grafana_url : null
+  description = "Internal URL for Grafana. Reach it with `kubectl -n monitoring port-forward svc/grafana 3000:80`."
+  value       = var.enable_observability ? module.monitoring[0].grafana_url : null
 }
 
 output "grafana_admin_password" {
   description = "`admin` password for Grafana"
-  value       = var.enable_observability ? module.grafana[0].admin_password : null
+  value       = var.enable_observability ? module.monitoring[0].grafana_admin_password : null
   sensitive   = true
 }

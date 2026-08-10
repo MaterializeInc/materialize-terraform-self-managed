@@ -552,37 +552,40 @@ module "materialize_instance" {
   ]
 }
 
-# 10. Setup Observability Stack (Prometheus + Grafana)
-module "prometheus" {
+# 10. Setup Observability Stack (Grafana, Loki, Thanos, Alloy)
+module "monitoring" {
   count  = var.enable_observability ? 1 : 0
-  source = "../../../kubernetes/modules/prometheus"
+  source = "../../modules/monitoring"
 
-  namespace        = local.monitoring_namespace
-  create_namespace = false # operator creates the "monitoring" namespace
-  node_selector    = local.generic_node_labels
-  storage_class    = module.ebs_csi_driver.storage_class_name
+  name_prefix = var.name_prefix
+  region      = var.aws_region
+
+  # Matches what these examples already pass to `module.storage`. Loki and
+  # Thanos start writing immediately, and neither S3 nor GCS will delete a
+  # non-empty bucket, so without this `terraform destroy` wedges on the
+  # telemetry buckets. Set to false for anything you cannot afford to lose.
+  bucket_force_destroy = true
+
+  namespace = local.monitoring_namespace
+  # The operator module creates the "monitoring" namespace.
+  create_namespace = false
+
+  oidc_provider_arn       = module.eks.oidc_provider_arn
+  cluster_oidc_issuer_url = module.eks.cluster_oidc_issuer_url
+
+  node_selector = local.generic_node_labels
+  storage_class = module.ebs_csi_driver.storage_class_name
+
+  materialize_instance_namespace = local.materialize_instance_namespace
+  materialize_operator_namespace = local.operator_namespace
+
+  tags = var.tags
 
   depends_on = [
     module.operator,
     module.nodepool_generic,
     module.coredns,
     module.ebs_csi_driver,
-  ]
-}
-
-module "grafana" {
-  count  = var.enable_observability ? 1 : 0
-  source = "../../../kubernetes/modules/grafana"
-
-  namespace = local.monitoring_namespace
-  # operator creates the "monitoring" namespace
-  create_namespace = false
-  storage_class    = module.ebs_csi_driver.storage_class_name
-  prometheus_url   = module.prometheus[0].prometheus_url
-  node_selector    = local.generic_node_labels
-
-  depends_on = [
-    module.prometheus,
   ]
 }
 

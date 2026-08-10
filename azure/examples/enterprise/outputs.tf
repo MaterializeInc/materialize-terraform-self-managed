@@ -165,20 +165,30 @@ output "external_login_password_mz_system" {
 }
 
 # Observability outputs (only when enabled)
-output "prometheus_url" {
-  description = "Internal URL for Prometheus server"
-  value       = var.enable_observability ? module.prometheus[0].prometheus_url : null
+output "metrics_url" {
+  description = "Thanos Query endpoint. Prometheus-API-compatible, so consumers of the old `prometheus_url` keep working against it."
+  value       = var.enable_observability ? module.monitoring[0].metrics_url : null
+}
+
+output "logs_url" {
+  description = "Loki read endpoint. New with this stack — the previous one collected metrics only."
+  value       = var.enable_observability ? module.monitoring[0].logs_url : null
 }
 
 output "grafana_url" {
-  description = "Internal URL for Grafana"
-  value       = var.enable_observability ? module.grafana[0].grafana_url : null
+  description = "In-cluster URL for Grafana. ClusterIP-only today, so reaching it means a port-forward."
+  value       = var.enable_observability ? module.monitoring[0].grafana_url : null
 }
 
 output "grafana_admin_password" {
   description = "`admin` password for Grafana"
-  value       = var.enable_observability ? module.grafana[0].admin_password : null
+  value       = var.enable_observability ? module.monitoring[0].grafana_admin_password : null
   sensitive   = true
+}
+
+output "telemetry_storage_account_name" {
+  description = "Storage account holding the Loki and Thanos containers"
+  value       = var.enable_observability ? module.monitoring[0].storage_account_name : null
 }
 
 # Ory outputs

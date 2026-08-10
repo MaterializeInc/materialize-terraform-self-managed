@@ -112,6 +112,12 @@ locals {
   )
 
   materialize_instance_namespace = "materialize-environment"
+  # Named here rather than left to each module's default, and passed to both
+  # the operator and monitoring modules, so the two cannot drift apart: the
+  # operator creates these namespaces and monitoring scopes its scrape targets
+  # to them.
+  materialize_operator_namespace = "materialize"
+  monitoring_namespace           = "monitoring"
   materialize_instance_name      = "main"
 
   # Common node scheduling configuration
@@ -421,6 +427,10 @@ module "operator" {
   # node selector for operator and metrics-server workloads
   operator_node_selector = local.generic_node_labels
 
+  # The operator creates both namespaces; monitoring is a consumer of them.
+  operator_namespace   = local.materialize_operator_namespace
+  monitoring_namespace = local.monitoring_namespace
+
   # Enable Prometheus scrape annotations when observability is enabled
   helm_values = var.enable_observability ? {
     observability = {
@@ -442,34 +452,33 @@ module "operator" {
   ]
 }
 
-module "prometheus" {
+module "monitoring" {
   count  = var.enable_observability ? 1 : 0
-  source = "../../../kubernetes/modules/prometheus"
+  source = "../../modules/monitoring"
 
-  namespace        = "monitoring"
-  create_namespace = false # operator creates the "monitoring" namespace
-  node_selector    = local.generic_node_labels
-  storage_class    = local.storage_class
+  prefix              = var.name_prefix
+  resource_group_name = azurerm_resource_group.materialize.name
+  location            = var.location
+
+  namespace = local.monitoring_namespace
+  # The operator module creates the "monitoring" namespace.
+  create_namespace = false
+
+  oidc_issuer_url = module.aks.cluster_oidc_issuer_url
+
+  node_selector = local.generic_node_labels
+  storage_class = local.storage_class
+
+  materialize_instance_namespace = local.materialize_instance_namespace
+  materialize_operator_namespace = local.materialize_operator_namespace
+
+  tags = var.tags
 
   depends_on = [
     module.operator,
     module.aks,
     module.coredns,
   ]
-}
-
-module "grafana" {
-  count  = var.enable_observability ? 1 : 0
-  source = "../../../kubernetes/modules/grafana"
-
-  namespace     = "monitoring"
-  storage_class = local.storage_class
-  # operator creates the "monitoring" namespace
-  create_namespace = false
-  prometheus_url   = module.prometheus[0].prometheus_url
-  node_selector    = local.generic_node_labels
-
-  depends_on = [module.operator]
 }
 
 module "materialize_instance" {
