@@ -3,6 +3,10 @@
   "extends": [
     "config:recommended"
   ],
+  "gitIgnoredAuthors": [
+    "49001892+materialize-bot@users.noreply.github.com",
+    "41898282+github-actions[bot]@users.noreply.github.com"
+  ],
   "rangeStrategy": "widen",
   "labels": [
     "regenerate-docs",
