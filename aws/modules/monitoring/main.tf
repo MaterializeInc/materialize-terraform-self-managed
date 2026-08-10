@@ -390,8 +390,6 @@ locals {
 # ==============================================================================
 
 locals {
-  grafana_host = try(var.grafana_ingress.host, null)
-
   # TLS terminates at the ALB against an ACM certificate. Without one the
   # listener is plain HTTP, and `root_url` has to say so or every share link and
   # OAuth redirect Grafana builds points at a scheme that does not answer.
