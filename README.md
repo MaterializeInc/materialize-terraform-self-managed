@@ -176,6 +176,29 @@ We follow semantic versioning with our tags. If a particular version requires ad
 
 ### Upgrade Notes
 
+#### v10.0.0
+
+We have introduced a new observability stack that replaces the previous Prometheus + Grafana stack. The new stack is cloud-native and supports logs, metrics, and dashboards.
+
+`kubernetes/modules/prometheus` and `kubernetes/modules/grafana` are replaced by `aws/modules/monitoring`, `gcp/modules/monitoring`, and `azure/modules/monitoring`, which install the [`materialize-monitoring`](https://github.com/MaterializeInc/materialize-monitoring) charts. The two legacy modules are **removed**, not deprecated in place. If you referenced `kubernetes/modules/prometheus` or `kubernetes/modules/grafana` directly rather than through an example, that reference breaks on this version — pin the previous major until you have migrated to the monitoring module for your cloud.
+
+The old stack vendored a point-in-time dashboard copy and a legacy scrape config, collected metrics only, and ran a single Prometheus on a `ReadWriteOnce` volume with 15 days of retention. The new one adds logs (Loki), object-storage-backed metrics (Thanos), alerting, and the Alloy collection pipeline, and gets its dashboards and scrapers from released chart artifacts rather than copies.
+
+**Impact on existing deployments:**
+
+- The `prometheus` and `grafana` Helm releases and their PersistentVolumeClaims are **destroyed**. Up to 15 days of local Prometheus data goes with them — there is no backfill, and the new stack begins collecting at install. Anything hand-created in the old Grafana (dashboards, users, saved queries) does not carry over.
+- The `prometheus_url` output is gone, replaced by `metrics_url` (Thanos Query) and `logs_url` (Loki). Thanos Query is Prometheus-API-compatible, so consumers of the old URL work against the new one — only the host and port change.
+- `grafana_url` and `grafana_admin_password` keep their names and meaning. Grafana remains `ClusterIP`, so reaching it is still `kubectl -n monitoring port-forward svc/grafana 3000:80`.
+- New cloud resources are created: storage for each backend (logs and metrics) plus a per-backend cloud identity bound to the in-cluster ServiceAccount.
+  - **AWS** — an S3 bucket and an IRSA role per backend.
+  - **GCP** — a GCS bucket and a Google service account per backend, bound with `roles/iam.workloadIdentityUser`. Requires Workload Identity on the cluster, which the `gke` module already sets.
+  - **Azure** — one storage account with a blob container per backend, a user-assigned managed identity per backend holding `Storage Blob Data Contributor` scoped to its own container, and a federated identity credential per ServiceAccount. Requires both `oidc_issuer_enabled` and `workload_identity_enabled` on the cluster, which the `aks` module already sets. The account is created with `shared_access_key_enabled = false`, so nothing falls back to a shared key.
+- Node pool capacity: the new stack runs microservice Loki, Thanos, Grafana, Alertmanager, kube-state-metrics, and two Alloy roles, against the previous stack's single Prometheus and Grafana. The `generic` pool may need to grow, or the first apply lands unschedulable pods.
+- If you set `install_metrics_server = false` on the operator module, set `install_metrics_server = true` on the monitoring module in the same change — the Materialize Console depends on the metrics API for cluster metrics.
+- **Azure only:** the Entra Workload ID webhook only mutates pods labelled `azure.workload.identity/use: "true"`, and the monitoring module applies that label for you. It reaches Thanos through `global.commonLabels` rather than a `podLabels` the Thanos chart does not have, so the label also appears on Thanos object metadata. That is cosmetic — it is not in any workload selector, so it is safe on an existing install.
+
+`enable_observability` keeps its name and its defaults (`false` in `simple`, `true` in `enterprise`).
+
 #### v9.0.0
 
 The `materialize-instance` module now enables role-based access control by default. A new `enable_rbac` variable (bool, default `true`) sets `spec.enableRbac` on the Materialize CR. Previously the module never set the field, so it fell back to the CRD default (`false`) and the operator launched environmentd with `enable_rbac_checks=false`, meaning privilege checks were not enforced.
@@ -204,27 +227,6 @@ The GCP examples now default `region` to `us-east1` (previously `us-central1`), 
 - If you already pass `region` explicitly (including all consumers of `gcp/modules/*`), there is no impact.
 - To actually move an existing deployment to `us-east1`, treat it as a new deployment plus a data migration. GCP cannot relocate these resources in place, so there is no in-place `terraform apply` path between regions.
 - `gcp/README.md`'s `node_locations` examples now use `us-east1-b` and `us-east1-d`. `node_locations` must name zones inside the cluster's region. The module only regex-checks the `region-zone` string shape, so copies of the old `us-central1-*` examples pass `terraform validate` and `plan` and then fail at apply from the GKE API. Note `us-east1` has no `-a` zone.
-
-##### observability stack replaced (all clouds)
-
-`kubernetes/modules/prometheus` and `kubernetes/modules/grafana` are replaced by `aws/modules/monitoring`, `gcp/modules/monitoring`, and `azure/modules/monitoring`, which install the [`materialize-monitoring`](https://github.com/MaterializeInc/materialize-monitoring) charts. The two legacy modules are **removed**, not deprecated in place. If you referenced `kubernetes/modules/prometheus` or `kubernetes/modules/grafana` directly rather than through an example, that reference breaks on this version — pin the previous major until you have migrated to the monitoring module for your cloud.
-
-The old stack vendored a point-in-time dashboard copy and a legacy scrape config, collected metrics only, and ran a single Prometheus on a `ReadWriteOnce` volume with 15 days of retention. The new one adds logs (Loki), object-storage-backed metrics (Thanos), alerting, and the Alloy collection pipeline, and gets its dashboards and scrapers from released chart artifacts rather than copies.
-
-**Impact on existing deployments:**
-
-- The `prometheus` and `grafana` Helm releases and their PersistentVolumeClaims are **destroyed**. Up to 15 days of local Prometheus data goes with them — there is no backfill, and the new stack begins collecting at install. Anything hand-created in the old Grafana (dashboards, users, saved queries) does not carry over.
-- The `prometheus_url` output is gone, replaced by `metrics_url` (Thanos Query) and `logs_url` (Loki). Thanos Query is Prometheus-API-compatible, so consumers of the old URL work against the new one — only the host and port change.
-- `grafana_url` and `grafana_admin_password` keep their names and meaning. Grafana remains `ClusterIP`, so reaching it is still `kubectl -n monitoring port-forward svc/grafana 3000:80`.
-- New cloud resources are created: storage for each backend (logs and metrics) plus a per-backend cloud identity bound to the in-cluster ServiceAccount.
-  - **AWS** — an S3 bucket and an IRSA role per backend.
-  - **GCP** — a GCS bucket and a Google service account per backend, bound with `roles/iam.workloadIdentityUser`. Requires Workload Identity on the cluster, which the `gke` module already sets.
-  - **Azure** — one storage account with a blob container per backend, a user-assigned managed identity per backend holding `Storage Blob Data Contributor` scoped to its own container, and a federated identity credential per ServiceAccount. Requires both `oidc_issuer_enabled` and `workload_identity_enabled` on the cluster, which the `aks` module already sets. The account is created with `shared_access_key_enabled = false`, so nothing falls back to a shared key.
-- Node pool capacity: the new stack runs microservice Loki, Thanos, Grafana, Alertmanager, kube-state-metrics, and two Alloy roles, against the previous stack's single Prometheus and Grafana. The `generic` pool may need to grow, or the first apply lands unschedulable pods.
-- If you set `install_metrics_server = false` on the operator module, set `install_metrics_server = true` on the monitoring module in the same change — the Materialize Console depends on the metrics API for cluster metrics.
-- **Azure only:** the Entra Workload ID webhook only mutates pods labelled `azure.workload.identity/use: "true"`, and the monitoring module applies that label for you. It reaches Thanos through `global.commonLabels` rather than a `podLabels` the Thanos chart does not have, so the label also appears on Thanos object metadata. That is cosmetic — it is not in any workload selector, so it is safe on an existing install.
-
-`enable_observability` keeps its name and its defaults (`false` in `simple`, `true` in `enterprise`).
 
 ##### Minimum Terraform Version
 
