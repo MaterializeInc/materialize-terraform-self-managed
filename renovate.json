@@ -24,5 +24,33 @@
       "extractVersionTemplate": "^v(?<version>.+)$",
       "versioningTemplate": "semver"
     }
+  ],
+  "packageRules": [
+    {
+      "description": [
+        "Terraform version constraints are AND-only (no `||`), so `widen` cannot express a major bump.",
+        "For a constraint ending in an upper bound, Renovate swaps only that bound and keeps the old",
+        "floor verbatim: `~> 5.0, < 5.101.0` became `~> 5.0, < 6.57.0`, which still resolves to the",
+        "newest 5.x. The PR is titled as a major upgrade but changes nothing (see PR #288).",
+        "`rangeStrategy` cannot be scoped to an update type -- Renovate rejects a packageRule that",
+        "combines `matchUpdateTypes` with `rangeStrategy`, because the range strategy determines which",
+        "updates exist in the first place. Setting `bump` for the whole terraform manager would fix",
+        "majors but ratchet the floor to the newest minor on every routine update (`~> 5.0, < 5.100.0`",
+        "-> `~> 5.100, < 5.101.0`), narrowing what consumers of these modules can install.",
+        "So `widen` stays, and major terraform updates are flagged for a manual constraint bump."
+      ],
+      "matchManagers": [
+        "terraform"
+      ],
+      "matchUpdateTypes": [
+        "major"
+      ],
+      "addLabels": [
+        "manual-constraint-bump"
+      ],
+      "prBodyNotes": [
+        ":warning: **The version constraints in this PR are wrong and it will not actually upgrade anything.** Renovate cannot widen a Terraform `AND`-only constraint across a major boundary: it moves the upper bound but leaves the old `~> N.0` floor in place, so the range still resolves to the previous major. Rewrite the floor by hand (`~> 5.0, < 6.57.0` -> `~> 6.0, < 6.57.0`) before merging, and check that no upstream module caps the provider below the new major."
+      ]
+    }
   ]
 }
