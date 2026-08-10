@@ -120,7 +120,7 @@ Complete support for deploying Materialize on Google Cloud Platform with GKE, Cl
 
 ### Prerequisites
 
-- Terraform >= 1.0
+- Terraform >= 1.10
 - Cloud provider credentials configured
 - kubectl (for managing Kubernetes resources)
 - Appropriate cloud provider CLI tools (aws-cli, az, or gcloud)
@@ -204,6 +204,12 @@ The GCP examples now default `region` to `us-east1` (previously `us-central1`), 
 - If you already pass `region` explicitly (including all consumers of `gcp/modules/*`), there is no impact.
 - To actually move an existing deployment to `us-east1`, treat it as a new deployment plus a data migration. GCP cannot relocate these resources in place, so there is no in-place `terraform apply` path between regions.
 - `gcp/README.md`'s `node_locations` examples now use `us-east1-b` and `us-east1-d`. `node_locations` must name zones inside the cluster's region. The module only regex-checks the `region-zone` string shape, so copies of the old `us-central1-*` examples pass `terraform validate` and `plan` and then fail at apply from the GKE API. Note `us-east1` has no `-a` zone.
+
+##### Minimum Terraform Version
+
+The default floor of terraform is now 1.10 which was released before 2025-01-01.
+This fixes some buggy behavior with source references that contain a `/` in the tag name.
+The recommended version remains any stable version of terraform: 1.14 and 1.15 at this time.
 
 #### v8.0.0
 

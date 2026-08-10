@@ -7,5 +7,22 @@
   "labels": [
     "regenerate-docs",
     "dependencies"
+  ],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Keep the Terraform CLI that hashicorp/setup-terraform installs in sync with the latest release. Every workflow pins the same exact version, and nothing else updates it — the github-actions manager only maintains the `uses:` ref, not the action's inputs, so without this the CLI silently ages while the actions around it stay current. Matched by key name rather than by a `# renovate:` annotation so that a newly added workflow is covered without anyone remembering to annotate it.",
+      "managerFilePatterns": [
+        "/^\\.github/workflows/[^/]+\\.ya?ml$/"
+      ],
+      "matchStrings": [
+        "terraform_version:\\s*[\"'](?<currentValue>[^\"'\\s]+)[\"']"
+      ],
+      "depNameTemplate": "terraform",
+      "packageNameTemplate": "hashicorp/terraform",
+      "datasourceTemplate": "github-releases",
+      "extractVersionTemplate": "^v(?<version>.+)$",
+      "versioningTemplate": "semver"
+    }
   ]
 }
