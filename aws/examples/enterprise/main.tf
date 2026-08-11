@@ -111,7 +111,12 @@ module "base_node_group" {
   cluster_primary_security_group_id = module.eks.node_security_group_id
   aws_region                        = var.aws_region
   aws_profile                       = var.aws_profile
-  tags                              = var.tags
+  # Resolved at the root so they are known at plan time; a module-level
+  # depends_on defers data sources inside the module (see the eks-node-group
+  # partition variable description).
+  partition  = data.aws_partition.current.partition
+  account_id = data.aws_caller_identity.current.account_id
+  tags       = var.tags
 
   depends_on = [module.vpc_cni]
 }
@@ -830,3 +835,4 @@ locals {
 }
 
 data "aws_caller_identity" "current" {}
+data "aws_partition" "current" {}

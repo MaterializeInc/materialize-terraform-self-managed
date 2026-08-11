@@ -144,3 +144,17 @@ variable "iam_permissions_boundary" {
   type        = string
   default     = null
 }
+
+variable "partition" {
+  description = "AWS partition (e.g. from a root-level aws_partition data source). Strongly recommended when this module call carries a depends_on: without it the upstream module looks the partition up via a count-gated data source, which a module-level depends_on defers to apply time, failing the plan with 'Invalid count argument' whenever the depended-on module has pending changes."
+  type        = string
+  default     = ""
+  nullable    = false
+}
+
+variable "account_id" {
+  description = "AWS account ID (e.g. from a root-level aws_caller_identity data source). Same rationale as partition."
+  type        = string
+  default     = ""
+  nullable    = false
+}
