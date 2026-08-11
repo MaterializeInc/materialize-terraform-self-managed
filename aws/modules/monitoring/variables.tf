@@ -212,7 +212,7 @@ variable "grafana_database" {
     permissions, preferences, and alert-rule state in a database separate from the observability
     data in Loki and Thanos. The chart default is SQLite on an `emptyDir`, so all of it is lost on
     every restart, upgrade, and reschedule. That is tolerable while Grafana is reached through
-    `port-forward` and not once it is exposed, which is why this and `grafana_ingress` belong in
+    `port-forward` and not once it is exposed, which is why this and `grafana_load_balancer` belong in
     the same change.
 
     Dedicated rather than a database inside the Materialize RDS instance, deliberately: RDS has no
@@ -308,70 +308,60 @@ variable "grafana_database_ssl_mode" {
 # Grafana ingress
 # ==============================================================================
 
-variable "grafana_ingress" {
+variable "grafana_load_balancer" {
   description = <<-EOT
-    Expose Grafana through an ALB, provisioned by the AWS Load Balancer Controller from an
-    Ingress the chart renders.
-
-    Ingress rather than this repo's `nlb` module: Grafana is ordinary HTTP wanting host-based
-    routing and a certificate, which is what the controller builds an ALB for. The `nlb` module
-    exists for the Materialize console, whose OIDC redirect and port constraints pushed it onto
-    443 with a target group; none of that applies here. The controller must already be installed —
+    Expose Grafana through a Network Load Balancer, provisioned by the AWS Load Balancer Controller
+    from the `LoadBalancer` Service the chart renders. The controller must already be installed —
     the examples install it as `module.aws_lbc`.
 
-    Internal by default, and public requires an allowlist that is *enforced* rather than merely
-    defaulted, matching the `nlb` module. `ingress_cidr_blocks` becomes
-    `alb.ingress.kubernetes.io/inbound-cidrs`; on an internal load balancer pass your VPC CIDR.
+    L4, matching the GCP and Azure wrappers and the Materialize console. An earlier revision used an
+    Ingress here, which the controller turns into an L7 ALB — but that made AWS the only cloud
+    running L7 while a `Service` on GKE and AKS can only ever produce L4, so the three disagreed
+    about what "exposed" meant. L7 is the better end state for a public Grafana, because a WAF and
+    edge authentication are the two things L4 cannot do at all; it is deferred rather than rejected.
+    See the design note in the repository README.
 
-    Set `certificate_arn` unless TLS is terminated somewhere else. Grafana authenticates with a
-    session cookie, so without TLS that cookie and the admin password cross the network in the
-    clear, and the chart warns about exactly that.
+    Internal by default, and `ingress_cidr_blocks` is required rather than defaulted: it becomes
+    `loadBalancerSourceRanges` on the Service, and the chart refuses to render a `LoadBalancer` with
+    no allowlist. On an internal load balancer pass your VPC CIDR; the chart cannot see the scheme
+    annotation, so the allowlist is what makes the intent legible to it.
 
-    DNS for `host` is yours to create — neither the Ingress nor the controller publishes it.
+    `host` is optional because an NLB answers on a DNS name of its own. Set it once your own DNS
+    exists — Grafana builds share links, alert notification links, and OAuth redirect URIs from
+    `root_url`, and the chart warns while it is unset.
+
+    **This does not terminate TLS.** An NLB passes bytes through, so Grafana serves plain HTTP until
+    something in front of it, or Grafana itself, is given a certificate — which is DEP-195's work.
+    Until then the chart warns, and `root_url`/`security.cookie_secure` are yours to set through
+    `additional_values` if you do put a terminator in front.
 
     Null leaves Grafana on a ClusterIP Service, reachable only with `kubectl port-forward`.
   EOT
 
   type = object({
-    host = string
+    ingress_cidr_blocks = list(string)
 
-    internal            = optional(bool, true)
-    ingress_cidr_blocks = optional(list(string), null)
-    certificate_arn     = optional(string, null)
-    ingress_class_name  = optional(string, "alb")
-    subnet_ids          = optional(list(string), null)
-    annotations         = optional(map(string), {})
+    internal    = optional(bool, true)
+    host        = optional(string, null)
+    annotations = optional(map(string), {})
   })
 
   default = null
 
   validation {
-    condition = var.grafana_ingress == null ? true : (
-      var.grafana_ingress.internal ? true : (
-        var.grafana_ingress.ingress_cidr_blocks == null ? false : (
-          length(var.grafana_ingress.ingress_cidr_blocks) > 0 && alltrue([
-            for cidr in var.grafana_ingress.ingress_cidr_blocks : can(cidrhost(cidr, 0))
-          ])
-        )
-      )
-    )
-    error_message = "grafana_ingress.ingress_cidr_blocks must be provided and contain valid CIDR notation when exposing Grafana publicly (internal = false)."
-  }
-
-  validation {
-    condition = var.grafana_ingress == null ? true : (
-      var.grafana_ingress.ingress_cidr_blocks == null || alltrue([
-        for cidr in var.grafana_ingress.ingress_cidr_blocks : can(cidrhost(cidr, 0))
+    condition = var.grafana_load_balancer == null ? true : (
+      length(var.grafana_load_balancer.ingress_cidr_blocks) > 0 && alltrue([
+        for cidr in var.grafana_load_balancer.ingress_cidr_blocks : can(cidrhost(cidr, 0))
       ])
     )
-    error_message = "grafana_ingress.ingress_cidr_blocks must contain valid CIDR notation."
+    error_message = "grafana_load_balancer.ingress_cidr_blocks must be non-empty and contain valid CIDR notation. On an internal load balancer, pass your VPC CIDR."
   }
 
   validation {
-    condition = var.grafana_ingress == null ? true : (
-      var.grafana_ingress.internal
+    condition = var.grafana_load_balancer == null ? true : (
+      var.grafana_load_balancer.internal
       || !anytrue([
-        for cidr in coalesce(var.grafana_ingress.ingress_cidr_blocks, []) :
+        for cidr in coalesce(var.grafana_load_balancer.ingress_cidr_blocks, []) :
         contains(["0.0.0.0/0", "::/0"], trimspace(cidr))
       ])
       # The acknowledgement is the chart's own `connections.grafana.allowPublicAccess`,
@@ -384,7 +374,7 @@ variable "grafana_ingress" {
       ])
     )
     error_message = <<-EOT
-      grafana_ingress is public (internal = false) with an unrestricted allowlist (0.0.0.0/0 or ::/0).
+      grafana_load_balancer is public (internal = false) with an unrestricted allowlist (0.0.0.0/0 or ::/0).
       Narrow ingress_cidr_blocks to the ranges that should reach Grafana.
       Every datasource behind Grafana reads every metric in Thanos and every log in the tenant, and
       until an identity provider is configured the generated admin password is the whole of the

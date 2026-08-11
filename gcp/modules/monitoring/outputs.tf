@@ -11,7 +11,7 @@ output "grafana_url" {
 
     A load balancer's address is assigned asynchronously, so immediately after the first apply this
     can still report the in-cluster name; the next plan picks it up. Nothing here publishes DNS for a
-    hostname you supply.
+    hostname you supply. Always `http`: an L4 load balancer terminates no TLS.
   EOT
   value = (
     try(var.grafana_load_balancer.host, null) != null

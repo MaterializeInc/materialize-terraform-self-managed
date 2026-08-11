@@ -4,8 +4,26 @@ output "namespace" {
 }
 
 output "grafana_url" {
-  description = "URL for Grafana: the external one when `grafana_ingress` is set, the in-cluster Service otherwise — in which case reaching it means a port-forward. DNS for an external host is yours to create; nothing here publishes it."
-  value       = var.grafana_ingress == null ? module.monitoring.grafana_url : "${local.grafana_scheme}://${var.grafana_ingress.host}"
+  description = <<-EOT
+    Where Grafana answers, in preference order: the hostname you supplied, else the load balancer's
+    own address once AWS has assigned one, else the in-cluster Service — which means a port-forward.
+
+    A load balancer's address is assigned asynchronously, so immediately after the first apply this
+    can still report the in-cluster name; the next plan picks it up. Always `http`: the NLB
+    terminates no TLS. Nothing here publishes DNS for a hostname you supply.
+  EOT
+  value = (
+    try(var.grafana_load_balancer.host, null) != null
+    ? "${local.grafana_scheme}://${var.grafana_load_balancer.host}"
+    : local.grafana_load_balancer_address != null
+    ? "${local.grafana_scheme}://${local.grafana_load_balancer_address}"
+    : module.monitoring.grafana_url
+  )
+}
+
+output "grafana_load_balancer_address" {
+  description = "The Grafana load balancer's DNS name or IP, or null when it is not exposed or AWS has not assigned one yet."
+  value       = local.grafana_load_balancer_address
 }
 
 output "grafana_admin_password" {

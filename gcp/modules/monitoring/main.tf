@@ -394,7 +394,15 @@ locals {
 # ==============================================================================
 
 locals {
-  grafana_scheme = try(var.grafana_load_balancer.tls, false) ? "https" : "http"
+  # Plain http, always. A GCP load balancer from a Service is L4 — it passes
+  # bytes through and terminates nothing — so claiming https here would only
+  # advertise a scheme that does not answer. Worse, the `cookie_secure` that
+  # used to come with it made the session cookie unsendable over the
+  # connection that does work, so nobody could log in.
+  #
+  # Put a terminator in front, or give Grafana its own certificate (DEP-195),
+  # and set `root_url` plus `security.cookie_secure` through `additional_values`.
+  grafana_scheme = "http"
 
   grafana_service_annotations = var.grafana_load_balancer == null ? {} : merge(
     {
@@ -414,19 +422,12 @@ locals {
         }
       },
       var.grafana_load_balancer.host == null ? {} : {
-        "grafana.ini" = merge(
-          {
-            # Grafana builds share links, alert notification links, and OAuth
-            # redirect URIs from this. All three break silently when it
-            # disagrees with the host users actually reach.
-            server = { root_url = "${local.grafana_scheme}://${var.grafana_load_balancer.host}" }
-          },
-          local.grafana_scheme != "https" ? {} : {
-            # Only once TLS is real: set without it the session cookie is never
-            # sent and nobody can log in.
-            security = { cookie_secure = true }
-          },
-        )
+        "grafana.ini" = {
+          # Grafana builds share links, alert notification links, and OAuth
+          # redirect URIs from this. All three break silently when it disagrees
+          # with the host users actually reach.
+          server = { root_url = "${local.grafana_scheme}://${var.grafana_load_balancer.host}" }
+        }
       },
     )
   })]

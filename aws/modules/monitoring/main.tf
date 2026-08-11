@@ -29,12 +29,14 @@
 #     blocks per downsampling resolution (raw / 5m / 1h), so a bucket rule
 #     expiring sooner deletes blocks the compactor still references. Use those
 #     two only as a backstop above what the compactors already do.
-#   * Grafana is ClusterIP until `grafana_ingress` is set, so `grafana_url` is
-#     in-cluster by default: reach it with
+#   * Grafana is ClusterIP until `grafana_load_balancer` is set, so `grafana_url`
+#     is in-cluster by default: reach it with
 #     `kubectl -n monitoring port-forward svc/grafana 3000:80` and
-#     `terraform output -raw grafana_admin_password`. With `grafana_ingress`,
-#     `grafana_url` becomes the external URL and DNS for that name is yours.
-#   * `grafana_ingress` and `grafana_database` belong together. Exposing Grafana
+#     `terraform output -raw grafana_admin_password`. With a load balancer,
+#     `grafana_url` names its address, and DNS for any hostname is yours.
+#   * That load balancer is an L4 NLB, matching GCP, Azure, and the Materialize
+#     console. It terminates no TLS — see `grafana_load_balancer`.
+#   * `grafana_load_balancer` and `grafana_database` belong together. Exposing Grafana
 #     without a durable backend turns a bundled extra nobody depended on into the
 #     primary interface to the stack — one that discards every dashboard,
 #     annotation, and API token its users create on the next restart.
@@ -386,61 +388,85 @@ locals {
 }
 
 # ==============================================================================
-# Grafana ingress
+# Grafana load balancer
 # ==============================================================================
 
 locals {
-  # TLS terminates at the ALB against an ACM certificate. Without one the
-  # listener is plain HTTP, and `root_url` has to say so or every share link and
-  # OAuth redirect Grafana builds points at a scheme that does not answer.
-  grafana_scheme = try(var.grafana_ingress.certificate_arn, null) != null ? "https" : "http"
+  # Plain http, always. An NLB is L4 — it passes bytes through and terminates
+  # nothing — so claiming https here would only advertise a scheme that does not
+  # answer, and the `cookie_secure` that would come with it makes the session
+  # cookie unsendable over the connection that does work.
+  #
+  # Put a terminator in front, or give Grafana its own certificate (DEP-195), and
+  # set `root_url` plus `security.cookie_secure` through `additional_values`.
+  grafana_scheme = "http"
 
-  grafana_ingress_annotations = var.grafana_ingress == null ? {} : merge(
+  grafana_service_annotations = var.grafana_load_balancer == null ? {} : merge(
     {
-      "alb.ingress.kubernetes.io/scheme"           = var.grafana_ingress.internal ? "internal" : "internet-facing"
-      "alb.ingress.kubernetes.io/target-type"      = "ip"
-      "alb.ingress.kubernetes.io/healthcheck-path" = "/api/health"
-      "alb.ingress.kubernetes.io/listen-ports" = var.grafana_ingress.certificate_arn == null ? (
-        jsonencode([{ HTTP = 80 }])
-      ) : jsonencode([{ HTTPS = 443 }])
+      # `external` is what hands the Service to the AWS Load Balancer Controller
+      # rather than the in-tree provider, which is the difference between an NLB
+      # and a legacy Classic ELB. `ip` targets the pods directly, skipping the
+      # NodePort hop, and matches the target type the console's NLB module uses.
+      "service.beta.kubernetes.io/aws-load-balancer-type"                 = "external"
+      "service.beta.kubernetes.io/aws-load-balancer-nlb-target-type"      = "ip"
+      "service.beta.kubernetes.io/aws-load-balancer-scheme"               = var.grafana_load_balancer.internal ? "internal" : "internet-facing"
+      "service.beta.kubernetes.io/aws-load-balancer-healthcheck-protocol" = "HTTP"
+      "service.beta.kubernetes.io/aws-load-balancer-healthcheck-path"     = "/api/health"
     },
-    var.grafana_ingress.certificate_arn == null ? {} : {
-      "alb.ingress.kubernetes.io/certificate-arn" = var.grafana_ingress.certificate_arn
-    },
-    var.grafana_ingress.ingress_cidr_blocks == null ? {} : {
-      "alb.ingress.kubernetes.io/inbound-cidrs" = join(",", var.grafana_ingress.ingress_cidr_blocks)
-    },
-    var.grafana_ingress.subnet_ids == null ? {} : {
-      "alb.ingress.kubernetes.io/subnets" = join(",", var.grafana_ingress.subnet_ids)
-    },
-    var.grafana_ingress.annotations,
+    var.grafana_load_balancer.annotations,
   )
 
-  grafana_ingress_values = var.grafana_ingress == null ? [] : [yamlencode({
-    grafana = {
-      ingress = {
-        enabled          = true
-        ingressClassName = var.grafana_ingress.ingress_class_name
-        hosts            = [var.grafana_ingress.host]
-        annotations      = local.grafana_ingress_annotations
-      }
-      "grafana.ini" = merge(
-        {
-          server = {
-            # Grafana builds share links, alert notification links, and OAuth
-            # redirect URIs from this. All three break silently when it
-            # disagrees with the host users actually reach.
-            root_url = "${local.grafana_scheme}://${var.grafana_ingress.host}"
-          }
-        },
-        local.grafana_scheme != "https" ? {} : {
-          # Only once TLS is real: set on a plain-HTTP listener the session
-          # cookie is never sent and nobody can log in.
-          security = { cookie_secure = true }
-        },
-      )
-    }
+  grafana_load_balancer_values = var.grafana_load_balancer == null ? [] : [yamlencode({
+    grafana = merge(
+      {
+        service = {
+          type                     = "LoadBalancer"
+          annotations              = local.grafana_service_annotations
+          loadBalancerSourceRanges = var.grafana_load_balancer.ingress_cidr_blocks
+        }
+      },
+      var.grafana_load_balancer.host == null ? {} : {
+        "grafana.ini" = {
+          # Grafana builds share links, alert notification links, and OAuth
+          # redirect URIs from this. All three break silently when it disagrees
+          # with the host users actually reach.
+          server = { root_url = "${local.grafana_scheme}://${var.grafana_load_balancer.host}" }
+        }
+      },
+    )
   })]
+}
+
+# The load balancer's own address, so `grafana_url` can name where Grafana
+# actually answers rather than falling back to the in-cluster Service whenever no
+# hostname was supplied.
+#
+# A data source rather than a resource attribute: the Service is created by Helm
+# inside the monitoring module, so Terraform has no handle on it. Read after that
+# module, and tolerant of an address that is not assigned yet — the cloud
+# provisions the load balancer asynchronously, so the first apply can complete
+# before one exists. `grafana_url` degrades to the in-cluster name in that
+# window, and the next plan picks the address up.
+data "kubernetes_service" "grafana" {
+  count = var.grafana_load_balancer == null ? 0 : 1
+
+  metadata {
+    # The chart pins `grafana.fullnameOverride`, so the name is static.
+    name      = "grafana"
+    namespace = var.namespace
+  }
+
+  depends_on = [module.monitoring]
+}
+
+locals {
+  # An NLB reports a `hostname`; the `ip` branch is there for a Service given a
+  # static address by annotation.
+  grafana_load_balancer_address = one([
+    for ing in try(data.kubernetes_service.grafana[0].status[0].load_balancer[0].ingress, []) :
+    coalesce(try(ing.hostname, null), try(ing.ip, null))
+    if coalesce(try(ing.hostname, null), try(ing.ip, null), "") != ""
+  ])
 }
 
 # ==============================================================================
@@ -524,7 +550,7 @@ module "monitoring" {
 
   # Ingress values ahead of the caller's, so `additional_values` still overrides
   # anything computed here.
-  additional_values = concat(local.grafana_ingress_values, var.additional_values)
+  additional_values = concat(local.grafana_load_balancer_values, var.additional_values)
 
   depends_on = [
     aws_iam_role_policy.telemetry,

@@ -96,3 +96,9 @@ variable "enable_grafana_database" {
   default     = true
   nullable    = false
 }
+
+variable "grafana_host" {
+  description = "Hostname to reach Grafana on. Optional: the load balancer answers on its own DNS name regardless, but Grafana builds share links, alert notification links, and OAuth redirect URIs from `root_url`, which is only correct once this is set. DNS for the name is yours to create."
+  type        = string
+  default     = null
+}

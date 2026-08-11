@@ -580,18 +580,14 @@ module "monitoring" {
     skip_final_snapshot = false
   } : null
 
-  # An ALB through the load-balancer controller installed above. Internal by
-  # default, following the same two root variables the Materialize NLB uses.
-  #
-  # Gated on `grafana_host`, unlike the GCP and Azure examples which pass their
-  # `grafana_load_balancer` unconditionally. An ALB comes from an Ingress here,
-  # and an Ingress with no hosts renders no rules and routes nothing — so on AWS
-  # a hostname is what exposure *is*, not an optional refinement of it.
-  grafana_ingress = var.grafana_host == null ? null : {
-    host                = var.grafana_host
+  # An NLB through the load-balancer controller installed above, matching the GCP
+  # and Azure examples and the Materialize console. Always passed, following the
+  # same two root variables those load balancers already use; `host` is optional
+  # because an NLB answers on a DNS name of its own.
+  grafana_load_balancer = {
     internal            = var.internal_load_balancer
-    certificate_arn     = var.grafana_certificate_arn
     ingress_cidr_blocks = var.ingress_cidr_blocks
+    host                = var.grafana_host
   }
 
   tags = var.tags

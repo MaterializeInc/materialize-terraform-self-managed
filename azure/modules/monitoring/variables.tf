@@ -317,7 +317,6 @@ variable "grafana_load_balancer" {
 
     internal    = optional(bool, true)
     host        = optional(string, null)
-    tls         = optional(bool, false)
     annotations = optional(map(string), {})
   })
 
@@ -332,12 +331,6 @@ variable "grafana_load_balancer" {
     error_message = "grafana_load_balancer.ingress_cidr_blocks must be non-empty and contain valid CIDR notation. On an internal load balancer, pass your VNet CIDR."
   }
 
-  validation {
-    condition = var.grafana_load_balancer == null ? true : (
-      !var.grafana_load_balancer.tls || var.grafana_load_balancer.host != null
-    )
-    error_message = "grafana_load_balancer.host is required when tls is true: root_url and the certificate both need the hostname."
-  }
 
   validation {
     condition = var.grafana_load_balancer == null ? true : (

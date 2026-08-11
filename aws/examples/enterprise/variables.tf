@@ -184,9 +184,3 @@ variable "grafana_host" {
   type        = string
   default     = null
 }
-
-variable "grafana_certificate_arn" {
-  description = "ACM certificate ARN for the Grafana ALB listener. Null serves plain HTTP, which means Grafana's session cookie and admin password cross the network in the clear — acceptable only on an internal load balancer you trust, and the chart warns either way."
-  type        = string
-  default     = null
-}

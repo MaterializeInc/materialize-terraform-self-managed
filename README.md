@@ -219,16 +219,17 @@ Dedicated rather than a database inside the Materialize instance, for reasons th
 
 The default sizes (`db.t4g.micro`, `db-f1-micro`, `B_Standard_B1ms`) are deliberate: Grafana's state is small and its query rate is a handful per page load. This is a durability decision, not a capacity one. Pass `grafana_database_host` and friends instead to point at a database you already run.
 
-**`grafana_ingress`** (AWS) / **`grafana_load_balancer`** (GCP, Azure) makes Grafana reachable. The split is not L7-versus-L4 — an Ingress and an annotated `LoadBalancer` Service both ask the cloud for a load balancer, and both can terminate TLS in front of Grafana. It follows what each platform's controllers actually consume: AWS goes through the Load Balancer Controller the examples already install, while GKE and AKS take the Service, matching what their `load_balancers` modules already do for the Materialize console.
+**`grafana_load_balancer`** makes Grafana reachable, on all three clouds, through the `LoadBalancer` Service the chart renders. That is an **L4** load balancer everywhere — an NLB on AWS, a passthrough NLB on GCP, an Azure Load Balancer — matching the Materialize console and balancerd.
 
-Both are **internal by default**, and both take `internal_load_balancer` and `ingress_cidr_blocks` — the same two root variables the Materialize console and balancerd load balancers already use, with the `validation` block posture copied from `aws/modules/nlb`.
+An earlier revision used an Ingress on AWS, which the load-balancer controller turns into an L7 ALB. That was dropped because it made AWS the only cloud running L7: a `Service` on GKE or AKS can only ever produce L4, so the three wrappers disagreed about what "exposed" meant, and a `tls` flag on the L4 side advertised HTTPS that nothing terminated.
 
-They differ in one way worth knowing, because Kubernetes forces it:
+**L7 is the better end state for a public Grafana** — a WAF and authentication at the edge are the two things L4 cannot do at all, and a managed load balancer terminates TLS more reliably than a pod does. It is deferred, not rejected, for two reasons: Azure needs an Application Gateway for Containers module that does not exist yet, and the chart's Gateway API support is still marked BETA, so adopting Ingress now would mean migrating twice. Revisit when either changes.
 
-| | Wired | Why |
-|---|---|---|
-| **GCP, Azure** | Unconditionally, alongside the Materialize load balancers | A `LoadBalancer` Service answers on an IP with no hostname, so there is nothing to gate on. `grafana_host` is optional and only fixes `root_url` |
-| **AWS** | Gated on `grafana_host` | The ALB comes from an Ingress, and an Ingress with no hosts renders no rules and routes nothing. A hostname *is* the exposure there |
+Consequences of L4 worth knowing now:
+
+- **Nothing terminates TLS.** Grafana serves plain HTTP until something in front of it, or Grafana itself, holds a certificate — which is [DEP-195](https://linear.app/materializeinc/issue/DEP-195)'s work. Until then `grafana_url` is `http://`, and the chart warns.
+- **Health checks are TCP** on GCP and Azure, so a wedged-but-listening Grafana keeps receiving traffic. The AWS annotations do set an HTTP check against `/api/health`.
+- **No request-timeout ceiling**, which is the upside: long Thanos and Loki panel queries are not cut off by an L7 backend timeout.
 
 Neither publishes DNS. Any hostname you pass is yours to create, and an ACME challenge against a name that does not resolve is the usual way that gets noticed.
 

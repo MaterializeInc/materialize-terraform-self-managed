@@ -595,6 +595,15 @@ module "monitoring" {
     node_security_group_id    = module.eks.node_security_group_id
   } : null
 
+  # An NLB through the load-balancer controller installed above, matching the GCP
+  # and Azure examples and the Materialize console. `host` is optional because an
+  # NLB answers on a DNS name of its own.
+  grafana_load_balancer = {
+    internal            = var.internal_load_balancer
+    ingress_cidr_blocks = var.ingress_cidr_blocks
+    host                = var.grafana_host
+  }
+
   tags = var.tags
 
   depends_on = [

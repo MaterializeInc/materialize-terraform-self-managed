@@ -163,6 +163,8 @@ Grafana is deployed in the `monitoring` namespace with pre-configured Materializ
 
 Its own state — users, service accounts and tokens, annotations, and dashboard versions created through the UI — is kept in a dedicated `db.t4g.micro` RDS instance, provisioned whenever `enable_observability` is on. Set `enable_grafana_database = false` to skip it and accept losing that state on every pod restart.
 
+Grafana also gets a Network Load Balancer whenever `enable_observability` is on — internal by default, following the same `internal_load_balancer` and `ingress_cidr_blocks` variables as the Materialize load balancer. Read its address from the Service, or set `grafana_host` so Grafana's own links are correct too. It terminates no TLS, so the port-forward below stays the private path.
+
 #### Port Forwarding
 
 ```bash
