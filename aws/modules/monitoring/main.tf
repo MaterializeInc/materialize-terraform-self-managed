@@ -358,7 +358,32 @@ module "monitoring" {
     }
   }
 
-  additional_values = var.additional_values
+  # The first document works around a bug in the pinned materialize-monitoring
+  # module: on AWS it renders Loki's object_store without the S3 endpoint and
+  # region (it passes them to Thanos only), and Loki's thanos-objstore client
+  # requires an explicit endpoint, so every Loki component crash-loops at
+  # startup with "no s3 endpoint in config file". Remove once the upstream
+  # module renders these itself. Prepended so callers' additional_values can
+  # still override it.
+  additional_values = concat(
+    [
+      yamlencode({
+        loki = {
+          loki = {
+            storage = {
+              object_store = {
+                s3 = {
+                  endpoint = "s3.${var.region}.amazonaws.com"
+                  region   = var.region
+                }
+              }
+            }
+          }
+        }
+      })
+    ],
+    var.additional_values,
+  )
 
   depends_on = [
     aws_iam_role_policy.telemetry,
