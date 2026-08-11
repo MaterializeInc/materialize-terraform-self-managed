@@ -207,8 +207,8 @@ module "monitoring" {
   # Explicit rather than inferred from host/password: both are computed here — an
   # instance endpoint and a generated password — so the module cannot decide
   # whether they exist at plan time. These two conditions are plan-known.
-  grafana_database_enabled                = local.grafana_database_creating || var.grafana_database_host != null
-  grafana_database_manage_password_secret = local.grafana_database_creating || var.grafana_database_password != null
+  grafana_database_enabled                = local.create_grafana_database || var.grafana_database_host != null
+  grafana_database_manage_password_secret = local.create_grafana_database || var.grafana_database_password != null
 
   grafana_database_host     = local.grafana_database_host
   grafana_database_port     = local.grafana_database_port
@@ -292,7 +292,7 @@ module "grafana_database" {
 }
 
 locals {
-  grafana_database_creating = var.grafana_database != null
+  create_grafana_database = var.grafana_database != null
 
   # A caller-supplied password wins in both modes; the random one only fills the
   # gap when this module creates the instance and was given none.
@@ -307,14 +307,14 @@ locals {
     : one(random_password.grafana_database[*].result)
   )
 
-  grafana_database_host = local.grafana_database_creating ? (
+  grafana_database_host = local.create_grafana_database ? (
     module.grafana_database[0].server_fqdn
   ) : var.grafana_database_host
 
-  grafana_database_port = local.grafana_database_creating ? 5432 : var.grafana_database_port
+  grafana_database_port = local.create_grafana_database ? 5432 : var.grafana_database_port
 
   grafana_database_effective_password = (
-    local.grafana_database_creating ? local.grafana_database_password : var.grafana_database_password
+    local.create_grafana_database ? local.grafana_database_password : var.grafana_database_password
   )
 }
 
