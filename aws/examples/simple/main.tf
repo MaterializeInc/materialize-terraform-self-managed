@@ -587,13 +587,13 @@ module "monitoring" {
   # `skip_final_snapshot` stays at the module default (true) here, matching this
   # example's throwaway posture — the same reason `bucket_force_destroy` is on
   # and bucket versioning is off.
-  grafana_database = var.enable_grafana_database ? {
+  grafana_database = {
     vpc_id                    = module.networking.vpc_id
     subnet_ids                = module.networking.private_subnet_ids
     cluster_name              = module.eks.cluster_name
     cluster_security_group_id = module.eks.cluster_security_group_id
     node_security_group_id    = module.eks.node_security_group_id
-  } : null
+  }
 
   # An NLB through the load-balancer controller installed above, matching the GCP
   # and Azure examples and the Materialize console. `host` is optional because an

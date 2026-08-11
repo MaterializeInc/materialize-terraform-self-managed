@@ -459,9 +459,9 @@ module "monitoring" {
 
   # A dedicated Cloud SQL instance for Grafana's own state, so dashboards and API
   # tokens created in the UI survive a pod restart.
-  grafana_database = var.enable_grafana_database ? {
+  grafana_database = {
     network_id = module.networking.network_id
-  } : null
+  }
 
   # Always passed, following the same two root variables the Materialize console
   # and balancerd load balancers already use. Internal by default; `host` is

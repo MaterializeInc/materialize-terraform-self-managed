@@ -415,11 +415,18 @@ locals {
   grafana_load_balancer_values = var.grafana_load_balancer == null ? [] : [yamlencode({
     grafana = merge(
       {
-        service = {
-          type                     = "LoadBalancer"
-          annotations              = local.grafana_service_annotations
-          loadBalancerSourceRanges = var.grafana_load_balancer.ingress_cidr_blocks
-        }
+        service = merge(
+          {
+            type                     = "LoadBalancer"
+            annotations              = local.grafana_service_annotations
+            loadBalancerSourceRanges = var.grafana_load_balancer.ingress_cidr_blocks
+          },
+          # Pre-allocated, so the address is known at plan time and the module
+          # never has to read the Service back to find out where Grafana answers.
+          var.grafana_load_balancer.ip == null ? {} : {
+            loadBalancerIP = var.grafana_load_balancer.ip
+          },
+        )
       },
       var.grafana_load_balancer.host == null ? {} : {
         "grafana.ini" = {
@@ -444,7 +451,9 @@ locals {
 # before an IP exists. `grafana_url` degrades to the in-cluster name in that
 # window, and the next plan picks the address up.
 data "kubernetes_service" "grafana" {
-  count = var.grafana_load_balancer == null ? 0 : 1
+  # Not read at all when the address was pre-allocated — that is the whole point
+  # of supplying one. Both conditions are plan-known, so this can gate a `count`.
+  count = var.grafana_load_balancer == null || var.grafana_load_balancer.ip != null ? 0 : 1
 
   metadata {
     # The chart pins `grafana.fullnameOverride`, so the name is static.
@@ -458,9 +467,11 @@ data "kubernetes_service" "grafana" {
 locals {
   # GCP and Azure hand out an IP; the `hostname` branch is there because a
   # cloud-specific annotation can produce one instead.
-  grafana_load_balancer_address = one([
-    for ing in try(data.kubernetes_service.grafana[0].status[0].load_balancer[0].ingress, []) :
-    coalesce(try(ing.hostname, null), try(ing.ip, null))
-    if coalesce(try(ing.hostname, null), try(ing.ip, null), "") != ""
+  grafana_load_balancer_address = try(var.grafana_load_balancer.ip, null) != null ? (
+    var.grafana_load_balancer.ip
+    ) : one([
+      for ing in try(data.kubernetes_service.grafana[0].status[0].load_balancer[0].ingress, []) :
+      coalesce(try(ing.hostname, null), try(ing.ip, null))
+      if coalesce(try(ing.hostname, null), try(ing.ip, null), "") != ""
   ])
 }

@@ -568,7 +568,7 @@ module "monitoring" {
   # A dedicated RDS instance for Grafana's own state. RDS has no API for adding
   # a database to an existing instance, so this is separate from
   # `module.database` rather than a second database inside it.
-  grafana_database = var.enable_grafana_database ? {
+  grafana_database = {
     vpc_id                    = module.networking.vpc_id
     subnet_ids                = module.networking.private_subnet_ids
     cluster_name              = module.eks.cluster_name
@@ -578,7 +578,7 @@ module "monitoring" {
     # Unlike the `simple` example, leave a recovery snapshot behind on destroy.
     # This holds every service-account token and alert rule anyone built.
     skip_final_snapshot = false
-  } : null
+  }
 
   # An NLB through the load-balancer controller installed above, matching the GCP
   # and Azure examples and the Materialize console. Always passed, following the

@@ -413,6 +413,13 @@ locals {
       "service.beta.kubernetes.io/aws-load-balancer-healthcheck-protocol" = "HTTP"
       "service.beta.kubernetes.io/aws-load-balancer-healthcheck-path"     = "/api/health"
     },
+    var.grafana_load_balancer.ip == null ? {} : {
+      # An NLB takes its addresses by annotation rather than `loadBalancerIP`:
+      # one per subnet, so both of these are comma-separated lists.
+      (var.grafana_load_balancer.internal
+        ? "service.beta.kubernetes.io/aws-load-balancer-private-ipv4-addresses"
+      : "service.beta.kubernetes.io/aws-load-balancer-eip-allocations") = var.grafana_load_balancer.ip
+    },
     var.grafana_load_balancer.annotations,
   )
 
@@ -448,6 +455,10 @@ locals {
 # before one exists. `grafana_url` degrades to the in-cluster name in that
 # window, and the next plan picks the address up.
 data "kubernetes_service" "grafana" {
+  # Still read even when `ip` is set, unlike GCP and Azure: an NLB is reached by
+  # its generated DNS name, and pinning its addresses does not make that name
+  # predictable. On AWS, determinism comes from `host` — your own record
+  # pointing at the NLB — not from the addresses.
   count = var.grafana_load_balancer == null ? 0 : 1
 
   metadata {

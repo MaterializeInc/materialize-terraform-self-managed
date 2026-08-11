@@ -515,9 +515,9 @@ module "monitoring" {
   # A dedicated Cloud SQL instance for Grafana's own state, separate from
   # `module.database` so Grafana's blast radius stays away from Materialize's
   # metadata.
-  grafana_database = var.enable_grafana_database ? {
+  grafana_database = {
     network_id = module.networking.network_id
-  } : null
+  }
 
   # Always passed, following the same two root variables the Materialize console
   # and balancerd load balancers already use. Internal by default; `host` is

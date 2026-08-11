@@ -388,10 +388,10 @@ module "monitoring" {
   # tokens created in the UI survive a pod restart. Separate from
   # `module.database` because a Flexible Server has one administrator login and no
   # ARM resource for additional roles.
-  grafana_database = var.enable_grafana_database ? {
+  grafana_database = {
     subnet_id           = module.networking.postgres_subnet_id
     private_dns_zone_id = module.networking.private_dns_zone_id
-  } : null
+  }
 
   # Always passed, following the same two root variables the Materialize console
   # and balancerd load balancers already use. Internal by default; `host` is

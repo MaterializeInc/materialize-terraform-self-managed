@@ -477,10 +477,10 @@ module "monitoring" {
   # no ARM resource for additional roles, so sharing one would hand Grafana the
   # credentials that also own Materialize's metadata — the same reasoning that
   # gives Ory its own server above.
-  grafana_database = var.enable_grafana_database ? {
+  grafana_database = {
     subnet_id           = module.networking.postgres_subnet_id
     private_dns_zone_id = module.networking.private_dns_zone_id
-  } : null
+  }
 
   # Always passed, following the same two root variables the Materialize console
   # and balancerd load balancers already use. Internal by default; `host` is

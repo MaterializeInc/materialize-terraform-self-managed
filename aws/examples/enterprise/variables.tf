@@ -160,25 +160,6 @@ variable "materialize_version" {
   default     = null
 }
 
-variable "enable_grafana_database" {
-  description = <<-EOT
-    Give Grafana a dedicated PostgreSQL instance for its own state.
-
-    On by default, and it only applies when `enable_observability` is on — no observability stack
-    means no Grafana to keep state for. Without it Grafana keeps its users, service accounts and
-    tokens, annotations, dashboard versions, and preferences in SQLite on an `emptyDir`, and loses
-    all of it on every restart, upgrade, and reschedule.
-
-    It provisions the smallest instance the cloud offers, which is enough: Grafana's state is small
-    and its query rate is a handful per page load. Turn it off if you would rather accept losing
-    that state than pay for the instance, or point at a database you already run with the
-    monitoring module's `grafana_database_*` variables.
-  EOT
-  type        = bool
-  default     = true
-  nullable    = false
-}
-
 variable "grafana_host" {
   description = "Hostname to expose Grafana on. Null keeps it on a ClusterIP Service, reachable only with `kubectl port-forward`. Exposure follows `internal_load_balancer` and `ingress_cidr_blocks`, the same as the Materialize load balancer. DNS for this name is yours to create."
   type        = string

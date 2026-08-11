@@ -90,7 +90,6 @@ labels = {
 - `ingress_cidr_blocks`: List of CIDR blocks allowed to reach the LoadBalancer frontends (no effect when `internal_load_balancer = true`)
 - `internal_load_balancer`: Whether to use internal LBs (defaults to `true`). Set to `false` for prod-like demos validated against real DNS.
 - `enable_observability`: Enable Prometheus and Grafana monitoring stack (defaults to `true`)
-- `enable_grafana_database`: Give Grafana a dedicated Cloud SQL instance for its own state (defaults to `true`, and only applies when `enable_observability` is on). Without it Grafana keeps users, service accounts and tokens, annotations, dashboard versions, and preferences in SQLite on an `emptyDir` and loses all of it on every restart. Costs a `db-f1-micro`.
 - `grafana_host`: Hostname to reach Grafana on (defaults to `null`). The GCP load balancer is created either way and answers on an IP; setting this is what makes Grafana's `root_url` — and so its share links, alert notification links, and OAuth redirect URIs — correct. DNS for the name is yours to create. Exposure follows `internal_load_balancer` and `ingress_cidr_blocks`, the same as the Materialize load balancers.
 - `enable_polis`: Deploy Ory Polis alongside Kratos and Hydra (defaults to `false`). When `true`, also set `ory_polis_fqdn` and create the corresponding DNS record.
 - `ory_polis_fqdn`: Public hostname for Polis. Required when `enable_polis = true`.

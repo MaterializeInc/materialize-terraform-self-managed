@@ -207,7 +207,7 @@ Two opt-in additions to each cloud's monitoring module. They belong together: ex
 
 **`grafana_database`** provisions a **dedicated** PostgreSQL instance for Grafana's own state (users, service accounts and tokens, annotations, dashboard versions and permissions, preferences, alert-rule state). Without it Grafana keeps all of that in SQLite on an `emptyDir` and loses it on every restart, upgrade, and reschedule.
 
-> **This is on by default in both examples**, gated behind `enable_observability` — so a `simple` apply, where observability is off by default, creates nothing new, while an `enterprise` apply now provisions one additional small database instance. That is a deliberate move toward production-quality defaults: the alternative default silently discards everything a user builds in Grafana. Set `enable_grafana_database = false` to opt out, or point the monitoring module at a database you already run with `grafana_database_host` and friends.
+> **The examples always provision it**, gated only by `enable_observability` — so a `simple` apply, where observability is off by default, creates nothing new, while an `enterprise` apply provisions one additional small database instance. That is a deliberate move toward production-quality defaults: the alternative silently discards everything a user builds in Grafana. It is configured on the `monitoring` module block rather than through a root variable; set `grafana_database = null` there to opt out, or point at a database you already run with `grafana_database_host` and friends.
 
 Dedicated rather than a database inside the Materialize instance, for reasons that differ by cloud and happen to agree:
 

@@ -309,6 +309,12 @@ variable "grafana_load_balancer" {
     Grafana builds share links, alert notification links, and OAuth redirect URIs from
     `root_url`, and the chart warns while it is unset.
 
+    `ip` pre-allocates the address instead of letting Azure pick one. Supplying it is what makes
+    `grafana_url` known at plan time — without it the module has to read the Service back after
+    apply, which is why a fresh apply can still report the in-cluster name. For an internal load
+    balancer pass a free address from the AKS subnet; for a public one reserve an
+    `azurerm_public_ip` in the node resource group.
+
     Null leaves Grafana on a ClusterIP Service, reachable only with `kubectl port-forward`.
   EOT
 
@@ -317,6 +323,7 @@ variable "grafana_load_balancer" {
 
     internal    = optional(bool, true)
     host        = optional(string, null)
+    ip          = optional(string, null)
     annotations = optional(map(string), {})
   })
 

@@ -218,25 +218,6 @@ variable "enable_node_upgrade_rollout_trigger" {
   nullable    = false
 }
 
-variable "enable_grafana_database" {
-  description = <<-EOT
-    Give Grafana a dedicated PostgreSQL instance for its own state.
-
-    On by default, and it only applies when `enable_observability` is on — no observability stack
-    means no Grafana to keep state for. Without it Grafana keeps its users, service accounts and
-    tokens, annotations, dashboard versions, and preferences in SQLite on an `emptyDir`, and loses
-    all of it on every restart, upgrade, and reschedule.
-
-    It provisions the smallest instance the cloud offers, which is enough: Grafana's state is small
-    and its query rate is a handful per page load. Turn it off if you would rather accept losing
-    that state than pay for the instance, or point at a database you already run with the
-    monitoring module's `grafana_database_*` variables.
-  EOT
-  type        = bool
-  default     = true
-  nullable    = false
-}
-
 variable "grafana_host" {
   description = "Optional hostname to reach Grafana on. The load balancer is created regardless and answers on an IP; setting this configures Grafana's `root_url` for share links, alert notifications, and OAuth redirects. DNS for this name is yours to create."
   type        = string

@@ -326,6 +326,12 @@ variable "grafana_load_balancer" {
     Grafana builds share links, alert notification links, and OAuth redirect URIs from
     `root_url`, and the chart warns while it is unset.
 
+    `ip` pre-allocates the address instead of letting GCP pick one. Supplying it is what makes
+    `grafana_url` known at plan time — without it the module has to read the Service back after
+    apply, which is why a fresh apply can still report the in-cluster name. Reserve it with
+    `google_compute_address`: `INTERNAL` in the load balancer's subnetwork for an internal one,
+    `EXTERNAL` and regional otherwise.
+
     Null leaves Grafana on a ClusterIP Service, reachable only with `kubectl port-forward`.
   EOT
 
@@ -334,6 +340,7 @@ variable "grafana_load_balancer" {
 
     internal    = optional(bool, true)
     host        = optional(string, null)
+    ip          = optional(string, null)
     annotations = optional(map(string), {})
   })
 

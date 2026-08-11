@@ -335,6 +335,16 @@ variable "grafana_load_balancer" {
     Until then the chart warns, and `root_url`/`security.cookie_secure` are yours to set through
     `additional_values` if you do put a terminator in front.
 
+    `ip` pins the load balancer's addresses rather than letting AWS pick them, which is what makes
+    them safe to name in a firewall rule or a DNS record. On an internal NLB pass one private
+    address per subnet the load balancer lands in, each inside that subnet's CIDR; on an
+    internet-facing one pass Elastic IP allocation IDs. Both are comma-separated, matching the AWS
+    annotations they become.
+
+    It does **not** make `grafana_url` deterministic, unlike on GCP and Azure. An NLB is reached by a
+    generated DNS name that pinning addresses does not predict, so the module still reads the Service
+    back after apply. Set `host` for a deterministic URL on AWS.
+
     Null leaves Grafana on a ClusterIP Service, reachable only with `kubectl port-forward`.
   EOT
 
@@ -343,6 +353,7 @@ variable "grafana_load_balancer" {
 
     internal    = optional(bool, true)
     host        = optional(string, null)
+    ip          = optional(string, null)
     annotations = optional(map(string), {})
   })
 
