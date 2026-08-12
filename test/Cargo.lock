@@ -216,9 +216,9 @@ dependencies = [
 
 [[package]]
 name = "aws-sdk-ec2"
-version = "1.243.0"
+version = "1.244.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4c11599d164959d08658a11538d44281b9846389f61808b350ac0728a4e35ccd"
+checksum = "4eee9db6ca7ca0606330a5937105be43be98444f8b28ce93d9380f7506eea93b"
 dependencies = [
  "arc-swap",
  "aws-credential-types",
@@ -322,9 +322,9 @@ dependencies = [
 
 [[package]]
 name = "aws-sdk-iam"
-version = "1.117.0"
+version = "1.118.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3be330d8b38ec16355f24a0277d6af4b8ff237ff1d90ef433079f873d3396455"
+checksum = "7707aab9b7951dbcdace83eb49893b05b2b7712fb9c1b9504592c95e04ec0999"
 dependencies = [
  "arc-swap",
  "aws-credential-types",
