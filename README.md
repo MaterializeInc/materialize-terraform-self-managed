@@ -219,17 +219,27 @@ Dedicated rather than a database inside the Materialize instance, for reasons th
 
 The default sizes (`db.t4g.micro`, `db-f1-micro`, `B_Standard_B1ms`) are deliberate: Grafana's state is small and its query rate is a handful per page load. This is a durability decision, not a capacity one. Pass `grafana_database_host` and friends instead to point at a database you already run.
 
-**`grafana_load_balancer`** makes Grafana reachable, on all three clouds, through the `LoadBalancer` Service the chart renders. That is an **L4** load balancer everywhere — an NLB on AWS, a passthrough NLB on GCP, an Azure Load Balancer — matching the Materialize console and balancerd.
+**`grafana_load_balancer`** makes Grafana reachable, on all three clouds, through an **L4** load balancer — an NLB on AWS, a passthrough NLB on GCP, an Azure Load Balancer — matching the Materialize console and balancerd.
 
-An earlier revision used an Ingress on AWS, which the load-balancer controller turns into an L7 ALB. That was dropped because it made AWS the only cloud running L7: a `Service` on GKE or AKS can only ever produce L4, so the three wrappers disagreed about what "exposed" meant, and a `tls` flag on the L4 side advertised HTTPS that nothing terminated.
+How it is built differs by cloud, because the deterministic option differs:
 
-**L7 is the better end state for a public Grafana** — a WAF and authentication at the edge are the two things L4 cannot do at all, and a managed load balancer terminates TLS more reliably than a pod does. It is deferred, not rejected, for two reasons: Azure needs an Application Gateway for Containers module that does not exist yet, and the chart's Gateway API support is still marked BETA, so adopting Ingress now would mean migrating twice. Revisit when either changes.
+| | Built from | Allowlist |
+|---|---|---|
+| **AWS** | `aws_lb`, listener, target group, and a `TargetGroupBinding` onto a `ClusterIP` Grafana Service — all Terraform resources | security-group rules on the NLB |
+| **GCP, Azure** | the chart's `LoadBalancer` Service, with cloud annotations | `loadBalancerSourceRanges` on the Service |
+
+On AWS this copies `aws/modules/nlb`, which is the pattern this repo has settled on: the address is `aws_lb.dns_name`, an ordinary attribute known at plan time, and every setting is a typed argument. Letting the load-balancer controller create the NLB from Service annotations instead leaves the address discoverable only by reading the Service back after apply — a race with the controller — and pushes every setting through an annotation string with no validation. It is copied rather than imported because `aws/modules/nlb` is keyed on a Materialize instance's `resource_id`, so importing it would make monitoring wait for Materialize to finish standing up.
+
+One consequence of that: on AWS the chart cannot see the allowlist, so the check that a public load balancer is not left wide open lives in the wrapper.
+
+**L7 is the better end state for a public Grafana** — a WAF and authentication at the edge are the two things L4 cannot do at all, and a managed load balancer terminates TLS more reliably than a pod does. It is deferred, not rejected: Azure needs an Application Gateway for Containers module that does not exist yet, and the chart's Gateway API support is still marked BETA, so adopting Ingress now would mean migrating twice. Revisit when either changes.
 
 Consequences of L4 worth knowing now:
 
 - **Nothing terminates TLS.** Grafana serves plain HTTP until something in front of it, or Grafana itself, holds a certificate — which is [DEP-195](https://linear.app/materializeinc/issue/DEP-195)'s work. Until then `grafana_url` is `http://`, and the chart warns.
-- **Health checks are TCP** on GCP and Azure, so a wedged-but-listening Grafana keeps receiving traffic. The AWS annotations do set an HTTP check against `/api/health`.
+- **Health checks are TCP** on GCP and Azure, so a wedged-but-listening Grafana keeps receiving traffic. AWS checks `/api/health` over HTTP, because the target group can.
 - **No request-timeout ceiling**, which is the upside: long Thanos and Loki panel queries are not cut off by an L7 backend timeout.
+
 
 Neither publishes DNS. Any hostname you pass is yours to create, and an ACME challenge against a name that does not resolve is the usual way that gets noticed.
 

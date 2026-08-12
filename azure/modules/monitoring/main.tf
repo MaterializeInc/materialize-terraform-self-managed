@@ -210,6 +210,18 @@ module "monitoring" {
   grafana_database_enabled                = local.create_grafana_database || var.grafana_database_host != null
   grafana_database_manage_password_secret = local.create_grafana_database || var.grafana_database_password != null
 
+  # TODO: pass the Grafana Service port through, once the monitoring module takes
+  # one. Today the chart decides it (`grafana.service.port`, 80) and nothing here
+  # states it, so the two agree only by coincidence.
+  #
+  # This becomes load-bearing with in-cluster TLS: Grafana stops serving plain
+  # HTTP, the Service port moves with it, and anything still assuming 80 points at
+  # a port that is no longer there. Deliberately not wired yet — it needs a
+  # variable on the monitoring module and a matching chart value, which is a
+  # change of its own.
+  #
+  # grafana_service_port = 80
+
   grafana_database_host     = local.grafana_database_host
   grafana_database_port     = local.grafana_database_port
   grafana_database_name     = var.grafana_database_name
@@ -325,9 +337,9 @@ locals {
 locals {
   # Plain http, always. A Azure load balancer from a Service is L4 — it passes
   # bytes through and terminates nothing — so claiming https here would only
-  # advertise a scheme that does not answer. Worse, the `cookie_secure` that
-  # used to come with it made the session cookie unsendable over the
-  # connection that does work, so nobody could log in.
+  # advertise a scheme that does not answer. Setting `security.cookie_secure`
+  # alongside it is worse than useless: the cookie is marked Secure, the browser
+  # stops sending it over the connection that does work, and nobody can log in.
   #
   # Put a terminator in front, or give Grafana its own certificate (DEP-195),
   # and set `root_url` plus `security.cookie_secure` through `additional_values`.

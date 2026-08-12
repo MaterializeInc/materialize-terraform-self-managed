@@ -390,94 +390,231 @@ locals {
 # ==============================================================================
 # Grafana load balancer
 # ==============================================================================
+# The NLB, its listener, its target group, and the TargetGroupBinding that links
+# them to the Grafana Service, all as Terraform resources. Copied from
+# `aws/modules/nlb` rather than imported: that module is keyed on a Materialize
+# instance's `resource_id`, so depending on it would make monitoring wait for
+# Materialize to be fully stood up.
+#
+# Not `service.type: LoadBalancer` with AWS annotations: letting the
+# load-balancer controller build the NLB leaves its address discoverable only by
+# reading the Service back after apply, which races the controller, and pushes
+# every setting through an annotation string with no type checking.
 
 locals {
-  # Plain http, always. An NLB is L4 — it passes bytes through and terminates
-  # nothing — so claiming https here would only advertise a scheme that does not
-  # answer, and the `cookie_secure` that would come with it makes the session
-  # cookie unsendable over the connection that does work.
-  #
-  # Put a terminator in front, or give Grafana its own certificate (DEP-195), and
-  # set `root_url` plus `security.cookie_secure` through `additional_values`.
-  grafana_scheme = "http"
+  grafana_lb = var.grafana_load_balancer
+  # `name_prefix` on an ELB is capped at 6 characters.
+  grafana_lb_name_prefix = substr(var.name_prefix, 0, min(6, length(var.name_prefix)))
 
-  grafana_service_annotations = var.grafana_load_balancer == null ? {} : merge(
-    {
-      # `external` is what hands the Service to the AWS Load Balancer Controller
-      # rather than the in-tree provider, which is the difference between an NLB
-      # and a legacy Classic ELB. `ip` targets the pods directly, skipping the
-      # NodePort hop, and matches the target type the console's NLB module uses.
-      "service.beta.kubernetes.io/aws-load-balancer-type"                 = "external"
-      "service.beta.kubernetes.io/aws-load-balancer-nlb-target-type"      = "ip"
-      "service.beta.kubernetes.io/aws-load-balancer-scheme"               = var.grafana_load_balancer.internal ? "internal" : "internet-facing"
-      "service.beta.kubernetes.io/aws-load-balancer-healthcheck-protocol" = "HTTP"
-      "service.beta.kubernetes.io/aws-load-balancer-healthcheck-path"     = "/api/health"
-    },
-    var.grafana_load_balancer.ip == null ? {} : {
-      # An NLB takes its addresses by annotation rather than `loadBalancerIP`:
-      # one per subnet, so both of these are comma-separated lists.
-      (var.grafana_load_balancer.internal
-        ? "service.beta.kubernetes.io/aws-load-balancer-private-ipv4-addresses"
-      : "service.beta.kubernetes.io/aws-load-balancer-eip-allocations") = var.grafana_load_balancer.ip
-    },
-    var.grafana_load_balancer.annotations,
+  # Grafana's container port. The chart's Service is 80 -> 3000; the target group
+  # registers pod IPs, so it is the container port that matters here.
+  grafana_pod_port = 3000
+
+  grafana_lb_listener_port = try(local.grafana_lb.listener_port, 80)
+
+  # Pre-allocated addresses become `subnet_mapping` blocks, which are mutually
+  # exclusive with `subnets` — hence the null when none were supplied.
+  grafana_lb_addresses = local.grafana_lb == null ? null : coalesce(
+    local.grafana_lb.private_ipv4_addresses,
+    local.grafana_lb.eip_allocation_ids,
+    [],
   )
 
-  grafana_load_balancer_values = var.grafana_load_balancer == null ? [] : [yamlencode({
-    grafana = merge(
-      {
-        service = {
-          type                     = "LoadBalancer"
-          annotations              = local.grafana_service_annotations
-          loadBalancerSourceRanges = var.grafana_load_balancer.ingress_cidr_blocks
-        }
-      },
-      var.grafana_load_balancer.host == null ? {} : {
-        "grafana.ini" = {
-          # Grafana builds share links, alert notification links, and OAuth
-          # redirect URIs from this. All three break silently when it disagrees
-          # with the host users actually reach.
-          server = { root_url = "${local.grafana_scheme}://${var.grafana_load_balancer.host}" }
-        }
-      },
-    )
+  grafana_lb_subnet_mappings = try(length(local.grafana_lb_addresses), 0) == 0 ? [] : [
+    for i, subnet in local.grafana_lb.subnet_ids : {
+      subnet_id            = subnet
+      private_ipv4_address = local.grafana_lb.internal ? local.grafana_lb_addresses[i] : null
+      allocation_id        = local.grafana_lb.internal ? null : local.grafana_lb_addresses[i]
+    }
+  ]
+
+  # Plain http: an NLB terminates nothing. See `grafana_load_balancer`.
+  grafana_scheme = "http"
+
+  grafana_load_balancer_address = one(aws_lb.grafana[*].dns_name)
+
+  # The Service stays ClusterIP — the target group registers pods directly — so
+  # the only chart value the load balancer implies is the external URL.
+  grafana_load_balancer_values = local.grafana_lb == null || local.grafana_lb.host == null ? [] : [yamlencode({
+    grafana = {
+      "grafana.ini" = {
+        # Grafana builds share links, alert notification links, and OAuth redirect
+        # URIs from this. All three break silently when it disagrees with the host
+        # users actually reach.
+        server = { root_url = "${local.grafana_scheme}://${local.grafana_lb.host}" }
+      }
+    }
   })]
 }
 
-# The load balancer's own address, so `grafana_url` can name where Grafana
-# actually answers rather than falling back to the in-cluster Service whenever no
-# hostname was supplied.
-#
-# A data source rather than a resource attribute: the Service is created by Helm
-# inside the monitoring module, so Terraform has no handle on it. Read after that
-# module, and tolerant of an address that is not assigned yet — the cloud
-# provisions the load balancer asynchronously, so the first apply can complete
-# before one exists. `grafana_url` degrades to the in-cluster name in that
-# window, and the next plan picks the address up.
-data "kubernetes_service" "grafana" {
-  # Still read even when `ip` is set, unlike GCP and Azure: an NLB is reached by
-  # its generated DNS name, and pinning its addresses does not make that name
-  # predictable. On AWS, determinism comes from `host` — your own record
-  # pointing at the NLB — not from the addresses.
-  count = var.grafana_load_balancer == null ? 0 : 1
+resource "aws_security_group" "grafana_nlb" {
+  count = local.grafana_lb == null ? 0 : 1
 
-  metadata {
-    # The chart pins `grafana.fullnameOverride`, so the name is static.
-    name      = "grafana"
-    namespace = var.namespace
-  }
+  name_prefix = "${local.grafana_lb_name_prefix}-mzmon-gf-"
+  description = "Grafana NLB for ${var.name_prefix}"
+  vpc_id      = local.grafana_lb.vpc_id
 
-  depends_on = [module.monitoring]
+  tags = merge(local.common_tags, { Backend = "grafana" })
 }
 
-locals {
-  # An NLB reports a `hostname`; the `ip` branch is there for a Service given a
-  # static address by annotation.
-  grafana_load_balancer_address = one([
-    for ing in try(data.kubernetes_service.grafana[0].status[0].load_balancer[0].ingress, []) :
-    coalesce(try(ing.hostname, null), try(ing.ip, null))
-    if coalesce(try(ing.hostname, null), try(ing.ip, null), "") != ""
-  ])
+resource "aws_vpc_security_group_egress_rule" "grafana_nlb" {
+  count = local.grafana_lb == null ? 0 : 1
+
+  description       = "Allow egress from the Grafana NLB"
+  cidr_ipv4         = "0.0.0.0/0"
+  ip_protocol       = "-1"
+  security_group_id = aws_security_group.grafana_nlb[0].id
+
+  tags = merge(local.common_tags, { Backend = "grafana" })
+}
+
+# One rule per CIDR rather than one rule with a list: a single rule with a
+# changing list is destroyed and recreated on every edit, which the provider
+# reports as a duplicate-rule error mid-upgrade.
+# https://github.com/hashicorp/terraform-provider-aws/issues/38526
+#
+# This is the allowlist. The Service is ClusterIP, so there is no
+# `loadBalancerSourceRanges` for the chart to check — the guard is the validation
+# on `grafana_load_balancer`.
+resource "aws_vpc_security_group_ingress_rule" "grafana_nlb" {
+  for_each = local.grafana_lb == null ? toset([]) : toset(local.grafana_lb.ingress_cidr_blocks)
+
+  description       = "Allow Grafana from ${each.value}"
+  from_port         = local.grafana_lb_listener_port
+  to_port           = local.grafana_lb_listener_port
+  ip_protocol       = "tcp"
+  security_group_id = aws_security_group.grafana_nlb[0].id
+  cidr_ipv4         = each.value
+
+  tags = merge(local.common_tags, { Backend = "grafana" })
+}
+
+resource "aws_lb" "grafana" {
+  count = local.grafana_lb == null ? 0 : 1
+
+  name_prefix                      = "${local.grafana_lb_name_prefix}-"
+  internal                         = local.grafana_lb.internal
+  load_balancer_type               = "network"
+  subnets                          = length(local.grafana_lb_subnet_mappings) == 0 ? local.grafana_lb.subnet_ids : null
+  enable_cross_zone_load_balancing = local.grafana_lb.enable_cross_zone_load_balancing
+  security_groups                  = [aws_security_group.grafana_nlb[0].id]
+
+  dynamic "subnet_mapping" {
+    for_each = local.grafana_lb_subnet_mappings
+
+    content {
+      subnet_id            = subnet_mapping.value.subnet_id
+      private_ipv4_address = subnet_mapping.value.private_ipv4_address
+      allocation_id        = subnet_mapping.value.allocation_id
+    }
+  }
+
+  tags = merge(local.common_tags, { Backend = "grafana" })
+
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
+resource "aws_lb_target_group" "grafana" {
+  count = local.grafana_lb == null ? 0 : 1
+
+  name_prefix        = "${local.grafana_lb_name_prefix}-"
+  port               = local.grafana_pod_port
+  protocol           = "TCP"
+  target_type        = "ip"
+  vpc_id             = local.grafana_lb.vpc_id
+  preserve_client_ip = true
+
+  health_check {
+    enabled  = true
+    protocol = "HTTP"
+    # Follows whatever port a target is registered on, rather than hardcoding one
+    # that only happens to match today.
+    port                = "traffic-port"
+    path                = "/api/health"
+    matcher             = "200"
+    interval            = 10
+    timeout             = 5
+    healthy_threshold   = 2
+    unhealthy_threshold = 2
+  }
+
+  tags = merge(local.common_tags, { Backend = "grafana" })
+
+  # The listener forwards to this group, so a destroy-then-create replacement
+  # fails with ResourceInUse. Create the replacement first, let the listener and
+  # the TargetGroupBinding repoint, then drop the old group.
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
+resource "aws_lb_listener" "grafana" {
+  count = local.grafana_lb == null ? 0 : 1
+
+  load_balancer_arn = aws_lb.grafana[0].arn
+  port              = local.grafana_lb_listener_port
+  protocol          = "TCP"
+
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.grafana[0].arn
+  }
+
+  tags = merge(local.common_tags, { Backend = "grafana" })
+}
+
+# With `preserve_client_ip`, data traffic reaches the pod with the client's own
+# address, so this rule is what lets the NLB's health checks through. Client
+# access itself is governed by the NLB security group above.
+resource "aws_security_group_rule" "grafana_nlb_to_nodes" {
+  count = local.grafana_lb == null ? 0 : 1
+
+  type                     = "ingress"
+  from_port                = local.grafana_pod_port
+  to_port                  = local.grafana_pod_port
+  protocol                 = "tcp"
+  source_security_group_id = aws_security_group.grafana_nlb[0].id
+  security_group_id        = local.grafana_lb.node_security_group_id
+  description              = "Allow Grafana traffic and health checks from the Grafana NLB"
+}
+
+# `kubectl_manifest` rather than `kubernetes_manifest`: the CRD is installed by
+# the load-balancer controller, and `kubernetes_manifest` looks a schema up at
+# plan time, so it fails before the CRD exists.
+#
+# Applied after the chart, because the Service it references has to exist first.
+resource "kubectl_manifest" "grafana_target_group_binding" {
+  count = local.grafana_lb == null ? 0 : 1
+
+  yaml_body = yamlencode({
+    apiVersion = "elbv2.k8s.aws/v1beta1"
+    kind       = "TargetGroupBinding"
+    metadata = {
+      name      = "mzmon-grafana"
+      namespace = var.namespace
+    }
+    spec = {
+      # The chart pins `grafana.fullnameOverride`, so the name is static. The port
+      # is the Service's own, not the container's — the controller resolves the
+      # Service's endpoints from it and registers pods on their target port.
+      serviceRef = {
+        name = "grafana"
+        port = var.grafana_service_port
+      }
+      targetGroupARN = aws_lb_target_group.grafana[0].arn
+      targetType     = "ip"
+      networking = {
+        ingress = [{
+          from  = [{ securityGroup = { groupID = aws_security_group.grafana_nlb[0].id } }]
+          ports = [{ protocol = "TCP", port = local.grafana_pod_port }]
+        }]
+      }
+    }
+  })
+
+  depends_on = [module.monitoring]
 }
 
 # ==============================================================================
@@ -536,6 +673,18 @@ module "monitoring" {
   # whether they exist at plan time. These two conditions are plan-known.
   grafana_database_enabled                = local.create_grafana_database || var.grafana_database_host != null
   grafana_database_manage_password_secret = local.create_grafana_database || var.grafana_database_password != null
+
+  # TODO: pass the Grafana Service port through, once the monitoring module takes
+  # one. Today the chart decides it (`grafana.service.port`, 80) and nothing here
+  # states it, so the two agree only by coincidence.
+  #
+  # This becomes load-bearing with in-cluster TLS: Grafana stops serving plain
+  # HTTP, the Service port moves with it, and anything still assuming 80 points at
+  # a port that is no longer there. Deliberately not wired yet — it needs a
+  # variable on the monitoring module and a matching chart value, which is a
+  # change of its own.
+  #
+  # grafana_service_port = 80
 
   grafana_database_host     = local.grafana_database_host
   grafana_database_port     = local.grafana_database_port

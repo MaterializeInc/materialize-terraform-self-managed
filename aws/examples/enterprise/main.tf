@@ -580,14 +580,17 @@ module "monitoring" {
     skip_final_snapshot = false
   }
 
-  # An NLB through the load-balancer controller installed above, matching the GCP
-  # and Azure examples and the Materialize console. Always passed, following the
-  # same two root variables those load balancers already use; `host` is optional
-  # because an NLB answers on a DNS name of its own.
+  # An NLB this module creates and owns — see `grafana_load_balancer`. The Service
+  # stays ClusterIP; a TargetGroupBinding attaches the target group to it, and the
+  # allowlist is security-group rules on the NLB rather than the Service.
   grafana_load_balancer = {
-    internal            = var.internal_load_balancer
-    ingress_cidr_blocks = var.ingress_cidr_blocks
-    host                = var.grafana_host
+    vpc_id                 = module.networking.vpc_id
+    subnet_ids             = var.internal_load_balancer ? module.networking.private_subnet_ids : module.networking.public_subnet_ids
+    node_security_group_id = module.eks.node_security_group_id
+    ingress_cidr_blocks    = var.ingress_cidr_blocks
+
+    internal = var.internal_load_balancer
+    host     = var.grafana_host
   }
 
   tags = var.tags

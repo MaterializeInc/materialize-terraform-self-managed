@@ -5,16 +5,16 @@ output "namespace" {
 
 output "grafana_url" {
   description = <<-EOT
-    Where Grafana answers, in preference order: the hostname you supplied, else the load balancer's
-    own address once AWS has assigned one, else the in-cluster Service — which means a port-forward.
+    Where Grafana answers: the hostname you supplied, else the NLB's own DNS name, else the
+    in-cluster Service — which means a port-forward.
 
-    A load balancer's address is assigned asynchronously, so immediately after the first apply this
-    can still report the in-cluster name; the next plan picks it up. Always `http`: the NLB
-    terminates no TLS. Nothing here publishes DNS for a hostname you supply.
+    Known at plan time, because the load balancer is a Terraform resource here rather than something
+    the load-balancer controller creates behind our back. Always `http`: the NLB terminates no TLS.
+    Nothing here publishes DNS for a hostname you supply.
   EOT
   value = (
-    try(var.grafana_load_balancer.host, null) != null
-    ? "${local.grafana_scheme}://${var.grafana_load_balancer.host}"
+    try(local.grafana_lb.host, null) != null
+    ? "${local.grafana_scheme}://${local.grafana_lb.host}"
     : local.grafana_load_balancer_address != null
     ? "${local.grafana_scheme}://${local.grafana_load_balancer_address}"
     : module.monitoring.grafana_url
@@ -22,8 +22,18 @@ output "grafana_url" {
 }
 
 output "grafana_load_balancer_address" {
-  description = "The Grafana load balancer's DNS name or IP, or null when it is not exposed or AWS has not assigned one yet."
+  description = "DNS name of the Grafana NLB, or null when Grafana is not exposed."
   value       = local.grafana_load_balancer_address
+}
+
+output "grafana_load_balancer_arn" {
+  description = "ARN of the Grafana NLB, or null when Grafana is not exposed. Useful for attaching your own listeners or a WAF."
+  value       = one(aws_lb.grafana[*].arn)
+}
+
+output "grafana_load_balancer_security_group_id" {
+  description = "Security group governing who can reach the Grafana NLB, or null when Grafana is not exposed. The allowlist lives here rather than on the Service, because the Service stays ClusterIP."
+  value       = one(aws_security_group.grafana_nlb[*].id)
 }
 
 output "grafana_admin_password" {

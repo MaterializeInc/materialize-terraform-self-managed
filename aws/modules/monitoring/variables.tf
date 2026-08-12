@@ -308,53 +308,62 @@ variable "grafana_database_ssl_mode" {
 # Grafana ingress
 # ==============================================================================
 
+variable "grafana_service_port" {
+  description = <<-EOT
+    Port the Grafana Service listens on, which the `TargetGroupBinding` references.
+
+    Must match the chart's `grafana.service.port`. It is a variable rather than a constant because
+    in-cluster TLS will move it: Grafana stops serving plain HTTP, and the Service port moves with
+    it. Nothing here writes the value into the chart yet — see the TODO on the `monitoring` module
+    block — so changing it alone would point the target group at a port the Service does not have.
+  EOT
+  type        = number
+  default     = 80
+  nullable    = false
+}
+
 variable "grafana_load_balancer" {
   description = <<-EOT
-    Expose Grafana through a Network Load Balancer, provisioned by the AWS Load Balancer Controller
-    from the `LoadBalancer` Service the chart renders. The controller must already be installed —
-    the examples install it as `module.aws_lbc`.
+    Expose Grafana behind a Network Load Balancer this module creates and owns.
 
-    L4, matching the GCP and Azure wrappers and the Materialize console. An earlier revision used an
-    Ingress here, which the controller turns into an L7 ALB — but that made AWS the only cloud
-    running L7 while a `Service` on GKE and AKS can only ever produce L4, so the three disagreed
-    about what "exposed" meant. L7 is the better end state for a public Grafana, because a WAF and
-    edge authentication are the two things L4 cannot do at all; it is deferred rather than rejected.
-    See the design note in the repository README.
+    The NLB, its listener, its target group, and the `TargetGroupBinding` that links them to the
+    Grafana Service are all Terraform resources here — the same shape as `aws/modules/nlb`, copied
+    rather than imported because that module is keyed on a Materialize instance's `resource_id` and
+    so is not available until Materialize is fully stood up.
 
-    Internal by default, and `ingress_cidr_blocks` is required rather than defaulted: it becomes
-    `loadBalancerSourceRanges` on the Service, and the chart refuses to render a `LoadBalancer` with
-    no allowlist. On an internal load balancer pass your VPC CIDR; the chart cannot see the scheme
-    annotation, so the allowlist is what makes the intent legible to it.
+    Explicit resources rather than `service.type: LoadBalancer` with AWS annotations: the address is
+    `aws_lb.dns_name`, an ordinary attribute known at plan time, and every setting is a typed
+    argument. Letting the load-balancer controller create the NLB instead leaves the address
+    discoverable only by reading the Service back after apply — a race with the controller — and
+    pushes every setting through an annotation string with no validation.
 
-    `host` is optional because an NLB answers on a DNS name of its own. Set it once your own DNS
-    exists — Grafana builds share links, alert notification links, and OAuth redirect URIs from
-    `root_url`, and the chart warns while it is unset.
+    The Grafana Service stays `ClusterIP`; the target group registers pod IPs directly. That means
+    the allowlist is **security-group rules on the NLB**, not `loadBalancerSourceRanges` — so the
+    chart cannot see it, and the check that a public load balancer is not left wide open lives in
+    this module instead.
 
-    **This does not terminate TLS.** An NLB passes bytes through, so Grafana serves plain HTTP until
-    something in front of it, or Grafana itself, is given a certificate — which is DEP-195's work.
-    Until then the chart warns, and `root_url`/`security.cookie_secure` are yours to set through
-    `additional_values` if you do put a terminator in front.
+    L4, matching GCP, Azure, and the Materialize console. It terminates no TLS: Grafana serves plain
+    HTTP until something in front of it, or Grafana itself, holds a certificate, which is DEP-195's
+    work. Set `root_url` and `security.cookie_secure` through `additional_values` once one does.
 
-    `ip` pins the load balancer's addresses rather than letting AWS pick them, which is what makes
-    them safe to name in a firewall rule or a DNS record. On an internal NLB pass one private
-    address per subnet the load balancer lands in, each inside that subnet's CIDR; on an
-    internet-facing one pass Elastic IP allocation IDs. Both are comma-separated, matching the AWS
-    annotations they become.
-
-    It does **not** make `grafana_url` deterministic, unlike on GCP and Azure. An NLB is reached by a
-    generated DNS name that pinning addresses does not predict, so the module still reads the Service
-    back after apply. Set `host` for a deterministic URL on AWS.
+    `private_ipv4_addresses` (internal) and `eip_allocation_ids` (internet-facing) pre-allocate the
+    addresses, one per entry in `subnet_ids` and in the same order.
 
     Null leaves Grafana on a ClusterIP Service, reachable only with `kubectl port-forward`.
   EOT
 
   type = object({
-    ingress_cidr_blocks = list(string)
+    vpc_id                 = string
+    subnet_ids             = list(string)
+    node_security_group_id = string
+    ingress_cidr_blocks    = list(string)
 
-    internal    = optional(bool, true)
-    host        = optional(string, null)
-    ip          = optional(string, null)
-    annotations = optional(map(string), {})
+    internal                         = optional(bool, true)
+    host                             = optional(string, null)
+    listener_port                    = optional(number, 80)
+    enable_cross_zone_load_balancing = optional(bool, true)
+    private_ipv4_addresses           = optional(list(string), null)
+    eip_allocation_ids               = optional(list(string), null)
   })
 
   default = null
@@ -366,6 +375,25 @@ variable "grafana_load_balancer" {
       ])
     )
     error_message = "grafana_load_balancer.ingress_cidr_blocks must be non-empty and contain valid CIDR notation. On an internal load balancer, pass your VPC CIDR."
+  }
+
+  validation {
+    condition = var.grafana_load_balancer == null ? true : alltrue([
+      for addrs in [
+        var.grafana_load_balancer.private_ipv4_addresses,
+        var.grafana_load_balancer.eip_allocation_ids,
+      ] : addrs == null || length(addrs) == length(var.grafana_load_balancer.subnet_ids)
+    ])
+    error_message = "grafana_load_balancer.private_ipv4_addresses and eip_allocation_ids must have one entry per subnet_ids entry, in the same order."
+  }
+
+  validation {
+    condition = var.grafana_load_balancer == null ? true : (
+      var.grafana_load_balancer.internal
+      ? var.grafana_load_balancer.eip_allocation_ids == null
+      : var.grafana_load_balancer.private_ipv4_addresses == null
+    )
+    error_message = "grafana_load_balancer.eip_allocation_ids applies to an internet-facing load balancer and private_ipv4_addresses to an internal one; set the one that matches `internal`."
   }
 
   validation {
