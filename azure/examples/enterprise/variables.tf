@@ -169,3 +169,9 @@ variable "materialize_version" {
   type        = string
   default     = null
 }
+
+variable "grafana_host" {
+  description = "Optional hostname to reach Grafana on. The load balancer is created regardless and answers on an IP; setting this configures Grafana's `root_url` for share links, alert notifications, and OAuth redirects. DNS for this name is yours to create."
+  type        = string
+  default     = null
+}

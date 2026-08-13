@@ -384,6 +384,25 @@ module "monitoring" {
   materialize_instance_namespace = local.materialize_instance_namespace
   materialize_operator_namespace = local.materialize_operator_namespace
 
+  # A dedicated Flexible Server for Grafana's own state, so dashboards and API
+  # tokens created in the UI survive a pod restart. Separate from
+  # `module.database` because a Flexible Server has one administrator login and no
+  # ARM resource for additional roles.
+  grafana_database = {
+    subnet_id           = module.networking.postgres_subnet_id
+    private_dns_zone_id = module.networking.private_dns_zone_id
+  }
+
+  # Always passed, following the same two root variables the Materialize console
+  # and balancerd load balancers already use. Internal by default; `host` is
+  # optional because an Azure/GCP load balancer answers on an IP, and setting it
+  # is what lets `root_url` be correct.
+  grafana_load_balancer = {
+    internal            = var.internal_load_balancer
+    ingress_cidr_blocks = var.ingress_cidr_blocks
+    host                = var.grafana_host
+  }
+
   tags = var.tags
 
   depends_on = [

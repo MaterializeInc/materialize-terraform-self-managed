@@ -159,3 +159,9 @@ variable "materialize_version" {
   type        = string
   default     = null
 }
+
+variable "grafana_host" {
+  description = "Hostname to expose Grafana on. Null keeps it on a ClusterIP Service, reachable only with `kubectl port-forward`. Exposure follows `internal_load_balancer` and `ingress_cidr_blocks`, the same as the Materialize load balancer. DNS for this name is yours to create."
+  type        = string
+  default     = null
+}

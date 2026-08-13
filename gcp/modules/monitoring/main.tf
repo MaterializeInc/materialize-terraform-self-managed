@@ -245,7 +245,10 @@ module "monitoring" {
   # that fix, Terraform truncated the ref at the first slash and treated the rest
   # as a subdirectory, failing the clone with `pathspec 'materialize-monitoring'
   # did not match` (hashicorp/terraform#35552). See versions.tf.
-  source = "github.com/MaterializeInc/materialize-monitoring//terraform/modules/materialize-monitoring?ref=materialize-monitoring/v0.12.0"
+  #
+  # v0.13.0 is where `grafana_database_*` and the chart's `grafana.ingress` /
+  # `grafana.service` values land. This branch does not plan against v0.12.0.
+  source = "github.com/MaterializeInc/materialize-monitoring//terraform/modules/materialize-monitoring?ref=materialize-monitoring/v0.15.0"
 
   namespace        = var.namespace
   create_namespace = var.create_namespace
@@ -272,6 +275,31 @@ module "monitoring" {
 
   grafana_admin_password = var.grafana_admin_password
 
+  # Explicit rather than inferred from host/password: both are computed here — an
+  # instance endpoint and a generated password — so the module cannot decide
+  # whether they exist at plan time. These two conditions are plan-known.
+  grafana_database_enabled                = local.create_grafana_database || var.grafana_database_host != null
+  grafana_database_manage_password_secret = local.create_grafana_database || var.grafana_database_password != null
+
+  # TODO: pass the Grafana Service port through, once the monitoring module takes
+  # one. Today the chart decides it (`grafana.service.port`, 80) and nothing here
+  # states it, so the two agree only by coincidence.
+  #
+  # This becomes load-bearing with in-cluster TLS: Grafana stops serving plain
+  # HTTP, the Service port moves with it, and anything still assuming 80 points at
+  # a port that is no longer there. Deliberately not wired yet — it needs a
+  # variable on the monitoring module and a matching chart value, which is a
+  # change of its own.
+  #
+  # grafana_service_port = 80
+
+  grafana_database_host     = local.grafana_database_host
+  grafana_database_port     = local.grafana_database_port
+  grafana_database_name     = var.grafana_database_name
+  grafana_database_user     = var.grafana_database_user
+  grafana_database_password = local.grafana_database_effective_password
+  grafana_database_ssl_mode = var.grafana_database_ssl_mode
+
   object_storage = {
     cloud         = "gcp"
     loki_bucket   = google_storage_bucket.telemetry["loki"].name
@@ -294,7 +322,9 @@ module "monitoring" {
     prefix         = var.google_cloud_metrics_prefix
   } : null
 
-  additional_values = var.additional_values
+  # Load-balancer values ahead of the caller's, so `additional_values` still
+  # overrides anything computed here.
+  additional_values = concat(local.grafana_load_balancer_values, var.additional_values)
 
   depends_on = [
     google_storage_bucket_iam_member.telemetry,
@@ -302,4 +332,158 @@ module "monitoring" {
     google_project_iam_member.gateway_metric_writer,
     google_service_account_iam_member.gateway_workload_identity,
   ]
+}
+
+# ==============================================================================
+# Grafana state database
+# ==============================================================================
+# Reuses this repo's own `database` module rather than an inline
+# `google_sql_database_instance`, so Grafana's instance gets the same backup,
+# maintenance, and private-networking opinions the Materialize database has.
+
+resource "random_password" "grafana_database" {
+  count = var.grafana_database != null && var.grafana_database_password == null ? 1 : 0
+
+  length = 32
+  # Cloud SQL accepts more, but Grafana reads this out of a mounted file and
+  # operators paste it into psql. Alphanumeric avoids both quoting questions.
+  special = false
+}
+
+module "grafana_database" {
+  count  = var.grafana_database == null ? 0 : 1
+  source = "../database"
+
+  project_id = var.project_id
+  region     = var.region
+  prefix     = "${var.prefix}-mzmon-grafana"
+  network_id = var.grafana_database.network_id
+
+  tier       = var.grafana_database.tier
+  db_version = var.grafana_database.db_version
+  edition    = var.grafana_database.edition
+  disk_size  = var.grafana_database.disk_size
+
+  backup_enabled                 = var.grafana_database.backup_enabled
+  point_in_time_recovery_enabled = var.grafana_database.point_in_time_recovery_enabled
+
+  databases = [{ name = var.grafana_database_name }]
+  users     = [{ name = var.grafana_database_user, password = local.grafana_database_password }]
+
+  labels = var.labels
+}
+
+locals {
+  create_grafana_database = var.grafana_database != null
+
+  # A caller-supplied password wins in both modes; the random one only fills the
+  # gap when this module creates the instance and was given none.
+  #
+  # Not `coalesce`: it errors when every argument is null, which is the default
+  # install — no database and no password — so it failed the plan on the one path
+  # that has nothing to decide. Null here means "no password", which is what the
+  # module's own gates are for.
+  grafana_database_password = (
+    var.grafana_database_password != null
+    ? var.grafana_database_password
+    : one(random_password.grafana_database[*].result)
+  )
+
+  # Cloud SQL private IP. `host` on an external instance may be a name.
+  grafana_database_host = local.create_grafana_database ? (
+    module.grafana_database[0].private_ip
+  ) : var.grafana_database_host
+
+  grafana_database_port = local.create_grafana_database ? 5432 : var.grafana_database_port
+
+  grafana_database_effective_password = (
+    local.create_grafana_database ? local.grafana_database_password : var.grafana_database_password
+  )
+}
+
+# ==============================================================================
+# Grafana load balancer
+# ==============================================================================
+
+locals {
+  # Plain http, always. A GCP load balancer from a Service is L4 — it passes
+  # bytes through and terminates nothing — so claiming https here would only
+  # advertise a scheme that does not answer. Setting `security.cookie_secure`
+  # alongside it is worse than useless: the cookie is marked Secure, the browser
+  # stops sending it over the connection that does work, and nobody can log in.
+  #
+  # Put a terminator in front, or give Grafana its own certificate (DEP-195),
+  # and set `root_url` plus `security.cookie_secure` through `additional_values`.
+  grafana_scheme = "http"
+
+  grafana_service_annotations = var.grafana_load_balancer == null ? {} : merge(
+    {
+      # The same annotation the `load_balancers` module uses for the console.
+      "networking.gke.io/load-balancer-type" = var.grafana_load_balancer.internal ? "Internal" : "External"
+    },
+    var.grafana_load_balancer.annotations,
+  )
+
+  grafana_load_balancer_values = var.grafana_load_balancer == null ? [] : [yamlencode({
+    grafana = merge(
+      {
+        service = merge(
+          {
+            type                     = "LoadBalancer"
+            annotations              = local.grafana_service_annotations
+            loadBalancerSourceRanges = var.grafana_load_balancer.ingress_cidr_blocks
+          },
+          # Pre-allocated, so the address is known at plan time and the module
+          # never has to read the Service back to find out where Grafana answers.
+          var.grafana_load_balancer.ip == null ? {} : {
+            loadBalancerIP = var.grafana_load_balancer.ip
+          },
+        )
+      },
+      var.grafana_load_balancer.host == null ? {} : {
+        "grafana.ini" = {
+          # Grafana builds share links, alert notification links, and OAuth
+          # redirect URIs from this. All three break silently when it disagrees
+          # with the host users actually reach.
+          server = { root_url = "${local.grafana_scheme}://${var.grafana_load_balancer.host}" }
+        }
+      },
+    )
+  })]
+}
+
+# The load balancer's own address, so `grafana_url` can name where Grafana
+# actually answers rather than falling back to the in-cluster Service whenever no
+# hostname was supplied.
+#
+# A data source rather than a resource attribute: the Service is created by Helm
+# inside the monitoring module, so Terraform has no handle on it. Read after that
+# module, and tolerant of an address that is not assigned yet — the cloud
+# provisions the load balancer asynchronously, so the first apply can complete
+# before an IP exists. `grafana_url` degrades to the in-cluster name in that
+# window, and the next plan picks the address up.
+data "kubernetes_service" "grafana" {
+  # Not read at all when the address was pre-allocated — that is the whole point
+  # of supplying one. Both conditions are plan-known, so this can gate a `count`.
+  count = var.grafana_load_balancer == null || var.grafana_load_balancer.ip != null ? 0 : 1
+
+  metadata {
+    # The chart pins `grafana.fullnameOverride`, so the name is static.
+    name      = "grafana"
+    namespace = var.namespace
+  }
+
+  depends_on = [module.monitoring]
+}
+
+locals {
+  # GCP and Azure hand out an IP; the `hostname` branch is there because a
+  # cloud-specific annotation can produce one instead.
+  grafana_load_balancer_address = try(var.grafana_load_balancer.ip, null) != null ? (
+    var.grafana_load_balancer.ip
+    ) : one([
+      for ing in try(data.kubernetes_service.grafana[0].status[0].load_balancer[0].ingress, []) :
+      coalesce(try(ing.hostname, null), try(ing.ip, null))
+      if coalesce(try(ing.hostname, null), try(ing.ip, null), "") != ""
+  ])
 }

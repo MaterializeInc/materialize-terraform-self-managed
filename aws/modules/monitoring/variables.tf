@@ -200,6 +200,235 @@ variable "grafana_admin_password" {
   sensitive   = true
 }
 
+# ==============================================================================
+# Grafana state database
+# ==============================================================================
+
+variable "grafana_database" {
+  description = <<-EOT
+    Provision a dedicated RDS PostgreSQL instance for Grafana's own state.
+
+    Grafana keeps users, service accounts and tokens, annotations, dashboard versions and
+    permissions, preferences, and alert-rule state in a database separate from the observability
+    data in Loki and Thanos. The chart default is SQLite on an `emptyDir`, so all of it is lost on
+    every restart, upgrade, and reschedule. That is tolerable while Grafana is reached through
+    `port-forward` and not once it is exposed, which is why this and `grafana_load_balancer` belong in
+    the same change.
+
+    Dedicated rather than a database inside the Materialize RDS instance, deliberately: RDS has no
+    API for creating a second database in an existing instance, so sharing one would need the
+    PostgreSQL provider to reach a private endpoint from wherever Terraform runs. A separate
+    instance also keeps Grafana's blast radius away from Materialize's metadata.
+
+    `db.t4g.micro` is enough. Grafana's state is small and its query rate is a handful per page
+    load; this is a durability decision, not a capacity one.
+
+    Null leaves Grafana on SQLite. Point at a database you already run with the
+    `grafana_database_*` variables instead.
+
+    The examples enable this whenever `enable_observability` is on: durability is the
+    production default, and the cost of the smallest instance is well below the cost of
+    silently losing everything a user built in Grafana.
+  EOT
+
+  type = object({
+    vpc_id                    = string
+    subnet_ids                = list(string)
+    cluster_name              = string
+    cluster_security_group_id = string
+    node_security_group_id    = string
+
+    instance_class          = optional(string, "db.t4g.micro")
+    postgres_version        = optional(string, "16")
+    allocated_storage       = optional(number, 20)
+    max_allocated_storage   = optional(number, 100)
+    multi_az                = optional(bool, false)
+    backup_retention_period = optional(number, 7)
+    kms_key_id              = optional(string, null)
+    create_kms_key          = optional(bool, true)
+    # Matches the shared `database` module's own default. The enterprise example
+    # flips it, so a production teardown leaves a recovery snapshot behind.
+    skip_final_snapshot = optional(bool, true)
+  })
+
+  default = null
+
+  validation {
+    condition     = var.grafana_database == null || var.grafana_database_host == null
+    error_message = "Set either grafana_database (this module creates the instance) or grafana_database_host (you point at an existing one), not both."
+  }
+}
+
+# The five below point Grafana at a database this module does not create. They
+# are forwarded to the monitoring module untouched, and are mutually exclusive
+# with `grafana_database`.
+
+variable "grafana_database_host" {
+  description = "Hostname of an existing PostgreSQL database for Grafana's state. Mutually exclusive with `grafana_database`. Host only — the port is `grafana_database_port`."
+  type        = string
+  default     = null
+}
+
+variable "grafana_database_port" {
+  description = "Port for `grafana_database_host`."
+  type        = number
+  default     = 5432
+  nullable    = false
+}
+
+variable "grafana_database_name" {
+  description = "Name of the database Grafana owns."
+  type        = string
+  default     = "grafana"
+  nullable    = false
+}
+
+variable "grafana_database_user" {
+  description = "Database user Grafana connects as. Must own `grafana_database_name`: Grafana runs schema migrations at startup, so a read/write-only grant fails them."
+  type        = string
+  default     = "grafana"
+  nullable    = false
+}
+
+variable "grafana_database_password" {
+  description = "Password for `grafana_database_user`. Generated when this module creates the instance. Null with an external host means the connection needs no password."
+  type        = string
+  default     = null
+  sensitive   = true
+}
+
+variable "grafana_database_ssl_mode" {
+  description = "libpq SSL mode for the Grafana database connection. `require` encrypts but does not authenticate the server; `verify-full` also authenticates it but needs the RDS CA bundle mounted, which this module does not do — supply `grafana.ini.database.ca_cert_path` and the matching mount through `additional_values` for that."
+  type        = string
+  default     = "require"
+  nullable    = false
+}
+
+# ==============================================================================
+# Grafana ingress
+# ==============================================================================
+
+variable "grafana_service_port" {
+  description = <<-EOT
+    Port the Grafana Service listens on, which the `TargetGroupBinding` references.
+
+    Must match the chart's `grafana.service.port`. It is a variable rather than a constant because
+    in-cluster TLS will move it: Grafana stops serving plain HTTP, and the Service port moves with
+    it. Nothing here writes the value into the chart yet — see the TODO on the `monitoring` module
+    block — so changing it alone would point the target group at a port the Service does not have.
+  EOT
+  type        = number
+  default     = 80
+  nullable    = false
+}
+
+variable "grafana_load_balancer" {
+  description = <<-EOT
+    Expose Grafana behind a Network Load Balancer this module creates and owns.
+
+    The NLB, its listener, its target group, and the `TargetGroupBinding` that links them to the
+    Grafana Service are all Terraform resources here — the same shape as `aws/modules/nlb`, copied
+    rather than imported because that module is keyed on a Materialize instance's `resource_id` and
+    so is not available until Materialize is fully stood up.
+
+    Explicit resources rather than `service.type: LoadBalancer` with AWS annotations: the address is
+    `aws_lb.dns_name`, an ordinary attribute known at plan time, and every setting is a typed
+    argument. Letting the load-balancer controller create the NLB instead leaves the address
+    discoverable only by reading the Service back after apply — a race with the controller — and
+    pushes every setting through an annotation string with no validation.
+
+    The Grafana Service stays `ClusterIP`; the target group registers pod IPs directly. That means
+    the allowlist is **security-group rules on the NLB**, not `loadBalancerSourceRanges` — so the
+    chart cannot see it, and the check that a public load balancer is not left wide open lives in
+    this module instead.
+
+    L4, matching GCP, Azure, and the Materialize console. It terminates no TLS: Grafana serves plain
+    HTTP until something in front of it, or Grafana itself, holds a certificate, which is DEP-195's
+    work. Set `root_url` and `security.cookie_secure` through `additional_values` once one does.
+
+    `private_ipv4_addresses` (internal) and `eip_allocation_ids` (internet-facing) pre-allocate the
+    addresses, one per entry in `subnet_ids` and in the same order.
+
+    `listener_port` is what the load balancer accepts on. It is separate from `grafana_service_port`
+    — the port the target group registers against — so that in-cluster TLS can move the Service
+    without moving the load balancer's front door.
+
+    Null leaves Grafana on a ClusterIP Service, reachable only with `kubectl port-forward`.
+  EOT
+
+  type = object({
+    vpc_id                 = string
+    subnet_ids             = list(string)
+    node_security_group_id = string
+    ingress_cidr_blocks    = list(string)
+
+    internal                         = optional(bool, true)
+    host                             = optional(string, null)
+    listener_port                    = optional(number, 80)
+    enable_cross_zone_load_balancing = optional(bool, true)
+    private_ipv4_addresses           = optional(list(string), null)
+    eip_allocation_ids               = optional(list(string), null)
+  })
+
+  default = null
+
+  validation {
+    condition = var.grafana_load_balancer == null ? true : (
+      length(var.grafana_load_balancer.ingress_cidr_blocks) > 0 && alltrue([
+        for cidr in var.grafana_load_balancer.ingress_cidr_blocks : can(cidrhost(cidr, 0))
+      ])
+    )
+    error_message = "grafana_load_balancer.ingress_cidr_blocks must be non-empty and contain valid CIDR notation. On an internal load balancer, pass your VPC CIDR."
+  }
+
+  validation {
+    condition = var.grafana_load_balancer == null ? true : alltrue([
+      for addrs in [
+        var.grafana_load_balancer.private_ipv4_addresses,
+        var.grafana_load_balancer.eip_allocation_ids,
+      ] : addrs == null || length(addrs) == length(var.grafana_load_balancer.subnet_ids)
+    ])
+    error_message = "grafana_load_balancer.private_ipv4_addresses and eip_allocation_ids must have one entry per subnet_ids entry, in the same order."
+  }
+
+  validation {
+    condition = var.grafana_load_balancer == null ? true : (
+      var.grafana_load_balancer.internal
+      ? var.grafana_load_balancer.eip_allocation_ids == null
+      : var.grafana_load_balancer.private_ipv4_addresses == null
+    )
+    error_message = "grafana_load_balancer.eip_allocation_ids applies to an internet-facing load balancer and private_ipv4_addresses to an internal one; set the one that matches `internal`."
+  }
+
+  validation {
+    condition = var.grafana_load_balancer == null ? true : (
+      var.grafana_load_balancer.internal
+      || !anytrue([
+        for cidr in coalesce(var.grafana_load_balancer.ingress_cidr_blocks, []) :
+        contains(["0.0.0.0/0", "::/0"], trimspace(cidr))
+      ])
+      # The acknowledgement is the chart's own `connections.grafana.allowPublicAccess`,
+      # set through `additional_values` like any other chart value. Deliberately not
+      # a variable of its own: there should be exactly one way to say this, and
+      # saying it should take a moment's thought.
+      || anytrue([
+        for doc in var.additional_values :
+        try(yamldecode(doc).connections.grafana.allowPublicAccess, false)
+      ])
+    )
+    error_message = <<-EOT
+      grafana_load_balancer is public (internal = false) with an unrestricted allowlist (0.0.0.0/0 or ::/0).
+      Narrow ingress_cidr_blocks to the ranges that should reach Grafana.
+      Every datasource behind Grafana reads every metric in Thanos and every log in the tenant, and
+      until an identity provider is configured the generated admin password is the whole of the
+      access control — which is why this is refused here but merely defaulted for the Materialize
+      load balancers.
+      If the allowlist is enforced somewhere this module cannot see, acknowledge it through the
+      chart: additional_values = [yamlencode({ connections = { grafana = { allowPublicAccess = true } } })].
+    EOT
+  }
+}
+
 variable "additional_values" {
   description = "Raw YAML documents appended to the Helm values, last, so they override everything the modules compute."
   type        = list(string)

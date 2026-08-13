@@ -176,6 +176,22 @@ We follow semantic versioning with our tags. If a particular version requires ad
 
 ### Upgrade Notes
 
+#### v11.0.0
+
+Grafana gains durable state and a way to reach it. Both are opt-out rather than opt-in: the previous release left Grafana on SQLite in an `emptyDir` and reachable only through `kubectl port-forward`, which is fine for a bundled extra and not for the primary interface to the stack.
+
+**Impact on existing deployments:**
+
+- Two new billable resources per deployment, **created whenever `enable_observability` is on**: the smallest PostgreSQL instance the cloud offers (`db.t4g.micro`, `db-f1-micro`, `B_Standard_B1ms`) and an internal L4 load balancer. On the `enterprise` examples, where observability defaults on, bumping `ref=<tag>` creates both. On `simple`, observability is off by default, so nothing new appears until you turn it on.
+- The database holds Grafana's own state — users, service accounts and API tokens, annotations, dashboard versions, preferences. Set `grafana_database = null` on the monitoring module block to skip it and keep the previous SQLite behaviour, or point at a database you already run with `grafana_database_host` and friends. **Switching to it does not carry existing state over**; Grafana has no SQLite-to-PostgreSQL migration, so export anything you care about through its HTTP API first.
+- The load balancer is internal by default, and allowlisted to `ingress_cidr_blocks`. Going public needs `internal_load_balancer = false`, and a public load balancer whose allowlist is still `0.0.0.0/0` is **refused at plan time** for Grafana specifically.
+- Nothing terminates TLS, and Grafana has no identity provider until you configure one, so the generated admin password is the whole of the access control. Treat it as internal-only until both are addressed. Do not set `security.cookie_secure` in the meantime: it marks the session cookie `Secure`, the browser then stops sending it over the plain-HTTP connection that works, and login breaks entirely.
+- `grafana_url` keeps its name; its meaning becomes conditional. It is the hostname you supplied, else the load balancer's address, else the in-cluster Service. Nothing here publishes DNS for a hostname you supply.
+- **AWS only:** `aws/modules/monitoring` now requires the `alekc/kubectl` provider, for the `TargetGroupBinding` that attaches its NLB to the Grafana Service. The examples already configure it; a root that calls the module directly must add it, and also now supplies `vpc_id`, `subnet_ids`, and `node_security_group_id` inside `grafana_load_balancer`.
+- New outputs: `grafana_load_balancer_address`, `grafana_database_endpoint`, and `grafana_database_password` on all three clouds, plus `grafana_load_balancer_arn` and `grafana_load_balancer_security_group_id` on AWS.
+
+See each cloud's `modules/monitoring/README.md` for the full input and output list, and [Reaching Grafana](https://materializeinc.github.io/materialize-monitoring/getting-started/terraform/#reaching-grafana) for why the load balancers are L4 and what moving to L7 would take.
+
 #### v10.0.0
 
 We have introduced a new observability stack that replaces the previous Prometheus + Grafana stack. The new stack is cloud-native and supports logs, metrics, and dashboards.

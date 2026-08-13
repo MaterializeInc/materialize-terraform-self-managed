@@ -190,3 +190,180 @@ variable "additional_values" {
   default     = []
   nullable    = false
 }
+
+# ==============================================================================
+# Grafana state database
+# ==============================================================================
+
+variable "grafana_database" {
+  description = <<-EOT
+    Provision a dedicated Azure Database for PostgreSQL Flexible Server for Grafana's own state.
+
+    Grafana keeps users, service accounts and tokens, annotations, dashboard versions and
+    permissions, preferences, and alert-rule state in a database separate from the observability
+    data in Loki and Thanos. The chart default is SQLite on an `emptyDir`, so all of it is lost on
+    every restart, upgrade, and reschedule. That is tolerable while Grafana is reached through
+    `port-forward` and not once it is exposed, which is why this and `grafana_load_balancer`
+    belong in the same change.
+
+    Dedicated rather than a database inside the Materialize server, deliberately: a Flexible
+    Server has one administrator login and no ARM resource for additional roles, so sharing one
+    would mean handing Grafana the credentials that also own Materialize's metadata. On its own
+    server it *is* the administrator, which is what lets it run its schema migrations at startup.
+
+    `B_Standard_B1ms` is enough. Grafana's state is small and its query rate is a handful per page
+    load; this is a durability decision, not a capacity one.
+
+    Null leaves Grafana on SQLite. Point at a database you already run with the
+    `grafana_database_*` variables instead.
+
+    The examples enable this whenever `enable_observability` is on: durability is the
+    production default, and the cost of the smallest instance is well below the cost of
+    silently losing everything a user built in Grafana.
+  EOT
+
+  type = object({
+    subnet_id           = string
+    private_dns_zone_id = string
+
+    sku_name              = optional(string, "B_Standard_B1ms")
+    postgres_version      = optional(string, "16")
+    storage_mb            = optional(number, 32768)
+    backup_retention_days = optional(number, 7)
+  })
+
+  default = null
+
+  validation {
+    condition     = var.grafana_database == null || var.grafana_database_host == null
+    error_message = "Set either grafana_database (this module creates the server) or grafana_database_host (you point at an existing one), not both."
+  }
+}
+
+# The five below point Grafana at a database this module does not create. They
+# are forwarded to the monitoring module untouched, and are mutually exclusive
+# with `grafana_database`.
+
+variable "grafana_database_host" {
+  description = "FQDN of an existing PostgreSQL server for Grafana's state. Mutually exclusive with `grafana_database`. Host only — the port is `grafana_database_port`."
+  type        = string
+  default     = null
+}
+
+variable "grafana_database_port" {
+  description = "Port for `grafana_database_host`."
+  type        = number
+  default     = 5432
+  nullable    = false
+}
+
+variable "grafana_database_name" {
+  description = "Name of the database Grafana owns."
+  type        = string
+  default     = "grafana"
+  nullable    = false
+}
+
+variable "grafana_database_user" {
+  description = "Database user Grafana connects as. Defaults to the administrator login of the server this module creates, because Grafana runs schema migrations at startup and a Flexible Server has no ARM resource for creating additional roles."
+  type        = string
+  default     = "grafana"
+  nullable    = false
+}
+
+variable "grafana_database_password" {
+  description = "Password for `grafana_database_user`. Generated when this module creates the server. Null with an external host means the connection needs no password."
+  type        = string
+  default     = null
+  sensitive   = true
+}
+
+variable "grafana_database_ssl_mode" {
+  description = "libpq SSL mode for the Grafana database connection. Flexible Server requires TLS, so `disable` will not connect. `require` encrypts but does not authenticate the server; `verify-full` also authenticates it but needs the DigiCert root mounted, which this module does not do — supply `grafana.ini.database.ca_cert_path` and the matching mount through `additional_values` for that."
+  type        = string
+  default     = "require"
+  nullable    = false
+}
+
+# ==============================================================================
+# Grafana load balancer
+# ==============================================================================
+
+variable "grafana_load_balancer" {
+  description = <<-EOT
+    Expose Grafana through an Azure load balancer, provisioned from the `LoadBalancer` Service the
+    chart renders.
+
+    A Service rather than an Ingress: this is the shape AKS takes without an ingress controller
+    installed, and it matches what the `load_balancers` module already does for the Materialize
+    console. The two are not an L7-versus-L4 choice — both ask Azure for a load balancer — so pick
+    by what the cluster's controllers actually consume.
+
+    Internal by default, and `ingress_cidr_blocks` is required rather than defaulted: it becomes
+    `loadBalancerSourceRanges` on the Service, and the chart refuses to render a `LoadBalancer`
+    with no allowlist. On an internal load balancer pass your VNet CIDR; the chart cannot see the
+    `azure-load-balancer-internal` annotation, so the allowlist is what makes the intent legible
+    to it.
+
+    `host` is optional because an Azure load balancer answers on an IP. Set it once DNS exists —
+    Grafana builds share links, alert notification links, and OAuth redirect URIs from
+    `root_url`, and the chart warns while it is unset.
+
+    `ip` pre-allocates the address instead of letting Azure pick one. Supplying it is what makes
+    `grafana_url` known at plan time — without it the module has to read the Service back after
+    apply, which is why a fresh apply can still report the in-cluster name. For an internal load
+    balancer pass a free address from the AKS subnet; for a public one reserve an
+    `azurerm_public_ip` in the node resource group.
+
+    Null leaves Grafana on a ClusterIP Service, reachable only with `kubectl port-forward`.
+  EOT
+
+  type = object({
+    ingress_cidr_blocks = list(string)
+
+    internal    = optional(bool, true)
+    host        = optional(string, null)
+    ip          = optional(string, null)
+    annotations = optional(map(string), {})
+  })
+
+  default = null
+
+  validation {
+    condition = var.grafana_load_balancer == null ? true : (
+      length(var.grafana_load_balancer.ingress_cidr_blocks) > 0 && alltrue([
+        for cidr in var.grafana_load_balancer.ingress_cidr_blocks : can(cidrhost(cidr, 0))
+      ])
+    )
+    error_message = "grafana_load_balancer.ingress_cidr_blocks must be non-empty and contain valid CIDR notation. On an internal load balancer, pass your VNet CIDR."
+  }
+
+
+  validation {
+    condition = var.grafana_load_balancer == null ? true : (
+      var.grafana_load_balancer.internal
+      || !anytrue([
+        for cidr in coalesce(var.grafana_load_balancer.ingress_cidr_blocks, []) :
+        contains(["0.0.0.0/0", "::/0"], trimspace(cidr))
+      ])
+      # The acknowledgement is the chart's own `connections.grafana.allowPublicAccess`,
+      # set through `additional_values` like any other chart value. Deliberately not
+      # a variable of its own: there should be exactly one way to say this, and
+      # saying it should take a moment's thought.
+      || anytrue([
+        for doc in var.additional_values :
+        try(yamldecode(doc).connections.grafana.allowPublicAccess, false)
+      ])
+    )
+    error_message = <<-EOT
+      grafana_load_balancer is public (internal = false) with an unrestricted allowlist (0.0.0.0/0 or ::/0).
+      Narrow ingress_cidr_blocks to the ranges that should reach Grafana.
+      Every datasource behind Grafana reads every metric in Thanos and every log in the tenant, and
+      until an identity provider is configured the generated admin password is the whole of the
+      access control — which is why this is refused here but merely defaulted for the Materialize
+      load balancers.
+      If the allowlist is enforced somewhere this module cannot see, acknowledge it through the
+      chart: additional_values = [yamlencode({ connections = { grafana = { allowPublicAccess = true } } })].
+    EOT
+  }
+}
