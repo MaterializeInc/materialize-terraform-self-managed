@@ -39,6 +39,11 @@ pub async fn phase_verify(dir: &Path) -> Result<()> {
         println!("\nVerifying pods in namespace {instance_namespace}...");
         verify_pods_running(&kubeconfig, instance_namespace).await?;
 
+        if let Some(version) = tfvars.common().environmentd_version.as_deref() {
+            println!("\nVerifying environmentd is running version {version}...");
+            verify_environmentd_image(&kubeconfig, instance_namespace, version).await?;
+        }
+
         println!("\nVerifying node-local-dns...");
         verify_node_local_dns(&kubeconfig, provider).await?;
 
@@ -273,7 +278,55 @@ async fn check_expected_pods(kubeconfig: &Path, namespace: &str) -> Result<()> {
     }
 
     for (name, phase) in &pods {
-        println!("  [ok] {name}: {phase}");
+        // Pods outside EXPECTED_PODS, and surplus pods of an expected type
+        // (e.g. the incoming ReplicaSet during a rollout), are listed but do
+        // not gate the check -- so only mark the Running ones ok.
+        let mark = if *phase == "Running" { "ok" } else { "--" };
+        println!("  [{mark}] {name}: {phase}");
+    }
+    Ok(())
+}
+
+/// Asserts that the running environmentd pods use the image tag requested via
+/// `--environmentd-version`.
+///
+/// Without this, an override that fails to reach the terraform module leaves
+/// the run on the module's default version and every other check still passes,
+/// so a test of a specific build silently becomes a test of a different one.
+async fn verify_environmentd_image(
+    kubeconfig: &Path,
+    namespace: &str,
+    expected_version: &str,
+) -> Result<()> {
+    let output = run_cmd_output(kubectl(kubeconfig).args([
+        "get",
+        "pods",
+        "-n",
+        namespace,
+        "-o",
+        "jsonpath={range .items[*]}{.metadata.name} {.status.phase} {.spec.containers[0].image}{'\\n'}{end}",
+    ]))
+    .await?;
+
+    let expected_suffix = format!(":{expected_version}");
+    let mut checked = 0;
+    for line in output.lines() {
+        let parts: Vec<&str> = line.split_whitespace().collect();
+        let [name, phase, image] = parts[..] else {
+            continue;
+        };
+        if !name.contains("environmentd") || phase != "Running" {
+            continue;
+        }
+        if !image.ends_with(&expected_suffix) {
+            bail!("{name} runs image {image}, expected version {expected_version}");
+        }
+        println!("  [ok] {name}: {image}");
+        checked += 1;
+    }
+
+    if checked == 0 {
+        bail!("found no running environmentd pod to check the image version of");
     }
     Ok(())
 }
