@@ -176,10 +176,25 @@ We follow semantic versioning with our tags. If a particular version requires ad
 
 ### Upgrade Notes
 
+#### v11.0.0
+
+Grafana gains durable state and a way to reach it. Both are opt-out rather than opt-in: the previous release left Grafana on SQLite in an `emptyDir` and reachable only through `kubectl port-forward`, which is fine for a bundled extra and not for the primary interface to the stack.
+
+**Impact on existing deployments:**
+
+- Two new billable resources per deployment, **created whenever `enable_observability` is on**: the smallest PostgreSQL instance the cloud offers (`db.t4g.micro`, `db-f1-micro`, `B_Standard_B1ms`) and an internal L4 load balancer. On the `enterprise` examples, where observability defaults on, bumping `ref=<tag>` creates both. On `simple`, observability is off by default, so nothing new appears until you turn it on.
+- The database holds Grafana's own state — users, service accounts and API tokens, annotations, dashboard versions, preferences. Set `grafana_database = null` on the monitoring module block to skip it and keep the previous SQLite behaviour, or point at a database you already run with `grafana_database_host` and friends. **Switching to it does not carry existing state over**; Grafana has no SQLite-to-PostgreSQL migration, so export anything you care about through its HTTP API first.
+- The load balancer is internal by default, and allowlisted to `ingress_cidr_blocks`. Going public needs `internal_load_balancer = false`, and a public load balancer whose allowlist is still `0.0.0.0/0` is **refused at plan time** for Grafana specifically.
+- Nothing terminates TLS, and Grafana has no identity provider until you configure one, so the generated admin password is the whole of the access control. Treat it as internal-only until both are addressed. Do not set `security.cookie_secure` in the meantime: it marks the session cookie `Secure`, the browser then stops sending it over the plain-HTTP connection that works, and login breaks entirely.
+- `grafana_url` keeps its name; its meaning becomes conditional. It is the hostname you supplied, else the load balancer's address, else the in-cluster Service. Nothing here publishes DNS for a hostname you supply.
+- **AWS only:** `aws/modules/monitoring` now requires the `alekc/kubectl` provider, for the `TargetGroupBinding` that attaches its NLB to the Grafana Service. The examples already configure it; a root that calls the module directly must add it, and also now supplies `vpc_id`, `subnet_ids`, and `node_security_group_id` inside `grafana_load_balancer`.
+- New outputs: `grafana_load_balancer_address`, `grafana_database_endpoint`, and `grafana_database_password` on all three clouds, plus `grafana_load_balancer_arn` and `grafana_load_balancer_security_group_id` on AWS.
+
+See each cloud's `modules/monitoring/README.md` for the full input and output list, and [Reaching Grafana](https://materializeinc.github.io/materialize-monitoring/getting-started/terraform/#reaching-grafana) for why the load balancers are L4 and what moving to L7 would take.
+
 #### v10.0.0
 
 We have introduced a new observability stack that replaces the previous Prometheus + Grafana stack. The new stack is cloud-native and supports logs, metrics, and dashboards.
-
 
 `kubernetes/modules/prometheus` and `kubernetes/modules/grafana` are replaced by `aws/modules/monitoring`, `gcp/modules/monitoring`, and `azure/modules/monitoring`, which install the [`materialize-monitoring`](https://github.com/MaterializeInc/materialize-monitoring) charts. The two legacy modules are **removed**, not deprecated in place. If you referenced `kubernetes/modules/prometheus` or `kubernetes/modules/grafana` directly rather than through an example, that reference breaks on this version — pin the previous major until you have migrated to the monitoring module for your cloud.
 
@@ -189,8 +204,7 @@ The old stack vendored a point-in-time dashboard copy and a legacy scrape config
 
 - The `prometheus` and `grafana` Helm releases and their PersistentVolumeClaims are **destroyed**. Up to 15 days of local Prometheus data goes with them — there is no backfill, and the new stack begins collecting at install. Anything hand-created in the old Grafana (dashboards, users, saved queries) does not carry over.
 - The `prometheus_url` output is gone, replaced by `metrics_url` (Thanos Query) and `logs_url` (Loki). Thanos Query is Prometheus-API-compatible, so consumers of the old URL work against the new one — only the host and port change.
-- `grafana_url` and `grafana_admin_password` keep their names. `grafana_url` becomes conditional: the external URL once Grafana is exposed, the in-cluster Service otherwise. The default is still `ClusterIP`, so reaching it is still `kubectl -n monitoring port-forward svc/grafana 3000:80`.
-- Grafana can now keep its own state in a database and be reachable without a port-forward. The database is **on by default** wherever `enable_observability` is, so an `enterprise` apply provisions one additional small instance; exposure stays opt-in, because it needs a hostname, DNS, and an identity provider that Terraform cannot invent. See [Grafana persistence and reachability](#grafana-persistence-and-reachability).
+- `grafana_url` and `grafana_admin_password` keep their names and meaning. Grafana remains `ClusterIP`, so reaching it is still `kubectl -n monitoring port-forward svc/grafana 3000:80`.
 - New cloud resources are created: storage for each backend (logs and metrics) plus a per-backend cloud identity bound to the in-cluster ServiceAccount.
   - **AWS** — an S3 bucket and an IRSA role per backend.
   - **GCP** — a GCS bucket and a Google service account per backend, bound with `roles/iam.workloadIdentityUser`. Requires Workload Identity on the cluster, which the `gke` module already sets.
@@ -200,60 +214,6 @@ The old stack vendored a point-in-time dashboard copy and a legacy scrape config
 - **Azure only:** the Entra Workload ID webhook only mutates pods labelled `azure.workload.identity/use: "true"`, and the monitoring module applies that label for you. It reaches Thanos through `global.commonLabels` rather than a `podLabels` the Thanos chart does not have, so the label also appears on Thanos object metadata. That is cosmetic — it is not in any workload selector, so it is safe on an existing install.
 
 `enable_observability` keeps its name and its defaults (`false` in `simple`, `true` in `enterprise`).
-
-###### Grafana persistence and reachability
-
-Two opt-in additions to each cloud's monitoring module. They belong together: exposing Grafana without a durable backend turns a bundled extra nobody depended on into the primary interface to the stack — one that silently discards every dashboard, annotation, and API token its users create.
-
-**`grafana_database`** provisions a **dedicated** PostgreSQL instance for Grafana's own state (users, service accounts and tokens, annotations, dashboard versions and permissions, preferences, alert-rule state). Without it Grafana keeps all of that in SQLite on an `emptyDir` and loses it on every restart, upgrade, and reschedule.
-
-> **The examples always provision it**, gated only by `enable_observability` — so a `simple` apply, where observability is off by default, creates nothing new, while an `enterprise` apply provisions one additional small database instance. That is a deliberate move toward production-quality defaults: the alternative silently discards everything a user builds in Grafana. It is configured on the `monitoring` module block rather than through a root variable; set `grafana_database = null` there to opt out, or point at a database you already run with `grafana_database_host` and friends.
-
-Dedicated rather than a database inside the Materialize instance, for reasons that differ by cloud and happen to agree:
-
-| | Why not share |
-|---|---|
-| **AWS** | RDS has no API for adding a database to an existing instance. Sharing would need the PostgreSQL provider to reach a private endpoint from wherever Terraform runs. |
-| **Azure** | A Flexible Server has one administrator login and no ARM resource for additional roles, so Grafana would get the credentials that also own Materialize's metadata. The `enterprise` example already gives Ory its own server for the same reason. |
-| **GCP** | Cloud SQL could share cleanly, but a separate instance keeps Grafana's blast radius away from Materialize's metadata and keeps the three wrappers the same shape. |
-
-The default sizes (`db.t4g.micro`, `db-f1-micro`, `B_Standard_B1ms`) are deliberate: Grafana's state is small and its query rate is a handful per page load. This is a durability decision, not a capacity one. Pass `grafana_database_host` and friends instead to point at a database you already run.
-
-**`grafana_load_balancer`** makes Grafana reachable, on all three clouds, through an **L4** load balancer — an NLB on AWS, a passthrough NLB on GCP, an Azure Load Balancer — matching the Materialize console and balancerd.
-
-How it is built differs by cloud, because the deterministic option differs:
-
-| | Built from | Allowlist |
-|---|---|---|
-| **AWS** | `aws_lb`, listener, target group, and a `TargetGroupBinding` onto a `ClusterIP` Grafana Service — all Terraform resources | security-group rules on the NLB |
-| **GCP, Azure** | the chart's `LoadBalancer` Service, with cloud annotations | `loadBalancerSourceRanges` on the Service |
-
-On AWS this copies `aws/modules/nlb`, which is the pattern this repo has settled on: the address is `aws_lb.dns_name`, an ordinary attribute known at plan time, and every setting is a typed argument. Letting the load-balancer controller create the NLB from Service annotations instead leaves the address discoverable only by reading the Service back after apply — a race with the controller — and pushes every setting through an annotation string with no validation. It is copied rather than imported because `aws/modules/nlb` is keyed on a Materialize instance's `resource_id`, so importing it would make monitoring wait for Materialize to finish standing up.
-
-One consequence of that: on AWS the chart cannot see the allowlist, so the check that a public load balancer is not left wide open lives in the wrapper.
-
-**L7 is the better end state for a public Grafana** — a WAF and authentication at the edge are the two things L4 cannot do at all, and a managed load balancer terminates TLS more reliably than a pod does. It is deferred, not rejected: Azure needs an Application Gateway for Containers module that does not exist yet, and the chart's Gateway API support is still marked BETA, so adopting Ingress now would mean migrating twice. Revisit when either changes.
-
-Consequences of L4 worth knowing now:
-
-- **Nothing terminates TLS.** Grafana serves plain HTTP until something in front of it, or Grafana itself, holds a certificate — which is [DEP-195](https://linear.app/materializeinc/issue/DEP-195)'s work. Until then `grafana_url` is `http://`, and the chart warns.
-- **Health checks are TCP** on GCP and Azure, so a wedged-but-listening Grafana keeps receiving traffic. AWS checks `/api/health` over HTTP, because the target group can.
-- **No request-timeout ceiling**, which is the upside: long Thanos and Loki panel queries are not cut off by an L7 backend timeout.
-
-
-Neither publishes DNS. Any hostname you pass is yours to create, and an ACME challenge against a name that does not resolve is the usual way that gets noticed.
-
-The allowlist default is `["0.0.0.0/0"]`, inherited from the same variable the console uses. On an internal load balancer that reads as "anything that can reach the VPC", which is the point. On a **public** one it means open to the internet, so **that combination is refused at plan time** for Grafana specifically — narrow `ingress_cidr_blocks` instead.
-
-Grafana is held to a stricter line than the Materialize load balancers deliberately: every datasource behind it reads every metric in Thanos and every log in the tenant, and until an identity provider is configured the generated admin password is the whole of the access control. Read [Authentication](https://materializeinc.github.io/materialize-monitoring/dashboards/grafana/auth/) before exposing it.
-
-Where the allowlist really is enforced somewhere the module cannot see — a security group, an egress firewall, an authenticating proxy — acknowledge it with the chart's own value rather than a wrapper variable, which keeps one way to say it:
-
-```hcl
-additional_values = [
-  yamlencode({ connections = { grafana = { allowPublicAccess = true } } }),
-]
-```
 
 #### v9.0.0
 

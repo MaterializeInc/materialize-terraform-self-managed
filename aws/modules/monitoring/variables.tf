@@ -349,6 +349,10 @@ variable "grafana_load_balancer" {
     `private_ipv4_addresses` (internal) and `eip_allocation_ids` (internet-facing) pre-allocate the
     addresses, one per entry in `subnet_ids` and in the same order.
 
+    `listener_port` is what the load balancer accepts on. It is separate from `grafana_service_port`
+    — the port the target group registers against — so that in-cluster TLS can move the Service
+    without moving the load balancer's front door.
+
     Null leaves Grafana on a ClusterIP Service, reachable only with `kubectl port-forward`.
   EOT
 
