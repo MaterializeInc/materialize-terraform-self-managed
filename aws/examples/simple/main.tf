@@ -116,27 +116,10 @@ module "eks" {
 # - System workloads remain available during zone outages
 # ==============================================================================
 
-# 2.1 Create base node group for Karpenter and coredns
-module "base_node_group" {
-  source = "../../modules/eks-node-group"
-
-  cluster_name                      = module.eks.cluster_name
-  subnet_ids                        = module.networking.private_subnet_ids # Spans all AZs
-  node_group_name                   = "${var.name_prefix}-base"
-  instance_types                    = local.instance_types_base
-  swap_enabled                      = false
-  min_size                          = 2
-  max_size                          = 3
-  desired_size                      = 2
-  labels                            = local.base_node_labels
-  cluster_service_cidr              = module.eks.cluster_service_cidr
-  cluster_primary_security_group_id = module.eks.node_security_group_id
-  aws_region                        = var.aws_region
-  aws_profile                       = var.aws_profile
-  tags                              = var.tags
-}
-
-# 2.1.1 Install VPC CNI with Network Policy support
+# 2.1 Install VPC CNI with Network Policy support.
+# Must be installed before any node group: clusters created with EKS module
+# v21+ no longer bootstrap a default CNI, and nodes cannot become Ready
+# without one.
 module "vpc_cni" {
   source = "../../modules/vpc-cni"
 
@@ -153,8 +136,34 @@ module "vpc_cni" {
 
   depends_on = [
     module.eks,
-    module.base_node_group,
   ]
+}
+
+# 2.1.1 Create base node group for Karpenter and coredns
+module "base_node_group" {
+  source = "../../modules/eks-node-group"
+
+  cluster_name                      = module.eks.cluster_name
+  subnet_ids                        = module.networking.private_subnet_ids # Spans all AZs
+  node_group_name                   = "${var.name_prefix}-base"
+  instance_types                    = local.instance_types_base
+  swap_enabled                      = false
+  min_size                          = 2
+  max_size                          = 3
+  desired_size                      = 2
+  labels                            = local.base_node_labels
+  cluster_service_cidr              = module.eks.cluster_service_cidr
+  cluster_primary_security_group_id = module.eks.node_security_group_id
+  aws_region                        = var.aws_region
+  aws_profile                       = var.aws_profile
+  # Resolved at the root so they are known at plan time; a module-level
+  # depends_on defers data sources inside the module (see the eks-node-group
+  # partition variable description).
+  partition  = data.aws_partition.current.partition
+  account_id = data.aws_caller_identity.current.account_id
+  tags       = var.tags
+
+  depends_on = [module.vpc_cni]
 }
 
 module "coredns" {
@@ -163,8 +172,16 @@ module "coredns" {
   node_selector = local.base_node_labels
   # in aws coredns autoscaler deployment doesn't exist
   disable_default_coredns_autoscaler = false
-  kubeconfig_data                    = local.kubeconfig_data
-  cluster_identifier                 = module.eks.cluster_name
+  # Clusters created with EKS module v21+ no longer bootstrap the default
+  # CoreDNS, so the service account and kube-dns Service must be managed
+  # here. Clusters created with v20 and earlier already have a bootstrapped
+  # kube-dns Service, which must be imported into state before applying:
+  #   terraform import 'module.coredns.kubernetes_service.kube_dns[0]' kube-system/kube-dns
+  create_coredns_service_account = true
+  create_kube_dns_service        = true
+  kube_dns_service_cluster_ip    = cidrhost(module.eks.cluster_service_cidr, 10)
+  kubeconfig_data                = local.kubeconfig_data
+  cluster_identifier             = module.eks.cluster_name
 
   depends_on = [
     module.eks,
@@ -738,3 +755,4 @@ locals {
 }
 
 data "aws_caller_identity" "current" {}
+data "aws_partition" "current" {}

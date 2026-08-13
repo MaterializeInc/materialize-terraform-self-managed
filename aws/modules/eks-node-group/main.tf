@@ -58,7 +58,19 @@ resource "terraform_data" "eni_cleanup" {
 
 module "node_group" {
   source  = "terraform-aws-modules/eks/aws//modules/eks-managed-node-group"
-  version = "~> 20.0"
+  version = "~> 21.0"
+
+  # Passed through from the caller so they are known at plan time. When a
+  # caller puts a depends_on on this module call, Terraform defers every data
+  # source inside it (and inside the upstream module) to apply time. The
+  # upstream module resolves these from data sources gated by a conditional
+  # count when they are not supplied, so leaving them unset then fails the
+  # plan with "Invalid count argument" — and even when it can plan, the IAM
+  # policy ARNs derived from them become unknown, forcing a
+  # destroy-and-recreate of every aws_iam_role_policy_attachment whose
+  # create-before-destroy replacement detaches the policy from the live role.
+  partition  = var.partition
+  account_id = var.account_id
 
   cluster_name   = var.cluster_name
   subnet_ids     = var.subnet_ids
@@ -71,7 +83,11 @@ module "node_group" {
   ami_type       = var.ami_type
   labels         = local.node_labels
 
-  taints = var.node_taints
+  # v21 of the upstream module requires a map; key each entry by taint
+  # key and effect to preserve the list-based interface of this module.
+  # Kubernetes allows the same taint key with different effects, so the
+  # key alone would collide.
+  taints = { for t in var.node_taints : "${t.key}:${t.effect}" => t }
 
   # useful to disable this when prefix might be too long and hit following char limit
   # expected length of name_prefix to be in the range (1 - 38)
@@ -80,6 +96,16 @@ module "node_group" {
   iam_role_permissions_boundary = var.iam_permissions_boundary
 
   launch_template_name = var.launch_template_name
+
+  # v21 changed these defaults in ways that would produce a launch template
+  # diff and roll every existing node group; pin the v20 defaults instead.
+  use_latest_ami_release_version = false
+  enable_monitoring              = true
+  metadata_options = {
+    http_endpoint               = "enabled"
+    http_tokens                 = "required"
+    http_put_response_hop_limit = 2
+  }
 
   bootstrap_extra_args = var.swap_enabled ? local.swap_bootstrap_args : ""
 

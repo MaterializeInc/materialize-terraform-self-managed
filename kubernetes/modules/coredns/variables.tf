@@ -36,6 +36,19 @@ variable "create_coredns_service_account" {
   nullable    = false
 }
 
+variable "create_kube_dns_service" {
+  description = "Whether to create the kube-dns Service that exposes CoreDNS on the cluster DNS IP. Required on clusters whose platform does not bootstrap one (e.g. EKS clusters created with EKS module v21+). Clusters that already have a platform-bootstrapped kube-dns Service must import it into state instead: terraform import 'module.<name>.kubernetes_service.kube_dns[0]' kube-system/kube-dns"
+  type        = bool
+  default     = false
+  nullable    = false
+}
+
+variable "kube_dns_service_cluster_ip" {
+  description = "ClusterIP for the kube-dns Service. Must match the cluster DNS IP kubelets are configured with, conventionally the 10th address of the service CIDR (e.g. cidrhost(service_cidr, 10))."
+  type        = string
+  default     = null
+}
+
 variable "replicas" {
   description = "Number of CoreDNS replicas"
   type        = number
