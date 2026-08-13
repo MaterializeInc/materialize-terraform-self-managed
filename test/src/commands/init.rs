@@ -328,22 +328,14 @@ pub(crate) async fn inject_dev_overrides(dest: &Path, overrides: &DevOverrides) 
     if !operator_vars.is_empty() {
         let module = find_module_mut(&mut body, "operator")?;
         for &key in &operator_vars {
-            if !module.body.has_attribute(key) {
-                module.body.push(module_var_attr(key));
-                changed = true;
-                println!("  Injected {key} into operator module in main.tf");
-            }
+            changed |= set_module_var(module, "operator", key);
         }
     }
 
     // Materialize instance module: environmentd_version
     if overrides.environmentd_version {
         let module = find_module_mut(&mut body, "materialize_instance")?;
-        if !module.body.has_attribute("environmentd_version") {
-            module.body.push(module_var_attr("environmentd_version"));
-            changed = true;
-            println!("  Injected environmentd_version into materialize_instance module in main.tf");
-        }
+        changed |= set_module_var(module, "materialize_instance", "environmentd_version");
     }
 
     if changed {
@@ -351,6 +343,37 @@ pub(crate) async fn inject_dev_overrides(dest: &Path, overrides: &DevOverrides) 
     }
 
     Ok(())
+}
+
+/// Points `<key>` at `var.<key>` in the given module block, replacing whatever
+/// value is already there.
+///
+/// The examples wire some of these attributes to a different variable of their
+/// own -- every simple example has `environmentd_version = var.materialize_version`
+/// -- so an injection that skipped when the attribute was already present left
+/// the dev override silently unused: the variable was declared in
+/// `dev_variables.tf` and set in `terraform.tfvars.json`, but nothing read it,
+/// and terraform does not warn about a declared-but-unreferenced variable. The
+/// run then came up on the module's default version.
+///
+/// Returns whether the module block was modified.
+fn set_module_var(module: &mut hcl_edit::structure::Block, module_name: &str, key: &str) -> bool {
+    let want = format!("var.{key}");
+
+    let Some(mut attr) = module.body.get_attribute_mut(key) else {
+        module.body.push(module_var_attr(key));
+        println!("  Injected {key} into {module_name} module in main.tf");
+        return true;
+    };
+
+    let current = attr.value_mut().to_string();
+    let current = current.trim();
+    if current == want {
+        return false;
+    }
+    println!("  Repointed {key} from {current} to {want} in {module_name} module in main.tf");
+    *attr.value_mut() = var_ref(key);
+    true
 }
 
 /// Finds a `module "<name>"` block in the body, returning a mutable reference.
