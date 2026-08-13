@@ -60,7 +60,14 @@ gcloud services enable servicenetworking.googleapis.com       # For private netw
 gcloud services enable iamcredentials.googleapis.com          # For security and authentication
 gcloud services enable iam.googleapis.com                     # For managing IAM service accounts and policies
 gcloud services enable storage.googleapis.com                 # For Cloud Storage buckets
+gcloud services enable pubsub.googleapis.com                  # For GKE upgrade notifications (enabled by default)
 ```
+
+## Required Permissions
+
+Enabling the APIs is not sufficient on its own. The identity running `terraform apply` also needs roles to create the resources — most commonly missed are `roles/storage.hmacKeyAdmin`, `roles/iam.serviceAccountUser`, and `roles/pubsub.admin`.
+
+See [Required Permissions](../../README.md#required-permissions) in the GCP modules README for the full list, a script to grant it, and how to deploy without project-level IAM permissions.
 
 ## Getting Started
 
