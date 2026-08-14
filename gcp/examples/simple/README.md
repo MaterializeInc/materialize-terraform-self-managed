@@ -48,20 +48,19 @@ This example provisions the following infrastructure:
 ---
 
 ## Required APIs
-Your GCP project needs several APIs enabled. Here's what each API does in simple terms:
+
+Your GCP project needs several APIs enabled. Run:
 
 ```bash
-# Enable these APIs in your project
-gcloud services enable container.googleapis.com               # For creating Kubernetes clusters
-gcloud services enable compute.googleapis.com                 # For creating GKE nodes and other compute resources
-gcloud services enable sqladmin.googleapis.com                # For creating databases
-gcloud services enable cloudresourcemanager.googleapis.com    # For managing GCP resources
-gcloud services enable servicenetworking.googleapis.com       # For private network connections
-gcloud services enable iamcredentials.googleapis.com          # For security and authentication
-gcloud services enable iam.googleapis.com                     # For managing IAM service accounts and policies
-gcloud services enable storage.googleapis.com                 # For Cloud Storage buckets
-gcloud services enable pubsub.googleapis.com                  # For GKE upgrade notifications (enabled by default)
+../../../scripts/enable-gcp-apis.sh YOUR_PROJECT_ID
 ```
+
+The script is safe to re-run, and
+[`scripts/enable-gcp-apis.sh`](../../../scripts/enable-gcp-apis.sh) is also the
+list itself — each API is annotated with what needs it.
+
+Enabling an API takes a minute or two to propagate. If a `terraform apply`
+immediately afterwards reports a service as disabled, wait and re-run it.
 
 ## Required Permissions
 

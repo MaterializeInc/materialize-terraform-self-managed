@@ -100,7 +100,13 @@ provider "helm" {
 
 ### Required APIs
 
-Your GCP project needs several APIs enabled. See the [examples/simple/README.md](./examples/simple/README.md#required-apis) for the complete list of required APIs and how to enable them.
+Your GCP project needs several APIs enabled. Run
+[`scripts/enable-gcp-apis.sh`](../scripts/enable-gcp-apis.sh) against your
+project; the script doubles as the annotated list of what each API is for.
+
+```bash
+scripts/enable-gcp-apis.sh YOUR_PROJECT_ID
+```
 
 ### Required Permissions
 
