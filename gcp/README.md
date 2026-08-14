@@ -100,7 +100,84 @@ provider "helm" {
 
 ### Required APIs
 
-Your GCP project needs several APIs enabled. See the [examples/simple/README.md](./examples/simple/README.md#required-apis) for the complete list of required APIs and how to enable them.
+Your GCP project needs several APIs enabled. Run
+[`scripts/enable-gcp-apis.sh`](../scripts/enable-gcp-apis.sh) against your
+project; the script doubles as the annotated list of what each API is for.
+
+```bash
+scripts/enable-gcp-apis.sh YOUR_PROJECT_ID
+```
+
+### Required Permissions
+
+Enabling the APIs is not sufficient on its own: the identity that runs `terraform apply` also needs permission to create the resources. The following predefined roles, granted at project scope, cover a default deployment.
+
+| Role                                  | Required for                                                                 | Modules                     |
+|---------------------------------------|------------------------------------------------------------------------------|-----------------------------|
+| `roles/compute.networkAdmin`          | VPC, subnets, Cloud NAT router, global address, private service networking peering | `networking`           |
+| `roles/compute.securityAdmin`         | Firewall rules                                                                | `gke`, `load_balancers`     |
+| `roles/container.admin`               | GKE cluster and node pools, and in-cluster access for the Kubernetes and Helm providers | `gke`, `nodepool`, `operator` |
+| `roles/cloudsql.admin`                | Cloud SQL PostgreSQL instance                                                 | `database`                  |
+| `roles/storage.admin`                 | Cloud Storage buckets and objects                                             | `storage`, `monitoring`     |
+| `roles/storage.hmacKeyAdmin`          | HMAC key for S3-compatible bucket access                                      | `storage`                   |
+| `roles/iam.serviceAccountAdmin`       | Creating service accounts and their Workload Identity bindings                | `gke`, `monitoring`         |
+| `roles/iam.serviceAccountUser`        | Attaching the node service account to the node pool (`actAs`)                 | `gke`, `nodepool`           |
+| `roles/serviceusage.serviceUsageAdmin`| Enabling the required APIs                                                    | —                           |
+
+Two optional features need additional roles:
+
+| Role                                    | Required when                                                                        |
+|-----------------------------------------|--------------------------------------------------------------------------------------|
+| `roles/pubsub.admin`                    | `enable_upgrade_notifications = true` (**the default**) — creates the notification topic and subscription |
+| `roles/resourcemanager.projectIamAdmin` | `enable_upgrade_notifications = true` (**the default**), or `enable_google_cloud_metrics = true` — both add a project-level IAM binding |
+
+To grant the full default set:
+
+```bash
+PROJECT_ID=your-project-id
+MEMBER=user:you@example.com   # or serviceAccount:deployer@your-project-id.iam.gserviceaccount.com
+
+for ROLE in \
+  roles/compute.networkAdmin \
+  roles/compute.securityAdmin \
+  roles/container.admin \
+  roles/cloudsql.admin \
+  roles/storage.admin \
+  roles/storage.hmacKeyAdmin \
+  roles/iam.serviceAccountAdmin \
+  roles/iam.serviceAccountUser \
+  roles/serviceusage.serviceUsageAdmin \
+  roles/pubsub.admin \
+  roles/resourcemanager.projectIamAdmin
+do
+  gcloud projects add-iam-policy-binding "$PROJECT_ID" \
+    --member="$MEMBER" --role="$ROLE" --condition=None
+done
+```
+
+#### Deploying without project-level IAM permissions
+
+`roles/resourcemanager.projectIamAdmin` allows its holder to grant any role to any principal, including themselves. Many organizations will not approve it for a deployment identity.
+
+It is only required because two optional features add project-level IAM bindings. Disabling both removes the requirement entirely:
+
+```hcl
+module "gke" {
+  # ...
+  enable_upgrade_notifications = false  # default is true
+}
+
+module "monitoring" {
+  # ...
+  enable_google_cloud_metrics = false  # already the default
+}
+```
+
+With those disabled you can drop both `roles/resourcemanager.projectIamAdmin` and `roles/pubsub.admin` from the list above. The trade-off is that the operator module's `enable_node_upgrade_rollout_trigger` depends on upgrade notifications and will be unavailable.
+
+-> **Note**
+-> These roles are only needed while Terraform is running, and only on the project being deployed into.
+-> For shared or production environments, prefer granting them to a dedicated deployer service account and having engineers impersonate it, rather than granting them to individual users.
 
 ---
 

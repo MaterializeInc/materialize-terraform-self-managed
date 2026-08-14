@@ -39,6 +39,10 @@ Everything from the [simple example](../simple/README.md), plus:
 
 ## Getting Started
 
+### Prerequisites
+
+Your GCP project needs the required APIs enabled, and the identity running `terraform apply` needs permission to create the resources. See [Required APIs](../simple/README.md#required-apis) and [Required Permissions](../../README.md#required-permissions).
+
 ### Step 1: Set Required Variables
 
 Create a `terraform.tfvars` file:

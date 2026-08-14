@@ -48,19 +48,38 @@ This example provisions the following infrastructure:
 ---
 
 ## Required APIs
-Your GCP project needs several APIs enabled. Here's what each API does in simple terms:
+
+Your GCP project needs the following APIs enabled:
 
 ```bash
-# Enable these APIs in your project
-gcloud services enable container.googleapis.com               # For creating Kubernetes clusters
-gcloud services enable compute.googleapis.com                 # For creating GKE nodes and other compute resources
-gcloud services enable sqladmin.googleapis.com                # For creating databases
-gcloud services enable cloudresourcemanager.googleapis.com    # For managing GCP resources
-gcloud services enable servicenetworking.googleapis.com       # For private network connections
-gcloud services enable iamcredentials.googleapis.com          # For security and authentication
-gcloud services enable iam.googleapis.com                     # For managing IAM service accounts and policies
-gcloud services enable storage.googleapis.com                 # For Cloud Storage buckets
+gcloud services enable cloudresourcemanager.googleapis.com    # Project metadata and IAM bindings
+gcloud services enable compute.googleapis.com                 # VPC, subnets, Cloud NAT, firewalls, GKE nodes
+gcloud services enable container.googleapis.com               # GKE cluster and node pools
+gcloud services enable iam.googleapis.com                     # Service accounts and Workload Identity
+gcloud services enable iamcredentials.googleapis.com          # Short-lived credentials for Workload Identity
+gcloud services enable pubsub.googleapis.com                  # GKE upgrade notifications (enabled by default)
+gcloud services enable servicenetworking.googleapis.com       # Private services access for Cloud SQL
+gcloud services enable serviceusage.googleapis.com            # Required in order to enable any of the above
+gcloud services enable sqladmin.googleapis.com                # Cloud SQL for PostgreSQL
+gcloud services enable storage.googleapis.com                 # Cloud Storage buckets and HMAC keys
 ```
+
+Or enable all of them in one command with
+[`scripts/enable-gcp-apis.sh`](../../../scripts/enable-gcp-apis.sh), which is
+safe to re-run:
+
+```bash
+../../../scripts/enable-gcp-apis.sh YOUR_PROJECT_ID
+```
+
+Enabling an API takes a minute or two to propagate. If a `terraform apply`
+immediately afterwards reports a service as disabled, wait and re-run it.
+
+## Required Permissions
+
+Enabling the APIs is not sufficient on its own. The identity running `terraform apply` also needs roles to create the resources — most commonly missed are `roles/storage.hmacKeyAdmin`, `roles/iam.serviceAccountUser`, and `roles/pubsub.admin`.
+
+See [Required Permissions](../../README.md#required-permissions) in the GCP modules README for the full list, a script to grant it, and how to deploy without project-level IAM permissions.
 
 ## Getting Started
 
