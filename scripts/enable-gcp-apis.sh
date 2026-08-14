@@ -19,8 +19,9 @@ if [[ -z "$project" ]]; then
   exit 1
 fi
 
-# Keep in sync with the resources under gcp/modules/. Each entry notes what
-# needs it, so an unused one is easy to spot if a module ever drops a resource.
+# Keep in sync with the resources under gcp/modules/, and with the same list
+# spelled out in gcp/examples/simple/README.md. Each entry notes what needs it,
+# so an unused one is easy to spot if a module ever drops a resource.
 apis=(
   cloudresourcemanager.googleapis.com # Project metadata and IAM bindings
   compute.googleapis.com              # VPC, subnets, Cloud NAT, firewalls, GKE nodes
