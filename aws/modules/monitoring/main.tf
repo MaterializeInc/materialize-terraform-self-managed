@@ -403,8 +403,22 @@ locals {
 
 locals {
   grafana_lb = var.grafana_load_balancer
-  # `name_prefix` on an ELB is capped at 6 characters.
-  grafana_lb_name_prefix = substr(var.name_prefix, 0, min(6, length(var.name_prefix)))
+  # `aws_lb` and `aws_lb_target_group` cap `name_prefix` at 6 characters, and
+  # `name` at 32. The load balancer takes a full `name` — it is what shows in the
+  # console, so six characters of identity is not enough — and the target group
+  # takes the short `name_prefix`, because it needs `create_before_destroy` and a
+  # fixed name would collide with itself on replacement.
+  #
+  # A trailing hyphen is invalid in a load-balancer name, so trim one if `substr`
+  # happens to land on it.
+  # Truncate the *prefix*, not the whole string, so the `-mzmon-grafana` half
+  # always survives — otherwise a long enough deployment prefix eats it and the
+  # load balancer is unidentifiable in the console, which is the thing a real
+  # `name` is here to avoid.
+  grafana_lb_name = "${trimsuffix(substr(var.name_prefix, 0, 32 - length("-mzmon-grafana")), "-")}-mzmon-grafana"
+
+  # 6 characters exactly. Nothing may be appended: the cap is on the whole prefix.
+  grafana_tg_name_prefix = substr(var.name_prefix, 0, min(6, length(var.name_prefix)))
 
   # Grafana's container port. The chart's Service is 80 -> 3000; the target group
   # registers pod IPs, so it is the container port that matters here.
@@ -450,7 +464,7 @@ locals {
 resource "aws_security_group" "grafana_nlb" {
   count = local.grafana_lb == null ? 0 : 1
 
-  name_prefix = "${local.grafana_lb_name_prefix}-mzmon-gf-"
+  name_prefix = "${var.name_prefix}-mzmon-grafana-"
   description = "Grafana NLB for ${var.name_prefix}"
   vpc_id      = local.grafana_lb.vpc_id
 
@@ -492,7 +506,7 @@ resource "aws_vpc_security_group_ingress_rule" "grafana_nlb" {
 resource "aws_lb" "grafana" {
   count = local.grafana_lb == null ? 0 : 1
 
-  name_prefix                      = "${local.grafana_lb_name_prefix}-"
+  name                             = local.grafana_lb_name
   internal                         = local.grafana_lb.internal
   load_balancer_type               = "network"
   subnets                          = length(local.grafana_lb_subnet_mappings) == 0 ? local.grafana_lb.subnet_ids : null
@@ -511,15 +525,17 @@ resource "aws_lb" "grafana" {
 
   tags = merge(local.common_tags, { Backend = "grafana" })
 
-  lifecycle {
-    create_before_destroy = true
-  }
+  # Deliberately no `create_before_destroy`: it cannot coexist with a fixed
+  # `name`, because the replacement would collide with the load balancer still
+  # being destroyed. Replacing a load balancer is rare — changing `internal`,
+  # the subnets, or the name — and costs a short outage on a Grafana that is
+  # already not highly available.
 }
 
 resource "aws_lb_target_group" "grafana" {
   count = local.grafana_lb == null ? 0 : 1
 
-  name_prefix        = "${local.grafana_lb_name_prefix}-"
+  name_prefix        = local.grafana_tg_name_prefix
   port               = local.grafana_pod_port
   protocol           = "TCP"
   target_type        = "ip"
