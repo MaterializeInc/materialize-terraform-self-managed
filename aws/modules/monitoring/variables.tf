@@ -176,7 +176,7 @@ variable "node_selector" {
 }
 
 variable "storage_class" {
-  description = "StorageClass for the PVC-backed monitoring workloads (Alertmanager, the Loki ruler, and Thanos receive/compactor/store-gateway). Null uses whatever class the cluster marks default; the examples pass the `gp3` class from the `ebs-csi-driver` module."
+  description = "StorageClass for the PVC-backed monitoring workloads (Alertmanager, the Loki ruler, and the Thanos Store Gateway and Compactor). Null uses whatever class the cluster marks default; the examples pass the `gp3` class from the `ebs-csi-driver` module. Loki's ingesters and Thanos Receive use node-local `emptyDir` by design, so the class only reaches them if their persistence is turned back on."
   type        = string
   default     = null
 }

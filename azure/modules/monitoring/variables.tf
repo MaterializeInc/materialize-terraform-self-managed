@@ -160,7 +160,7 @@ variable "node_selector" {
 }
 
 variable "storage_class" {
-  description = "StorageClass for the PVC-backed monitoring workloads (Alertmanager, the Loki ruler, and Thanos receive/compactor/store-gateway). Null uses the cluster default; AKS ships `managed-csi`."
+  description = "StorageClass for the PVC-backed monitoring workloads (Alertmanager, the Loki ruler, and the Thanos Store Gateway and Compactor). Null uses the cluster default; AKS ships `managed-csi`. Loki's ingesters and Thanos Receive use node-local `emptyDir` by design, so the class only reaches them if their persistence is turned back on."
   type        = string
   default     = null
 }

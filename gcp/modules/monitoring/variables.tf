@@ -148,13 +148,30 @@ variable "node_selector" {
 
 variable "storage_class" {
   description = <<-EOT
-    StorageClass for the PVC-backed monitoring workloads (Alertmanager, the Loki ruler, and Thanos
-    receive/compactor/store-gateway). Null uses the cluster default.
+    StorageClass for the PVC-backed monitoring workloads (Alertmanager, the Loki ruler, and the
+    Thanos Store Gateway and Compactor). Null uses the cluster default. Loki's ingesters and Thanos
+    Receive use node-local `emptyDir` by design, so the class only reaches them if their persistence
+    is turned back on.
 
     Must be a Hyperdisk class on C4/C4A/N4, which take only Hyperdisk — every default GKE class is
     Persistent Disk and fails to attach there. The examples create one and pass it here.
   EOT
   type        = string
+  default     = null
+}
+
+variable "min_zones" {
+  description = <<-EOT
+    Number of availability zones the node pool can actually launch in, used to adjust the hard zone
+    spread the chart puts on Thanos Receive and Loki's ingesters. Null leaves the chart's defaults
+    alone, which assume two or more zones — correct for the regional clusters the examples build.
+
+    Set it when that assumption does not hold, because the constraints fail closed rather than
+    degrading: `0` for a cluster whose nodes carry no `topology.kubernetes.io/zone` label, or the
+    real zone count otherwise. A zonal GKE cluster is the case to watch — one zone leaves those pods
+    **Pending forever** rather than merely unbalanced, so pass `1`.
+  EOT
+  type        = number
   default     = null
 }
 
