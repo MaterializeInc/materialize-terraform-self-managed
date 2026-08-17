@@ -639,7 +639,7 @@ module "monitoring" {
   #
   # v0.13.0 is where `grafana_database_*` and the chart's `grafana.ingress` /
   # `grafana.service` values land. This branch does not plan against v0.12.0.
-  source = "github.com/MaterializeInc/materialize-monitoring//terraform/modules/materialize-monitoring?ref=materialize-monitoring/v0.15.0"
+  source = "github.com/MaterializeInc/materialize-monitoring//terraform/modules/materialize-monitoring?ref=materialize-monitoring/v0.17.0"
 
   namespace        = var.namespace
   create_namespace = var.create_namespace
@@ -707,6 +707,17 @@ module "monitoring" {
       "eks.amazonaws.com/role-arn" = aws_iam_role.telemetry["thanos"].arn
     }
   }
+
+  # Straight pass-through; the monitoring module validates the tiers, the OTLP
+  # protocol, and the url-has-no-scheme rule, and rejects a bearer token combined
+  # with headers. Credentials never enter the Helm values — that module puts them
+  # in the gateway Secret and rolls the gateway when one changes.
+  datadog_metrics = var.datadog_metrics
+  datadog_api_key = var.datadog_api_key
+
+  otlp_metrics             = var.otlp_metrics
+  otlp_auth_header_secrets = var.otlp_auth_header_secrets
+  otlp_auth_bearer_token   = var.otlp_auth_bearer_token
 
   # Ingress values ahead of the caller's, so `additional_values` still overrides
   # anything computed here.

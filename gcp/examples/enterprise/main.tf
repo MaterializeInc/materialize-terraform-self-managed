@@ -509,6 +509,22 @@ module "monitoring" {
   enable_google_cloud_metrics         = false
   google_cloud_metrics_min_importance = "recommended"
 
+  # Datadog and generic OTLP (Honeycomb, Grafana Cloud, your own collector) fan
+  # out the same way, and need no cloud resources — so they are set here rather
+  # than behind an `enable_*` toggle. Commented out because both need a
+  # credential; the module puts it in a Secret rather than the Helm values, and
+  # rolls the gateway when it changes.
+  #
+  # datadog_metrics = { site = "datadoghq.com", min_importance = "essential" }
+  # datadog_api_key = var.datadog_api_key
+  #
+  # otlp_metrics = {
+  #   url            = "api.honeycomb.io"
+  #   min_importance = "recommended"
+  #   auth_headers   = { "x-honeycomb-dataset" = "mzmon" }
+  # }
+  # otlp_auth_header_secrets = { "x-honeycomb-team" = var.honeycomb_api_key }
+
   materialize_instance_namespace = local.materialize_instance_namespace
   materialize_operator_namespace = local.materialize_operator_namespace
 

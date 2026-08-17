@@ -165,6 +165,89 @@ variable "storage_class" {
   default     = null
 }
 
+variable "min_zones" {
+  description = <<-EOT
+    Number of availability zones the node pool can actually launch in, used to adjust the hard zone
+    spread the chart puts on Thanos Receive and Loki's ingesters. Null leaves the chart's defaults
+    alone, which assume two or more zones.
+
+    Set it when that assumption does not hold, because the constraints fail closed rather than
+    degrading: `0` for a cluster whose nodes carry no `topology.kubernetes.io/zone` label, or the
+    real zone count otherwise. On AKS this is the one to check — an AKS node pool created without
+    `zones` is not zone-labelled, and a single zone leaves those pods **Pending forever** rather
+    than merely unbalanced.
+  EOT
+  type        = number
+  default     = null
+}
+
+# ==============================================================================
+# Extra metrics destinations
+# ==============================================================================
+# Passed straight through to the monitoring module rather than flattened the way
+# `enable_google_cloud_metrics` is. That one is flat because it provisions cloud
+# resources — a service account and its Workload Identity binding — so this
+# module needs a plan-known toggle to gate them. Datadog and OTLP provision
+# nothing, so a flat mirror here would only be a second place for the defaults
+# and the validation to drift from.
+
+variable "datadog_metrics" {
+  description = <<-EOT
+    Also export metrics to Datadog from the Alloy gateway. Null disables it; Thanos is unaffected.
+    Requires `datadog_api_key`.
+
+    `min_importance` is the cost lever — Datadog bills per custom metric, so it defaults to
+    `essential` rather than the `recommended` the other destinations use.
+  EOT
+  type = object({
+    site            = optional(string, "datadoghq.com")
+    min_importance  = optional(string, "essential")
+    metric_endpoint = optional(string)
+    logs_endpoint   = optional(string)
+  })
+  default = null
+}
+
+variable "datadog_api_key" {
+  description = "Datadog API key for `datadog_metrics`. Reaches the gateway as a Secret the monitoring module creates, never through the Helm values."
+  type        = string
+  default     = null
+  sensitive   = true
+}
+
+variable "otlp_metrics" {
+  description = <<-EOT
+    Also export metrics to a generic OTLP endpoint from the Alloy gateway — Honeycomb, Grafana
+    Cloud, or your own collector. Null disables it; Thanos is unaffected.
+
+    `url` is a `host[:port]` with no scheme. `auth_headers` carries **non-secret** headers only
+    (a dataset or tenant name); credentials belong in `otlp_auth_header_secrets`.
+  EOT
+  type = object({
+    url            = string
+    protocol       = optional(string, "grpc")
+    compression    = optional(string)
+    min_importance = optional(string, "recommended")
+    auth_headers   = optional(map(string), {})
+  })
+  default = null
+}
+
+variable "otlp_auth_header_secrets" {
+  description = "Secret request headers for `otlp_metrics`, as header name to value — Honeycomb's `x-honeycomb-team`, for instance. Each reaches the gateway as a Secret the monitoring module creates. Cannot be combined with `otlp_auth_bearer_token`."
+  type        = map(string)
+  default     = {}
+  nullable    = false
+  sensitive   = true
+}
+
+variable "otlp_auth_bearer_token" {
+  description = "Bearer token for `otlp_metrics`, for endpoints taking `Authorization: Bearer`. Reaches the gateway as a Secret the monitoring module creates. Cannot be combined with `otlp_auth_header_secrets`."
+  type        = string
+  default     = null
+  sensitive   = true
+}
+
 variable "tolerations" {
   description = "Tolerations for the monitoring workloads, including the Alloy agent DaemonSet."
   type = list(object({
