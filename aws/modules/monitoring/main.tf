@@ -661,6 +661,7 @@ module "monitoring" {
   node_selector = var.node_selector
   tolerations   = var.tolerations
   storage_class = var.storage_class
+  min_zones     = var.min_zones
 
   materialize_instance_namespace = var.materialize_instance_namespace
   materialize_operator_namespace = var.materialize_operator_namespace
