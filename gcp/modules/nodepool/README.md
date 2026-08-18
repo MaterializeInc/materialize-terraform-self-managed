@@ -5,14 +5,14 @@
 | <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | >= 1.10 |
 | <a name="requirement_google"></a> [google](#requirement\_google) | >= 7.22, < 8 |
 | <a name="requirement_google-beta"></a> [google-beta](#requirement\_google-beta) | >= 7.22, < 8 |
-| <a name="requirement_kubernetes"></a> [kubernetes](#requirement\_kubernetes) | >= 2.10.0, < 2.39.0 |
+| <a name="requirement_kubernetes"></a> [kubernetes](#requirement\_kubernetes) | >= 2.10.0, < 3.3.0 |
 
 ## Providers
 
 | Name | Version |
 | ---- | ------- |
 | <a name="provider_google-beta"></a> [google-beta](#provider\_google-beta) | >= 7.22, < 8 |
-| <a name="provider_kubernetes"></a> [kubernetes](#provider\_kubernetes) | >= 2.10.0, < 2.39.0 |
+| <a name="provider_kubernetes"></a> [kubernetes](#provider\_kubernetes) | >= 2.10.0, < 3.3.0 |
 
 ## Modules
 
