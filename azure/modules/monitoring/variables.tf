@@ -171,11 +171,10 @@ variable "min_zones" {
     spread the chart puts on Thanos Receive and Loki's ingesters. Null leaves the chart's defaults
     alone, which assume two or more zones.
 
-    Set it when that assumption does not hold, because the constraints fail closed rather than
-    degrading: `0` for a cluster whose nodes carry no `topology.kubernetes.io/zone` label, or the
-    real zone count otherwise. On AKS this is the one to check — an AKS node pool created without
-    `zones` is not zone-labelled, and a single zone leaves those pods **Pending forever** rather
-    than merely unbalanced.
+    On AKS if you end up with a single zone (which is how node pools in AKS are created by default
+    without `zones`), you MUST set this to `1` or the pods will remain **Pending** forever.
+    Set it to `0` to disable the zone spread entirely (only required if there is no
+    `topology.kubernetes.io/zone` label on the nodes).
   EOT
   type        = number
   default     = null
@@ -184,12 +183,11 @@ variable "min_zones" {
 # ==============================================================================
 # Extra metrics destinations
 # ==============================================================================
-# Passed straight through to the monitoring module rather than flattened the way
-# `enable_google_cloud_metrics` is. That one is flat because it provisions cloud
-# resources — a service account and its Workload Identity binding — so this
-# module needs a plan-known toggle to gate them. Datadog and OTLP provision
-# nothing, so a flat mirror here would only be a second place for the defaults
-# and the validation to drift from.
+# Passed straight through to the monitoring module rather than flattened like the
+# GCP wrapper's `enable_google_cloud_metrics`. GCP uses a flat toggle because it
+# provisions a service account and Workload Identity binding and therefore needs
+# a plan-known value to gate those resources. Datadog and OTLP require no extra
+# cloud-provider resources, so flattening them would duplicate defaults and validation.
 
 variable "datadog_metrics" {
   description = <<-EOT

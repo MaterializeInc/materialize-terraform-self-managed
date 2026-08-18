@@ -200,12 +200,11 @@ variable "min_zones" {
 # ==============================================================================
 # Extra metrics destinations
 # ==============================================================================
-# Passed straight through to the monitoring module rather than flattened the way
-# `enable_google_cloud_metrics` is. That one is flat because it provisions cloud
-# resources — a service account and its Workload Identity binding — so this
-# module needs a plan-known toggle to gate them. Datadog and OTLP provision
-# nothing, so a flat mirror here would only be a second place for the defaults
-# and the validation to drift from.
+# Passed straight through to the monitoring module rather than flattened like the
+# GCP wrapper's `enable_google_cloud_metrics`. GCP uses a flat toggle because it
+# provisions a service account and Workload Identity binding and therefore needs
+# a plan-known value to gate those resources. Datadog and OTLP require no extra
+# cloud-provider resources, so flattening them would duplicate defaults and validation.
 
 variable "datadog_metrics" {
   description = <<-EOT
