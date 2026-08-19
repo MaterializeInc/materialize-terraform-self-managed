@@ -469,13 +469,12 @@ module "monitoring" {
   node_selector = local.generic_node_labels
   storage_class = local.storage_class
 
-  # The AKS node pools here are non-zonal — `availability_zones` is left at its
-  # null default — so the chart's hard zone spread on Thanos Receive and Loki's
-  # ingesters has a single domain to place into. Below its floor of two zones
-  # those pods stay Pending forever rather than merely unbalanced, so relax
-  # `minDomains` to 1. Raise this to the real count, and it becomes real
-  # protection, if you give the node pools zones.
-  min_zones = 1
+  # These node pools are zonal — see `availability_zones` above, which reaches
+  # both the default and the generic pool. Derived rather than written as `3` so
+  # the two cannot drift: the chart's zone spread fails closed, and a pool
+  # narrowed to fewer zones than `minDomains` leaves Thanos Receive and Loki's
+  # ingesters Pending forever rather than merely unbalanced.
+  min_zones = length(local.availability_zones)
 
   # Datadog and generic OTLP (Honeycomb, Grafana Cloud, your own collector) fan
   # out the same way, and need no cloud resources — so they are set here rather
@@ -483,13 +482,16 @@ module "monitoring" {
   # credential; the module puts it in a Secret rather than the Helm values, and
   # rolls the gateway when it changes.
   #
-  # datadog_metrics = { site = "datadoghq.com", min_importance = "essential" }
+  # Declare the two credentials as `sensitive` variables of your own before
+  # uncommenting — this example does not, and they belong in `terraform.tfvars`
+  # or `TF_VAR_*` rather than as literals in a file you commit.
+  #
+  # datadog_metrics = { site = "datadoghq.com" }
   # datadog_api_key = var.datadog_api_key
   #
   # otlp_metrics = {
-  #   url            = "api.honeycomb.io"
-  #   min_importance = "recommended"
-  #   auth_headers   = { "x-honeycomb-dataset" = "mzmon" }
+  #   url          = "api.honeycomb.io"
+  #   auth_headers = { "x-honeycomb-dataset" = "mzmon" }
   # }
   # otlp_auth_header_secrets = { "x-honeycomb-team" = var.honeycomb_api_key }
 

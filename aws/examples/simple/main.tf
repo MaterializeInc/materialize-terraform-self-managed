@@ -582,13 +582,16 @@ module "monitoring" {
   # credential; the module puts it in a Secret rather than the Helm values, and
   # rolls the gateway when it changes.
   #
-  # datadog_metrics = { site = "datadoghq.com", min_importance = "essential" }
+  # Declare the two credentials as `sensitive` variables of your own before
+  # uncommenting — this example does not, and they belong in `terraform.tfvars`
+  # or `TF_VAR_*` rather than as literals in a file you commit.
+  #
+  # datadog_metrics = { site = "datadoghq.com" }
   # datadog_api_key = var.datadog_api_key
   #
   # otlp_metrics = {
-  #   url            = "api.honeycomb.io"
-  #   min_importance = "recommended"
-  #   auth_headers   = { "x-honeycomb-dataset" = "mzmon" }
+  #   url          = "api.honeycomb.io"
+  #   auth_headers = { "x-honeycomb-dataset" = "mzmon" }
   # }
   # otlp_auth_header_secrets = { "x-honeycomb-team" = var.honeycomb_api_key }
 

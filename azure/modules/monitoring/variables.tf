@@ -160,7 +160,7 @@ variable "node_selector" {
 }
 
 variable "storage_class" {
-  description = "StorageClass for the PVC-backed monitoring workloads (Alertmanager, the Loki ruler, and the Thanos Store Gateway and Compactor). Null uses the cluster default; AKS ships `managed-csi`. Loki's ingesters and Thanos Receive use node-local `emptyDir` by design, so the class only reaches them if their persistence is turned back on."
+  description = "StorageClass for the PVC-backed monitoring workloads (Alertmanager, the Loki ruler, and the Thanos Store Gateway and Compactor). Null uses the cluster default; AKS ships `managed-csi`. Thanos Receive and Loki's ingesters both use node-local `emptyDir` by design, and the two differ if you turn that off: upstream keeps a `thanos.receive` key, so re-enabling its persistence does pick up this class, while Loki's ingesters are deliberately left out of the fan-out and would not."
   type        = string
   default     = null
 }
@@ -186,8 +186,15 @@ variable "min_zones" {
 # Passed straight through to the monitoring module rather than flattened like the
 # GCP wrapper's `enable_google_cloud_metrics`. GCP uses a flat toggle because it
 # provisions a service account and Workload Identity binding and therefore needs
-# a plan-known value to gate those resources. Datadog and OTLP require no extra
-# cloud-provider resources, so flattening them would duplicate defaults and validation.
+# a plan-known value to gate those resources. Datadog and OTLP provision nothing,
+# so there is no toggle to gate and a flat mirror would only add surface.
+#
+# The object shapes below do restate upstream's attribute defaults. That is a
+# deliberate duplication: the type expression is what terraform-docs publishes,
+# so restating them is how a reader sees the default without opening the
+# monitoring module. The cost is that they are resolved *here* — an upstream
+# default change is masked until these are updated to match, so check them on a
+# module bump. Validation is not duplicated; that stays upstream only.
 
 variable "datadog_metrics" {
   description = <<-EOT
@@ -219,7 +226,8 @@ variable "otlp_metrics" {
     Cloud, or your own collector. Null disables it; Thanos is unaffected.
 
     `url` is a `host[:port]` with no scheme. `auth_headers` carries **non-secret** headers only
-    (a dataset or tenant name); credentials belong in `otlp_auth_header_secrets`.
+    (a dataset or tenant name); credentials belong in `otlp_auth_header_secrets` or
+    `otlp_auth_bearer_token`.
   EOT
   type = object({
     url            = string
@@ -240,7 +248,7 @@ variable "otlp_auth_header_secrets" {
 }
 
 variable "otlp_auth_bearer_token" {
-  description = "Bearer token for `otlp_metrics`, for endpoints taking `Authorization: Bearer`. Reaches the gateway as a Secret the monitoring module creates. Cannot be combined with `otlp_auth_header_secrets`."
+  description = "Bearer token for `otlp_metrics`, for endpoints taking `Authorization: Bearer`. Reaches the gateway as a Secret the monitoring module creates. Cannot be combined with `otlp_auth_header_secrets` **or** `otlp_metrics.auth_headers` — the chart has one auth slot per destination, and inline non-secret headers land in the same list."
   type        = string
   default     = null
   sensitive   = true
