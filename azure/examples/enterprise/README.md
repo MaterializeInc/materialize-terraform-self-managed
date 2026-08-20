@@ -35,6 +35,15 @@ Everything from the [simple example](../simple/README.md), plus:
 - **Chart and image**: Both pulled through the Materialize OEL registry proxy with the license-key JWT, no separate credential required
 - Off by default. Set `enable_polis = true` and `ory_polis_fqdn` to deploy.
 
+**Registering the SAML/SCIM connection.** Polis owns the SAML connection and SCIM directory, and their credentials only exist once it is running, so they are not Terraform resources. After apply, with `kubectl` pointed at the cluster, run:
+
+```sh
+OKTA_SAML_METADATA=~/Downloads/metadata.xml \
+  ./scripts/polis-register.sh azure/examples/enterprise
+```
+
+It registers (or re-reads, idempotently) the connection and directory, then prints the `upstream_oidc_providers` block to add to `terraform.tfvars` and the remaining Okta admin-console steps.
+
 ---
 
 ## Getting Started
