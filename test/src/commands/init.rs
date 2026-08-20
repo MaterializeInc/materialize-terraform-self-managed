@@ -185,6 +185,7 @@ fn build_tfvars(provider_args: &InitProvider, test_run_id: &str) -> Result<TfVar
         name_prefix: test_run_id.to_string(),
         license_key: common.resolve_license_key()?,
         internal_load_balancer: false,
+        grafana_allow_public_access: true,
         helm_chart,
         use_local_chart,
         orchestratord_version: common.orchestratord_version.clone(),

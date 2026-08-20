@@ -33,6 +33,11 @@ pub struct CommonTfVars {
     pub name_prefix: String,
     pub license_key: String,
     pub internal_load_balancer: bool,
+    /// The test clusters are ephemeral and the runner needs a public address to
+    /// reach Materialize, which means `0.0.0.0/0` on a public load balancer. The
+    /// monitoring module refuses that for Grafana specifically, so the test roots
+    /// acknowledge it here. The examples leave it `false`.
+    pub grafana_allow_public_access: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub helm_chart: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
