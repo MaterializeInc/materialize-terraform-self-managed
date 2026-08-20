@@ -105,6 +105,13 @@ resource "kubernetes_deployment" "ui" {
       }
 
       spec {
+        dynamic "image_pull_secrets" {
+          for_each = var.image_pull_secrets
+          content {
+            name = image_pull_secrets.value
+          }
+        }
+
         dynamic "toleration" {
           for_each = var.tolerations
           content {

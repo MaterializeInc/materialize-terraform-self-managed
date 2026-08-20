@@ -40,6 +40,13 @@ variable "image_pull_policy" {
   nullable    = false
 }
 
+variable "image_pull_secrets" {
+  description = "Names of imagePullSecrets to attach to the pod, required when the image is pulled from an authenticated registry such as the Ory OEL registry proxy."
+  type        = list(string)
+  default     = []
+  nullable    = false
+}
+
 variable "port" {
   description = "Port the selfservice UI listens on."
   type        = number

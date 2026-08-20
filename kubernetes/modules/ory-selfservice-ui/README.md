@@ -40,6 +40,7 @@ No modules.
 | <a name="input_extra_env"></a> [extra\_env](#input\_extra\_env) | Additional environment variables as a map of name to value. | `map(string)` | `{}` | no |
 | <a name="input_hydra_admin_url"></a> [hydra\_admin\_url](#input\_hydra\_admin\_url) | Internal URL for the Hydra admin API. Example: http://hydra-admin.ory.svc.cluster.local:4445 | `string` | n/a | yes |
 | <a name="input_image_pull_policy"></a> [image\_pull\_policy](#input\_image\_pull\_policy) | Image pull policy. | `string` | `"IfNotPresent"` | no |
+| <a name="input_image_pull_secrets"></a> [image\_pull\_secrets](#input\_image\_pull\_secrets) | Names of imagePullSecrets to attach to the pod, required when the image is pulled from an authenticated registry such as the Ory OEL registry proxy. | `list(string)` | `[]` | no |
 | <a name="input_image_repository"></a> [image\_repository](#input\_image\_repository) | Docker image repository for the selfservice UI. | `string` | `"oryd/kratos-selfservice-ui-node"` | no |
 | <a name="input_image_tag"></a> [image\_tag](#input\_image\_tag) | Docker image tag for the selfservice UI. | `string` | `"v25.4.0"` | no |
 | <a name="input_kratos_admin_url"></a> [kratos\_admin\_url](#input\_kratos\_admin\_url) | Internal URL for the Kratos admin API. Example: http://kratos-admin.ory.svc.cluster.local:4434 | `string` | n/a | yes |

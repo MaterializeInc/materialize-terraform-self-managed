@@ -95,6 +95,12 @@ variable "oel_image_tag" {
   nullable    = false
 }
 
+variable "selfservice_ui_image_tag" {
+  description = "Tag for the OEL selfservice UI image. Defaults to oel_image_tag when null, so it tracks the other OEL images unless overridden."
+  type        = string
+  default     = null
+}
+
 variable "license_key_jwt" {
   description = "Materialize license key JWT. Used as the password in the imagePullSecret to authenticate to the Ory registry proxy. The proxy validates the JWT signature, checks the ory entitlement, and forwards to Ory's Artifact Registry using Materialize's service account. Same JWT used by the materialize-instance module's license_key."
   type        = string
