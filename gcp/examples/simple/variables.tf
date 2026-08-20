@@ -80,7 +80,7 @@ variable "internal_load_balancer" {
 }
 
 variable "enable_observability" {
-  description = "Enable Prometheus and Grafana monitoring stack for Materialize"
+  description = "Enable the monitoring stack for Materialize — Loki, Thanos, Grafana, Alertmanager, and Alloy"
   type        = bool
   default     = true
 }

@@ -412,6 +412,20 @@ variable "grafana_service_port" {
   nullable    = false
 }
 
+variable "grafana_nlb_name" {
+  description = <<-EOT
+    Explicit name for the Grafana NLB. Null generates one from a six-character prefix plus the
+    suffix AWS appends, which is what keeps two deployments in one account and region from
+    colliding.
+
+    Set it when a predictable name is required. Note the tradeoff: a fixed name cannot have
+    `create_before_destroy`, so any change that replaces the load balancer costs a short outage
+    instead of overlapping the replacement.
+  EOT
+  type        = string
+  default     = null
+}
+
 variable "grafana_load_balancer" {
   description = <<-EOT
     Expose Grafana behind a Network Load Balancer this module creates and owns.
