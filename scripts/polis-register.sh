@@ -72,6 +72,9 @@ ORY=$(terraform -chdir="$EXAMPLE_DIR" output -json ory)
 POLIS=$(printf '%s' "$ORY" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("polis_external_url") or "")')
 KRATOS=$(printf '%s' "$ORY" | python3 -c 'import json,sys; print(json.load(sys.stdin)["kratos_external_url"])')
 CONSOLE_FQDN=$(printf '%s' "$ORY" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("materialize_console_fqdn") or "")')
+# Fall back to $MZ_CONSOLE_FQDN when the example's ory output predates the
+# materialize_console_fqdn key. Only used for the SAML defaultRedirectUrl.
+CONSOLE_FQDN="${CONSOLE_FQDN:-${MZ_CONSOLE_FQDN:-}}"
 
 if [ -z "$POLIS" ]; then
     printf "%bPolis is not deployed (enable_polis = false in terraform.tfvars)%b\n" "$RED" "$NC"
