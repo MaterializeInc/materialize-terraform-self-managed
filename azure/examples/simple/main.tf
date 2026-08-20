@@ -381,6 +381,33 @@ module "monitoring" {
   node_selector = local.generic_node_labels
   storage_class = local.storage_class
 
+  # The AKS node pools here are non-zonal — `availability_zones` is left at its
+  # null default — so the chart's hard zone spread on Thanos Receive and Loki's
+  # ingesters has a single domain to place into. Below its floor of two zones
+  # those pods stay Pending forever rather than merely unbalanced, so relax
+  # `minDomains` to 1. Raise this to the real count, and it becomes real
+  # protection, if you give the node pools zones.
+  min_zones = 1
+
+  # Datadog and generic OTLP (Honeycomb, Grafana Cloud, your own collector) fan
+  # out the same way, and need no cloud resources — so they are set here rather
+  # than behind an `enable_*` toggle. Commented out because both need a
+  # credential; the module puts it in a Secret rather than the Helm values, and
+  # rolls the gateway when it changes.
+  #
+  # Declare the two credentials as `sensitive` variables of your own before
+  # uncommenting — this example does not, and they belong in `terraform.tfvars`
+  # or `TF_VAR_*` rather than as literals in a file you commit.
+  #
+  # datadog_metrics = { site = "datadoghq.com" }
+  # datadog_api_key = var.datadog_api_key
+  #
+  # otlp_metrics = {
+  #   url          = "api.honeycomb.io"
+  #   auth_headers = { "x-honeycomb-dataset" = "mzmon" }
+  # }
+  # otlp_auth_header_secrets = { "x-honeycomb-team" = var.honeycomb_api_key }
+
   materialize_instance_namespace = local.materialize_instance_namespace
   materialize_operator_namespace = local.materialize_operator_namespace
 

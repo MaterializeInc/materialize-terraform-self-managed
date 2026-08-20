@@ -562,6 +562,25 @@ module "monitoring" {
   node_selector = local.generic_node_labels
   storage_class = module.ebs_csi_driver.storage_class_name
 
+  # Datadog and generic OTLP (Honeycomb, Grafana Cloud, your own collector) fan
+  # out the same way, and need no cloud resources — so they are set here rather
+  # than behind an `enable_*` toggle. Commented out because both need a
+  # credential; the module puts it in a Secret rather than the Helm values, and
+  # rolls the gateway when it changes.
+  #
+  # Declare the two credentials as `sensitive` variables of your own before
+  # uncommenting — this example does not, and they belong in `terraform.tfvars`
+  # or `TF_VAR_*` rather than as literals in a file you commit.
+  #
+  # datadog_metrics = { site = "datadoghq.com" }
+  # datadog_api_key = var.datadog_api_key
+  #
+  # otlp_metrics = {
+  #   url          = "api.honeycomb.io"
+  #   auth_headers = { "x-honeycomb-dataset" = "mzmon" }
+  # }
+  # otlp_auth_header_secrets = { "x-honeycomb-team" = var.honeycomb_api_key }
+
   materialize_instance_namespace = local.materialize_instance_namespace
   materialize_operator_namespace = local.operator_namespace
 

@@ -148,13 +148,33 @@ variable "node_selector" {
 
 variable "storage_class" {
   description = <<-EOT
-    StorageClass for the PVC-backed monitoring workloads (Alertmanager, the Loki ruler, and Thanos
-    receive/compactor/store-gateway). Null uses the cluster default.
+    StorageClass for the PVC-backed monitoring workloads (Alertmanager, the Loki ruler, and the
+    Thanos Store Gateway and Compactor). Null uses the cluster default.
+
+    Thanos Receive and Loki's ingesters both use node-local `emptyDir` by design, and the two differ
+    if you turn that off: upstream keeps a `thanos.receive` key, so re-enabling its persistence does
+    pick up this class, while Loki's ingesters are deliberately left out of the fan-out and would
+    not.
 
     Must be a Hyperdisk class on C4/C4A/N4, which take only Hyperdisk — every default GKE class is
     Persistent Disk and fails to attach there. The examples create one and pass it here.
   EOT
   type        = string
+  default     = null
+}
+
+variable "min_zones" {
+  description = <<-EOT
+    Number of availability zones the node pool can actually launch in, used to adjust the hard zone
+    spread the chart puts on Thanos Receive and Loki's ingesters. Null leaves the chart's defaults
+    alone, which assume two or more zones — correct for the regional clusters the examples build.
+
+    Set it when that assumption does not hold, because the constraints fail closed rather than
+    degrading: `0` for a cluster whose nodes carry no `topology.kubernetes.io/zone` label, or the
+    real zone count otherwise. A zonal GKE cluster is the case to watch — one zone leaves those pods
+    **Pending forever** rather than merely unbalanced, so pass `1`.
+  EOT
+  type        = number
   default     = null
 }
 
@@ -181,6 +201,80 @@ variable "google_cloud_metrics_prefix" {
   description = "Metric name prefix in Cloud Monitoring. Null uses the chart's default (`workload.googleapis.com/mzmon`)."
   type        = string
   default     = null
+}
+
+# ==============================================================================
+# Extra metrics destinations
+# ==============================================================================
+# Passed straight through to the monitoring module rather than flattened like the
+# GCP wrapper's `enable_google_cloud_metrics`. GCP uses a flat toggle because it
+# provisions a service account and Workload Identity binding and therefore needs
+# a plan-known value to gate those resources. Datadog and OTLP provision nothing,
+# so there is no toggle to gate and a flat mirror would only add surface.
+#
+# The object shapes below do restate upstream's attribute defaults. That is a
+# deliberate duplication: the type expression is what terraform-docs publishes,
+# so restating them is how a reader sees the default without opening the
+# monitoring module. The cost is that they are resolved *here* — an upstream
+# default change is masked until these are updated to match, so check them on a
+# module bump. Validation is not duplicated; that stays upstream only.
+
+variable "datadog_metrics" {
+  description = <<-EOT
+    Also export metrics to Datadog from the Alloy gateway. Null disables it; Thanos is unaffected.
+    Requires `datadog_api_key`.
+
+    `min_importance` is the cost lever — Datadog bills per custom metric, so it defaults to
+    `essential` rather than the `recommended` the other destinations use.
+  EOT
+  type = object({
+    site            = optional(string, "datadoghq.com")
+    min_importance  = optional(string, "essential")
+    metric_endpoint = optional(string)
+    logs_endpoint   = optional(string)
+  })
+  default = null
+}
+
+variable "datadog_api_key" {
+  description = "Datadog API key for `datadog_metrics`. Reaches the gateway as a Secret the monitoring module creates, never through the Helm values."
+  type        = string
+  default     = null
+  sensitive   = true
+}
+
+variable "otlp_metrics" {
+  description = <<-EOT
+    Also export metrics to a generic OTLP endpoint from the Alloy gateway — Honeycomb, Grafana
+    Cloud, or your own collector. Null disables it; Thanos is unaffected.
+
+    `url` is a `host[:port]` with no scheme. `auth_headers` carries **non-secret** headers only
+    (a dataset or tenant name); credentials belong in `otlp_auth_header_secrets` or
+    `otlp_auth_bearer_token`.
+  EOT
+  type = object({
+    url            = string
+    protocol       = optional(string, "grpc")
+    compression    = optional(string)
+    min_importance = optional(string, "recommended")
+    auth_headers   = optional(map(string), {})
+  })
+  default = null
+}
+
+variable "otlp_auth_header_secrets" {
+  description = "Secret request headers for `otlp_metrics`, as header name to value — Honeycomb's `x-honeycomb-team`, for instance. Each reaches the gateway as a Secret the monitoring module creates. Cannot be combined with `otlp_auth_bearer_token`."
+  type        = map(string)
+  default     = {}
+  nullable    = false
+  sensitive   = true
+}
+
+variable "otlp_auth_bearer_token" {
+  description = "Bearer token for `otlp_metrics`, for endpoints taking `Authorization: Bearer`. Reaches the gateway as a Secret the monitoring module creates. Cannot be combined with `otlp_auth_header_secrets` **or** `otlp_metrics.auth_headers` — the chart has one auth slot per destination, and inline non-secret headers land in the same list."
+  type        = string
+  default     = null
+  sensitive   = true
 }
 
 variable "tolerations" {
