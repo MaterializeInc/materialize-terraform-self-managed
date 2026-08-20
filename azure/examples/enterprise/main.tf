@@ -183,6 +183,7 @@ locals {
     name = module.self_signed_cluster_issuer.issuer_name
     kind = "ClusterIssuer"
   }
+
 }
 
 
@@ -507,6 +508,13 @@ module "monitoring" {
     subnet_id           = module.networking.postgres_subnet_id
     private_dns_zone_id = module.networking.private_dns_zone_id
   }
+
+  # Off by default: the monitoring module refuses a public Grafana with an
+  # unrestricted allowlist, and this is the acknowledgement that lifts it.
+  # See `grafana_allow_public_access`.
+  additional_values = var.grafana_allow_public_access ? [
+    yamlencode({ connections = { grafana = { allowPublicAccess = true } } })
+  ] : []
 
   # Always passed, following the same two root variables the Materialize console
   # and balancerd load balancers already use. Internal by default; `host` is

@@ -171,6 +171,7 @@ locals {
   # same constraint as their boot disks above. Every default GKE class is
   # Persistent Disk, so a PVC on those pools never attaches.
   storage_class = kubernetes_storage_class.hyperdisk_balanced.metadata[0].name
+
 }
 
 # GKE ships no Hyperdisk class, so create one. Not marked default — taking that
@@ -481,6 +482,13 @@ module "monitoring" {
   grafana_database = {
     network_id = module.networking.network_id
   }
+
+  # Off by default: the monitoring module refuses a public Grafana with an
+  # unrestricted allowlist, and this is the acknowledgement that lifts it.
+  # See `grafana_allow_public_access`.
+  additional_values = var.grafana_allow_public_access ? [
+    yamlencode({ connections = { grafana = { allowPublicAccess = true } } })
+  ] : []
 
   # Always passed, following the same two root variables the Materialize console
   # and balancerd load balancers already use. Internal by default; `host` is

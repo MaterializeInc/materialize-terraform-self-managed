@@ -599,6 +599,13 @@ module "monitoring" {
     skip_final_snapshot = false
   }
 
+  # Off by default: the monitoring module refuses a public Grafana with an
+  # unrestricted allowlist, and this is the acknowledgement that lifts it.
+  # See `grafana_allow_public_access`.
+  additional_values = var.grafana_allow_public_access ? [
+    yamlencode({ connections = { grafana = { allowPublicAccess = true } } })
+  ] : []
+
   # An NLB this module creates and owns — see `grafana_load_balancer`. The Service
   # stays ClusterIP; a TargetGroupBinding attaches the target group to it, and the
   # allowlist is security-group rules on the NLB rather than the Service.
@@ -861,6 +868,7 @@ locals {
       "service.beta.kubernetes.io/aws-load-balancer-ip-address-type" = "ipv4"
     },
   )
+
 }
 
 data "aws_caller_identity" "current" {}

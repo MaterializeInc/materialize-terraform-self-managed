@@ -403,7 +403,22 @@ locals {
 
 locals {
   grafana_lb = var.grafana_load_balancer
-  # `name_prefix` on an ELB is capped at 6 characters.
+  # `aws_lb` and `aws_lb_target_group` both cap `name_prefix` at 6 characters and
+  # `name` at 32, and AWS appends a unique suffix to a generated name.
+  #
+  # A derived full `name` was tried and does not work: `-mzmon-grafana` is 14 of
+  # the 32, leaving 18 for the deployment prefix, and load-balancer names are
+  # unique per account per region. Two deployments sharing an 18-character prefix
+  # collide — `materialize-staging-blue` and `materialize-staging-green` both
+  # truncate to `materialize-stagin-mzmon-grafana` — and the second apply fails.
+  # `aws/modules/nlb` already answers this the same way: a short generated prefix,
+  # with `grafana_nlb_name` to override when a predictable name is wanted.
+  #
+  # It also unblocks `create_before_destroy`, which a fixed `name` cannot have:
+  # the replacement would collide with the load balancer still being destroyed.
+  # Identity in the console comes from the tags rather than the name.
+  #
+  # 6 characters exactly. Nothing may be appended: the cap is on the whole prefix.
   grafana_lb_name_prefix = substr(var.name_prefix, 0, min(6, length(var.name_prefix)))
 
   # Grafana's container port. The chart's Service is 80 -> 3000; the target group
@@ -450,11 +465,18 @@ locals {
 resource "aws_security_group" "grafana_nlb" {
   count = local.grafana_lb == null ? 0 : 1
 
-  name_prefix = "${local.grafana_lb_name_prefix}-mzmon-gf-"
+  name_prefix = "${var.name_prefix}-mzmon-grafana-"
   description = "Grafana NLB for ${var.name_prefix}"
   vpc_id      = local.grafana_lb.vpc_id
 
   tags = merge(local.common_tags, { Backend = "grafana" })
+
+  # The load balancer holds this group, so a destroy-then-create replacement has
+  # to detach from the NLB first and fails instead. Matches the security group in
+  # `aws/modules/database`.
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 resource "aws_vpc_security_group_egress_rule" "grafana_nlb" {
@@ -492,7 +514,8 @@ resource "aws_vpc_security_group_ingress_rule" "grafana_nlb" {
 resource "aws_lb" "grafana" {
   count = local.grafana_lb == null ? 0 : 1
 
-  name_prefix                      = "${local.grafana_lb_name_prefix}-"
+  name                             = var.grafana_nlb_name
+  name_prefix                      = var.grafana_nlb_name == null ? local.grafana_lb_name_prefix : null
   internal                         = local.grafana_lb.internal
   load_balancer_type               = "network"
   subnets                          = length(local.grafana_lb_subnet_mappings) == 0 ? local.grafana_lb.subnet_ids : null
@@ -511,6 +534,9 @@ resource "aws_lb" "grafana" {
 
   tags = merge(local.common_tags, { Backend = "grafana" })
 
+  # Possible only because the name is generated; see the locals above. With an
+  # explicit `grafana_nlb_name` the replacement would collide with the load
+  # balancer still being destroyed, but that is the caller's choice to make.
   lifecycle {
     create_before_destroy = true
   }
@@ -519,7 +545,7 @@ resource "aws_lb" "grafana" {
 resource "aws_lb_target_group" "grafana" {
   count = local.grafana_lb == null ? 0 : 1
 
-  name_prefix        = "${local.grafana_lb_name_prefix}-"
+  name_prefix        = local.grafana_lb_name_prefix
   port               = local.grafana_pod_port
   protocol           = "TCP"
   target_type        = "ip"

@@ -82,9 +82,9 @@ variable "internal_load_balancer" {
 }
 
 variable "enable_observability" {
-  description = "Enable Prometheus and Grafana monitoring stack for Materialize"
+  description = "Enable the monitoring stack for Materialize — Loki, Thanos, Grafana, Alertmanager, and Alloy"
   type        = bool
-  default     = false
+  default     = true
 }
 
 variable "materialize_version" {
@@ -97,4 +97,24 @@ variable "grafana_host" {
   description = "Hostname to reach Grafana on. Optional: the load balancer answers on an IP regardless, but Grafana builds share links, alert notification links, and OAuth redirect URIs from `root_url`, which is only correct once this is set. DNS for the name is yours to create."
   type        = string
   default     = null
+}
+
+variable "grafana_allow_public_access" {
+  description = <<-EOT
+    Acknowledge a Grafana load balancer that is public (`internal_load_balancer = false`) with an
+    unrestricted allowlist (`ingress_cidr_blocks` containing `0.0.0.0/0` or `::/0`).
+
+    The monitoring module refuses that combination at plan time, and deliberately: nothing
+    terminates TLS, Grafana has no identity provider until you configure one, and every datasource
+    behind it reads every metric in Thanos and every log in the tenant — so the generated admin
+    password is the whole of the access control.
+
+    Leave this `false` and narrow `ingress_cidr_blocks`, or keep the load balancers internal. Set it
+    only when the allowlist is genuinely enforced somewhere Terraform cannot see, such as an
+    upstream firewall or an authenticating proxy. It is set by the infrastructure test harness,
+    whose clusters are ephemeral and whose runners need a public address.
+  EOT
+  type        = bool
+  default     = false
+  nullable    = false
 }
