@@ -12,7 +12,7 @@ This example deploys self-managed Materialize onto a Kubernetes cluster you alre
 
 - A Kubernetes cluster and a kubeconfig that reaches it
 - **Metadata backend**: a PostgreSQL database, passed as `metadata_backend_url`
-- **Persist backend**: an S3-compatible object store (S3, MinIO, GCS interop, ...), passed as `persist_backend_url`
+- **Persist backend**: an S3-compatible object store (S3, RustFS, GCS interop, ...), passed as `persist_backend_url`
 - A Materialize license key
 
 The instance's clusters schedule onto nodes labeled `materialize.cloud/swap=true` by default (see the chart's `clusterd.swapNodeSelector`), so label the nodes Materialize should run on accordingly.

@@ -1,0 +1,147 @@
+# In-cluster stand-ins for the backends the kubernetes/examples/simple root
+# expects you to bring: PostgreSQL for metadata and RustFS (an S3-compatible
+# object store) for persist. Test fixtures only -- hardcoded credentials,
+# ephemeral storage. Applied by the harness right after the kind cluster is
+# created.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: backends
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+  namespace: backends
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16
+          env:
+            - name: POSTGRES_DB
+              value: materialize
+            - name: POSTGRES_USER
+              value: materialize
+            - name: POSTGRES_PASSWORD
+              value: materialize
+          ports:
+            - containerPort: 5432
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "materialize"]
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+      volumes:
+        - name: data
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: backends
+spec:
+  selector:
+    app: postgres
+  ports:
+    - port: 5432
+      targetPort: 5432
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rustfs
+  namespace: backends
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: rustfs
+  template:
+    metadata:
+      labels:
+        app: rustfs
+    spec:
+      containers:
+        - name: rustfs
+          image: rustfs/rustfs:1.0.0-beta.12-preview.1
+          env:
+            - name: RUSTFS_ACCESS_KEY
+              value: rustfsadmin
+            - name: RUSTFS_SECRET_KEY
+              value: rustfsadmin
+            - name: RUSTFS_ADDRESS
+              value: ":9000"
+            - name: RUSTFS_VOLUMES
+              value: /data
+          ports:
+            - containerPort: 9000
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: 9000
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          volumeMounts:
+            - name: data
+              mountPath: /data
+      volumes:
+        - name: data
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rustfs
+  namespace: backends
+spec:
+  selector:
+    app: rustfs
+  ports:
+    - port: 9000
+      targetPort: 9000
+---
+# Creates the persist bucket; rustfs does not create buckets itself. Retries
+# inside the container until rustfs is up ("mb" on an existing bucket is an
+# error, so tolerate it via "ls").
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: rustfs-setup
+  namespace: backends
+spec:
+  backoffLimit: 6
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: awscli
+          image: amazon/aws-cli:2.31.19
+          env:
+            - name: AWS_ACCESS_KEY_ID
+              value: rustfsadmin
+            - name: AWS_SECRET_ACCESS_KEY
+              value: rustfsadmin
+            - name: AWS_DEFAULT_REGION
+              # rustfs ignores the region; the SDK requires one to sign.
+              value: us-east-1
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              ep=http://rustfs.backends.svc.cluster.local:9000
+              until aws --endpoint-url "$ep" s3 mb s3://materialize ||
+                    aws --endpoint-url "$ep" s3 ls s3://materialize; do
+                echo "waiting for rustfs..."; sleep 3
+              done

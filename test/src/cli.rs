@@ -195,6 +195,11 @@ pub enum InitProvider {
         #[arg(long)]
         region: String,
     },
+    /// Initialize a self-managed test run on a local kind cluster.
+    Kind {
+        #[clap(flatten)]
+        common: CommonInitArgs,
+    },
 }
 
 impl InitProvider {
@@ -203,6 +208,7 @@ impl InitProvider {
             InitProvider::Aws { .. } => CloudProvider::Aws,
             InitProvider::Azure { .. } => CloudProvider::Azure,
             InitProvider::Gcp { .. } => CloudProvider::Gcp,
+            InitProvider::Kind { .. } => CloudProvider::Kind,
         }
     }
 
@@ -210,7 +216,8 @@ impl InitProvider {
         match self {
             InitProvider::Aws { common, .. }
             | InitProvider::Azure { common, .. }
-            | InitProvider::Gcp { common, .. } => common,
+            | InitProvider::Gcp { common, .. }
+            | InitProvider::Kind { common } => common,
         }
     }
 
