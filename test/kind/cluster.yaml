@@ -1,0 +1,13 @@
+# Kind cluster configuration for the self-managed integration tests.
+# The node labels satisfy the operator's default node selectors for
+# swap-enabled clusterd pods (materialize.cloud/swap=true).
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+nodes:
+  - role: control-plane
+    kubeadmConfigPatches:
+      - |
+        kind: InitConfiguration
+        nodeRegistration:
+          kubeletExtraArgs:
+            node-labels: "materialize.cloud/swap=true,materialize.cloud/disk=true,materialize.cloud/availability-zone=kind"

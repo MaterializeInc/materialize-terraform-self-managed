@@ -47,7 +47,10 @@ pub async fn phase_init(provider_args: &InitProvider) -> Result<PathBuf> {
             orchestratord_version: common.orchestratord_version.is_some(),
             environmentd_version: common.environmentd_version.is_some(),
         };
-        if overrides.any() {
+        // The kubernetes example (used by kind) declares these variables
+        // natively -- its operator is a helm_release, not a module -- so
+        // injection is neither needed nor possible there.
+        if overrides.any() && provider != CloudProvider::Kind {
             println!("\nApplying dev overrides...");
             write_dev_variables_tf(&dest).await?;
             inject_dev_overrides(&dest, &overrides).await?;
@@ -73,10 +76,30 @@ pub async fn phase_init(provider_args: &InitProvider) -> Result<PathBuf> {
 
         upload_tfvars_to_backend(&dest).await?;
 
+        // The cloud providers get their cluster from `terraform apply`; for
+        // kind the cluster is local infrastructure that terraform runs
+        // against, so it is created during init. After the tfvars are
+        // written, so a failed creation can still be cleaned up by `destroy`.
+        if provider == CloudProvider::Kind {
+            println!("\nCreating kind cluster {test_run_id}...");
+            create_kind_cluster(&test_run_id, &dest).await?;
+        }
+
         println!("\nRunning terraform init...");
-        run_cmd(Command::new("terraform").arg("init").current_dir(&dest))
+        let init_result = run_cmd(Command::new("terraform").arg("init").current_dir(&dest))
             .await
-            .context("terraform init failed")?;
+            .context("terraform init failed");
+        if let Err(e) = init_result {
+            // A failed init returns before `run --destroy-on-failure` gets a
+            // test run to destroy, so the just-created kind cluster would
+            // leak. Best-effort delete; the clouds have nothing to clean up.
+            if provider == CloudProvider::Kind {
+                run_cmd(Command::new("kind").args(["delete", "cluster", "--name", &test_run_id]))
+                    .await
+                    .ok();
+            }
+            return Err(e);
+        }
 
         write_lifecycle(&dest, "init", "completed").await?;
         println!("\nTest run initialized successfully: {test_run_id}");
@@ -184,8 +207,8 @@ fn build_tfvars(provider_args: &InitProvider, test_run_id: &str) -> Result<TfVar
     let common_tf = CommonTfVars {
         name_prefix: test_run_id.to_string(),
         license_key: common.resolve_license_key()?,
-        internal_load_balancer: false,
-        grafana_allow_public_access: true,
+        internal_load_balancer: internal_load_balancer(provider_args),
+        grafana_allow_public_access: grafana_allow_public_access(provider_args),
         helm_chart,
         use_local_chart,
         orchestratord_version: common.orchestratord_version.clone(),
@@ -193,6 +216,13 @@ fn build_tfvars(provider_args: &InitProvider, test_run_id: &str) -> Result<TfVar
     };
 
     Ok(match provider_args {
+        InitProvider::Kind { .. } => TfVars::Kind {
+            common: common_tf,
+            kubeconfig_path: "./kubeconfig".into(),
+            // The in-cluster backends from test/kind/backends.yaml.
+            metadata_backend_url: "postgres://materialize:materialize@postgres.backends.svc.cluster.local:5432/materialize?sslmode=disable".into(),
+            persist_backend_url: "s3://rustfsadmin:rustfsadmin@materialize/persist?endpoint=http%3A%2F%2Frustfs.backends.svc.cluster.local%3A9000&region=us-east-1".into(),
+        },
         InitProvider::Aws {
             aws_region,
             aws_profile,
@@ -409,4 +439,48 @@ fn var_ref(name: &str) -> hcl_edit::expr::Expression {
         )))],
     )
     .into()
+}
+
+/// The two load-balancer acknowledgements only exist as variables in the
+/// cloud roots; kind has no load balancers, so they are omitted from its
+/// tfvars entirely (terraform warns about unused tfvars values).
+fn internal_load_balancer(provider_args: &InitProvider) -> Option<bool> {
+    match provider_args {
+        InitProvider::Kind { .. } => None,
+        _ => Some(false),
+    }
+}
+
+fn grafana_allow_public_access(provider_args: &InitProvider) -> Option<bool> {
+    match provider_args {
+        InitProvider::Kind { .. } => None,
+        _ => Some(true),
+    }
+}
+
+/// Creates the kind cluster for a test run, writes its kubeconfig into the
+/// test run directory (where the copied terraform root expects it), and
+/// deploys the in-cluster PostgreSQL/RustFS backends the example needs.
+async fn create_kind_cluster(test_run_id: &str, dest: &Path) -> Result<()> {
+    let kind_dir = project_root()?.join("test/kind");
+    let kubeconfig = dest.join("kubeconfig");
+    run_cmd(
+        Command::new("kind")
+            .args(["create", "cluster", "--name", test_run_id, "--wait", "120s"])
+            .arg("--config")
+            .arg(kind_dir.join("cluster.yaml"))
+            .arg("--kubeconfig")
+            .arg(&kubeconfig),
+    )
+    .await
+    .context("kind create cluster failed")?;
+
+    run_cmd(
+        crate::helpers::kubectl(&kubeconfig)
+            .arg("apply")
+            .arg("-f")
+            .arg(kind_dir.join("backends.yaml")),
+    )
+    .await
+    .context("failed to deploy the kind test backends")
 }

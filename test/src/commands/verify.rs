@@ -37,7 +37,12 @@ pub async fn phase_verify(dir: &Path) -> Result<()> {
         verify_materialize_instance(&kubeconfig, instance_namespace, instance_name).await?;
 
         println!("\nVerifying pods in namespace {instance_namespace}...");
-        verify_pods_running(&kubeconfig, instance_namespace).await?;
+        if let Err(e) = verify_pods_running(&kubeconfig, instance_namespace).await {
+            // The retry log only shows counts; the describe output has the
+            // scheduling events explaining why a pod never became Running.
+            dump_materialize_diagnostics(&kubeconfig, instance_namespace, instance_name).await;
+            return Err(e);
+        }
 
         if let Some(version) = tfvars.common().environmentd_version.as_deref() {
             println!("\nVerifying environmentd is running version {version}...");
@@ -50,7 +55,11 @@ pub async fn phase_verify(dir: &Path) -> Result<()> {
         println!("\nVerifying the default DNS deployments were scaled down...");
         verify_default_dns_scaled_down(&kubeconfig, provider).await?;
 
-        if let Some(endpoint) = outputs.load_balancer_endpoint() {
+        if provider == CloudProvider::Kind {
+            println!("\nVerifying Materialize SQL connectivity via port-forward...");
+            verify_sql_connection_via_port_forward(&kubeconfig, instance_namespace, &outputs)
+                .await?;
+        } else if let Some(endpoint) = outputs.load_balancer_endpoint() {
             println!("\nVerifying Materialize SQL connectivity at {endpoint}...");
             verify_sql_connection(endpoint, &outputs).await?;
         } else {
@@ -71,8 +80,23 @@ async fn setup_kubeconfig(
     outputs: &TerraformOutputs,
 ) -> Result<PathBuf> {
     let kubeconfig = dir.join("kubeconfig");
-    let cluster_name = outputs.cluster_name(provider)?;
+    // The kind cluster is named after the test run rather than a terraform
+    // output, since terraform does not create it.
+    let cluster_name = match provider {
+        CloudProvider::Kind => dir.file_name().unwrap().to_string_lossy().into_owned(),
+        _ => outputs.cluster_name(provider)?.to_string(),
+    };
+    let cluster_name = cluster_name.as_str();
     match tfvars {
+        TfVars::Kind { .. } => {
+            run_cmd(
+                Command::new("kind")
+                    .args(["export", "kubeconfig", "--name", cluster_name])
+                    .arg("--kubeconfig")
+                    .arg(&kubeconfig),
+            )
+            .await?;
+        }
         TfVars::Aws {
             aws_region,
             aws_profile,
@@ -335,9 +359,16 @@ async fn verify_environmentd_image(
 /// node-local-dns helm module on AWS and by the NodeLocal DNSCache addon on
 /// GCP; AKS has no supported node-local DNS option (see azure/README.md).
 async fn verify_node_local_dns(kubeconfig: &Path, provider: CloudProvider) -> Result<()> {
-    if matches!(provider, CloudProvider::Azure) {
-        println!("  Skipping node-local-dns check (not supported on AKS).");
-        return Ok(());
+    match provider {
+        CloudProvider::Azure => {
+            println!("  Skipping node-local-dns check (not supported on AKS).");
+            return Ok(());
+        }
+        CloudProvider::Kind => {
+            println!("  Skipping node-local-dns check (not deployed on kind).");
+            return Ok(());
+        }
+        _ => {}
     }
 
     const MAX_ATTEMPTS: u32 = 10;
@@ -383,6 +414,8 @@ fn scaled_down_dns_deployments(provider: CloudProvider) -> &'static [&'static st
         CloudProvider::Aws => &["coredns"],
         CloudProvider::Gcp => &["kube-dns", "kube-dns-autoscaler"],
         CloudProvider::Azure => &["coredns", "coredns-autoscaler"],
+        // kind keeps its stock CoreDNS; the coredns module is not applied.
+        CloudProvider::Kind => &[],
     }
 }
 
@@ -428,6 +461,96 @@ async fn verify_default_dns_scaled_down(kubeconfig: &Path, provider: CloudProvid
     Ok(())
 }
 
+/// SQL connectivity check for kind, where there is no load balancer: forwards
+/// a local port to the balancerd service and connects through it.
+///
+/// The whole tunnel is set up fresh on every attempt: balancerd can be Running
+/// but not yet Ready (no service endpoints, so port-forward fails
+/// immediately), and an established tunnel dies if kubectl loses the pod
+/// connection.
+async fn verify_sql_connection_via_port_forward(
+    kubeconfig: &Path,
+    namespace: &str,
+    outputs: &TerraformOutputs,
+) -> Result<()> {
+    let service = outputs
+        .balancerd_service_name
+        .as_ref()
+        .map(|o| o.value.as_str())
+        .context("Missing terraform output: balancerd_service_name")?;
+    let password = outputs.mz_password()?;
+
+    const MAX_ATTEMPTS: u32 = 20;
+    const INTERVAL: std::time::Duration = std::time::Duration::from_secs(15);
+
+    let output = retry(
+        MAX_ATTEMPTS,
+        INTERVAL,
+        |attempt, err| {
+            println!(
+                "  Attempt {attempt}/{MAX_ATTEMPTS}: {err:#}, retrying in {}s...",
+                INTERVAL.as_secs()
+            );
+        },
+        || async {
+            let (mut child, port) = spawn_port_forward(kubeconfig, namespace, service).await?;
+            let result = sql_select_1("127.0.0.1", port, password).await;
+            child.kill().await.ok();
+            result
+        },
+    )
+    .await
+    .context("Failed to connect to Materialize via SQL after all retries")?;
+
+    println!("  SQL query succeeded: {output}");
+    Ok(())
+}
+
+/// Spawns `kubectl port-forward` to the given service's SQL port and returns
+/// the child process along with the local port. Port 0 lets the kernel pick a
+/// free local port, which kubectl reports on stdout.
+async fn spawn_port_forward(
+    kubeconfig: &Path,
+    namespace: &str,
+    service: &str,
+) -> Result<(tokio::process::Child, u16)> {
+    use tokio::io::{AsyncBufReadExt, BufReader};
+
+    let mut child = kubectl(kubeconfig)
+        .args([
+            "port-forward",
+            &format!("svc/{service}"),
+            "0:6875",
+            "-n",
+            namespace,
+        ])
+        .stdout(std::process::Stdio::piped())
+        .kill_on_drop(true)
+        .spawn()
+        .context("Failed to spawn kubectl port-forward")?;
+
+    // First line looks like: "Forwarding from 127.0.0.1:52341 -> 6875".
+    // Borrow stdout rather than take it: dropping the pipe would kill
+    // kubectl with EPIPE as soon as it writes its next line.
+    let stdout = child
+        .stdout
+        .as_mut()
+        .context("port-forward has no stdout")?;
+    let mut lines = BufReader::new(stdout).lines();
+    let line = tokio::time::timeout(std::time::Duration::from_secs(60), lines.next_line())
+        .await
+        .context("Timed out waiting for kubectl port-forward to start")??
+        .context("kubectl port-forward exited without output")?;
+    let port: u16 = line
+        .split(" -> ")
+        .next()
+        .and_then(|addr| addr.rsplit(':').next())
+        .and_then(|p| p.parse().ok())
+        .with_context(|| format!("Could not parse port-forward output: {line}"))?;
+    println!("  Forwarding 127.0.0.1:{port} to {service}:6875");
+    Ok((child, port))
+}
+
 async fn verify_sql_connection(endpoint: &str, outputs: &TerraformOutputs) -> Result<()> {
     let password = outputs.mz_password()?;
 
@@ -443,31 +566,34 @@ async fn verify_sql_connection(endpoint: &str, outputs: &TerraformOutputs) -> Re
                 INTERVAL.as_secs()
             );
         },
-        || async {
-            run_cmd_output(
-                Command::new("psql")
-                    .args([
-                        "-h",
-                        endpoint,
-                        "-p",
-                        "6875",
-                        "-U",
-                        "mz_system",
-                        "-d",
-                        "materialize",
-                        "-c",
-                        "SELECT 1",
-                    ])
-                    .env("PGPASSWORD", password)
-                    .env("PGCONNECT_TIMEOUT", "30")
-                    .env("PGSSLMODE", "require"),
-            )
-            .await
-        },
+        || sql_select_1(endpoint, 6875, password),
     )
     .await
     .context("Failed to connect to Materialize via SQL after all retries")?;
 
     println!("  SQL query succeeded: {output}");
     Ok(())
+}
+
+/// A single `SELECT 1` against Materialize via psql.
+async fn sql_select_1(host: &str, port: u16, password: &str) -> Result<String> {
+    run_cmd_output(
+        Command::new("psql")
+            .args([
+                "-h",
+                host,
+                "-p",
+                &port.to_string(),
+                "-U",
+                "mz_system",
+                "-d",
+                "materialize",
+                "-c",
+                "SELECT 1",
+            ])
+            .env("PGPASSWORD", password)
+            .env("PGCONNECT_TIMEOUT", "30")
+            .env("PGSSLMODE", "require"),
+    )
+    .await
 }

@@ -1,17 +1,20 @@
 use std::collections::HashMap;
 
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, bail};
 use serde::{Deserialize, Serialize};
 
 // ---------------------------------------------------------------------------
 // Cloud provider
 // ---------------------------------------------------------------------------
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CloudProvider {
     Aws,
     Azure,
     Gcp,
+    /// A local kind cluster running the self-managed configuration. Not a
+    /// cloud: no cloud credentials, load balancers, or managed backends.
+    Kind,
 }
 
 impl CloudProvider {
@@ -20,6 +23,8 @@ impl CloudProvider {
             CloudProvider::Aws => "aws",
             CloudProvider::Azure => "azure",
             CloudProvider::Gcp => "gcp",
+            // kind deploys the cloud-independent kubernetes/ example.
+            CloudProvider::Kind => "kubernetes",
         }
     }
 }
@@ -32,12 +37,16 @@ impl CloudProvider {
 pub struct CommonTfVars {
     pub name_prefix: String,
     pub license_key: String,
-    pub internal_load_balancer: bool,
+    /// Cloud-only; `None` (omitted) for kind, which has no load balancers.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub internal_load_balancer: Option<bool>,
     /// The test clusters are ephemeral and the runner needs a public address to
     /// reach Materialize, which means `0.0.0.0/0` on a public load balancer. The
     /// monitoring module refuses that for Grafana specifically, so the test roots
-    /// acknowledge it here. The examples leave it `false`.
-    pub grafana_allow_public_access: bool,
+    /// acknowledge it here. The examples leave it `false`. Cloud-only; `None`
+    /// (omitted) for kind.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub grafana_allow_public_access: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub helm_chart: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -76,6 +85,16 @@ pub enum TfVars {
         region: String,
         labels: HashMap<String, String>,
     },
+    #[serde(rename = "kind")]
+    Kind {
+        #[serde(flatten)]
+        common: CommonTfVars,
+        /// Relative to the run directory, where init writes it.
+        kubeconfig_path: String,
+        /// The in-cluster backends from test/kind/backends.yaml.
+        metadata_backend_url: String,
+        persist_backend_url: String,
+    },
 }
 
 impl TfVars {
@@ -84,6 +103,7 @@ impl TfVars {
             TfVars::Aws { .. } => CloudProvider::Aws,
             TfVars::Azure { .. } => CloudProvider::Azure,
             TfVars::Gcp { .. } => CloudProvider::Gcp,
+            TfVars::Kind { .. } => CloudProvider::Kind,
         }
     }
 
@@ -91,7 +111,8 @@ impl TfVars {
         match self {
             TfVars::Aws { common, .. }
             | TfVars::Azure { common, .. }
-            | TfVars::Gcp { common, .. } => common,
+            | TfVars::Gcp { common, .. }
+            | TfVars::Kind { common, .. } => common,
         }
     }
 
@@ -99,7 +120,8 @@ impl TfVars {
         match self {
             TfVars::Aws { common, .. }
             | TfVars::Azure { common, .. }
-            | TfVars::Gcp { common, .. } => common,
+            | TfVars::Gcp { common, .. }
+            | TfVars::Kind { common, .. } => common,
         }
     }
 }
@@ -133,6 +155,10 @@ pub struct TerraformOutputs {
 
     #[serde(default)]
     pub external_login_password_mz_system: Option<TfOutput<String>>,
+
+    /// kind only: the balancerd service verify port-forwards to reach SQL.
+    #[serde(default)]
+    pub balancerd_service_name: Option<TfOutput<String>>,
 }
 
 impl TerraformOutputs {
@@ -141,6 +167,8 @@ impl TerraformOutputs {
             CloudProvider::Aws => &self.eks_cluster_name,
             CloudProvider::Gcp => &self.gke_cluster_name,
             CloudProvider::Azure => &self.aks_cluster_name,
+            // The kind cluster is named after the test run, not a terraform output.
+            CloudProvider::Kind => bail!("kind clusters have no cluster name output"),
         };
         output
             .as_ref()

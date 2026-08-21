@@ -1,0 +1,60 @@
+name: Kind Tests
+
+# Self-managed Materialize on a local kind cluster. Needs no cloud
+# credentials, only the MATERIALIZE_LICENSE_KEY secret. Manually
+# dispatchable for now; wiring into the merge queue is deferred until the
+# workflow has proven reliable.
+
+on:
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read # Required to checkout code
+
+jobs:
+  test-kind:
+    name: Kind Infrastructure Tests
+    # A larger runner: the stack's default resource requests (1 CPU / 4Gi
+    # for environmentd alone) do not fit the standard 4-CPU runner.
+    runs-on: ubuntu-24.04-16core
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: "1.15.8"
+
+      - name: Install kind
+        uses: helm/kind-action@a1b0e391336a6ee6713a0583f8c6240d70863de3 # v1.12.0
+        with:
+          install_only: true
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust build artifacts
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            test/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('test/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-
+
+      - name: Build tests
+        working-directory: test
+        run: cargo build
+
+      - name: Run Kind Tests
+        working-directory: test
+        env:
+          MATERIALIZE_LICENSE_KEY: ${{ secrets.MATERIALIZE_LICENSE_KEY }}
+        run: |
+          cargo run -- run --destroy-on-failure kind \
+            --owner "github-actions"
