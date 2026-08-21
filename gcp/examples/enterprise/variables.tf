@@ -158,6 +158,13 @@ variable "polis_helm_values" {
   default     = {}
 }
 
+variable "ory_polis_source_ranges" {
+  description = "Extra CIDRs, besides Okta's SCIM egress ranges from okta-scim-source-ranges.json, allowed to reach the Polis LoadBalancer. Set these to your VPC / VPN / tailnet ranges so the browser SAML and OIDC hops still work, since the browser reaches Polis directly. Combined with the Okta ranges and applied as loadBalancerSourceRanges. Leave empty to keep Polis unrestricted. Only lock Polis down when browser access to Ory is internal; a fully public browser flow needs Polis reachable from anywhere."
+  type        = list(string)
+  default     = []
+  nullable    = false
+}
+
 variable "materialize_console_fqdn" {
   description = "External hostname for the Materialize console. Used to construct the OAuth2 redirect URI. Example: materialize.internal.example.com"
   type        = string
