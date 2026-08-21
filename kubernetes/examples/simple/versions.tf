@@ -1,0 +1,39 @@
+terraform {
+  required_version = ">= 1.10"
+
+  required_providers {
+    kubernetes = {
+      source  = "hashicorp/kubernetes"
+      version = ">= 2.10.0, < 2.39.0"
+    }
+    helm = {
+      source  = "hashicorp/helm"
+      version = ">= 2.5.0, < 2.18.0"
+    }
+    random = {
+      source  = "hashicorp/random"
+      version = "~> 3.1, < 3.10.0"
+    }
+    kubectl = {
+      source  = "alekc/kubectl"
+      version = "2.4.1"
+    }
+  }
+}
+
+provider "kubernetes" {
+  config_path    = var.kubeconfig_path
+  config_context = var.kube_context
+}
+
+provider "helm" {
+  kubernetes {
+    config_path    = var.kubeconfig_path
+    config_context = var.kube_context
+  }
+}
+
+provider "kubectl" {
+  config_path    = var.kubeconfig_path
+  config_context = var.kube_context
+}
