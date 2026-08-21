@@ -57,6 +57,12 @@ variable "cookie_parent_domain" {
   default     = null
 }
 
+variable "single_domain_fqdn" {
+  description = "When set, Hydra, Kratos, and the selfservice UI are served behind this single hostname under path prefixes (/hydra, /kratos, /ui) via a reverse proxy, instead of one hostname and LoadBalancer per service. The OIDC issuer becomes https://<fqdn>/hydra. Leave null to keep the per-service hostname layout. Polis always keeps its own hostname because the customer IdP must reach it directly."
+  type        = string
+  default     = null
+}
+
 # Databases -------------------------------------------------------------------
 
 variable "kratos_dsn" {
