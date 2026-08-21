@@ -657,6 +657,9 @@ module "ory" {
   kratos_fqdn = var.ory_kratos_fqdn
   ui_fqdn     = var.ory_ui_fqdn
 
+  # When set, Hydra/Kratos/UI share one hostname behind a reverse proxy.
+  single_domain_fqdn = var.ory_single_domain_fqdn
+
   kratos_dsn = local.ory_kratos_dsn
   hydra_dsn  = local.ory_hydra_dsn
 
