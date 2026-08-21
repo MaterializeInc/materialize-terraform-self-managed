@@ -31,10 +31,13 @@
 | ---- | ---- |
 | [kubectl_manifest.materialize_oauth2_client](https://registry.terraform.io/providers/alekc/kubectl/2.4.1/docs/resources/manifest) | resource |
 | [kubectl_manifest.ory_certificate](https://registry.terraform.io/providers/alekc/kubectl/2.4.1/docs/resources/manifest) | resource |
+| [kubernetes_config_map_v1.single_domain_proxy](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/config_map_v1) | resource |
+| [kubernetes_deployment_v1.single_domain_proxy](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/deployment_v1) | resource |
 | [kubernetes_namespace.ory](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/namespace) | resource |
 | [kubernetes_network_policy_v1.ory_from_materialize_ingress](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/network_policy_v1) | resource |
 | [kubernetes_secret.ory_oel_registry](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/secret) | resource |
 | [kubernetes_service_v1.ory_lb](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/service_v1) | resource |
+| [kubernetes_service_v1.single_domain_proxy_lb](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/service_v1) | resource |
 | [kubernetes_secret_v1.oauth2_client](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/data-sources/secret_v1) | data source |
 
 ## Inputs
@@ -90,6 +93,7 @@
 | <a name="input_polis_oel_image_tag"></a> [polis\_oel\_image\_tag](#input\_polis\_oel\_image\_tag) | Tag for the Polis OEL image. Polis releases independently of Kratos/Hydra, so it has its own tag knob. When null, the chart's pinned AppVersion is used. | `string` | `null` | no |
 | <a name="input_selfservice_ui_extra_env"></a> [selfservice\_ui\_extra\_env](#input\_selfservice\_ui\_extra\_env) | Additional environment variables passed to the selfservice UI container. | `map(string)` | `{}` | no |
 | <a name="input_selfservice_ui_url"></a> [selfservice\_ui\_url](#input\_selfservice\_ui\_url) | External base URL that serves the Ory flow pages (login, consent, etc.) when deploy\_selfservice\_ui is false. Kratos and Hydra redirect the browser here. Ignored when deploy\_selfservice\_ui is true. | `string` | `null` | no |
+| <a name="input_single_domain_fqdn"></a> [single\_domain\_fqdn](#input\_single\_domain\_fqdn) | When set, Hydra, Kratos, and the selfservice UI are served behind this single hostname under path prefixes (/hydra, /kratos, /ui) via a reverse proxy, instead of one hostname and LoadBalancer per service. The OIDC issuer becomes https://<fqdn>/hydra. Leave null to keep the per-service hostname layout. Polis always keeps its own hostname because the customer IdP must reach it directly. | `string` | `null` | no |
 | <a name="input_ui_fqdn"></a> [ui\_fqdn](#input\_ui\_fqdn) | Fully-qualified domain name for the standalone Ory selfservice UI (e.g. id.example.com). Used for the UI's hostname and TLS certificate when deploy\_selfservice\_ui is true; unused (but still required) otherwise. | `string` | n/a | yes |
 | <a name="input_upstream_oidc_providers"></a> [upstream\_oidc\_providers](#input\_upstream\_oidc\_providers) | Optional upstream OIDC providers (Okta, Entra, Auth0, Google, etc.) exposed as social sign-in buttons on the selfservice UI. Each entry's redirect URI is registered at the upstream IdP as https://<kratos\_fqdn>/self-service/methods/oidc/callback/<id>. | <pre>list(object({<br/>    id            = string<br/>    provider      = optional(string, "generic")<br/>    client_id     = string<br/>    client_secret = string<br/>    issuer_url    = string<br/>    scope         = optional(list(string), ["openid", "email", "profile"])<br/>    label         = optional(string)<br/>  }))</pre> | `[]` | no |
 
@@ -106,7 +110,7 @@
 | <a name="output_kratos_secrets_cipher"></a> [kratos\_secrets\_cipher](#output\_kratos\_secrets\_cipher) | Kratos cipher secret (generated or supplied). Persist in a durable store: a Kratos database restore needs this exact value to decrypt identity fields. |
 | <a name="output_kratos_secrets_cookie"></a> [kratos\_secrets\_cookie](#output\_kratos\_secrets\_cookie) | Kratos cookie secret (generated or supplied). |
 | <a name="output_kratos_secrets_default"></a> [kratos\_secrets\_default](#output\_kratos\_secrets\_default) | Kratos default secret (generated or supplied). |
-| <a name="output_lb_addresses"></a> [lb\_addresses](#output\_lb\_addresses) | Ingress addresses of the LoadBalancer services this module owns. Map keyed by hostname role (hydra, kratos, ui, polis); values are objects with ip and hostname keys (GCP and Azure populate ip, AWS populates hostname). Use these to create the DNS records the browser-facing hostnames point at. Polis entry is null when disabled. |
+| <a name="output_lb_addresses"></a> [lb\_addresses](#output\_lb\_addresses) | Ingress addresses of the LoadBalancer services this module owns. Map keyed by hostname role (single\_domain, hydra, kratos, ui, polis); values are objects with ip and hostname keys (GCP and Azure populate ip, AWS populates hostname). Use these to create the DNS records the browser-facing hostnames point at. In single-domain mode only single\_domain (and polis, when enabled) are populated; otherwise single\_domain is null. Polis entry is null when disabled. |
 | <a name="output_namespace"></a> [namespace](#output\_namespace) | Namespace where Ory is deployed. |
 | <a name="output_oauth2_client_id"></a> [oauth2\_client\_id](#output\_oauth2\_client\_id) | Hydra-Maester-generated OAuth2 client ID for Materialize. Null when materialize\_namespace is not set, or when the secret has not yet been populated by Hydra Maester (which can happen on a refresh that runs before Maester reconciles). |
 | <a name="output_oauth2_client_secret_name"></a> [oauth2\_client\_secret\_name](#output\_oauth2\_client\_secret\_name) | Name of the Secret that holds the Hydra-Maester-generated OAuth2 client credentials. Null when materialize\_namespace is not set. |

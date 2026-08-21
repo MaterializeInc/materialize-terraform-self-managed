@@ -139,6 +139,12 @@ variable "ory_kratos_fqdn" {
   type        = string
 }
 
+variable "ory_single_domain_fqdn" {
+  description = "When set, serve Hydra, Kratos, and the UI behind this one hostname under path prefixes (/hydra, /kratos, /ui) via a reverse proxy instead of the per-service hostnames above. The OIDC issuer becomes https://<fqdn>/hydra. Leave null for the per-service layout. Example: ory.internal.example.com"
+  type        = string
+  default     = null
+}
+
 variable "enable_polis" {
   description = "Deploy Ory Polis (SAML-to-OIDC bridge) alongside Kratos and Hydra. When true, ory_polis_fqdn must be set and a polis database is provisioned on the Ory Cloud SQL instance."
   type        = bool
