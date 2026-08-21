@@ -157,7 +157,7 @@ resource "kubernetes_deployment" "coredns" {
 
         container {
           name              = "coredns"
-          image             = "coredns/coredns:${var.coredns_version}"
+          image             = "${var.coredns_image_repository}:${var.coredns_version}"
           image_pull_policy = "IfNotPresent"
 
           args = ["-conf", "/etc/coredns/Corefile"]

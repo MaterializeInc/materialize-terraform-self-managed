@@ -166,6 +166,60 @@ module "materialize_instance" {
 
 Set the `ref=` portion to point at the latest tagged version of this repository.
 
+### Container Image Repositories
+
+By default the modules pull container images from Docker Hub. Docker Hub enforces
+pull rate limits, which can throttle or fail image pulls on larger clusters, so
+each image repository can be pointed at a mirror or pull-through cache instead.
+Image *tags* stay controlled by the existing version variables — set the
+repository without a tag or digest.
+
+| Module | Variable | Default |
+|---|---|---|
+| `kubernetes/modules/materialize-instance` | `environmentd_image_repository` | `materialize/environmentd` |
+| `{aws,azure,gcp}/modules/operator` | `orchestratord_image_repository` | Helm chart default (`materialize/orchestratord`) |
+| `kubernetes/modules/coredns` | `coredns_image_repository` | `coredns/coredns` |
+| `kubernetes/modules/ory-stack` | `selfservice_ui_image_repository` | `oryd/kratos-selfservice-ui-node` |
+| `azure/modules/nodepool`, `gcp/modules/nodepool`, `aws/modules/eks-node-group`, `aws/modules/karpenter-ec2nodeclass` | `disk_setup_image`[^dsi] | `materialize/ephemeral-storage-setup-image:<version>`, `docker.io/`-prefixed on AWS |
+
+[^dsi]: Unlike the others, `disk_setup_image` is a full image reference including the tag.
+
+```hcl
+module "materialize_instance" {
+  source = "github.com/MaterializeInc/materialize-terraform-self-managed//kubernetes/modules/materialize-instance?ref=<tag>"
+
+  environmentd_image_repository = "myregistry.example.com/materialize/environmentd"
+  # ... additional configuration
+}
+```
+
+Note that the operator derives the `clusterd`, `balancerd`, and `console` image
+references from `environmentdImageRef`, reusing everything before the final `/`
+as the namespace. Overriding `environmentd_image_repository` therefore redirects
+those three images too, as long as the mirror hosts all four as siblings under
+one path — the final path segment is the only part that varies, so a flat
+`<your-prefix>/<image>` layout works just as well as `<your-prefix>/materialize/<image>`.
+A pull-through cache of Docker Hub satisfies this automatically.
+
+Two things to watch when stocking a mirror by hand:
+
+- The `console` image tag is **not** derived from `environmentd_version`. It
+  follows the operator image tag, so the console image must be mirrored at the
+  operator's version rather than the environmentd version.
+- Neither the operator Helm chart nor the Materialize CRD supports image pull
+  secrets, so the mirror must be readable either anonymously or with credentials
+  available to the nodes (for example an ECR pull through cache reached via the
+  node IAM role). The `ory-*` modules do accept `image_pull_secrets`.
+
+The remaining third-party charts (cert-manager, metrics-server, node-local-dns,
+and the AWS addons) pull from registries without Docker Hub's rate limits —
+`quay.io`, `registry.k8s.io`, and public ECR — and so have no override. The
+`ory-kratos`, `ory-hydra`, and `ory-polis` images come from the Materialize OEL
+registry proxy and are redirected with the `oel_registry` and `polis_chart_*`
+variables. `{aws,azure,gcp}/modules/monitoring` deliberately names no Helm value
+paths, so redirect its images through `additional_values` and its charts through
+`chart_registry`.
+
 ## Upgrading
 
 Most of the time, you just need to bump the `ref=<tag>` in all modules. We recommend that you bump all modules to the same version in the same `terraform apply`. We frequently make changes that assume related changes in dependent modules.

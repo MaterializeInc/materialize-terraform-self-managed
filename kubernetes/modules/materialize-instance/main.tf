@@ -41,7 +41,7 @@ resource "kubectl_manifest" "materialize_instance" {
     }
     spec = merge(
       {
-        environmentdImageRef         = "materialize/environmentd:${var.environmentd_version}"
+        environmentdImageRef         = "${var.environmentd_image_repository}:${var.environmentd_version}"
         backendSecretName            = "${var.instance_name}-materialize-backend"
         authenticatorKind            = var.authenticator_kind
         enableRbac                   = var.enable_rbac
