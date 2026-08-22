@@ -665,7 +665,7 @@ module "monitoring" {
   #
   # v0.13.0 is where `grafana_database_*` and the chart's `grafana.ingress` /
   # `grafana.service` values land. This branch does not plan against v0.12.0.
-  source = "github.com/MaterializeInc/materialize-monitoring//terraform/modules/materialize-monitoring?ref=materialize-monitoring/v0.17.0"
+  source = "github.com/MaterializeInc/materialize-monitoring//terraform/modules/materialize-monitoring?ref=materialize-monitoring/v0.18.1"
 
   namespace        = var.namespace
   create_namespace = var.create_namespace
@@ -694,6 +694,19 @@ module "monitoring" {
   install_metrics_server         = var.install_metrics_server
 
   grafana_admin_password = var.grafana_admin_password
+
+  # In-cluster TLS. `certificates_enabled` issues the material and
+  # `internal_tls` decides how far the hops move off plaintext; both default to
+  # secure here rather than on the monitoring module, because this repository's
+  # examples all install cert-manager and that module's other consumers may not.
+  certificates_enabled       = var.certificates_enabled
+  internal_tls               = coalesce(var.internal_tls, var.certificates_enabled ? "authenticate" : "off")
+  issuer_ref                 = var.issuer_ref
+  internal_issuer_ref        = var.internal_issuer_ref
+  grafana_external_dns_names = var.grafana_external_dns_names
+  certificate_duration       = var.certificate_duration
+  certificate_renew_before   = var.certificate_renew_before
+
 
   # Explicit rather than inferred from host/password: both are computed here — an
   # instance endpoint and a generated password — so the module cannot decide
