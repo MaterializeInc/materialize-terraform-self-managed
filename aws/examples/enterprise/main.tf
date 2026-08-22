@@ -621,7 +621,25 @@ module "monitoring" {
 
   tags = var.tags
 
+  # Certificates are on by default and no issuer is named here, so the chart
+  # bootstraps a self-signed root scoped to the monitoring release. That is
+  # deliberate, and the reason this differs from `module.materialize_instance`
+  # above: none of the components behind Grafana implements per-client
+  # authorization, so "signed by the CA we trust" is the whole authorization
+  # decision, and handing them the cluster's general-purpose issuer would reduce
+  # that to "has any certificate". Set `internal_issuer_ref` to share one
+  # knowingly.
+  #
+  # `issuer_ref` stays unset for a second reason: it is the *browser-facing*
+  # issuer, it only issues anything alongside `grafana_external_dns_names`, and
+  # these examples reach Grafana by port-forward rather than a public name.
+
   depends_on = [
+    # cert-manager, because the monitoring stack issues Certificates by default
+    # and its CRDs have to exist before the Helm release renders them. Without
+    # this the two race, and the loser fails the apply on an unknown
+    # `cert-manager.io/v1` kind rather than waiting.
+    module.cert_manager,
     module.operator,
     module.nodepool_generic,
     module.coredns,
