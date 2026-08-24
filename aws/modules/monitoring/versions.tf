@@ -5,9 +5,12 @@ terraform {
   required_version = ">= 1.10"
 
   required_providers {
+    # Floored higher than the repo-wide `~> 6.0`: `bucket_namespace` on
+    # `aws_s3_bucket` shipped in 6.37.0, and the telemetry buckets are created in
+    # the account regional namespace by default.
     aws = {
       source  = "hashicorp/aws"
-      version = "~> 6.0"
+      version = "~> 6.37"
     }
     helm = {
       source  = "hashicorp/helm"
