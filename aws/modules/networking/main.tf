@@ -1,7 +1,7 @@
 
 module "vpc" {
   source  = "terraform-aws-modules/vpc/aws"
-  version = "~> 5.0"
+  version = "~> 6.0"
 
   create_vpc = var.create_vpc
 
@@ -46,7 +46,7 @@ module "vpc" {
 
 module "vpc_endpoints" {
   source  = "terraform-aws-modules/vpc/aws//modules/vpc-endpoints"
-  version = "~> 5.0"
+  version = "~> 6.0"
 
   create = var.enable_vpc_endpoints
 
