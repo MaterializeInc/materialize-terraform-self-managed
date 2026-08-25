@@ -296,6 +296,141 @@ variable "grafana_admin_password" {
   sensitive   = true
 }
 
+# ==============================================================================
+# In-cluster TLS
+# ==============================================================================
+
+variable "certificates_enabled" {
+  description = <<-EOT
+    Issue cert-manager `Certificate` resources for the monitoring stack's
+    in-cluster TLS.
+
+    **On by default, and that assumes cert-manager.** Every example in this
+    repository installs it, which is why the default lives here rather than on
+    the monitoring module — that module is consumed directly too, by roots this
+    repository knows nothing about. If your own root does not install
+    cert-manager, either add it or set this to false; with it on and the CRDs
+    absent the apply fails on an unknown `cert-manager.io/v1` kind.
+
+    Issuing the material and using it are separate: `var.internal_tls` decides
+    how far the hops actually move off plaintext.
+  EOT
+  type        = bool
+  default     = true
+  nullable    = false
+}
+
+variable "internal_tls" {
+  description = <<-EOT
+    How far the monitoring stack's in-cluster hops move off plaintext. One of
+    `off`, `encrypt`, `present`, `authenticate`; see the monitoring module's own
+    variable for what each stage composes.
+
+    **`authenticate` by default, which is right for a new deployment and is a
+    step to take deliberately on an existing one.** Kubernetes does not order a
+    server's rollout against its clients', so a stack going straight from `off`
+    to `authenticate` in one apply refuses writes on any hop whose server pod
+    rolls before its writers — a gap, not a permanent break, but a gap during
+    which telemetry is dropped rather than delayed. Upgrading a running stack,
+    apply `present` first, let it settle, then `authenticate`.
+
+    Requires `certificates_enabled`, which is what issues the material these
+    settings point at. Null follows it — `authenticate` when certificates are on,
+    `off` when they are not — so turning certificates off needs one edit rather
+    than two. Naming a stage explicitly with certificates off is refused instead
+    of quietly downgraded.
+  EOT
+  type        = string
+  default     = null
+}
+
+variable "issuer_ref" {
+  description = <<-EOT
+    cert-manager (Cluster)Issuer for the monitoring stack's **browser-facing**
+    Grafana certificate. Pair it with `grafana_external_dns_names`; either alone
+    issues nothing.
+
+    Same split as `module.materialize_instance` uses, deliberately, so an
+    operator configures certificates once: `issuer_ref` for names a browser
+    resolves, `internal_issuer_ref` for in-cluster ones. A public ACME issuer
+    can sign the first and cannot sign the second — nothing will issue a
+    certificate for `*.cluster.local`.
+  EOT
+  type = object({
+    name = string
+    kind = string
+    # Optional because every in-tree issuer is `cert-manager.io`. It has to be
+    # reachable, though: an external issuer — AWS Private CA
+    # (`awspca.cert-manager.io`), Google CAS (`cas-issuer.jetstack.io`) — lives
+    # in its own API group, and cert-manager resolves `issuerRef` by group as
+    # well as by kind.
+    group = optional(string, "cert-manager.io")
+  })
+  default = null
+}
+
+variable "internal_issuer_ref" {
+  description = <<-EOT
+    cert-manager (Cluster)Issuer for the **internal** certificates the stack's
+    components present to each other. Falls back to `issuer_ref`, then to the
+    chart bootstrapping a self-signed root scoped to this release.
+
+    Leaving it null is the recommended shape rather than a fallback. None of the
+    receiving components implements per-client authorization, so "signed by the
+    CA we trust" is the entire authorization decision — pointing this at the
+    cluster's general-purpose issuer reduces that to "has any certificate".
+
+    `ClusterIssuer` rather than `Issuer` for a split-namespace deployment: a
+    namespaced issuer cannot sign for components in another namespace.
+  EOT
+  type = object({
+    name = string
+    kind = string
+    # Optional because every in-tree issuer is `cert-manager.io`. It has to be
+    # reachable, though: an external issuer — AWS Private CA
+    # (`awspca.cert-manager.io`), Google CAS (`cas-issuer.jetstack.io`) — lives
+    # in its own API group, and cert-manager resolves `issuerRef` by group as
+    # well as by kind.
+    group = optional(string, "cert-manager.io")
+  })
+  default = null
+}
+
+variable "grafana_external_dns_names" {
+  description = <<-EOT
+    Hostnames to put on the browser-facing Grafana certificate. Needs
+    `issuer_ref`; without one nothing issues it.
+
+    Only for a load balancer that passes TLS **through** to the pod. Where the
+    balancer terminates with a cloud-managed certificate — ACM, Google
+    Certificate Manager, Azure Key Vault — the wiring is an annotation carrying
+    an ARN or resource ID on `grafana_load_balancer`, and this list stays empty.
+  EOT
+  type        = list(string)
+  default     = []
+  nullable    = false
+}
+
+variable "certificate_duration" {
+  description = <<-EOT
+    Lifetime of the issued certificates, as a Go duration. Null uses the chart's
+    default.
+
+    Keep `certificate_renew_before` well under this — cert-manager's own guidance
+    is a third or less. At 92% the controller has been observed livelocking in a
+    re-queue loop, halting issuance, and then reporting `Ready=True` on
+    certificates that had already expired.
+  EOT
+  type        = string
+  default     = null
+}
+
+variable "certificate_renew_before" {
+  description = "How long before expiry cert-manager renews, as a Go duration. Null uses the chart's default. See the warning on `certificate_duration`."
+  type        = string
+  default     = null
+}
+
 variable "additional_values" {
   description = "Raw YAML documents appended to the Helm values, last, so they override everything the modules compute."
   type        = list(string)
