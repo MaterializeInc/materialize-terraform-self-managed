@@ -29,19 +29,29 @@ locals {
   polis_chart_full       = "${var.oel_registry}/helm-oel-polis/polis-oel"
   polis_chart_repository = trimprefix(local.polis_chart_full, "${local.oel_registry_host}/")
 
-  # When set, Hydra/Kratos/UI sit behind one hostname under path prefixes via the
-  # proxy in single_domain_proxy.tf (which terminates TLS, so services run plain
-  # HTTP in-cluster). Polis always keeps its own hostname for the IdP SAML POST.
-  single_domain = var.single_domain_fqdn != null
+  # When set, Hydra/Kratos/UI sit behind one hostname under path prefixes, served
+  # by the reverse proxy defined below (it terminates TLS, so the services run
+  # plain HTTP in-cluster). Polis always keeps its own hostname for the IdP SAML
+  # POST.
+  #
+  # Example, single_domain_fqdn = "ory.example.com":
+  #   hydra_external_url  = https://ory.example.com/hydra
+  #   kratos_external_url = https://ory.example.com/kratos
+  #   ui_external_url     = https://ory.example.com/ui
+  # Unset (the default, per-service hostnames):
+  #   hydra_external_url  = https://<hydra_fqdn>
+  #   kratos_external_url = https://<kratos_fqdn>
+  #   ui_external_url     = https://<ui_fqdn>  (or the console URL)
+  single_domain_enabled = var.single_domain_fqdn != null
 
   # External URLs the browser (and Materialize, for OIDC issuer matching) sees.
   # No trailing slash: OIDC issuer comparison downstream is exact-match.
-  hydra_external_url  = local.single_domain ? "https://${var.single_domain_fqdn}/hydra" : "https://${var.hydra_fqdn}"
-  kratos_external_url = local.single_domain ? "https://${var.single_domain_fqdn}/kratos" : "https://${var.kratos_fqdn}"
+  hydra_external_url  = local.single_domain_enabled ? "https://${var.single_domain_fqdn}/hydra" : "https://${var.hydra_fqdn}"
+  kratos_external_url = local.single_domain_enabled ? "https://${var.single_domain_fqdn}/kratos" : "https://${var.kratos_fqdn}"
   # /ui under the single domain, else the standalone UI FQDN, else whatever app
   # hosts the flow pages (e.g. the console). Kratos/Hydra redirect the browser here.
   ui_external_url = (
-    local.single_domain ? "https://${var.single_domain_fqdn}/ui" :
+    local.single_domain_enabled ? "https://${var.single_domain_fqdn}/ui" :
     var.deploy_selfservice_ui ? "https://${var.ui_fqdn}" :
     var.selfservice_ui_url
   )
@@ -50,7 +60,7 @@ locals {
   # Cookie domain shared across the Ory FQDNs. Defaults to the parent domain of
   # the primary FQDN (single-domain host, else kratos_fqdn); single-label hosts
   # fall back to the value itself.
-  cookie_primary_fqdn = local.single_domain ? var.single_domain_fqdn : var.kratos_fqdn
+  cookie_primary_fqdn = local.single_domain_enabled ? var.single_domain_fqdn : var.kratos_fqdn
   cookie_fqdn_parts   = split(".", local.cookie_primary_fqdn)
   cookie_parent_domain = (
     var.cookie_parent_domain != null
@@ -72,7 +82,7 @@ locals {
   # emitted by the upstream charts. role is the key callers use in lb_overrides,
   # matching the lb_addresses output keys.
   ory_lb_services = merge(
-    local.single_domain ? {} : {
+    local.single_domain_enabled ? {} : {
       kratos-public-lb = {
         role         = "kratos"
         app_name     = "kratos"
@@ -86,7 +96,7 @@ locals {
         target_port  = 4444
       }
     },
-    (!local.single_domain && var.deploy_selfservice_ui) ? {
+    (!local.single_domain_enabled && var.deploy_selfservice_ui) ? {
       ory-selfservice-ui-lb = {
         role         = "ui"
         app_name     = "kratos-selfservice-ui-node"
@@ -107,13 +117,13 @@ locals {
   # when enabled and its cert is mounted into the chart's TLS-terminating nginx
   # sidecar.
   ory_certs = merge(
-    local.single_domain ? {
+    local.single_domain_enabled ? {
       single-domain-tls = { fqdn = var.single_domain_fqdn, cluster_svc = null }
       } : {
       hydra-tls  = { fqdn = var.hydra_fqdn, cluster_svc = "hydra-public.${var.namespace}.svc.cluster.local" }
       kratos-tls = { fqdn = var.kratos_fqdn, cluster_svc = "kratos-public.${var.namespace}.svc.cluster.local" }
     },
-    (!local.single_domain && var.deploy_selfservice_ui) ? {
+    (!local.single_domain_enabled && var.deploy_selfservice_ui) ? {
       ory-selfservice-ui-tls = { fqdn = var.ui_fqdn, cluster_svc = null }
     } : {},
     local.wire_polis ? {
@@ -278,7 +288,7 @@ module "ory_kratos" {
   image_pull_secrets = [kubernetes_secret.ory_oel_registry.metadata[0].name]
 
   # Proxy terminates TLS in single-domain mode, so Kratos serves plain HTTP.
-  tls_cert_secret_name = local.single_domain ? null : "kratos-tls"
+  tls_cert_secret_name = local.single_domain_enabled ? null : "kratos-tls"
 
   node_selector = var.node_selector
 
@@ -346,7 +356,7 @@ module "ory_hydra" {
   image_pull_secrets = [kubernetes_secret.ory_oel_registry.metadata[0].name]
 
   # Proxy terminates TLS in single-domain mode, so Hydra serves plain HTTP.
-  tls_cert_secret_name = local.single_domain ? null : "hydra-tls"
+  tls_cert_secret_name = local.single_domain_enabled ? null : "hydra-tls"
 
   cors_allowed_origins = local.wire_materialize ? [for fqdn in local.materialize_console_fqdns : "https://${fqdn}"] : []
 
@@ -380,16 +390,16 @@ module "ory_selfservice_ui" {
   # signs cluster.local hostnames (self-signed default) we can use the in-cluster
   # service URL directly. Otherwise the cert only covers the external hostname,
   # so we hairpin out through the LB.
-  kratos_public_url  = (local.single_domain || var.cert_issuer_signs_cluster_local) ? module.ory_kratos.public_url : local.kratos_external_url
+  kratos_public_url  = (local.single_domain_enabled || var.cert_issuer_signs_cluster_local) ? module.ory_kratos.public_url : local.kratos_external_url
   kratos_admin_url   = module.ory_kratos.admin_url
   kratos_browser_url = local.kratos_external_url
   hydra_admin_url    = local.hydra_admin_internal_url
 
   # Proxy terminates TLS in single-domain mode, so the UI serves plain HTTP.
-  tls_cert_secret_name = local.single_domain ? null : "ory-selfservice-ui-tls"
+  tls_cert_secret_name = local.single_domain_enabled ? null : "ory-selfservice-ui-tls"
 
   # Only needed when Kratos/Hydra are served by the in-cluster self-signed CA.
-  trust_mounted_ca_cert = !local.single_domain && var.cert_issuer_signs_cluster_local
+  trust_mounted_ca_cert = !local.single_domain_enabled && var.cert_issuer_signs_cluster_local
 
   node_selector = var.node_selector
   extra_env     = var.selfservice_ui_extra_env
@@ -631,7 +641,7 @@ resource "kubernetes_network_policy_v1" "ory_from_materialize_ingress" {
 #
 # When var.single_domain_fqdn is set, this pingap proxy fronts Hydra, Kratos,
 # and the selfservice UI on one hostname under path prefixes (/hydra, /kratos,
-# /ui), terminating TLS with one cert. Gated by local.single_domain (see
+# /ui), terminating TLS with one cert. Gated by local.single_domain_enabled (see
 # main.tf). Pingap (a Rust reverse proxy) over nginx because it re-resolves
 # upstream DNS instead of caching the pod IP at startup.
 
@@ -688,7 +698,7 @@ locals {
 }
 
 resource "kubernetes_config_map_v1" "single_domain_proxy" {
-  count = local.single_domain ? 1 : 0
+  count = local.single_domain_enabled ? 1 : 0
 
   metadata {
     name      = local.single_domain_proxy_name
@@ -703,7 +713,7 @@ resource "kubernetes_config_map_v1" "single_domain_proxy" {
 }
 
 resource "kubernetes_deployment_v1" "single_domain_proxy" {
-  count = local.single_domain ? 1 : 0
+  count = local.single_domain_enabled ? 1 : 0
 
   metadata {
     name      = local.single_domain_proxy_name
@@ -796,7 +806,7 @@ resource "kubernetes_deployment_v1" "single_domain_proxy" {
 }
 
 resource "kubernetes_service_v1" "single_domain_proxy_lb" {
-  count = local.single_domain ? 1 : 0
+  count = local.single_domain_enabled ? 1 : 0
 
   metadata {
     name        = "${local.single_domain_proxy_name}-lb"
