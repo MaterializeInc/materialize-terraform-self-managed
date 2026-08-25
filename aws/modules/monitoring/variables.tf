@@ -84,7 +84,7 @@ variable "iam_permissions_boundary" {
 # ==============================================================================
 
 variable "bucket_force_destroy" {
-  description = "Allow Terraform to delete non-empty buckets. Leave false outside throwaway environments — destroying it takes the telemetry with it."
+  description = "Allow Terraform to delete non-empty buckets. Leave false outside throwaway environments — destroying it takes the telemetry with it. It also gates any change that replaces a bucket rather than updating it, such as the move into the account regional namespace: on the default the destroy fails with `BucketNotEmpty` and the replacement cannot complete."
   type        = bool
   default     = false
   nullable    = false
