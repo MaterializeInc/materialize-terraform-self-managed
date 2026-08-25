@@ -207,6 +207,7 @@ The AWS modules now require the `hashicorp/aws` provider `~> 6.0` (previously `~
 **Behavior notes (no action needed):**
 
 - The coredns deployment rolls onto a new `coredns-custom` service account. This is a rolling update and the `kube-dns` Service selects old and new pods alike, so DNS stays up throughout.
+- The networking module moves from `terraform-aws-modules/vpc` v5 to v6. That major exists only to require provider 6.x — no inputs were renamed and no outputs removed — so no VPC, subnet, or endpoint changes are expected in the plan.
 - This crosses the aws provider 5.x → 6.x major version boundary. The modules in this repository do not use any of the fields removed in 6.0, but if you manage additional AWS resources in the same configuration, review the [aws provider 6.0 upgrade guide](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/guides/version-6-upgrade) for changes affecting them.
 
 **Impact on existing GCP deployments:**
