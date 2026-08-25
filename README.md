@@ -195,12 +195,18 @@ The AWS modules now require the `hashicorp/aws` provider `~> 6.0` (previously `~
 
    This import path matches our examples. Your path may be different depending on where your coredns module is instantiated.
 
-   Skipping this fails at apply with `Service "kube-dns" already exists`.
+   Skipping this fails at apply. The API server allocates the ClusterIP before it detects the name collision, so which error you get depends on the existing Service: `failed to allocate IP <addr>: provided IP is already allocated` when it holds the address this module asks for, which is the usual case since both use the 10th address of the service CIDR, and `Service "kube-dns" already exists` when it holds a different one.
 4. **Run `terraform plan`, review it against the notes below, then apply.**
 
 **Reviewing the plan:**
 
 - Expected changes: the `kube-proxy` EKS addon (adopts the existing self-managed kube-proxy), the CoreDNS service account and RBAC, a node security-group rule for port 10251, removal of the module's `terraform-aws-modules` tag and of a redundant cluster-encryption IAM policy (the KMS key policy retains the cluster grant), and in-place updates to the coredns and VPC CNI releases.
+- **The imported `kube-dns` Service shows an in-place update.** The module narrows the Service selector to the pods it owns, adding `provisioned-by = "materialize"`, and drops any platform-specific labels it does not declare. Narrowing the selector is what moves cluster DNS off the platform CoreDNS and onto `coredns-custom`, which the provisioner then scales to zero. Confirm `coredns-custom` is already serving before you apply, since it becomes the only endpoint behind the cluster DNS address:
+
+  ```sh
+  kubectl -n kube-system get pods -l provisioned-by=materialize
+  ```
+
 - **No node group or launch template changes are expected.** The eks-node-group module pins the v20 launch-template defaults (AMI release tracking, IMDS hop limit 2, detailed monitoring) precisely so this upgrade does not roll your nodes. If your plan shows node groups or launch templates being replaced, stop and investigate before applying.
 - **No `aws_iam_role_policy_attachment` replacements are expected.** If the plan shows them with `policy_arn = (known after apply)`, do not apply it — that replacement silently detaches the managed policies from the live node role (the create is an AWS no-op, the deposed destroy detaches). It means the `partition`/`account_id` variables from step 1 are not reaching the node group module: the examples put a `depends_on = [module.vpc_cni]` on the node group call (so new clusters have a CNI before nodes boot), and a module-level `depends_on` defers every data source inside the module to apply time whenever the depended-on module has pending changes — without the two variables, the upstream module's own partition lookup is deferred and the policy ARNs derived from it become unknown. If you have already applied such a plan, run plan and apply again to re-attach the policies.
 
