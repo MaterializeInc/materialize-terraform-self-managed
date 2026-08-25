@@ -3,7 +3,7 @@
 | Name | Version |
 | ---- | ------- |
 | <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | >= 1.10 |
-| <a name="requirement_aws"></a> [aws](#requirement\_aws) | ~> 5.0, < 5.101.0 |
+| <a name="requirement_aws"></a> [aws](#requirement\_aws) | ~> 6.0 |
 | <a name="requirement_kubernetes"></a> [kubernetes](#requirement\_kubernetes) | ~> 2.0, < 2.39.0 |
 
 ## Providers
@@ -16,7 +16,7 @@
 
 | Name | Source | Version |
 | ---- | ------ | ------- |
-| <a name="module_node_group"></a> [node\_group](#module\_node\_group) | terraform-aws-modules/eks/aws//modules/eks-managed-node-group | ~> 20.0 |
+| <a name="module_node_group"></a> [node\_group](#module\_node\_group) | terraform-aws-modules/eks/aws//modules/eks-managed-node-group | ~> 21.0 |
 
 ## Resources
 
@@ -28,6 +28,7 @@
 
 | Name | Description | Type | Default | Required |
 | ---- | ----------- | ---- | ------- | :------: |
+| <a name="input_account_id"></a> [account\_id](#input\_account\_id) | AWS account ID (e.g. from a root-level aws\_caller\_identity data source). Same rationale as partition. | `string` | `""` | no |
 | <a name="input_ami_type"></a> [ami\_type](#input\_ami\_type) | AMI type for the node group. | `string` | `"BOTTLEROCKET_ARM_64"` | no |
 | <a name="input_aws_profile"></a> [aws\_profile](#input\_aws\_profile) | AWS CLI profile, used for destroy-time ENI cleanup. If empty, the default credential chain is used. | `string` | `""` | no |
 | <a name="input_aws_region"></a> [aws\_region](#input\_aws\_region) | AWS region, used for destroy-time ENI cleanup. | `string` | n/a | yes |
@@ -46,6 +47,7 @@
 | <a name="input_min_size"></a> [min\_size](#input\_min\_size) | Minimum number of worker nodes. | `number` | `1` | no |
 | <a name="input_node_group_name"></a> [node\_group\_name](#input\_node\_group\_name) | Name of the node group. | `string` | n/a | yes |
 | <a name="input_node_taints"></a> [node\_taints](#input\_node\_taints) | Taints to apply to the node group. | <pre>list(object({<br/>    key    = string<br/>    value  = string<br/>    effect = string<br/>  }))</pre> | `[]` | no |
+| <a name="input_partition"></a> [partition](#input\_partition) | AWS partition (e.g. from a root-level aws\_partition data source). Strongly recommended when this module call carries a depends\_on: without it the upstream module looks the partition up via a count-gated data source, which a module-level depends\_on defers to apply time, failing the plan with 'Invalid count argument' whenever the depended-on module has pending changes. | `string` | `""` | no |
 | <a name="input_subnet_ids"></a> [subnet\_ids](#input\_subnet\_ids) | List of subnet IDs for the node group. | `list(string)` | n/a | yes |
 | <a name="input_swap_enabled"></a> [swap\_enabled](#input\_swap\_enabled) | Whether to enable swap on the local NVMe disks. | `bool` | `true` | no |
 | <a name="input_tags"></a> [tags](#input\_tags) | Tags to apply to all resources | `map(string)` | `{}` | no |

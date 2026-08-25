@@ -1,19 +1,30 @@
 module "eks" {
   source  = "terraform-aws-modules/eks/aws"
-  version = "~> 20.0"
+  version = "~> 21.0"
 
-  cluster_name = "${var.name_prefix}-eks"
+  name = "${var.name_prefix}-eks"
 
-  cluster_version = var.cluster_version
+  kubernetes_version = var.cluster_version
 
   vpc_id     = var.vpc_id
   subnet_ids = var.private_subnet_ids
 
-  cluster_endpoint_public_access       = true
-  cluster_endpoint_public_access_cidrs = var.k8s_apiserver_authorized_networks
-  cluster_endpoint_private_access      = true
+  endpoint_public_access       = true
+  endpoint_public_access_cidrs = var.k8s_apiserver_authorized_networks
+  endpoint_private_access      = true
 
-  cluster_enabled_log_types = var.cluster_enabled_log_types
+  enabled_log_types = var.cluster_enabled_log_types
+
+  # v21 no longer bootstraps the self-managed kube-proxy on new clusters
+  # (bootstrap_self_managed_addons is hardcoded to false). The VPC CNI and
+  # CoreDNS are installed by our own modules, but nothing else installs
+  # kube-proxy, so manage it as an EKS addon. OVERWRITE lets the addon adopt
+  # the self-managed kube-proxy on clusters created before this change.
+  addons = {
+    kube-proxy = {
+      resolve_conflicts_on_create = "OVERWRITE"
+    }
+  }
 
   node_security_group_additional_rules = {
     mz_ingress_http = {

@@ -36,11 +36,15 @@ locals {
 }
 
 
-# ServiceAccount for CoreDNS
+# ServiceAccount for CoreDNS.
+# Named coredns-custom (like the deployment) rather than coredns so it never
+# collides with a platform-bootstrapped CoreDNS service account, which may
+# exist outside Terraform on clusters created before these resources were
+# managed here (e.g. EKS clusters built with EKS module v20 and earlier).
 resource "kubernetes_service_account" "coredns" {
   count = var.create_coredns_service_account ? 1 : 0
   metadata {
-    name      = "coredns"
+    name      = "coredns-custom"
     namespace = local.namespace
   }
 }
@@ -49,7 +53,7 @@ resource "kubernetes_service_account" "coredns" {
 resource "kubernetes_cluster_role" "coredns" {
   count = var.create_coredns_service_account ? 1 : 0
   metadata {
-    name = "system:coredns"
+    name = "coredns-custom"
   }
 
   rule {
@@ -69,7 +73,7 @@ resource "kubernetes_cluster_role" "coredns" {
 resource "kubernetes_cluster_role_binding" "coredns" {
   count = var.create_coredns_service_account ? 1 : 0
   metadata {
-    name = "system:coredns"
+    name = "coredns-custom"
   }
 
   role_ref {
@@ -94,6 +98,46 @@ resource "kubernetes_config_map" "coredns" {
 
   data = {
     Corefile = local.corefile
+  }
+}
+
+# kube-dns Service exposing CoreDNS on the cluster DNS IP.
+#
+# Platforms normally bootstrap this Service, but EKS clusters created with
+# EKS module v21+ do not bootstrap CoreDNS at all. Without a Service owning
+# the cluster DNS IP, kubelet's configured DNS address routes nowhere, and
+# network policy engines that allowlist service ClusterIPs (such as the AWS
+# VPC CNI network policy agent) deny pod DNS egress entirely.
+resource "kubernetes_service" "kube_dns" {
+  count = var.create_kube_dns_service ? 1 : 0
+
+  metadata {
+    name      = "kube-dns"
+    namespace = local.namespace
+    labels = {
+      "k8s-app"                       = "kube-dns"
+      "kubernetes.io/cluster-service" = "true"
+      "kubernetes.io/name"            = "CoreDNS"
+    }
+  }
+
+  spec {
+    cluster_ip = var.kube_dns_service_cluster_ip
+    selector   = local.labels
+
+    port {
+      name        = "dns"
+      port        = 53
+      protocol    = "UDP"
+      target_port = 53
+    }
+
+    port {
+      name        = "dns-tcp"
+      port        = 53
+      protocol    = "TCP"
+      target_port = 53
+    }
   }
 }
 
@@ -127,8 +171,10 @@ resource "kubernetes_deployment" "coredns" {
       }
 
       spec {
-        priority_class_name  = "system-cluster-critical"
-        service_account_name = "coredns"
+        priority_class_name = "system-cluster-critical"
+        # Fall back to the platform-bootstrapped CoreDNS service account on
+        # clusters where this module does not manage its own.
+        service_account_name = var.create_coredns_service_account ? kubernetes_service_account.coredns[0].metadata[0].name : "coredns"
 
         toleration {
           key      = "CriticalAddonsOnly"
