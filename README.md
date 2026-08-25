@@ -220,6 +220,15 @@ The AWS modules now require the `hashicorp/aws` provider `~> 6.0` (previously `~
 
 - The coredns module's managed service account, cluster role, and binding are renamed from `coredns`/`system:coredns` to `coredns-custom`, so they can never collide with platform-owned objects. The next apply destroys and recreates them under the new names and rolls the coredns deployment onto the new service account.
 
+**Impact on the monitoring stack (all clouds):**
+
+The monitoring stack gains in-cluster TLS, on by default. Only `modules/monitoring` and the observability components it installs are affected.
+
+- **cert-manager is now required wherever `enable_observability` is on.** The examples install it; a root of your own must do the same or set `certificates_enabled = false`. With certificates on and the CRDs absent, the apply fails on an unknown `cert-manager.io/v1` kind. A root that calls the module directly also needs `module.cert_manager` in its `depends_on`, or the Helm release races the CRDs.
+- **`internal_tls` defaults to `authenticate`, so the stack's own components require client certificates from each other.** Upgrading a running stack, apply `internal_tls = "present"` first and let it settle: Kubernetes does not order a server's rollout against its clients', and a one-step cutover drops telemetry on any hop whose server pod rolls first. A new deployment can go straight to the default.
+- **Anything outside the chart that writes to the Alloy gateway must present a client certificate** — an application remote-writing metrics to `9090`, or sending OTLP to `4317`/`4318`, is refused at the TLS handshake. Park at `internal_tls = "present"` while you roll certificates out to those senders, or `"encrypt"` if they cannot present one at all.
+- Bring your own PKI with `internal_issuer_ref`; left unset, the chart bootstraps a root scoped to the monitoring release. See each cloud's `modules/monitoring/README.md` for the new inputs, and [Securing the stack](https://materializeinc.github.io/materialize-monitoring/operating/securing/) for what each phase does and does not buy.
+
 #### v11.0.0
 
 Grafana gains durable state and a way to reach it. Both are opt-out rather than opt-in: the previous release left Grafana on SQLite in an `emptyDir` and reachable only through `kubectl port-forward`, which is fine for a bundled extra and not for the primary interface to the stack.
