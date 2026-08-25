@@ -13,7 +13,7 @@
 # a legacy scrape config, collected metrics only, and ran a single Prometheus on
 # a ReadWriteOnce volume with 15 days of retention.
 #
-# UPGRADE NOTE — v12.0.0 moves the telemetry buckets into the account regional
+# UPGRADE NOTE — v13.0.0 moves the telemetry buckets into the account regional
 # namespace, which REPLACES both of them: the name changes shape, `bucket` forces
 # a new resource, and S3 offers no in-place migration between namespaces. Copy
 # anything you need to keep before applying, and read the plan.
