@@ -13,13 +13,21 @@
 # a legacy scrape config, collected metrics only, and ran a single Prometheus on
 # a ReadWriteOnce volume with 15 days of retention.
 #
-# UPGRADE NOTE — the telemetry buckets are REPLACED on the version that
-# introduced the account regional namespace, and all Loki and Thanos history goes
-# with them. The bucket name changes shape, and `bucket` forces a new resource, so
-# the next apply destroys both buckets and creates two empty ones. S3 offers no
-# in-place migration between namespaces; copy anything you need to keep first, and
-# read the plan before applying it. Deployments in a region without account
-# regional namespace support are unaffected — see the Buckets section below.
+# UPGRADE NOTE — v12.0.0 moves the telemetry buckets into the account regional
+# namespace, which REPLACES both of them: the name changes shape, `bucket` forces
+# a new resource, and S3 offers no in-place migration between namespaces. Copy
+# anything you need to keep before applying, and read the plan.
+#
+# What the apply does from there depends on `bucket_force_destroy`, which defaults
+# to false. On the default it FAILS with BucketNotEmpty and the buckets and their
+# contents survive, since S3 will not delete a non-empty bucket — the module
+# declines to discard telemetry nobody said could go. It fails partway, though:
+# a replaced bucket's dependents are destroyed ahead of the bucket, so the
+# surviving buckets can be left without their public-access block, encryption,
+# versioning, and lifecycle configuration until the replacement is resolved one
+# way or the other. Setting it true carries the replacement through and loses all
+# Loki and Thanos history. Deployments in a region without account regional
+# namespace support are unaffected — see the Buckets section below.
 #
 # Operational notes:
 #
