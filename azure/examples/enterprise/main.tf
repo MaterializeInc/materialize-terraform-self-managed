@@ -538,8 +538,11 @@ module "monitoring" {
   # knowingly.
   #
   # `issuer_ref` stays unset for a second reason: it is the *browser-facing*
-  # issuer, it only issues anything alongside `grafana_external_dns_names`, and
-  # these examples reach Grafana by port-forward rather than a public name.
+  # issuer and only issues anything alongside `grafana_external_dns_names`,
+  # which is empty because `grafana_host` is unset by default. The load balancer
+  # answers on its own DNS name either way; set `grafana_host` and you have a
+  # name worth certifying, but browser-facing TLS also needs Grafana itself to
+  # serve HTTPS, which these examples do not yet do.
 
   depends_on = [
     # cert-manager, because the monitoring stack issues Certificates by default

@@ -288,7 +288,6 @@ module "monitoring" {
   certificate_duration       = var.certificate_duration
   certificate_renew_before   = var.certificate_renew_before
 
-
   # Explicit rather than inferred from host/password: both are computed here — an
   # instance endpoint and a generated password — so the module cannot decide
   # whether they exist at plan time. These two conditions are plan-known.

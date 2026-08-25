@@ -579,11 +579,6 @@ variable "internal_tls" {
   EOT
   type        = string
   default     = null
-
-  validation {
-    condition     = var.internal_tls == null || contains(["off", "encrypt", "present", "authenticate"], coalesce(var.internal_tls, "off"))
-    error_message = "internal_tls must be one of: off, encrypt, present, authenticate."
-  }
 }
 
 variable "issuer_ref" {
