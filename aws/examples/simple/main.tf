@@ -576,6 +576,11 @@ module "monitoring" {
 
   name_prefix = var.name_prefix
   region      = var.aws_region
+  # Part of the telemetry bucket names, which live in this account's regional
+  # namespace. Resolved here rather than inside the module because the
+  # `depends_on` below would otherwise defer the lookup to apply time and leave
+  # the bucket name unknown at plan — which plans a bucket replacement.
+  account_id = data.aws_caller_identity.current.account_id
 
   # Matches what these examples already pass to `module.storage`. Loki and
   # Thanos start writing immediately, and neither S3 nor GCS will delete a

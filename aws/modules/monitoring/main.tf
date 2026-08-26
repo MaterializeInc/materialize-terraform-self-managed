@@ -13,6 +13,22 @@
 # a legacy scrape config, collected metrics only, and ran a single Prometheus on
 # a ReadWriteOnce volume with 15 days of retention.
 #
+# UPGRADE NOTE — v13.0.0 moves the telemetry buckets into the account regional
+# namespace, which REPLACES both of them: the name changes shape, `bucket` forces
+# a new resource, and S3 offers no in-place migration between namespaces. Copy
+# anything you need to keep before applying, and read the plan.
+#
+# What the apply does from there depends on `bucket_force_destroy`, which defaults
+# to false. On the default it FAILS with BucketNotEmpty and the buckets and their
+# contents survive, since S3 will not delete a non-empty bucket — the module
+# declines to discard telemetry nobody said could go. It fails partway, though:
+# a replaced bucket's dependents are destroyed ahead of the bucket, so the
+# surviving buckets can be left without their public-access block, encryption,
+# versioning, and lifecycle configuration until the replacement is resolved one
+# way or the other. Setting it true carries the replacement through and loses all
+# Loki and Thanos history. Deployments in a region without account regional
+# namespace support are unaffected — see the Buckets section below.
+#
 # Operational notes:
 #
 #   * The `monitoring` namespace is created by the operator module in the
@@ -69,34 +85,87 @@ locals {
   })
 }
 
-resource "random_id" "bucket_suffix" {
-  byte_length = 4
-}
-
 # ==============================================================================
 # Buckets
 # ==============================================================================
+# Created in the account regional namespace rather than the shared global one,
+# which is house policy for new buckets: the name is reserved to this account, so
+# no other account can take it and none can ever take it back. Everything else is
+# unchanged — regional endpoints, virtual-hosted-style addressing, ARNs, and IAM
+# resource patterns are the same as any general purpose bucket, and neither Loki
+# nor Thanos needs a configuration change beyond the new name.
+#
+# The provider appends nothing for you, so the `-{account}-{region}-an` suffix is
+# built here. Only CloudFormation's `BucketNamePrefix` does the appending; setting
+# `bucket_namespace` while leaving the name unsuffixed fails at CreateBucket.
 
 locals {
+  # Account regional namespaces are unavailable in these regions, which fall back
+  # to the global namespace and the random suffix that predates this. Removing a
+  # region from the list once AWS supports it moves those deployments onto the
+  # account regional namespace and replaces their buckets, so treat it as the
+  # breaking change it is rather than a routine list update.
+  regions_without_account_regional_namespace = ["me-south-1", "me-central-1"]
+
+  use_account_regional_bucket_namespace = !contains(
+    local.regions_without_account_regional_namespace, var.region
+  )
+
+  # 31 characters at its longest — 12 for the account, up to 14 for the region
+  # code — against the 8-character random suffix it replaces. That is what makes
+  # `name_prefix` tighter here than it was, and what the precondition below
+  # checks. `account_id` is a variable rather than a data source for the same
+  # reason `region` is: a caller's `depends_on` defers a data source inside this
+  # module to apply time, and an unknown bucket name is a bucket replacement.
+  bucket_name_suffix = (
+    local.use_account_regional_bucket_namespace
+    ? "-${var.account_id}-${var.region}-an"
+    : "-${one(random_id.bucket_suffix[*].hex)}"
+  )
+
   buckets = {
     loki = {
-      name           = "${var.name_prefix}-mzmon-logs-${random_id.bucket_suffix.hex}"
+      name           = "${var.name_prefix}-mzmon-logs${local.bucket_name_suffix}"
       retention_days = var.logs_retention_days
     }
     thanos = {
-      name           = "${var.name_prefix}-mzmon-metrics-${random_id.bucket_suffix.hex}"
+      name           = "${var.name_prefix}-mzmon-metrics${local.bucket_name_suffix}"
       retention_days = var.metrics_retention_days
     }
   }
 }
 
+# Only for the global namespace, where the name competes with every other AWS
+# account's. The account regional namespace reserves the name to this account, so
+# there is nothing left to disambiguate — and no room to do it in, since the
+# namespace suffix already takes 31 of the 63 characters S3 allows.
+resource "random_id" "bucket_suffix" {
+  count = local.use_account_regional_bucket_namespace ? 0 : 1
+
+  byte_length = 4
+}
+
 resource "aws_s3_bucket" "telemetry" {
   for_each = local.buckets
 
-  bucket        = each.value.name
-  force_destroy = var.bucket_force_destroy
+  bucket = each.value.name
+  # Null rather than an explicit "global" on the fallback path. The argument is
+  # optional-and-computed and forces a new resource, so letting the API supply it
+  # keeps buckets that predate it out of the diff.
+  bucket_namespace = local.use_account_regional_bucket_namespace ? "account-regional" : null
+  force_destroy    = var.bucket_force_destroy
 
   tags = merge(local.common_tags, { Backend = each.key })
+
+  # Checked here rather than left to CreateBucket, which would fail mid-apply
+  # with the IAM roles already created. Against the name actually built, so it
+  # covers both namespaces without restating which regions get which.
+  lifecycle {
+    precondition {
+      condition     = length(each.value.name) <= 63
+      error_message = "Bucket name \"${each.value.name}\" is ${length(each.value.name)} characters and S3 caps them at 63. Shorten name_prefix by ${max(0, length(each.value.name) - 63)}."
+    }
+  }
 }
 
 resource "aws_s3_bucket_public_access_block" "telemetry" {

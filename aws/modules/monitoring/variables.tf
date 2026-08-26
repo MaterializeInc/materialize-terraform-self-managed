@@ -1,18 +1,46 @@
 variable "name_prefix" {
-  description = "Prefix for the bucket and IAM role names this module creates. Capped at 40 characters so the longest generated name still fits: S3 bucket names are limited to 63, and `-mzmon-metrics-` plus the 8-character random suffix takes 23."
+  description = <<-EOT
+    Prefix for the bucket and IAM role names this module creates.
+
+    **Keep it to 18 characters or fewer.** The ceiling is whatever an S3 bucket name has left after
+    the longest one this module builds: names are capped at 63, `-mzmon-metrics` takes 14, and the
+    account regional namespace suffix — `-{12-digit account}-{region}-an` — takes 17 more plus the
+    length of the region code. That is 18 characters in the longest region codes (`ap-southeast-4`)
+    and 23 in the shortest (`us-east-1`), so 18 is the number that holds in every region.
+
+    Enforced against the name actually generated, by a precondition on the buckets, rather than as
+    a fixed cap here: in a region without account regional namespace support the suffix is the
+    8-character random one instead and the ceiling is 40, as it was before.
+  EOT
   type        = string
   nullable    = false
-
-  validation {
-    condition     = length(var.name_prefix) <= 40
-    error_message = "name_prefix must be at most 40 characters; S3 bucket names are capped at 63 and `-mzmon-metrics-` plus the random suffix uses 23."
-  }
 }
 
 variable "region" {
   description = "AWS region the buckets live in. Passed explicitly rather than read from a data source, matching the rest of this repository."
   type        = string
   nullable    = false
+}
+
+variable "account_id" {
+  description = <<-EOT
+    AWS account ID, from an `aws_caller_identity` data source at the root of your configuration. Part
+    of every bucket name, because the buckets live in this account's regional namespace.
+
+    Required rather than looked up here, and for a sharper reason than `region`'s: a module-level
+    `depends_on` — which the examples put on this module call, and which the namespace race needs —
+    defers every data source inside the module to apply time whenever a depended-on module has
+    pending changes. The bucket name would then be unknown at plan time, and an unknown value in
+    `bucket` is a bucket **replacement**, taking all Loki and Thanos history with it. Resolving it at
+    the root, where no `depends_on` can reach, is the only way it is always known.
+  EOT
+  type        = string
+  nullable    = false
+
+  validation {
+    condition     = can(regex("^[0-9]{12}$", var.account_id))
+    error_message = "account_id must be a 12-digit AWS account ID."
+  }
 }
 
 variable "namespace" {
@@ -56,7 +84,7 @@ variable "iam_permissions_boundary" {
 # ==============================================================================
 
 variable "bucket_force_destroy" {
-  description = "Allow Terraform to delete non-empty buckets. Leave false outside throwaway environments — destroying it takes the telemetry with it."
+  description = "Allow Terraform to delete non-empty buckets. Leave false outside throwaway environments — destroying it takes the telemetry with it. It also gates any change that replaces a bucket rather than updating it, such as the move into the account regional namespace: on the default the destroy fails with `BucketNotEmpty` and the replacement cannot complete."
   type        = bool
   default     = false
   nullable    = false
