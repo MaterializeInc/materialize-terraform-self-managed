@@ -269,7 +269,7 @@ Same structure as AWS. Authenticates to Azure via OIDC and to AWS via OIDC (for 
 
 ### `test-kind.yml` -- Kind integration tests
 
-Runs the self-managed kind lifecycle (`cargo run -- run --destroy-on-failure kind`) on a plain GitHub-hosted runner. Needs no cloud credentials, only the `MATERIALIZE_LICENSE_KEY` secret. Currently `workflow_dispatch`/`workflow_call` only -- not wired into the merge queue until it has proven reliable there.
+Runs the self-managed kind lifecycle (`cargo run -- run --destroy-on-failure kind`) on a larger (`ubuntu-24.04-16core`) GitHub-hosted runner -- the stack's default resource requests do not fit the standard 4-CPU runner. Needs no cloud credentials, only the `MATERIALIZE_LICENSE_KEY` secret. Currently `workflow_dispatch`/`workflow_call` only -- not wired into the merge queue until it has proven reliable there.
 
 All four test workflows use `--destroy-on-failure` to ensure infrastructure is torn down even on test failure; the three cloud workflows store Terraform state remotely in S3, while kind keeps state locally on the runner.
 

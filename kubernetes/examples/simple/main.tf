@@ -26,6 +26,10 @@ resource "helm_release" "materialize_operator" {
   chart      = var.helm_chart
   version    = var.use_local_chart ? null : var.operator_version
 
+  # Helm's default 300s can be eaten by the orchestratord image pull plus the
+  # webhook certificate on a cold cluster.
+  timeout = 600
+
   values = [
     yamlencode({
       operator = merge(
@@ -35,6 +39,16 @@ resource "helm_release" "materialize_operator" {
         { args = { installV1CRD = true } },
         var.orchestratord_version == null ? {} : { image = { tag = var.orchestratord_version } },
       )
+      # The materialize-instance module's own policies only allow egress to
+      # kube-system and the API server; on enforcing CNIs these chart-level
+      # allow policies are what let environmentd reach the backends. Mirrors
+      # the cloud operator modules.
+      networkPolicies = {
+        enabled  = true
+        internal = { enabled = true }
+        ingress  = { enabled = true, cidrs = ["0.0.0.0/0"] }
+        egress   = { enabled = true, cidrs = ["0.0.0.0/0"] }
+      }
     })
   ]
 
@@ -65,12 +79,6 @@ module "materialize_instance" {
     name = module.self_signed_cluster_issuer.issuer_name
     kind = "ClusterIssuer"
   }
-
-  # The module's egress policies only allow kube-system and the API server,
-  # which cuts environmentd off from backends the cluster hosts itself or
-  # reaches on other ports. On enforcing CNIs, enable this together with the
-  # chart's networkPolicies values (see the cloud operator modules).
-  enable_network_policies = false
 
   depends_on = [
     helm_release.materialize_operator,

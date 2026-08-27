@@ -41,6 +41,7 @@ updates:
       - "/gcp/modules/nodepool"
       - "/gcp/modules/operator"
       - "/gcp/modules/storage"
+      - "/kubernetes/examples/simple"
       - "/kubernetes/modules/cert-manager"
       - "/kubernetes/modules/coredns"
       - "/kubernetes/modules/hpa"

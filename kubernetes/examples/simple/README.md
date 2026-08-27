@@ -30,7 +30,7 @@ terraform apply \
 Once applied, connect via the balancerd service (no load balancer is created):
 
 ```sh
-kubectl port-forward -n materialize-environment "svc/$(terraform output -raw balancerd_service_name)" 6875:6875
+kubectl port-forward -n "$(terraform output -raw materialize_instance_namespace)" "svc/$(terraform output -raw balancerd_service_name)" 6875:6875
 PGPASSWORD="$(terraform output -raw external_login_password_mz_system)" \
   psql "sslmode=require host=127.0.0.1 port=6875 user=mz_system dbname=materialize"
 ```

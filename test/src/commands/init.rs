@@ -82,7 +82,10 @@ pub async fn phase_init(provider_args: &InitProvider) -> Result<PathBuf> {
         // written, so a failed creation can still be cleaned up by `destroy`.
         if provider == CloudProvider::Kind {
             println!("\nCreating kind cluster {test_run_id}...");
-            create_kind_cluster(&test_run_id, &dest).await?;
+            if let Err(e) = create_kind_cluster(&test_run_id, &dest).await {
+                delete_kind_cluster_best_effort(&test_run_id).await;
+                return Err(e);
+            }
         }
 
         println!("\nRunning terraform init...");
@@ -92,11 +95,9 @@ pub async fn phase_init(provider_args: &InitProvider) -> Result<PathBuf> {
         if let Err(e) = init_result {
             // A failed init returns before `run --destroy-on-failure` gets a
             // test run to destroy, so the just-created kind cluster would
-            // leak. Best-effort delete; the clouds have nothing to clean up.
+            // leak. The clouds have nothing to clean up.
             if provider == CloudProvider::Kind {
-                run_cmd(Command::new("kind").args(["delete", "cluster", "--name", &test_run_id]))
-                    .await
-                    .ok();
+                delete_kind_cluster_best_effort(&test_run_id).await;
             }
             return Err(e);
         }
@@ -456,6 +457,14 @@ fn grafana_allow_public_access(provider_args: &InitProvider) -> Option<bool> {
         InitProvider::Kind { .. } => None,
         _ => Some(true),
     }
+}
+
+/// Best-effort cleanup for kind clusters left behind by a failed init, which
+/// returns before `run --destroy-on-failure` has a test run to destroy.
+async fn delete_kind_cluster_best_effort(test_run_id: &str) {
+    run_cmd(Command::new("kind").args(["delete", "cluster", "--name", test_run_id]))
+        .await
+        .ok();
 }
 
 /// Creates the kind cluster for a test run, writes its kubeconfig into the

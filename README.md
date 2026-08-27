@@ -49,7 +49,8 @@ A typical Materialize deployment consists of:
 │   ├── modules/           # Reusable GCP modules (VPC, GKE, CloudSQL, GCS, etc.)
 │   └── examples/simple/   # Complete GCP deployment example
 ├── kubernetes/             # Cloud-agnostic Kubernetes modules
-│   └── modules/           # Cert-manager, Materialize instance, etc.
+│   ├── modules/           # Cert-manager, Materialize instance, etc.
+│   └── examples/simple/   # Deployment example for existing (non-cloud-managed) clusters
 └── test/                   # Terratest integration tests
 ```
 

@@ -431,7 +431,14 @@ fn scaled_down_dns_deployments(provider: CloudProvider) -> &'static [&'static st
 /// A deployment that does not exist at all is accepted, matching the
 /// provisioner's own contract — the provider may never have created it.
 async fn verify_default_dns_scaled_down(kubeconfig: &Path, provider: CloudProvider) -> Result<()> {
-    for deployment in scaled_down_dns_deployments(provider) {
+    let deployments = scaled_down_dns_deployments(provider);
+    if deployments.is_empty() {
+        println!(
+            "  Skipping default-DNS scale-down check (the coredns module is not applied on kind)."
+        );
+        return Ok(());
+    }
+    for deployment in deployments {
         // --ignore-not-found keeps an absent deployment on the success path,
         // so it is distinguishable from a genuine kubectl failure.
         let replicas = run_cmd_output(kubectl(kubeconfig).args([

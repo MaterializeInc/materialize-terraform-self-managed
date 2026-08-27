@@ -40,6 +40,12 @@ spec:
               command: ["pg_isready", "-U", "materialize"]
             initialDelaySeconds: 5
             periodSeconds: 5
+          # Requests lift the pod out of BestEffort QoS so it isn't the first
+          # evicted when Materialize puts the node under memory pressure.
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
           volumeMounts:
             - name: data
               mountPath: /var/lib/postgresql/data
@@ -94,6 +100,12 @@ spec:
               port: 9000
             initialDelaySeconds: 5
             periodSeconds: 5
+          # Requests lift the pod out of BestEffort QoS so it isn't the first
+          # evicted when Materialize puts the node under memory pressure.
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
           volumeMounts:
             - name: data
               mountPath: /data
