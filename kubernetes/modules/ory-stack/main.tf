@@ -64,22 +64,21 @@ locals {
   )
   polis_external_url = local.wire_polis ? "https://${var.polis_fqdn}" : null
 
-  # Cookie domain for Kratos session/CSRF cookies. In single-domain mode Hydra,
-  # Kratos and the browser round-trip through one host, so scope the cookie to
-  # that exact host rather than widening to its parent. In per-service mode
-  # default to the parent domain of kratos_fqdn so the cookie is shared across
-  # the sibling Ory FQDNs (single-label hosts fall back to the value itself).
-  # var.cookie_parent_domain overrides either.
-  cookie_fqdn_parts = split(".", var.kratos_fqdn)
+  # Cookie domain for Kratos session/CSRF cookies. Even in single-domain mode the
+  # selfservice UI keeps its own hostname (a sibling of the Hydra/Kratos host), so
+  # the cookie must be scoped to their shared parent domain to be sent to both,
+  # otherwise the login flow loops. Defaults to the parent domain of the primary
+  # FQDN (single-domain host, else kratos_fqdn); single-label hosts fall back to
+  # the value itself. var.cookie_parent_domain overrides it.
+  cookie_primary_fqdn = local.single_domain_enabled ? var.single_domain_fqdn : var.kratos_fqdn
+  cookie_fqdn_parts   = split(".", local.cookie_primary_fqdn)
   cookie_parent_domain = (
     var.cookie_parent_domain != null
     ? var.cookie_parent_domain
-    : local.single_domain_enabled
-    ? var.single_domain_fqdn
     : (
       length(local.cookie_fqdn_parts) > 1
       ? join(".", slice(local.cookie_fqdn_parts, 1, length(local.cookie_fqdn_parts)))
-      : var.kratos_fqdn
+      : local.cookie_primary_fqdn
     )
   )
 

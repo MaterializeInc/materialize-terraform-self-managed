@@ -52,7 +52,7 @@ variable "polis_fqdn" {
 }
 
 variable "cookie_parent_domain" {
-  description = "Cookie domain for Kratos session and CSRF cookies. In per-service mode defaults to the parent domain of kratos_fqdn (e.g. kratos.example.com -> example.com) so the cookie is shared across the sibling Ory subdomains, falling back to kratos_fqdn itself when it has no '.' separator. In single-domain mode defaults to single_domain_fqdn itself, scoping the cookie to that one host. Set explicitly to override either."
+  description = "Cookie domain for Kratos session and CSRF cookies, so they are shared across the Ory hostnames. Defaults to the parent domain of the primary FQDN: the single-domain host in single-domain mode, otherwise kratos_fqdn (e.g. kratos.example.com -> example.com). The selfservice UI keeps its own sibling hostname even in single-domain mode, so the shared parent is required or the login flow loops. Falls back to the FQDN itself when it has no '.' separator. Set explicitly to override."
   type        = string
   default     = null
 }
