@@ -52,15 +52,21 @@ variable "polis_fqdn" {
 }
 
 variable "cookie_parent_domain" {
-  description = "Parent domain used as the cookie domain for Kratos session and CSRF cookies so they apply across sibling subdomains. Defaults to the parent domain of kratos_fqdn (e.g. kratos.example.com -> example.com). Falls back to kratos_fqdn itself when it has no '.' separator."
+  description = "Cookie domain for Kratos session and CSRF cookies. In per-service mode defaults to the parent domain of kratos_fqdn (e.g. kratos.example.com -> example.com) so the cookie is shared across the sibling Ory subdomains, falling back to kratos_fqdn itself when it has no '.' separator. In single-domain mode defaults to single_domain_fqdn itself, scoping the cookie to that one host. Set explicitly to override either."
   type        = string
   default     = null
 }
 
 variable "single_domain_fqdn" {
-  description = "When set, Hydra, Kratos, and the selfservice UI are served behind this single hostname under path prefixes (/hydra, /kratos, /ui) via a reverse proxy, instead of one hostname and LoadBalancer per service. The OIDC issuer becomes https://<fqdn>/hydra. Leave null to keep the per-service hostname layout. Polis always keeps its own hostname because the customer IdP must reach it directly."
+  description = "When set, Hydra and Kratos are served behind this single hostname under path prefixes (/hydra, /kratos) via a reverse proxy, instead of one hostname and LoadBalancer per service. The OIDC issuer becomes https://<fqdn>/hydra. Leave null to keep the per-service hostname layout. The selfservice UI keeps its own hostname because its assets are root-mounted, and Polis keeps its own hostname because the customer IdP must reach it directly."
   type        = string
   default     = null
+}
+
+variable "single_domain_proxy_image" {
+  description = "Container image for the single-domain reverse proxy. Defaults to the public pingap image. Point this at a hardened build pulled through the OEL registry proxy for production; the proxy pod uses the same OEL registry pull secret, so an image under the OEL proxy authenticates with the license key."
+  type        = string
+  default     = "vicanso/pingap:0.12.1-full"
 }
 
 # Databases -------------------------------------------------------------------
@@ -163,7 +169,7 @@ variable "lb_annotations" {
 }
 
 variable "lb_overrides" {
-  description = "Per-service overrides for the LoadBalancer Services, keyed by service role: hydra, kratos, ui (the Ory selfservice UI, as in ui_fqdn and the lb_addresses output), polis. annotations are merged over lb_annotations, with the override winning on key collisions; use this to mix internal and external LBs, e.g. internal Hydra/Kratos/selfservice UI with an internet-facing Polis for SCIM. source_ranges sets spec.loadBalancerSourceRanges, which the cloud controller enforces in the provider firewall; unlike lb_source_cidrs it restricts ingress even on clusters whose datapath does not enforce NetworkPolicy."
+  description = "Per-service overrides for the LoadBalancer Services, keyed by service role: hydra, kratos, ui (the Ory selfservice UI, as in ui_fqdn and the lb_addresses output), polis, and single_domain (the single-domain reverse-proxy LB, used when single_domain_fqdn is set). annotations are merged over lb_annotations, with the override winning on key collisions; use this to mix internal and external LBs, e.g. internal Hydra/Kratos/selfservice UI with an internet-facing Polis for SCIM, or to restrict the single_domain proxy LB to a tailnet. source_ranges sets spec.loadBalancerSourceRanges, which the cloud controller enforces in the provider firewall; unlike lb_source_cidrs it restricts ingress even on clusters whose datapath does not enforce NetworkPolicy."
   type = map(object({
     annotations   = optional(map(string), {})
     source_ranges = optional(list(string))
@@ -172,8 +178,8 @@ variable "lb_overrides" {
   nullable = false
 
   validation {
-    condition     = alltrue([for key in keys(var.lb_overrides) : contains(["hydra", "kratos", "ui", "polis"], key)])
-    error_message = "lb_overrides keys must be one of: hydra, kratos, ui, polis."
+    condition     = alltrue([for key in keys(var.lb_overrides) : contains(["hydra", "kratos", "ui", "polis", "single_domain"], key)])
+    error_message = "lb_overrides keys must be one of: hydra, kratos, ui, polis, single_domain."
   }
 }
 
