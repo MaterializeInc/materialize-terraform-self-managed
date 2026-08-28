@@ -202,5 +202,6 @@ output "ory" {
     polis_external_url        = module.ory.polis_external_url
     oauth2_client_secret_name = module.ory.oauth2_client_secret_name
     materialize_console_fqdn  = var.materialize_console_fqdn
+    lb_addresses              = module.ory.lb_addresses
   }
 }

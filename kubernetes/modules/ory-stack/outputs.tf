@@ -87,12 +87,13 @@ output "oel_registry_secret_name" {
 }
 
 output "lb_addresses" {
-  description = "Ingress addresses of the LoadBalancer services this module owns. Map keyed by hostname role (hydra, kratos, ui, polis); values are objects with ip and hostname keys (GCP and Azure populate ip, AWS populates hostname). Use these to create the DNS records the browser-facing hostnames point at. Polis entry is null when disabled."
+  description = "Ingress addresses of the LoadBalancer services this module owns. Map keyed by hostname role (single_domain, hydra, kratos, ui, polis); values are objects with ip and hostname keys (GCP and Azure populate ip, AWS populates hostname). Use these to create the DNS records the browser-facing hostnames point at. In single-domain mode single_domain is populated (plus ui when deploy_selfservice_ui is true, and polis when enabled), while hydra and kratos are null; otherwise single_domain is null. Polis entry is null when disabled."
   value = {
-    hydra  = try({ ip = kubernetes_service_v1.ory_lb["hydra-public-lb"].status[0].load_balancer[0].ingress[0].ip, hostname = kubernetes_service_v1.ory_lb["hydra-public-lb"].status[0].load_balancer[0].ingress[0].hostname }, null)
-    kratos = try({ ip = kubernetes_service_v1.ory_lb["kratos-public-lb"].status[0].load_balancer[0].ingress[0].ip, hostname = kubernetes_service_v1.ory_lb["kratos-public-lb"].status[0].load_balancer[0].ingress[0].hostname }, null)
-    ui     = var.deploy_selfservice_ui ? try({ ip = kubernetes_service_v1.ory_lb["ory-selfservice-ui-lb"].status[0].load_balancer[0].ingress[0].ip, hostname = kubernetes_service_v1.ory_lb["ory-selfservice-ui-lb"].status[0].load_balancer[0].ingress[0].hostname }, null) : null
-    polis  = local.wire_polis ? try({ ip = kubernetes_service_v1.ory_lb["polis-public-lb"].status[0].load_balancer[0].ingress[0].ip, hostname = kubernetes_service_v1.ory_lb["polis-public-lb"].status[0].load_balancer[0].ingress[0].hostname }, null) : null
+    single_domain = local.single_domain_enabled ? try({ ip = kubernetes_service_v1.single_domain_proxy_lb[0].status[0].load_balancer[0].ingress[0].ip, hostname = kubernetes_service_v1.single_domain_proxy_lb[0].status[0].load_balancer[0].ingress[0].hostname }, null) : null
+    hydra         = try({ ip = kubernetes_service_v1.ory_lb["hydra-public-lb"].status[0].load_balancer[0].ingress[0].ip, hostname = kubernetes_service_v1.ory_lb["hydra-public-lb"].status[0].load_balancer[0].ingress[0].hostname }, null)
+    kratos        = try({ ip = kubernetes_service_v1.ory_lb["kratos-public-lb"].status[0].load_balancer[0].ingress[0].ip, hostname = kubernetes_service_v1.ory_lb["kratos-public-lb"].status[0].load_balancer[0].ingress[0].hostname }, null)
+    ui            = var.deploy_selfservice_ui ? try({ ip = kubernetes_service_v1.ory_lb["ory-selfservice-ui-lb"].status[0].load_balancer[0].ingress[0].ip, hostname = kubernetes_service_v1.ory_lb["ory-selfservice-ui-lb"].status[0].load_balancer[0].ingress[0].hostname }, null) : null
+    polis         = local.wire_polis ? try({ ip = kubernetes_service_v1.ory_lb["polis-public-lb"].status[0].load_balancer[0].ingress[0].ip, hostname = kubernetes_service_v1.ory_lb["polis-public-lb"].status[0].load_balancer[0].ingress[0].hostname }, null) : null
   }
 }
 
