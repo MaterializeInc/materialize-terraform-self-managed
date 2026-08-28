@@ -19,8 +19,10 @@ k8s_apiserver_authorized_networks = [
 ory_hydra_fqdn             = "hydra.mz.example.com"
 ory_ui_fqdn                = "auth.mz.example.com"
 ory_kratos_fqdn            = "kratos.mz.example.com"
-# Optional: serve Hydra/Kratos/UI behind one hostname (/hydra, /kratos, /ui)
-# instead of the three above. Point one A record at lb_addresses.single_domain.
+# Optional: serve Hydra and Kratos behind one hostname (/hydra, /kratos) instead
+# of their own hostnames above. Point an A record at lb_addresses.single_domain.
+# The UI keeps its own hostname (ory_ui_fqdn), so still point ory_ui_fqdn's A
+# record at lb_addresses.ui. Polis also keeps its own hostname.
 # ory_single_domain_fqdn   = "ory.mz.example.com"
 materialize_console_fqdn   = "console.mz.example.com"
 materialize_balancerd_fqdn = "balancerd.mz.example.com"
