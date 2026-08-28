@@ -80,6 +80,7 @@
 //! a cluster tag embedding the run id) exactly matches a long, unique run id, so
 //! an accidental match against an unrelated resource is effectively impossible.
 
+use std::path::Path;
 use std::time::Duration;
 
 use anyhow::{Context, Result, bail};
@@ -143,6 +144,36 @@ pub async fn purge(test_run: &str) -> Result<()> {
         ctx.run().await
     })
     .await
+}
+
+/// Deletes the detached ENIs left in an AWS run's VPC, without the rest of the
+/// purge sweep. A no-op for runs on other cloud providers.
+pub async fn delete_detached_enis(dir: &Path) -> Result<()> {
+    let TfVars::Aws {
+        aws_region,
+        aws_profile,
+        tags,
+        ..
+    } = read_tfvars(dir)?
+    else {
+        return Ok(());
+    };
+    let run_id = tags
+        .get("TestRun")
+        .context("AWS test run has no TestRun tag")?
+        .clone();
+
+    println!("Deleting detached ENIs left behind by run {run_id}...");
+    let config = aws_sdk_config(&aws_region, Some(&aws_profile)).await;
+    let errors = Ctx::new(&config, run_id, aws_region)
+        .delete_network_interfaces()
+        .await?;
+    // `handle` has already printed each failure. They are not fatal here: the
+    // retried destroy reports whatever they leave behind.
+    if !errors.is_empty() {
+        println!("  {} ENI(s) could not be deleted", errors.len());
+    }
+    Ok(())
 }
 
 /// Returns `true` if an AWS error code means the resource is already gone.

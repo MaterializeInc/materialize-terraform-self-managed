@@ -2,7 +2,7 @@ mod apply;
 mod destroy;
 pub(crate) mod init;
 mod list;
-mod purge;
+pub(crate) mod purge;
 mod sync;
 mod verify;
 
