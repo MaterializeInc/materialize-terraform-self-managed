@@ -13,6 +13,8 @@ The Kubernetes modules handle application-layer components that run on top of yo
 
 These modules are designed to be cloud-agnostic and work with Kubernetes clusters provisioned by any cloud provider.
 
+For a complete deployment onto an existing cluster -- no cloud infrastructure, just a kubeconfig and your own backends -- see [examples/simple](./examples/simple).
+
 ---
 
 ## Available Modules

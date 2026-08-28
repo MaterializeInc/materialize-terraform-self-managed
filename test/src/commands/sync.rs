@@ -8,6 +8,7 @@ use crate::commands::init::{
 use crate::helpers::{
     ci_log_group, example_dir, project_root, read_tfvars, upload_tfvars_to_backend,
 };
+use crate::types::CloudProvider;
 
 /// Re-copies example .tf files into an existing test run directory,
 /// overwriting the current versions. Useful for picking up local
@@ -42,7 +43,10 @@ pub async fn phase_sync(dir: &Path) -> Result<()> {
             orchestratord_version: common.orchestratord_version.is_some(),
             environmentd_version: common.environmentd_version.is_some(),
         };
-        if overrides.any() {
+        // The kubernetes example (used by kind) declares the dev-override
+        // variables natively, so no injection is needed (or possible: its
+        // operator is a helm_release, not a module).
+        if overrides.any() && provider != CloudProvider::Kind {
             println!("\nRe-applying dev overrides...");
             write_dev_variables_tf(dir).await?;
             inject_dev_overrides(dir, &overrides).await?;

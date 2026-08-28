@@ -1,6 +1,6 @@
 # Terraform Integration Tests
 
-End-to-end integration tests for the Materialize self-managed Terraform modules. The test harness deploys real infrastructure on AWS, Azure, or GCP, verifies that Materialize is running, and tears it down.
+End-to-end integration tests for the Materialize self-managed Terraform modules. The test harness deploys real infrastructure on AWS, Azure, or GCP, verifies that Materialize is running, and tears it down. It can also run entirely locally against a [kind](https://kind.sigs.k8s.io/) cluster -- see [Local kind runs](#local-kind-runs-self-managed).
 
 ## Prerequisites
 
@@ -30,6 +30,30 @@ cargo run -- run aws \
   --aws-region us-east-1 \
   --aws-profile my-profile
 ```
+
+## Local kind runs (self-managed)
+
+The `kind` provider runs the non-cloud-specific part of the test surface on your laptop, with no cloud credentials. It deploys `kubernetes/examples/simple` -- the customer-facing example for existing (non-cloud-managed) clusters -- onto a local kind cluster, with in-cluster PostgreSQL (metadata) and RustFS (persist) test backends from `test/kind/backends.yaml` standing in for the backends a customer would bring. This exercises the `kubernetes/` modules (`cert-manager`, `self-signed-cluster-issuer`, `materialize-instance`); the cloud-only modules (networking, managed clusters, load balancers, IAM, monitoring) are out of scope by construction and remain covered by the cloud providers.
+
+Additional prerequisites: Docker, `kind`, `kubectl`.
+
+```sh
+cargo run -- run kind --owner "Your Name" --license-key-file /path/to/license.key
+```
+
+`init` creates a kind cluster named after the test run ID (so kind runs coexist with any other kind clusters and with each other), writes its kubeconfig into the test run directory, and deploys the test backends; `apply` deploys the example into it with terraform; `verify` runs the same checks as the cloud providers, except that the node-local-dns/CoreDNS checks are skipped (kind keeps its stock DNS) and SQL connectivity goes through a `kubectl port-forward` to balancerd instead of a load balancer; `destroy` deletes the kind cluster.
+
+The staged workflow works as on the clouds, and is the fast path for iterating: keep the cluster up and re-run `verify` (or `sync` + `apply` after changing module code) without recreating anything:
+
+```sh
+cargo run -- init kind --owner "Your Name" --license-key-file key.txt
+# => Test run initialized successfully: t260319-a4bc2f
+cargo run -- apply --test-run t260319-a4bc2f
+cargo run -- verify --test-run t260319-a4bc2f   # repeatable
+cargo run -- destroy --test-run t260319-a4bc2f --rm
+```
+
+The dev overrides (`--local-chart-path`, `--orchestratord-version`, `--environmentd-version`) work with kind too, which makes it the cheapest way to smoke-test a local chart or new image version.
 
 ## Commands
 
@@ -164,6 +188,10 @@ The Materialize license key can be provided in three ways (in order of precedenc
 | `--resource-group-name` | Azure resource group name |
 | `--location` | Azure location (e.g. `westus2`) |
 
+### Kind
+
+No provider-specific arguments. Requires Docker and `kind` locally; the S3 backend options are accepted but unnecessary (state is small and local).
+
 ## Common arguments
 
 | Argument | Description | Default |
@@ -239,7 +267,11 @@ Same structure as AWS. Authenticates to GCP via Workload Identity Federation and
 
 Same structure as AWS. Authenticates to Azure via OIDC and to AWS via OIDC (for the S3 state backend). Skips if only AWS/GCP files changed.
 
-All three provider test workflows use `--destroy-on-failure` to ensure infrastructure is torn down even on test failure, and store Terraform state remotely in S3.
+### `test-kind.yml` -- Kind integration tests
+
+Runs the self-managed kind lifecycle (`cargo run -- run --destroy-on-failure kind`) on a larger (`ubuntu-24.04-16core`) GitHub-hosted runner -- the stack's default resource requests do not fit the standard 4-CPU runner. Needs no cloud credentials, only the `MATERIALIZE_LICENSE_KEY` secret. Currently `workflow_dispatch`/`workflow_call` only -- not wired into the merge queue until it has proven reliable there.
+
+All four test workflows use `--destroy-on-failure` to ensure infrastructure is torn down even on test failure; the three cloud workflows store Terraform state remotely in S3, while kind keeps state locally on the runner.
 
 ## Project layout
 
@@ -248,6 +280,9 @@ test/
   Cargo.toml
   README.md
   runs/              # test run directories (gitignored)
+  kind/
+    cluster.yaml     # kind cluster config (node labels for Materialize workloads)
+    backends.yaml    # in-cluster PostgreSQL/RustFS test backends
   src/
     main.rs          # CLI dispatch
     cli.rs           # argument definitions
