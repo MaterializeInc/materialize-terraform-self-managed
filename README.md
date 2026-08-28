@@ -232,7 +232,19 @@ The AWS modules now require the `hashicorp/aws` provider `~> 6.0` (previously `~
 
 **Impact on existing GCP deployments:**
 
-- The coredns module's managed service account, cluster role, and binding are renamed from `coredns`/`system:coredns` to `coredns-custom`, so they can never collide with platform-owned objects. The next apply destroys and recreates them under the new names and rolls the coredns deployment onto the new service account.
+- The coredns module's managed service account, cluster role, and binding are renamed from `coredns`/`system:coredns` to `coredns-custom`, so they can never collide with platform-owned objects. The next apply destroys and recreates them under the new names and moves the coredns deployment onto the new service account.
+- **On GKE that move requires replacing the deployment, not updating it.** GKE Warden refuses to let a workload in `kube-system` change its service account (`no-update-kube-system-service-account`), so a plain apply fails with `admission webhook "warden-validating.common-webhooks.networking.gke.io" denied the request`. Terraform destroys the old `coredns` service account before it reaches the deployment, so a failed apply leaves the running pods pointed at a service account that no longer exists: they keep serving DNS on their already-mounted tokens, but the ReplicaSet can no longer create replacements, and this module has already scaled `kube-dns` to zero. Bring the platform DNS back up as a fallback, replace the deployment, then stand the fallback down again:
+
+  ```sh
+  kubectl -n kube-system scale deployment kube-dns --replicas=2
+  kubectl -n kube-system rollout status deployment kube-dns
+
+  terraform apply -replace='module.coredns.kubernetes_deployment.coredns'
+
+  kubectl -n kube-system scale deployment kube-dns --replicas=0
+  ```
+
+  The fallback works because GKE's `kube-dns` Service selects on `k8s-app=kube-dns`, which both the platform pods and this module's pods carry. The last step is manual: the scale-down provisioner only runs when its triggers change, and they do not change on this apply.
 
 **Impact on the monitoring stack (all clouds):**
 
