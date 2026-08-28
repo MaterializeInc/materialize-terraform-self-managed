@@ -3,6 +3,7 @@ use std::path::Path;
 use anyhow::{Context, Result};
 use tokio::process::Command;
 
+use crate::commands::purge::delete_detached_enis;
 use crate::helpers::{ci_log_group, delete_backend_state, read_tfvars, run_cmd, write_lifecycle};
 use crate::types::CloudProvider;
 
@@ -11,9 +12,6 @@ const MAX_DESTROY_ATTEMPTS: u32 = 3;
 /// Tears down a test run: `terraform destroy -auto-approve` for the cloud
 /// providers, `kind delete cluster` for kind. If `rm` is true, removes the
 /// directory afterwards.
-///
-/// Retries on transient failures. Orphaned ENI cleanup for AWS is
-/// handled by a destroy-time provisioner in the EKS Terraform module.
 pub async fn phase_destroy(dir: &Path, rm: bool) -> Result<()> {
     ci_log_group("Destroy", || async {
         write_lifecycle(dir, "destroy", "started").await?;
@@ -53,7 +51,12 @@ pub async fn phase_destroy(dir: &Path, rm: bool) -> Result<()> {
     .await
 }
 
-/// Runs `terraform destroy -auto-approve` with retries on transient failures.
+/// Runs `terraform destroy -auto-approve` with retries on transient failures,
+/// clearing the run's detached ENIs before each retry. The EKS module's
+/// destroy-time ENI cleanup runs once, as soon as the managed node group is
+/// gone, and only sees the ENIs detached by then. Any that detach later are
+/// left behind for good, and hold the node security group against every
+/// subsequent attempt with `DependencyViolation`.
 async fn destroy_terraform(dir: &Path) -> Result<()> {
     for attempt in 1..=MAX_DESTROY_ATTEMPTS {
         let result = run_cmd(
@@ -69,6 +72,9 @@ async fn destroy_terraform(dir: &Path) -> Result<()> {
                 println!(
                     "\nDestroy attempt {attempt}/{MAX_DESTROY_ATTEMPTS} failed. Retrying...\n"
                 );
+                if let Err(e) = delete_detached_enis(dir).await {
+                    println!("ENI cleanup before retry failed: {e:#}");
+                }
             }
             Err(e) => return Err(e).context("terraform destroy failed after all attempts"),
         }

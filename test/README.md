@@ -99,7 +99,7 @@ cargo run -- verify --test-run t260319-a4bc2f
 
 ### `destroy` -- Tear down infrastructure
 
-Runs `terraform destroy`. For AWS, automatically retries with ENI cleanup if the destroy gets stuck on orphaned network interfaces.
+Runs `terraform destroy`, up to three attempts. For AWS, it deletes the run's detached ENIs before each retry; left behind, they hold the EKS node security group and fail every attempt with `DependencyViolation`.
 
 ```sh
 cargo run -- destroy --test-run t260319-a4bc2f
