@@ -32,6 +32,28 @@
   "packageRules": [
     {
       "description": [
+        "The monitoring module is pinned to a monorepo tag (`materialize-monitoring/vX.Y.Z`), and without",
+        "this rule Renovate found no updates for it at all -- silently, with no warning. The terraform",
+        "manager takes the `?ref=` verbatim as the current value and defaults `github-tags` to",
+        "`semver-coerced`. That versioning compares prefixed tags correctly, but its `isStable` is anchored",
+        "at `^v?\\d+`, so a tag starting with a letter is never stable. With the current pin classified",
+        "unstable, `filterVersions` admits only releases at the same major.minor.patch -- the pin itself --",
+        "and drops every newer tag.",
+        "`regex` versioning fixes both halves: `getNewValue` returns the tag unchanged, so the rewritten",
+        "`?ref=` stays valid, and `isVersion` ignores the repo's other tag families (`scrapers/`,",
+        "`pipelines/`, `mzmon-lib/`, `dashboards/`, `container-images/`, `materialize-monitoring-crds/`),",
+        "which otherwise coerce into the same version space and would offer a bump from the wrong component."
+      ],
+      "matchDatasources": [
+        "github-tags"
+      ],
+      "matchPackageNames": [
+        "MaterializeInc/materialize-monitoring"
+      ],
+      "versioning": "regex:^materialize-monitoring/v(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)$"
+    },
+    {
+      "description": [
         "Terraform version constraints are AND-only (no `||`), so `widen` cannot express a major bump.",
         "For a constraint ending in an upper bound, Renovate swaps only that bound and keeps the old",
         "floor verbatim: `~> 5.0, < 5.101.0` became `~> 5.0, < 6.57.0`, which still resolves to the",
