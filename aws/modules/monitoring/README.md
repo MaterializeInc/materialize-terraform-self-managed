@@ -22,7 +22,7 @@
 | Name | Source | Version |
 | ---- | ------ | ------- |
 | <a name="module_grafana_database"></a> [grafana\_database](#module\_grafana\_database) | ../database | n/a |
-| <a name="module_monitoring"></a> [monitoring](#module\_monitoring) | github.com/MaterializeInc/materialize-monitoring//terraform/modules/materialize-monitoring | materialize-monitoring/v0.18.1 |
+| <a name="module_monitoring"></a> [monitoring](#module\_monitoring) | github.com/MaterializeInc/materialize-monitoring//terraform/modules/materialize-monitoring | materialize-monitoring/v0.21.0 |
 
 ## Resources
 
