@@ -49,6 +49,12 @@ variable "license_key" {
   sensitive   = true
 }
 
+variable "environment_id" {
+  description = "Value for spec.environmentId on the Materialize CR. Leave null to let the operator apply its default. Set this to match the environment_id embedded in the license key (aud/sub); the operator rejects the resource if the CR's environment_id does not match the license key's."
+  type        = string
+  default     = null
+}
+
 # Environmentd Configuration
 variable "environmentd_version" {
   description = "Version of environmentd to use"

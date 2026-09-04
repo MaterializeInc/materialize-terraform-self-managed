@@ -108,6 +108,12 @@ resource "kubectl_manifest" "materialize_instance" {
       # requestRollout only applies to v1alpha1
       var.crd_version == "v1alpha1" ? {
         requestRollout = var.request_rollout
+      } : {},
+      # Only set environmentId when provided; otherwise the operator applies its
+      # default. Required to match a license key issued for a specific
+      # environment_id (the operator rejects a mismatch).
+      var.environment_id != null ? {
+        environmentId = var.environment_id
       } : {}
     )
   })
