@@ -44,6 +44,14 @@ OKTA_SAML_METADATA=~/Downloads/metadata.xml \
 
 It registers (or re-reads, idempotently) the connection and directory, then prints the `upstream_oidc_providers` block to add to `terraform.tfvars` and the remaining Okta admin-console steps.
 
+**Locking down the Polis endpoint (optional).** Okta pushes SCIM provisioning to Polis server-to-server, so the Polis LoadBalancer can stay public but firewalled to Okta's egress ranges. Generate the ranges for your Okta cell and re-apply:
+
+```sh
+./scripts/update-okta-ip-ranges.sh gcp/examples/enterprise <your-okta-cell>
+```
+
+That writes `okta-scim-source-ranges.json`, which the example reads into the Polis LB's `loadBalancerSourceRanges`. Set `ory_polis_source_ranges` to your VPC / VPN / tailnet CIDRs as well, since the browser reaches Polis directly for the SAML and OIDC hops. Only enable this when browser access to Ory is internal; a fully public browser flow needs Polis reachable from anywhere, so leave both unset (the default) to keep Polis unrestricted.
+
 ---
 
 ## Getting Started

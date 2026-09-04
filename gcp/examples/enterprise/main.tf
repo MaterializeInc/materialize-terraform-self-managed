@@ -193,6 +193,11 @@ locals {
 
   ory_namespace = "ory"
 
+  # Okta's SCIM egress ranges (generate with scripts/update-okta-ip-ranges.sh),
+  # plus any operator internal/VPN ranges, applied as the Polis LB allowlist.
+  okta_scim_source_ranges = fileexists("${path.module}/okta-scim-source-ranges.json") ? jsondecode(file("${path.module}/okta-scim-source-ranges.json")) : []
+  polis_lb_source_ranges  = concat(local.okta_scim_source_ranges, var.ory_polis_source_ranges)
+
   # cert-manager ClusterIssuer for browser-facing TLS. Defaults to the built-in
   # self-signed issuer; override via var.cert_issuer_ref to plug in a real one.
   cert_issuer = var.cert_issuer_ref != null ? var.cert_issuer_ref : {
@@ -707,6 +712,12 @@ module "ory" {
   # external NLB otherwise.
   lb_annotations = var.internal_load_balancer ? {
     "networking.gke.io/load-balancer-type" = "Internal"
+  } : {}
+
+  # Lock the Polis LB to Okta's SCIM egress ranges plus your internal ranges,
+  # when ory_polis_source_ranges is set or okta-scim-source-ranges.json exists.
+  lb_overrides = length(local.polis_lb_source_ranges) > 0 ? {
+    polis = { source_ranges = local.polis_lb_source_ranges }
   } : {}
 
   node_selector = local.generic_node_labels
