@@ -12,7 +12,7 @@ Everything from the [simple example](../simple/README.md), plus:
 
 ### Ory Database
 - **Azure PostgreSQL Flexible Server** (separate instance from Materialize): Version 18
-- **SKU**: B_Standard_B1ms (burstable, suitable for Ory workloads)
+- **SKU**: GP_Standard_D2ds_v5 (2 vCores, 8GB memory)
 - **Databases**: `kratos` and `hydra` on the same server (plus `polis` when `enable_polis = true`)
 - **Network Access**: Private only, same subnet as the Materialize database
 
@@ -252,7 +252,7 @@ After `terraform apply`, create A records for your hostnames (Hydra, Kratos, sel
          │                           │
     ┌────┴────┐                ┌─────┴─────┐
     │ Ory DB  │                │   MZ DB   │
-    │ (B1ms)  │                │ (D2s_v3)  │
+    │(D2ds_v5)│                │ (D2ds_v5) │
     │ kratos  │                │materialize│
     │ hydra   │                │           │
     └─────────┘                └───────────┘
@@ -263,7 +263,7 @@ After `terraform apply`, create A records for your hostnames (Hydra, Kratos, sel
 ## Notes
 
 - Ory Kratos and Hydra share a namespace (`ory`) but use separate databases on the same Postgres instance
-- The Ory Postgres instance uses a smaller SKU (`B_Standard_B1ms`) since Ory workloads are lightweight
+- The Ory Postgres instance uses the smallest general-purpose SKU (`GP_Standard_D2ds_v5`) since Ory workloads are lightweight (burstable B-series avoided due to announced Azure B-series retirement)
 - Both Ory components are scheduled on generic nodes (not the Materialize-dedicated node pool)
 - For production, override Kratos and Hydra chart values via `kratos_helm_values` and `hydra_helm_values` on the `module.ory` call (they deep-merge on top of the baked-in defaults), and register additional OAuth2 clients via Hydra Maester CRDs (Maester is enabled by default)
 - Don't forget to destroy resources when finished:
