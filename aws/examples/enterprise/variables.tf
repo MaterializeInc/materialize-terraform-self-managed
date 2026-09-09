@@ -138,7 +138,7 @@ variable "cert_issuer_ref" {
   default = null
 }
 
-variable "upstream_oidc_providers" {
+variable "upstream_identity_providers" {
   description = "Upstream OIDC providers to expose as social sign-in methods on the Kratos selfservice UI. Each entry renders as a 'Sign in with X' button on the login page. Leave as [] for password-only login. Register the redirect URI https://<ory_kratos_fqdn>/self-service/methods/oidc/callback/<id> at the upstream IdP."
   type = list(object({
     id            = string

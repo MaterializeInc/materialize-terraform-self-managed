@@ -35,7 +35,7 @@ materialize_balancerd_fqdn = "balancerd.mz.example.com"
 # Optional: federate logins through one or more upstream IdPs (Okta, Entra,
 # Auth0, Google Workspace). Each entry renders as a "Sign in with X" button
 # on the selfservice UI. Leave as [] for password-only login.
-# upstream_oidc_providers = [
+# upstream_identity_providers = [
 #   {
 #     id            = "okta"
 #     provider      = "generic"

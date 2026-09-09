@@ -28,7 +28,7 @@ resource "random_password" "secrets_cipher" {
 # and reaches Kratos as a single JSON-valued environment variable, so the
 # Helm-rendered ConfigMap never carries a credential.
 resource "kubernetes_secret" "upstream_oidc_providers_env" {
-  count = length(var.upstream_oidc_providers) > 0 ? 1 : 0
+  count = length(var.upstream_identity_providers) > 0 ? 1 : 0
 
   metadata {
     name      = "${var.release_name}-upstream-oidc-providers"
@@ -136,7 +136,7 @@ locals {
   # The provider objects as Kratos expects them. They only ever land in a
   # Kubernetes Secret, never in the Helm-rendered ConfigMap.
   upstream_oidc_provider_objects = [
-    for p in var.upstream_oidc_providers : merge(
+    for p in var.upstream_identity_providers : merge(
       {
         id            = p.id
         provider      = p.provider
@@ -155,7 +155,7 @@ locals {
   # precedence over the (provider-less) file configuration. This is the
   # delivery mechanism Ory recommends for keeping provider secrets out of the
   # chart's ConfigMap: https://github.com/ory/k8s/issues/423
-  upstream_oidc_extra_env = length(var.upstream_oidc_providers) > 0 ? [
+  upstream_oidc_extra_env = length(var.upstream_identity_providers) > 0 ? [
     {
       name = "SELFSERVICE_METHODS_OIDC_CONFIG_PROVIDERS"
       valueFrom = {
@@ -171,7 +171,7 @@ locals {
   # annotation only covers the ConfigMap, and environment variables are
   # immutable for running pods. The annotation lands on the pod template, so a
   # changed hash triggers a rolling restart.
-  upstream_oidc_env_annotations = length(var.upstream_oidc_providers) > 0 ? {
+  upstream_oidc_env_annotations = length(var.upstream_identity_providers) > 0 ? {
     "checksum/upstream-oidc-providers" = sha256(jsonencode(local.upstream_oidc_provider_objects))
   } : {}
 
@@ -191,7 +191,7 @@ locals {
   # The providers themselves are delivered exclusively via the environment
   # variable; enabled-with-no-providers is valid configuration for workloads
   # that never receive it (migration job, courier).
-  upstream_oidc_config = length(var.upstream_oidc_providers) > 0 ? {
+  upstream_oidc_config = length(var.upstream_identity_providers) > 0 ? {
     kratos = {
       config = {
         selfservice = {

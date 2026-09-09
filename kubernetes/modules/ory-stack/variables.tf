@@ -213,7 +213,7 @@ variable "node_selector" {
 
 # Upstream identity providers -------------------------------------------------
 
-variable "upstream_oidc_providers" {
+variable "upstream_identity_providers" {
   description = "Optional upstream identity providers exposed as social sign-in buttons on the selfservice UI. Most entries (Okta, Entra, Auth0, Google, etc.) use provider = \"generic\" and register their redirect URI at the upstream IdP as https://<kratos_fqdn>/self-service/methods/oidc/callback/<id>. The exception is Ory Polis, the SAML-to-OIDC bridge: set its entry to provider = \"jackson\", whose callback Kratos registers under the SAML method base, https://<kratos_fqdn>/self-service/methods/saml/callback/<id>, not the oidc one. Using generic for Polis sends the code to the wrong path and the flow dies at the redirect."
   type = list(object({
     id            = string
