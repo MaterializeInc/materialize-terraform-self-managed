@@ -45,6 +45,19 @@ materialize_balancerd_fqdn = "balancerd.mz.example.com"
 #     issuer_url    = "https://your-org.okta.com/oauth2/default"
 #     label         = "Okta"
 #   },
+#   # Ory Polis (the SAML-to-OIDC bridge) must use provider = "jackson", not
+#   # "generic". Kratos registers the jackson callback under the SAML method base
+#   # (/self-service/methods/saml/callback/<id>), so a generic provider sends the
+#   # code to the wrong path and the flow dies at the redirect. The client_id and
+#   # client_secret come from bin/infra/polis-register.sh.
+#   {
+#     id            = "polis"
+#     provider      = "jackson"
+#     client_id     = "from-polis-register"
+#     client_secret = "from-polis-register"
+#     issuer_url    = "https://polis.mz.example.com"
+#     label         = "SAML"
+#   },
 # ]
 
 tags = {
