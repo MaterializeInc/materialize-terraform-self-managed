@@ -198,7 +198,7 @@ variable "tls_cert_secret_name" {
 }
 
 variable "upstream_oidc_providers" {
-  description = "Upstream OIDC providers to expose as social sign-in methods on the Kratos selfservice UI. Each entry renders as a 'Sign in with X' button. Leave as [] to keep password-only login. The redirect URI to register at the IdP is <kratos public URL>/self-service/methods/oidc/callback/<id>."
+  description = "Upstream identity providers to expose as social sign-in methods on the Kratos selfservice UI. Each entry renders as a 'Sign in with X' button. Leave as [] to keep password-only login. For provider = \"generic\" the redirect URI to register at the IdP is <kratos public URL>/self-service/methods/oidc/callback/<id>. For provider = \"jackson\" (Ory Polis, the SAML-to-OIDC bridge) the callback is registered under the SAML method base instead, <kratos public URL>/self-service/methods/saml/callback/<id>."
   type = list(object({
     id            = string
     provider      = optional(string, "generic")
