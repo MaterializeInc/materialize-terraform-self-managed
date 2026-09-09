@@ -119,6 +119,23 @@ locals {
       enabled = var.maester_enabled
     }
 
+    # Janitor cleans stale rows the DB has no TTL for. cleanupRequests is the
+    # important one: login and consent flow-state tables only get cleared here,
+    # so without it they grow unbounded on every engine, Cockroach included.
+    janitor = {
+      enabled         = var.janitor_enabled
+      cleanupGrants   = true
+      cleanupRequests = true
+      cleanupTokens   = true
+    }
+
+    cronjob = {
+      janitor = {
+        schedule     = var.janitor_schedule
+        nodeSelector = var.node_selector
+      }
+    }
+
     hydra = {
       automigration = {
         enabled = var.automigration_enabled

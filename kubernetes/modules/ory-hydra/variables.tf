@@ -97,6 +97,20 @@ variable "automigration_type" {
   }
 }
 
+variable "janitor_enabled" {
+  description = "Run the Hydra janitor cronjob. It clears stale login/consent flow-state, trust grants, and expired tokens. The login and consent request tables have no TTL, so the janitor is the only thing that clears them; leaving it off lets them grow until the database falls over."
+  type        = bool
+  default     = true
+  nullable    = false
+}
+
+variable "janitor_schedule" {
+  description = "Cron schedule for the Hydra janitor cronjob."
+  type        = string
+  default     = "0 0 * * *"
+  nullable    = false
+}
+
 variable "replica_count" {
   description = "Number of Hydra replicas."
   type        = number

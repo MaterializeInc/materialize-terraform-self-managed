@@ -56,6 +56,8 @@ No modules.
 | <a name="input_image_tag"></a> [image\_tag](#input\_image\_tag) | Override the Docker image tag for Hydra. If not set, the chart default will be used. | `string` | `null` | no |
 | <a name="input_install_timeout"></a> [install\_timeout](#input\_install\_timeout) | Timeout for installing the Ory Hydra Helm chart, in seconds. | `number` | `600` | no |
 | <a name="input_issuer_url"></a> [issuer\_url](#input\_issuer\_url) | The public URL of the OAuth2 issuer. Used for OIDC discovery. Example: https://auth.example.com/ | `string` | n/a | yes |
+| <a name="input_janitor_enabled"></a> [janitor\_enabled](#input\_janitor\_enabled) | Run the Hydra janitor cronjob. It clears stale login/consent flow-state, trust grants, and expired tokens. The login and consent request tables have no TTL, so the janitor is the only thing that clears them; leaving it off lets them grow until the database falls over. | `bool` | `true` | no |
+| <a name="input_janitor_schedule"></a> [janitor\_schedule](#input\_janitor\_schedule) | Cron schedule for the Hydra janitor cronjob. | `string` | `"0 0 * * *"` | no |
 | <a name="input_login_url"></a> [login\_url](#input\_login\_url) | The URL of the login UI. Hydra redirects users here for authentication. Example: https://login.example.com/login | `string` | `null` | no |
 | <a name="input_logout_url"></a> [logout\_url](#input\_logout\_url) | The URL of the logout UI. Example: https://login.example.com/logout | `string` | `null` | no |
 | <a name="input_maester_enabled"></a> [maester\_enabled](#input\_maester\_enabled) | Whether to enable hydra-maester (CRD controller for managing OAuth2 clients via Kubernetes resources). | `bool` | `true` | no |
