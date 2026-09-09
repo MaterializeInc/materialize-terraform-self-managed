@@ -46,7 +46,7 @@ materialize_balancerd_fqdn = "balancerd.mz.example.com"
 # Optional: federate logins through one or more upstream IdPs (Okta, Entra,
 # Auth0, Google Workspace). Each entry renders as a "Sign in with X" button
 # on the selfservice UI. Leave as [] for password-only login.
-# upstream_oidc_providers = [
+# upstream_identity_providers = [
 #   {
 #     id            = "okta"
 #     provider      = "generic"
@@ -54,6 +54,19 @@ materialize_balancerd_fqdn = "balancerd.mz.example.com"
 #     client_secret = "your-okta-client-secret"
 #     issuer_url    = "https://your-org.okta.com/oauth2/default"
 #     label         = "Okta"
+#   },
+#   # Ory Polis (the SAML-to-OIDC bridge) must use provider = "jackson", not
+#   # "generic". Kratos registers the jackson callback under the SAML method base
+#   # (/self-service/methods/saml/callback/<id>), so a generic provider sends the
+#   # code to the wrong path and the flow dies at the redirect. The client_id and
+#   # client_secret come from bin/infra/polis-register.sh.
+#   {
+#     id            = "polis"
+#     provider      = "jackson"
+#     client_id     = "from-polis-register"
+#     client_secret = "from-polis-register"
+#     issuer_url    = "https://polis.mz.example.com"
+#     label         = "SAML"
 #   },
 # ]
 

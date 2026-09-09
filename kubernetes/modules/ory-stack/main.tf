@@ -338,7 +338,7 @@ module "ory_kratos" {
 
   helm_values = provider::deepmerge::mergo(local.kratos_helm_values_baseline, var.kratos_helm_values)
 
-  upstream_oidc_providers = var.upstream_oidc_providers
+  upstream_identity_providers = var.upstream_identity_providers
 
   depends_on = [
     kubernetes_namespace.ory,
