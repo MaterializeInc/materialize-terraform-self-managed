@@ -15,7 +15,7 @@
 
 | Name | Source | Version |
 | ---- | ------ | ------- |
-| <a name="module_cloud-nat"></a> [cloud-nat](#module\_cloud-nat) | terraform-google-modules/cloud-nat/google | 5.4.0 |
+| <a name="module_cloud-nat"></a> [cloud-nat](#module\_cloud-nat) | terraform-google-modules/cloud-nat/google | 7.0.0 |
 | <a name="module_vpc"></a> [vpc](#module\_vpc) | terraform-google-modules/network/google | 18.1.2 |
 
 ## Resources
