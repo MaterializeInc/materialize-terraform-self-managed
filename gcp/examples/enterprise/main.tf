@@ -712,6 +712,7 @@ module "ory" {
   node_selector = local.generic_node_labels
 
   upstream_identity_providers = var.upstream_identity_providers
+  saml_providers              = var.saml_providers
 
   depends_on = [
     module.coredns,
