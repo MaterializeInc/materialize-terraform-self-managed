@@ -42,6 +42,24 @@ resource "kubernetes_secret" "upstream_oidc_providers_env" {
   type = "Opaque"
 }
 
+# The SAML (jackson/Polis) provider list — including client secrets and the raw
+# IdP metadata — reaches Kratos as a single JSON-valued environment variable, so
+# the Helm-rendered ConfigMap never carries a credential.
+resource "kubernetes_secret" "saml_providers_env" {
+  count = length(var.saml_providers) > 0 ? 1 : 0
+
+  metadata {
+    name      = "${var.release_name}-saml-providers"
+    namespace = local.namespace
+  }
+
+  data = {
+    providers = jsonencode(local.saml_provider_objects)
+  }
+
+  type = "Opaque"
+}
+
 locals {
   namespace = var.create_namespace ? kubernetes_namespace.kratos[0].metadata[0].name : var.namespace
 
@@ -175,7 +193,7 @@ locals {
     "checksum/upstream-oidc-providers" = sha256(jsonencode(local.upstream_oidc_provider_objects))
   } : {}
 
-  deployment_config = length(local.tls_volumes) > 0 || length(local.upstream_oidc_extra_env) > 0 ? {
+  deployment_config = length(local.tls_volumes) > 0 || length(local.upstream_oidc_extra_env) > 0 || length(local.saml_extra_env) > 0 ? {
     deployment = merge(
       # One attribute per conditional: a multi-attribute object and {} cannot
       # unify as a map when the attribute types differ, so a two-attribute
@@ -183,8 +201,8 @@ locals {
       # TLS is enabled.
       length(local.tls_volumes) > 0 ? { extraVolumes = local.tls_volumes } : {},
       length(local.tls_volumes) > 0 ? { extraVolumeMounts = local.tls_volume_mounts } : {},
-      length(local.upstream_oidc_extra_env) > 0 ? { extraEnv = local.upstream_oidc_extra_env } : {},
-      length(local.upstream_oidc_env_annotations) > 0 ? { annotations = local.upstream_oidc_env_annotations } : {},
+      length(concat(local.upstream_oidc_extra_env, local.saml_extra_env)) > 0 ? { extraEnv = concat(local.upstream_oidc_extra_env, local.saml_extra_env) } : {},
+      length(merge(local.upstream_oidc_env_annotations, local.saml_env_annotations)) > 0 ? { annotations = merge(local.upstream_oidc_env_annotations, local.saml_env_annotations) } : {},
     )
   } : {}
 
@@ -198,6 +216,67 @@ locals {
           methods = {
             oidc = {
               enabled = true
+            }
+          }
+        }
+      }
+    }
+  } : {}
+
+  # The SAML provider objects as Kratos's jackson (Polis) method expects them.
+  # They only ever land in a Kubernetes Secret, never in the Helm-rendered
+  # ConfigMap. The IdP metadata is delivered inline as a base64:// data URI and
+  # the mapper is shared with the OIDC method (it already maps email + groups).
+  saml_provider_objects = [
+    for p in var.saml_providers : merge(
+      {
+        id                   = p.id
+        provider             = "jackson"
+        client_id            = p.client_id
+        client_secret        = p.client_secret
+        issuer_url           = p.issuer_url
+        auth_url             = p.auth_url
+        token_url            = p.token_url
+        raw_idp_metadata_xml = "base64://${base64encode(p.raw_idp_metadata_xml)}"
+        mapper_url           = local.upstream_oidc_mapper_data_uri
+      },
+      p.label != null ? { label = p.label } : {},
+    )
+  ]
+
+  # Delivered the same way as the OIDC providers: one JSON-valued environment
+  # variable that configx decodes into an array and that takes precedence over
+  # the provider-less file configuration.
+  saml_extra_env = length(var.saml_providers) > 0 ? [
+    {
+      name = "SELFSERVICE_METHODS_SAML_CONFIG_PROVIDERS"
+      valueFrom = {
+        secretKeyRef = {
+          name = kubernetes_secret.saml_providers_env[0].metadata[0].name
+          key  = "providers"
+        }
+      }
+    },
+  ] : []
+
+  # Roll the pods when the SAML provider list changes, for the same reason as
+  # the OIDC checksum: env vars are immutable for running pods.
+  saml_env_annotations = length(var.saml_providers) > 0 ? {
+    "checksum/saml-providers" = sha256(jsonencode(local.saml_provider_objects))
+  } : {}
+
+  # base_redirect_uri is the only file-level SAML config; the providers
+  # themselves arrive exclusively via the environment variable.
+  saml_config = length(var.saml_providers) > 0 ? {
+    kratos = {
+      config = {
+        selfservice = {
+          methods = {
+            saml = {
+              enabled = true
+              config = {
+                base_redirect_uri = var.saml_base_redirect_uri
+              }
             }
           }
         }
@@ -292,13 +371,17 @@ locals {
     }
   }, local.image_config, local.image_pull_secrets_config)
 
-  # Deep-merge optional features (TLS, upstream OIDC) into the default values.
+  # Deep-merge optional features (TLS, upstream OIDC, SAML) into the default
+  # values.
   default_helm_values_with_extras = provider::deepmerge::mergo(
     provider::deepmerge::mergo(
-      provider::deepmerge::mergo(local.default_helm_values, local.tls_kratos_config),
-      local.deployment_config,
+      provider::deepmerge::mergo(
+        provider::deepmerge::mergo(local.default_helm_values, local.tls_kratos_config),
+        local.deployment_config,
+      ),
+      local.upstream_oidc_config,
     ),
-    local.upstream_oidc_config,
+    local.saml_config,
   )
 }
 

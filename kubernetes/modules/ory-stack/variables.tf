@@ -229,6 +229,23 @@ variable "upstream_identity_providers" {
   sensitive = true
 }
 
+variable "saml_providers" {
+  description = "SAML sign-in providers exposed via the Kratos SAML method (selfservice.methods.saml), used for Ory Polis (the jackson SAML-to-OIDC bridge). Each entry renders as a 'Sign in with X' button whose SAML callback is https://<kratos_fqdn>/self-service/methods/saml/callback/<id>. Leave as [] when no SAML sign-in is configured. Use this instead of upstream_identity_providers for Polis, since jackson is a SAML method rather than an OIDC provider."
+  type = list(object({
+    id                   = string
+    label                = optional(string)
+    client_id            = string
+    client_secret        = string
+    issuer_url           = string
+    auth_url             = string
+    token_url            = string
+    raw_idp_metadata_xml = string
+  }))
+  default   = []
+  nullable  = false
+  sensitive = true
+}
+
 # Escape hatches for chart overrides -----------------------------------------
 
 variable "kratos_helm_values" {

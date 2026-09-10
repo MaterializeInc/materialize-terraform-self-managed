@@ -340,6 +340,9 @@ module "ory_kratos" {
 
   upstream_identity_providers = var.upstream_identity_providers
 
+  saml_providers         = var.saml_providers
+  saml_base_redirect_uri = local.kratos_external_url
+
   depends_on = [
     kubernetes_namespace.ory,
     kubernetes_secret.ory_oel_registry,
