@@ -69,7 +69,7 @@ materialize_balancerd_fqdn = "balancerd.mz.example.com"
 #     label         = "SAML"
 #     client_id     = "from-polis-registration"
 #     client_secret = "from-polis-registration"
-#     issuer_url    = "https://polis.mz.example.com/saml"
+#     issuer_url    = "https://polis.mz.example.com"
 #     auth_url      = "https://polis.mz.example.com/api/oauth/authorize"
 #     token_url     = "https://polis.mz.example.com/api/oauth/token"
 #   },
