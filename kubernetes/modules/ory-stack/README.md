@@ -15,7 +15,6 @@
 | ---- | ------- |
 | <a name="provider_kubectl"></a> [kubectl](#provider\_kubectl) | 2.4.1 |
 | <a name="provider_kubernetes"></a> [kubernetes](#provider\_kubernetes) | ~> 2.0 |
-| <a name="provider_terraform"></a> [terraform](#provider\_terraform) | n/a |
 
 ## Modules
 
@@ -39,7 +38,6 @@
 | [kubernetes_secret.ory_oel_registry](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/secret) | resource |
 | [kubernetes_service_v1.ory_lb](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/service_v1) | resource |
 | [kubernetes_service_v1.single_domain_proxy_lb](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/service_v1) | resource |
-| [terraform_data.oauth2_client_finalizer_cleanup](https://registry.terraform.io/providers/hashicorp/terraform/latest/docs/resources/data) | resource |
 | [kubernetes_secret_v1.oauth2_client](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/data-sources/secret_v1) | data source |
 
 ## Inputs

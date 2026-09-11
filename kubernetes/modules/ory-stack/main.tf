@@ -563,32 +563,37 @@ resource "kubectl_manifest" "materialize_oauth2_client" {
     }
   })
 
+  # Hydra Maester adds finalizer.ory.hydra.sh to this object and is the only
+  # thing that clears it (after deleting the client through Hydra's admin API).
+  # Nothing orders that teardown: a plain delete removes the object from state
+  # the moment the API accepts the DELETE, so Terraform goes on to destroy the
+  # Hydra release, and the finalizer is left with no remover, so the ory
+  # namespace then hangs in Terminating forever.
+  #
+  # wait = true makes the provider issue a foreground delete and block until the
+  # object is really gone, which includes finalizer processing. depends_on keeps
+  # Maester alive until this delete returns: on destroy Terraform removes the
+  # client first, Maester clears the finalizer while it is still running, the
+  # object disappears, and only then is the Hydra release torn down. No shell
+  # out, no ambient kubeconfig; the delete runs against the provider's cluster.
+  #
+  # The one case this cannot cover is Maester already dead or unhealthy when the
+  # destroy starts: with no controller to clear the finalizer the delete blocks
+  # until the timeout below and then fails the destroy, naming this resource. The
+  # remedy is manual and one line:
+  #   kubectl -n <ory-namespace> patch oauth2client <name> \
+  #     --type=merge -p '{"metadata":{"finalizers":[]}}'
+  # then re-run destroy. A declarative resource cannot force-remove a finalizer
+  # it does not own, so that residual step is inherent rather than a gap here.
+  wait = true
+
+  timeouts {
+    # Clearing the finalizer is near-instant while Maester is healthy; this only
+    # bounds how long a dead-controller destroy waits before failing loudly.
+    delete = "5m"
+  }
+
   depends_on = [module.ory_hydra]
-}
-
-# Hydra Maester adds finalizer.ory.hydra.sh to the OAuth2Client and is the only
-# thing that clears it. On teardown Maester can be torn down before (or racing
-# with) the client, leaving the finalizer set so the ory namespace hangs in
-# Terminating forever. Strip the finalizer at destroy time as a safety net. This
-# resource depends on the client, so on destroy it runs first, clearing the
-# finalizer before Terraform deletes the client. Needs kubectl in PATH with
-# cluster access, which the enterprise examples already assume; on_failure is
-# continue so a missing kubectl never blocks the destroy.
-resource "terraform_data" "oauth2_client_finalizer_cleanup" {
-  count = local.wire_materialize ? 1 : 0
-
-  input = {
-    namespace   = var.namespace
-    client_name = var.oauth2_client_name
-  }
-
-  provisioner "local-exec" {
-    when       = destroy
-    on_failure = continue
-    command    = "kubectl -n ${self.input.namespace} patch oauth2client ${self.input.client_name} --type=merge -p '{\"metadata\":{\"finalizers\":[]}}'"
-  }
-
-  depends_on = [kubectl_manifest.materialize_oauth2_client]
 }
 
 # Read back the Hydra-Maester-populated client credentials so the caller can
