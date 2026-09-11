@@ -293,16 +293,6 @@ module "monitoring" {
 # PostgreSQL role, and Grafana needs DDL on its own database to migrate at
 # startup. A dedicated server is what keeps that from meaning anything wider.
 
-resource "random_password" "grafana_database" {
-  count = var.grafana_database != null && var.grafana_database_password == null ? 1 : 0
-
-  length = 32
-  # Flexible Server rejects several punctuation classes in an administrator
-  # password, and Grafana reads this out of a mounted file that operators also
-  # paste into psql. Alphanumeric avoids both problems.
-  special = false
-}
-
 module "grafana_database" {
   count  = var.grafana_database == null ? 0 : 1
   source = "../database"
@@ -319,8 +309,9 @@ module "grafana_database" {
   storage_mb            = var.grafana_database.storage_mb
   backup_retention_days = var.grafana_database.backup_retention_days
 
-  administrator_login    = var.grafana_database_user
-  administrator_password = local.grafana_database_password
+  administrator_login = var.grafana_database_user
+  # Null by default, so the database module generates and owns the password.
+  administrator_password = var.grafana_database_password
 
   databases = [{ name = var.grafana_database_name }]
 
@@ -330,17 +321,13 @@ module "grafana_database" {
 locals {
   create_grafana_database = var.grafana_database != null
 
-  # A caller-supplied password wins in both modes; the random one only fills the
-  # gap when this module creates the instance and was given none.
-  #
-  # Not `coalesce`: it errors when every argument is null, which is the default
-  # install — no database and no password — so it failed the plan on the one path
-  # that has nothing to decide. Null here means "no password", which is what the
-  # module's own gates are for.
+  # A caller-supplied password wins; otherwise, when this module creates the
+  # instance, read back the password the database module generated. Null means
+  # "no database and no password", the default install, which the gates handle.
   grafana_database_password = (
     var.grafana_database_password != null
     ? var.grafana_database_password
-    : one(random_password.grafana_database[*].result)
+    : (local.create_grafana_database ? module.grafana_database[0].administrator_password : null)
   )
 
   grafana_database_host = local.create_grafana_database ? (
