@@ -19,7 +19,7 @@ locals {
 
 module "vpc" {
   source  = "terraform-google-modules/network/google"
-  version = "18.1.2"
+  version = "18.2.0"
 
   project_id   = var.project_id
   network_name = "${var.prefix}-network"
