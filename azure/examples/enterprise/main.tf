@@ -2,6 +2,12 @@ provider "azurerm" {
   # Set the Azure subscription ID here or use the AZURE_SUBSCRIPTION_ID environment variable
   subscription_id = var.subscription_id
 
+  # The monitoring storage account disables shared keys, so the provider must use
+  # Azure AD for storage data-plane operations. The identity running Terraform
+  # needs a data-plane role (Storage Blob Data Contributor) on it, not just a
+  # control-plane role like Owner.
+  storage_use_azuread = true
+
   # Conservative defaults for an enterprise stack. See README "Limitations".
   features {
     resource_group {
