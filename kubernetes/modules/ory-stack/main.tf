@@ -566,6 +566,31 @@ resource "kubectl_manifest" "materialize_oauth2_client" {
   depends_on = [module.ory_hydra]
 }
 
+# Hydra Maester adds finalizer.ory.hydra.sh to the OAuth2Client and is the only
+# thing that clears it. On teardown Maester can be torn down before (or racing
+# with) the client, leaving the finalizer set so the ory namespace hangs in
+# Terminating forever. Strip the finalizer at destroy time as a safety net. This
+# resource depends on the client, so on destroy it runs first, clearing the
+# finalizer before Terraform deletes the client. Needs kubectl in PATH with
+# cluster access, which the enterprise examples already assume; on_failure is
+# continue so a missing kubectl never blocks the destroy.
+resource "terraform_data" "oauth2_client_finalizer_cleanup" {
+  count = local.wire_materialize ? 1 : 0
+
+  input = {
+    namespace   = var.namespace
+    client_name = var.oauth2_client_name
+  }
+
+  provisioner "local-exec" {
+    when       = destroy
+    on_failure = continue
+    command    = "kubectl -n ${self.input.namespace} patch oauth2client ${self.input.client_name} --type=merge -p '{\"metadata\":{\"finalizers\":[]}}'"
+  }
+
+  depends_on = [kubectl_manifest.materialize_oauth2_client]
+}
+
 # Read back the Hydra-Maester-populated client credentials so the caller can
 # wire client_id into Materialize's system_parameters.
 data "kubernetes_secret_v1" "oauth2_client" {
