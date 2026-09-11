@@ -682,6 +682,13 @@ module "ory" {
   node_selector = local.generic_node_labels
 
   upstream_identity_providers = var.upstream_identity_providers
+  # The Okta SAML metadata lives in okta-metadata.xml rather than inline in
+  # tfvars; inject it into each SAML provider here.
+  saml_providers = [
+    for p in var.saml_providers : merge(p, {
+      raw_idp_metadata_xml = file("${path.module}/okta-metadata.xml")
+    })
+  ]
 
   depends_on = [
     module.coredns,
