@@ -164,6 +164,24 @@ variable "upstream_identity_providers" {
   sensitive = true
 }
 
+variable "saml_providers" {
+  description = "SAML sign-in providers exposed via the Kratos SAML method, for Ory Polis (the jackson SAML-to-OIDC bridge). Each entry renders a 'Sign in with X' button whose SAML callback is https://<ory_kratos_fqdn>/self-service/methods/saml/callback/<id>. Leave as [] for none. Use this instead of upstream_identity_providers for Polis, since jackson is a SAML method rather than an OIDC provider."
+  # raw_idp_metadata_xml is not set here: main.tf reads it from okta-metadata.xml
+  # in this directory and injects it, so the large XML stays out of tfvars.
+  type = list(object({
+    id            = string
+    label         = optional(string)
+    client_id     = string
+    client_secret = string
+    issuer_url    = string
+    auth_url      = string
+    token_url     = string
+  }))
+  default   = []
+  nullable  = false
+  sensitive = true
+}
+
 variable "materialize_version" {
   description = "Materialize release for both the operator Helm chart and environmentd, which must not drift. Null uses each module's default."
   type        = string

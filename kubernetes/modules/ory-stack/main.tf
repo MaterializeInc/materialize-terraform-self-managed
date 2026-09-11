@@ -174,11 +174,16 @@ locals {
           }
           flows = {
             login = { ui_url = "${local.ui_external_url}/login" }
-            # session hook logs the user in on first OIDC registration; without
-            # it Hydra consent gets no identity and the JWT has no email claim.
+            # session hook logs the user in on first registration; without it
+            # Hydra consent gets no identity and the JWT has no email claim.
+            # Needed per method, so both the OIDC and SAML (Polis) methods carry
+            # it, otherwise SAML sign-ins hit the missing-claim login loop.
             registration = {
               ui_url = "${local.ui_external_url}/registration"
-              after  = { oidc = { hooks = [{ hook = "session" }] } }
+              after = {
+                oidc = { hooks = [{ hook = "session" }] }
+                saml = { hooks = [{ hook = "session" }] }
+              }
             }
             recovery     = { ui_url = "${local.ui_external_url}/recovery" }
             verification = { ui_url = "${local.ui_external_url}/verification" }
@@ -339,6 +344,9 @@ module "ory_kratos" {
   helm_values = provider::deepmerge::mergo(local.kratos_helm_values_baseline, var.kratos_helm_values)
 
   upstream_identity_providers = var.upstream_identity_providers
+
+  saml_providers         = var.saml_providers
+  saml_base_redirect_uri = local.kratos_external_url
 
   depends_on = [
     kubernetes_namespace.ory,
@@ -552,11 +560,10 @@ resource "kubectl_manifest" "materialize_oauth2_client" {
       postLogoutRedirectUris = var.oauth2_client_post_logout_redirect_uris != null ? var.oauth2_client_post_logout_redirect_uris : [
         for fqdn in local.materialize_console_fqdns : "https://${fqdn}/"
       ]
-      # First-party SPA client, no third-party consent needed. Skipping the
-      # consent screen also avoids the first-login footgun where users click
-      # Allow without ticking the email scope, leaving Materialize without the
-      # auth claim it expects.
-      skipConsent = true
+      # Run the consent flow: Hydra has no user store, so the consent handler
+      # is what injects the identity's email/groups into the token. skip_consent
+      # would mint an empty-claims token that Materialize rejects.
+      skipConsent = false
       # Public SPA client. No secret; PKCE on the console side.
       secretName              = var.oauth2_client_name
       tokenEndpointAuthMethod = "none"

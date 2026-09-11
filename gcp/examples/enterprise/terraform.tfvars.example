@@ -55,18 +55,23 @@ materialize_balancerd_fqdn = "balancerd.mz.example.com"
 #     issuer_url    = "https://your-org.okta.com/oauth2/default"
 #     label         = "Okta"
 #   },
-#   # Ory Polis (the SAML-to-OIDC bridge) must use provider = "jackson", not
-#   # "generic". Kratos registers the jackson callback under the SAML method base
-#   # (/self-service/methods/saml/callback/<id>), so a generic provider sends the
-#   # code to the wrong path and the flow dies at the redirect. The client_id and
-#   # client_secret come from bin/infra/polis-register.sh.
+# ]
+
+# Optional: sign in through Ory Polis (the SAML-to-OIDC bridge to Okta or Entra
+# over SAML). Polis is the jackson provider and is configured under the Kratos
+# SAML method, not as an OIDC provider, so it goes here rather than in
+# upstream_identity_providers. Deploy Polis (enable_polis above), register a
+# SAML connection in it, drop the Okta app's metadata in okta-metadata.xml next
+# to this file, then fill these in. See the README.
+# saml_providers = [
 #   {
 #     id            = "polis"
-#     provider      = "jackson"
-#     client_id     = "from-polis-register"
-#     client_secret = "from-polis-register"
-#     issuer_url    = "https://polis.mz.example.com"
 #     label         = "SAML"
+#     client_id     = "from-polis-registration"
+#     client_secret = "from-polis-registration"
+#     issuer_url    = "https://polis.mz.example.com"
+#     auth_url      = "https://polis.mz.example.com/api/oauth/authorize"
+#     token_url     = "https://polis.mz.example.com/api/oauth/token"
 #   },
 # ]
 
