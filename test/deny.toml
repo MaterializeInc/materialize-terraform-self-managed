@@ -41,6 +41,11 @@ skip = [
 
     # Serde now uses v3.0, and the rest of the ecosystem will eventually catch up.
     { name = "syn", version = "2.0.117" },
+
+    # indexmap (via h2) still uses hashbrown 0.16 while lru (via aws-sdk-s3)
+    # has moved to 0.17. Both are transitive AWS SDK deps, so this cannot be
+    # unified from the consumer side.
+    { name = "hashbrown", version = "0.16.1" },
 ]
 
 # Use `tracing` instead.
@@ -78,7 +83,6 @@ name = "workspace-hack"
 version = 2
 allow = [
     "Apache-2.0",
-    "BSD-2-Clause",
     "BSD-3-Clause",
     "ISC",
     "MIT",
