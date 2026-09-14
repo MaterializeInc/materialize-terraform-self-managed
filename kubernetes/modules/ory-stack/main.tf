@@ -570,6 +570,17 @@ resource "kubectl_manifest" "materialize_oauth2_client" {
     }
   })
 
+  # Maester adds finalizer.ory.hydra.sh and is the only thing that clears it, so
+  # wait = true blocks this delete (foreground) until it does, and depends_on
+  # keeps Maester alive until then, otherwise the ory namespace hangs in
+  # Terminating. If Maester is already dead, clear it by hand and re-destroy:
+  #   kubectl -n <ns> patch oauth2client <name> --type=merge -p '{"metadata":{"finalizers":[]}}'
+  wait = true
+
+  timeouts {
+    delete = "5m"
+  }
+
   depends_on = [module.ory_hydra]
 }
 
