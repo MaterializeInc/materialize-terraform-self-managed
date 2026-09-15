@@ -2,6 +2,21 @@
 
 End-to-end integration tests for the Materialize self-managed Terraform modules. The test harness deploys real infrastructure on AWS, Azure, or GCP, verifies that Materialize is running, and tears it down. It can also run entirely locally against a [kind](https://kind.sigs.k8s.io/) cluster -- see [Local kind runs](#local-kind-runs-self-managed).
 
+## Shell cleanup regression tests
+
+Run the ENI cleanup tests from the repository root without cloud credentials:
+
+```sh
+python3 -m venv /tmp/terraform-shell-tests
+/tmp/terraform-shell-tests/bin/pip install jmespath==1.0.1
+/tmp/terraform-shell-tests/bin/python -m unittest discover -s test/scripts -v
+```
+
+These tests run the module's cleanup script with a fake AWS CLI and evaluate its
+queries with JMESPath. They cover detached CNI interfaces without cluster tags,
+selection boundaries, and AWS error handling. The Shell Lint CI job runs them.
+They do not replace a live deployment and teardown test.
+
 ## Prerequisites
 
 - Rust (edition 2024)
