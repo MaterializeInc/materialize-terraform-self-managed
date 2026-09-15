@@ -44,3 +44,6 @@ tests/.terraform.lock.hcl
 test/*/t[0-9]*-*/
 .github/setup/*/terraform.tfstate
 .github/setup/*/backend-override.tf
+
+# Okta SCIM source-range allowlists are generated per Okta cell
+**/okta-scim-source-ranges.json
