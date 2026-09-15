@@ -165,7 +165,7 @@ variable "polis_helm_values" {
 }
 
 variable "ory_polis_source_ranges" {
-  description = "Extra CIDRs, besides Okta's SCIM egress ranges from okta-scim-source-ranges.json, allowed to reach the Polis LoadBalancer. Set these to your VPC / VPN / tailnet ranges so the browser SAML and OIDC hops still work, since the browser reaches Polis directly. Combined with the Okta ranges and applied as loadBalancerSourceRanges. Leave empty to keep Polis unrestricted. Only lock Polis down when browser access to Ory is internal; a fully public browser flow needs Polis reachable from anywhere."
+  description = "Extra CIDRs, besides Okta's SCIM egress ranges from okta-scim-source-ranges.json, allowed to reach the public Polis LoadBalancer. The browser reaches Polis directly for the SAML and OIDC hops, so set these to the public egress addresses your browsers appear as (VPN/NAT egress, office range). loadBalancerSourceRanges is a cloud firewall rule matched against the source IP as the cloud sees the packet, so a private VPC or tailnet CIDR (e.g. 100.64.0.0/10 or 10.x) will not match a browser coming over the internet and will lock those hops out. Combined with the Okta ranges and applied as loadBalancerSourceRanges. Leave empty to keep Polis unrestricted."
   type        = list(string)
   default     = []
   nullable    = false

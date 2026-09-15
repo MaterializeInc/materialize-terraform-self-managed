@@ -44,13 +44,13 @@ OKTA_SAML_METADATA=~/Downloads/metadata.xml \
 
 It registers (or re-reads, idempotently) the connection and directory, then prints the `upstream_oidc_providers` block to add to `terraform.tfvars` and the remaining Okta admin-console steps.
 
-**Locking down the Polis endpoint (optional).** Okta pushes SCIM provisioning to Polis server-to-server, so the Polis LoadBalancer can stay public but firewalled to Okta's egress ranges. Generate the ranges for your Okta cell and re-apply:
+**Locking down the Polis endpoint (optional).** Okta pushes SCIM provisioning to Polis server-to-server from its cloud, so Polis has to be publicly reachable for SCIM to work at all. This example defaults every Ory LoadBalancer to internal (`internal_load_balancer = true`), which puts Polis on a private address Okta cannot reach, so set `internal_load_balancer = false` before using this or the allowlist below sits on an LB Okta can never talk to. With Polis public, firewall it to Okta's egress ranges: generate them for your cell and re-apply:
 
 ```sh
 ./scripts/update-okta-ip-ranges.sh gcp/examples/enterprise <your-okta-cell>
 ```
 
-That writes `okta-scim-source-ranges.json`, which the example reads into the Polis LB's `loadBalancerSourceRanges`. Set `ory_polis_source_ranges` to your VPC / VPN / tailnet CIDRs as well, since the browser reaches Polis directly for the SAML and OIDC hops. Only enable this when browser access to Ory is internal; a fully public browser flow needs Polis reachable from anywhere, so leave both unset (the default) to keep Polis unrestricted.
+That writes `okta-scim-source-ranges.json`, which the example reads into the Polis LB's `loadBalancerSourceRanges`. The browser also reaches Polis directly for the SAML and OIDC hops, so add the public egress addresses your browsers appear as (VPN/NAT egress, office range) via `ory_polis_source_ranges`. `loadBalancerSourceRanges` matches the source IP as the cloud sees the packet, so a private VPC or tailnet CIDR will not match a browser coming over the internet and will lock those hops out. Leave both unset (the default) to keep Polis unrestricted.
 
 ---
 
