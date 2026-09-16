@@ -65,6 +65,16 @@ variable "replicas" {
   nullable    = false
 }
 
+variable "extra_rewrites" {
+  description = "Additional CoreDNS `rewrite name` rules injected into the .:53 server block. Each maps an external hostname to an in-cluster target so pods resolve it internally (split-horizon), e.g. reaching a public LoadBalancer FQDN via a ClusterIP to avoid a hairpin back to the cluster's own external LB. `from` is the queried name; `to` is the in-cluster name it resolves to."
+  type = list(object({
+    from = string
+    to   = string
+  }))
+  default  = []
+  nullable = false
+}
+
 variable "node_selector" {
   description = "Node selector for CoreDNS deployment"
   type        = map(string)
