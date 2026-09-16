@@ -111,3 +111,11 @@ output "ui_namespace" {
   description = "Namespace of the selfservice UI deployment (same as namespace; kept for parity with submodule outputs). Null when deploy_selfservice_ui is false."
   value       = var.deploy_selfservice_ui ? module.ory_selfservice_ui[0].namespace : null
 }
+
+output "coredns_rewrites" {
+  description = "CoreDNS `rewrite name` rules to pass to the coredns module's extra_rewrites, so in-cluster lookups of the Polis public FQDN resolve to the internal Polis service instead of hairpinning to its external LoadBalancer. Empty when Polis is disabled."
+  value = local.wire_polis ? [{
+    from = var.polis_fqdn
+    to   = one(module.ory_polis[*].internal_tls_service_fqdn)
+  }] : []
+}

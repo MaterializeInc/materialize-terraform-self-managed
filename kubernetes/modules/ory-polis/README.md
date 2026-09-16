@@ -49,6 +49,7 @@ No modules.
 | [helm_release.polis](https://registry.terraform.io/providers/hashicorp/helm/latest/docs/resources/release) | resource |
 | [kubernetes_namespace.polis](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/namespace) | resource |
 | [kubernetes_secret.polis](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/secret) | resource |
+| [kubernetes_service_v1.internal_tls](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/service_v1) | resource |
 | [random_password.admin_api_keys](https://registry.terraform.io/providers/hashicorp/random/latest/docs/resources/password) | resource |
 | [random_password.db_encryption_key](https://registry.terraform.io/providers/hashicorp/random/latest/docs/resources/password) | resource |
 | [random_password.nextauth_secret](https://registry.terraform.io/providers/hashicorp/random/latest/docs/resources/password) | resource |
@@ -103,6 +104,7 @@ No modules.
 | <a name="output_admin_api_keys"></a> [admin\_api\_keys](#output\_admin\_api\_keys) | API key for Polis admin APIs. |
 | <a name="output_db_encryption_key"></a> [db\_encryption\_key](#output\_db\_encryption\_key) | Symmetric key used to encrypt sensitive fields at rest in the Polis database. Persist across applies; rotating invalidates existing encrypted records. |
 | <a name="output_external_url"></a> [external\_url](#output\_external\_url) | Externally-reachable HTTPS URL for Polis, as supplied via var.external\_url. This is the browser-facing URL that SAML/OAuth flows redirect through, and the issuer URL that upstream OIDC consumers (e.g., Kratos social sign-in) should point at. |
+| <a name="output_internal_tls_service_fqdn"></a> [internal\_tls\_service\_fqdn](#output\_internal\_tls\_service\_fqdn) | In-cluster DNS name of the internal ClusterIP that fronts the Polis TLS sidecar, or null when the TLS sidecar is disabled (tls\_secret\_name null). Point a CoreDNS rewrite of the public Polis FQDN at this so in-cluster clients reach Polis without hairpinning to its external LoadBalancer. |
 | <a name="output_internal_url"></a> [internal\_url](#output\_internal\_url) | Internal cluster URL for Polis (SSO, SCIM, OAuth endpoints). Always http because Polis itself does not terminate TLS, it runs as a NextJS app that only speaks plain HTTP on its configured port. Callers of this module are responsible for putting a TLS-terminating proxy in front, typically a cloud LoadBalancer service using cert-manager certs, a cloud-native cert like AWS ACM or GCP managed certs, or an ingress controller like nginx. |
 | <a name="output_namespace"></a> [namespace](#output\_namespace) | Namespace where Ory Polis is deployed. |
 | <a name="output_nextauth_secret"></a> [nextauth\_secret](#output\_nextauth\_secret) | NextAuth.js session signing secret. |

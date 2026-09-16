@@ -326,6 +326,7 @@ module "coredns" {
   cluster_identifier                          = module.gke.cluster_name
   coredns_deployment_to_scale_down            = "kube-dns"
   coredns_autoscaler_deployment_to_scale_down = "kube-dns-autoscaler"
+  extra_rewrites                              = module.ory.coredns_rewrites
   depends_on                                  = [module.generic_nodepool]
 }
 

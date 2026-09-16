@@ -137,6 +137,7 @@ module "coredns" {
   kube_dns_service_cluster_ip    = cidrhost(module.eks.cluster_service_cidr, 10)
   kubeconfig_data                = local.kubeconfig_data
   cluster_identifier             = module.eks.cluster_name
+  extra_rewrites                 = module.ory.coredns_rewrites
 
   depends_on = [
     module.base_node_group,

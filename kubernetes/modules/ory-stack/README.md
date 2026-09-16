@@ -103,6 +103,7 @@
 
 | Name | Description |
 | ---- | ----------- |
+| <a name="output_coredns_rewrites"></a> [coredns\_rewrites](#output\_coredns\_rewrites) | CoreDNS `rewrite name` rules to pass to the coredns module's extra\_rewrites, so in-cluster lookups of the Polis public FQDN resolve to the internal Polis service instead of hairpinning to its external LoadBalancer. Empty when Polis is disabled. |
 | <a name="output_hydra_external_url"></a> [hydra\_external\_url](#output\_hydra\_external\_url) | External (browser-facing) URL for Hydra. Use this as the OIDC issuer in Materialize. |
 | <a name="output_hydra_namespace"></a> [hydra\_namespace](#output\_hydra\_namespace) | Namespace of the Hydra deployment (same as namespace; kept for parity with submodule outputs). |
 | <a name="output_hydra_secrets_cookie"></a> [hydra\_secrets\_cookie](#output\_hydra\_secrets\_cookie) | Hydra cookie secret (generated or supplied). |

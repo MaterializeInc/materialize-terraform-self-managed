@@ -395,6 +395,7 @@ module "coredns" {
   node_selector      = local.generic_node_labels
   kubeconfig_data    = module.aks.kube_config_raw
   cluster_identifier = module.aks.cluster_name
+  extra_rewrites     = module.ory.coredns_rewrites
 }
 
 module "cert_manager" {

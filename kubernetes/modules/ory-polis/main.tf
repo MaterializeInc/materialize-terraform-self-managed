@@ -226,3 +226,40 @@ resource "helm_release" "polis" {
 
   depends_on = [kubernetes_secret.polis]
 }
+
+# Internal-only ClusterIP fronting the TLS sidecar, so in-cluster clients (e.g.
+# Kratos's Polis back-channel) can reach Polis at its public FQDN via a CoreDNS
+# rewrite instead of hairpinning out to Polis's external LoadBalancer, which GKE
+# pods cannot reach. Only created when the TLS sidecar is enabled. Pair it with a
+# CoreDNS rewrite of the public FQDN to this service (see the ory-stack
+# coredns_rewrites output).
+resource "kubernetes_service_v1" "internal_tls" {
+  count = var.tls_secret_name != null ? 1 : 0
+
+  metadata {
+    name      = "${var.release_name}-internal"
+    namespace = local.namespace
+    labels = {
+      "app.kubernetes.io/name"     = "polis"
+      "app.kubernetes.io/instance" = var.release_name
+      "provisioned-by"             = "materialize"
+    }
+  }
+
+  spec {
+    type = "ClusterIP"
+
+    selector = {
+      "app.kubernetes.io/name"     = "polis"
+      "app.kubernetes.io/instance" = var.release_name
+    }
+
+    port {
+      name        = "https"
+      port        = 443
+      target_port = var.tls_sidecar_port
+    }
+  }
+
+  depends_on = [helm_release.polis]
+}
