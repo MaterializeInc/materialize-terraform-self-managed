@@ -301,6 +301,16 @@ resource "kubernetes_deployment" "coredns" {
     terraform_data.scale_down_kube_dns,
     terraform_data.scale_down_kube_dns_autoscaler
   ]
+
+  # Replace the Deployment (create-new) rather than update it in place whenever
+  # the ServiceAccount changes. GKE Warden forbids changing a kube-system
+  # workload's service account in place ("no-update-kube-system-service-account"),
+  # so an in-place update of service_account_name fails hard and, once the old SA
+  # is already gone, leaves coredns pointing at a deleted SA and cluster DNS down.
+  # A replace is a create, which Warden allows.
+  lifecycle {
+    replace_triggered_by = [kubernetes_service_account.coredns]
+  }
 }
 
 
