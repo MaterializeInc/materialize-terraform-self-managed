@@ -7,6 +7,14 @@ locals {
     "provisioned-by" = "materialize"
   }
 
+  # One "rewrite name <from> <to>" directive per split-horizon rule, appended
+  # after `ready` inside the .:53 block. Empty (no leading newline) when none,
+  # so the rendered Corefile is byte-identical to before for callers that pass
+  # no rewrites.
+  coredns_rewrites = join("", [
+    for r in var.extra_rewrites : "\n    rewrite name ${r.from} ${r.to}"
+  ])
+
   # Corefile with TTL 0 first in the kubernetes plugin block (required for correct parsing)
   corefile = <<-EOF
     .:53 {
@@ -14,7 +22,7 @@ locals {
         health {
             lameduck 5s
         }
-        ready
+        ready${local.coredns_rewrites}
         kubernetes cluster.local in-addr.arpa ip6.arpa {
             ttl 0
             pods insecure
