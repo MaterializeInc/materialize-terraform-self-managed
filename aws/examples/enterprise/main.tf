@@ -137,7 +137,12 @@ module "coredns" {
   kube_dns_service_cluster_ip    = cidrhost(module.eks.cluster_service_cidr, 10)
   kubeconfig_data                = local.kubeconfig_data
   cluster_identifier             = module.eks.cluster_name
-  extra_rewrites                 = module.ory.coredns_rewrites
+  # Resolve the Polis FQDN to its internal service in-cluster (hairpin fix).
+  # Built here, not from module.ory, to avoid a cycle: ory depends_on coredns.
+  extra_rewrites = var.enable_polis ? [{
+    from = var.ory_polis_fqdn
+    to   = "polis-internal.${local.ory_namespace}.svc.cluster.local"
+  }] : []
 
   depends_on = [
     module.base_node_group,
