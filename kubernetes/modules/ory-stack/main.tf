@@ -137,7 +137,7 @@ locals {
       ory-selfservice-ui-tls = { fqdn = var.ui_fqdn, cluster_svc = null }
     } : {},
     local.wire_polis ? {
-      polis-tls = { fqdn = var.polis_fqdn, cluster_svc = null }
+      polis-tls = { fqdn = var.polis_fqdn, cluster_svc = null, extra_dns = var.polis_extra_dns_names }
   } : {})
 
   # Baked-in Kratos config that the enterprise setup requires. Callers can
@@ -276,6 +276,7 @@ resource "kubectl_manifest" "ory_certificate" {
       secretName = each.key
       dnsNames = concat(
         [each.value.fqdn],
+        lookup(each.value, "extra_dns", []),
         var.cert_issuer_signs_cluster_local && each.value.cluster_svc != null ? [each.value.cluster_svc] : [],
       )
       issuerRef = var.cert_issuer_ref

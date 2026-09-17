@@ -51,6 +51,13 @@ variable "polis_fqdn" {
   default     = null
 }
 
+variable "polis_extra_dns_names" {
+  description = "Extra SANs to add to the Polis TLS cert, e.g. a separate public SCIM hostname when the primary FQDN is served internally."
+  type        = list(string)
+  default     = []
+  nullable    = false
+}
+
 variable "cookie_parent_domain" {
   description = "Cookie domain for Kratos session and CSRF cookies, so they are shared across the Ory hostnames. Defaults to the parent domain of the primary FQDN: the single-domain host in single-domain mode, otherwise kratos_fqdn (e.g. kratos.example.com -> example.com). The selfservice UI keeps its own sibling hostname even in single-domain mode, so the shared parent is required or the login flow loops. Falls back to the FQDN itself when it has no '.' separator. Set explicitly to override."
   type        = string
