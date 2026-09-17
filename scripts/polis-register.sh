@@ -138,6 +138,12 @@ print(json.dumps(doc))
 # ---------------------------------------------------------------------------
 # SAML connection
 # ---------------------------------------------------------------------------
+# The redirectUrl is the Kratos SAML method callback (not oidc): Polis is wired
+# as a Kratos SAML method, so Kratos completes the handshake at
+# .../self-service/methods/saml/callback/<id>. defaultRedirectUrl is the console.
+WANT_REDIRECT="$KRATOS/self-service/methods/saml/callback/$OIDC_ID"
+WANT_DEFAULT="https://$CONSOLE_FQDN"
+
 echo "==> SAML connection '$SSO_NAME'"
 existing=$(curl -s "$POLIS/api/v1/sso?tenant=$TENANT&product=$PRODUCT" \
     -H "Authorization: Api-Key $KEY")
@@ -153,7 +159,65 @@ for connection in data:
 ' "$SSO_NAME")
 
 if [ -n "$sso" ]; then
-    echo "    already registered -- re-reading (not duplicating)"
+    # Reconcile rather than blindly re-read: a connection registered against an
+    # older hostname or the pre-SAML oidc/callback path keeps that stale
+    # redirectUrl forever otherwise, and Polis then rejects the login with
+    # "Redirect URL is not allowed". Compare, and PATCH when it has drifted.
+    drift=$(printf '%s' "$sso" | python3 -c '
+import json, sys
+c = json.load(sys.stdin)
+want_r, want_d = sys.argv[1], sys.argv[2]
+r = c.get("redirectUrl")
+have_r = r[0] if isinstance(r, list) and r else (r if isinstance(r, str) else "")
+have_d = c.get("defaultRedirectUrl") or ""
+print("drift" if (have_r != want_r or have_d != want_d) else "ok")
+print(have_r)
+print(have_d)
+' "$WANT_REDIRECT" "$WANT_DEFAULT")
+    state=$(printf '%s\n' "$drift" | sed -n 1p)
+    have_r=$(printf '%s\n' "$drift" | sed -n 2p)
+    have_d=$(printf '%s\n' "$drift" | sed -n 3p)
+    if [ "$state" = "ok" ]; then
+        echo "    already registered, redirect URLs match"
+    else
+        printf "%b    redirect URLs have drifted:%b\n" "$RED" "$NC" >&2
+        printf "      redirectUrl:        have %s\n                          want %s\n" "$have_r" "$WANT_REDIRECT" >&2
+        printf "      defaultRedirectUrl: have %s\n                          want %s\n" "$have_d" "$WANT_DEFAULT" >&2
+        if [ -n "${OKTA_SAML_METADATA:-}" ] && [ -s "${OKTA_SAML_METADATA:-}" ]; then
+            cid=$(printf '%s' "$sso" | python3 -c 'import json,sys; print(json.load(sys.stdin)["clientID"])')
+            csec=$(printf '%s' "$sso" | python3 -c 'import json,sys; print(json.load(sys.stdin)["clientSecret"])')
+            pcode=$(curl -s -o /dev/null -w '%{http_code}' -X PATCH "$POLIS/api/v1/sso" \
+                -H "Authorization: Api-Key $KEY" \
+                -H "Content-Type: application/x-www-form-urlencoded" \
+                --data-urlencode "clientID=$cid" \
+                --data-urlencode "clientSecret=$csec" \
+                --data-urlencode "tenant=$TENANT" \
+                --data-urlencode "product=$PRODUCT" \
+                --data-urlencode "name=$SSO_NAME" \
+                --data-urlencode "redirectUrl=$WANT_REDIRECT" \
+                --data-urlencode "defaultRedirectUrl=$WANT_DEFAULT" \
+                --data-urlencode "encodedRawMetadata=$(base64 < "$OKTA_SAML_METADATA" | tr -d '\n')" || true)
+            if [ "$pcode" -ge 200 ] && [ "$pcode" -lt 300 ]; then
+                printf "%b    reconciled the redirect URLs.%b\n" "$GREEN" "$NC"
+                existing=$(curl -s "$POLIS/api/v1/sso?tenant=$TENANT&product=$PRODUCT" \
+                    -H "Authorization: Api-Key $KEY")
+                sso=$(printf '%s' "$existing" | python3 -c '
+import json, sys
+want = sys.argv[1]
+data = json.load(sys.stdin)
+data = data if isinstance(data, list) else data.get("data", [])
+for connection in data:
+    if connection.get("name") == want:
+        print(json.dumps(connection))
+        break
+' "$SSO_NAME")
+            else
+                printf "%b    PATCH to reconcile failed (HTTP %s); fix the connection manually.%b\n" "$RED" "$pcode" "$NC" >&2
+            fi
+        else
+            printf "%b    set OKTA_SAML_METADATA=<path> and re-run to auto-fix, or update the connection in Polis manually.%b\n" "$RED" "$NC" >&2
+        fi
+    fi
 else
     echo "    creating from the Okta app's SAML metadata"
     if [ -z "${OKTA_SAML_METADATA:-}" ]; then
@@ -165,13 +229,14 @@ else
         exit 1
     fi
     # encodedRawMetadata rather than metadataUrl: Okta gates the metadata URL
-    # behind API auth on some org types, so Polis cannot fetch it itself.
+    # behind API auth on some org types, so Polis cannot fetch it itself. The
+    # redirectUrl is the SAML method callback (Polis is a Kratos SAML method).
     sso=$(polis_post clientSecret "$POLIS/api/v1/sso" \
         --data-urlencode "tenant=$TENANT" \
         --data-urlencode "product=$PRODUCT" \
         --data-urlencode "name=$SSO_NAME" \
-        --data-urlencode "redirectUrl=$KRATOS/self-service/methods/oidc/callback/$OIDC_ID" \
-        --data-urlencode "defaultRedirectUrl=https://$CONSOLE_FQDN" \
+        --data-urlencode "redirectUrl=$WANT_REDIRECT" \
+        --data-urlencode "defaultRedirectUrl=$WANT_DEFAULT" \
         --data-urlencode "encodedRawMetadata=$(base64 < "$OKTA_SAML_METADATA" | tr -d '\n')")
 fi
 
@@ -207,7 +272,8 @@ fi
 # Output: what to do with the results
 # ---------------------------------------------------------------------------
 SSO_JSON="$sso" DSYNC_JSON="$dsync" POLIS="$POLIS" KRATOS="$KRATOS" \
-    OIDC_ID="$OIDC_ID" TENANT="$TENANT" PRODUCT="$PRODUCT" python3 <<'PY'
+    OIDC_ID="$OIDC_ID" TENANT="$TENANT" PRODUCT="$PRODUCT" \
+    EXAMPLE_DIR="$EXAMPLE_DIR" python3 <<'PY'
 import json, os
 
 sso = json.loads(os.environ["SSO_JSON"])
@@ -216,25 +282,30 @@ scim = dsync.get("scim", {})
 polis = os.environ["POLIS"]
 kratos = os.environ["KRATOS"]
 oidc_id = os.environ["OIDC_ID"]
+example_dir = os.environ["EXAMPLE_DIR"]
 bar = "=" * 74
 
 print(f"""
 {bar}
-1. TERRAFORM -- add Polis as an upstream OIDC provider in terraform.tfvars
+1. TERRAFORM -- add Polis as a SAML provider in terraform.tfvars
 {bar}
-upstream_oidc_providers = [
+saml_providers = [
   {{
     id            = "{oidc_id}"
-    provider      = "generic"
+    label         = "Okta"
     client_id     = "{sso.get('clientID','')}"
     client_secret = "{sso.get('clientSecret','')}"
     issuer_url    = "{polis}"
-    scope         = ["openid", "email", "profile"]
-    label         = "Sign in via SAML"
+    auth_url      = "{polis}/api/oauth/authorize"
+    token_url     = "{polis}/api/oauth/token"
   }},
 ]
 
-Re-apply; that renders the "Sign in via SAML" button on the Kratos login page.
+Also save the Okta SAML app's IdP metadata XML as:
+  {example_dir}/idp-metadata.xml
+main.tf reads it with file() and injects it as raw_idp_metadata_xml.
+
+Re-apply; that renders the "Sign in with Okta" button on the Kratos login page.
 Keep client_secret out of version control (it is a Terraform sensitive value).
 """)
 
