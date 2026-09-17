@@ -395,6 +395,12 @@ module "coredns" {
   node_selector      = local.generic_node_labels
   kubeconfig_data    = module.aks.kube_config_raw
   cluster_identifier = module.aks.cluster_name
+  # Resolve the Polis FQDN to its internal service in-cluster (hairpin fix).
+  # Built here, not from module.ory, to avoid a cycle: ory depends_on coredns.
+  extra_rewrites = var.enable_polis ? [{
+    from = var.ory_polis_fqdn
+    to   = "polis-internal.${local.ory_namespace}.svc.cluster.local"
+  }] : []
 }
 
 module "cert_manager" {

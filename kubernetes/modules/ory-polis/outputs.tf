@@ -40,3 +40,8 @@ output "db_encryption_key" {
   value       = local.db_encryption_key
   sensitive   = true
 }
+
+output "internal_tls_service_fqdn" {
+  description = "In-cluster DNS name of the internal ClusterIP that fronts the Polis TLS sidecar, or null when the TLS sidecar is disabled (tls_secret_name null). Point a CoreDNS rewrite of the public Polis FQDN at this so in-cluster clients reach Polis without hairpinning to its external LoadBalancer."
+  value       = var.tls_secret_name != null ? "${var.release_name}-internal.${local.namespace}.svc.cluster.local" : null
+}

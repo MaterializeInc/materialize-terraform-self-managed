@@ -331,7 +331,13 @@ module "coredns" {
   cluster_identifier                          = module.gke.cluster_name
   coredns_deployment_to_scale_down            = "kube-dns"
   coredns_autoscaler_deployment_to_scale_down = "kube-dns-autoscaler"
-  depends_on                                  = [module.generic_nodepool]
+  # Resolve the Polis FQDN to its internal service in-cluster (hairpin fix).
+  # Built here, not from module.ory, to avoid a cycle: ory depends_on coredns.
+  extra_rewrites = var.enable_polis ? [{
+    from = var.ory_polis_fqdn
+    to   = "polis-internal.${local.ory_namespace}.svc.cluster.local"
+  }] : []
+  depends_on = [module.generic_nodepool]
 }
 
 resource "random_password" "external_login_password_mz_system" {
