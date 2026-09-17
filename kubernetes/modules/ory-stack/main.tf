@@ -716,10 +716,25 @@ locals {
     rewrite = "^/kratos/?(.*) /$1"
     proxy_set_headers = ["X-Forwarded-Proto:https"]
 
+    # Serve Hydra's metadata at the RFC8414 path-inserted URLs that OAuth/MCP
+    # clients probe for a path-based issuer; Hydra only serves them path-appended
+    # under /hydra. Issuer stays .../hydra, so issuer-match passes.
+    [locations.hydra-oauth-metadata]
+    path = "/.well-known/oauth-authorization-server/hydra"
+    upstream = "hydra"
+    rewrite = "^/.well-known/oauth-authorization-server/hydra /.well-known/oauth-authorization-server"
+    proxy_set_headers = ["X-Forwarded-Proto:https"]
+
+    [locations.hydra-oidc-metadata]
+    path = "/.well-known/openid-configuration/hydra"
+    upstream = "hydra"
+    rewrite = "^/.well-known/openid-configuration/hydra /.well-known/openid-configuration"
+    proxy_set_headers = ["X-Forwarded-Proto:https"]
+
     [servers.ory]
     addr = "0.0.0.0:8443"
     global_certificates = true
-    locations = ["hydra", "kratos"]
+    locations = ["hydra", "kratos", "hydra-oauth-metadata", "hydra-oidc-metadata"]
   EOT
 }
 
