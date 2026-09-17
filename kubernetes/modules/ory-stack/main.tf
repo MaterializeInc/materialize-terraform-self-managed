@@ -501,6 +501,9 @@ resource "kubernetes_service_v1" "ory_lb" {
     # Enforced by the cloud controller in the provider firewall, so it applies
     # even when the cluster datapath ignores NetworkPolicy (see lb_source_cidrs).
     load_balancer_source_ranges = try(var.lb_overrides[each.value.role].source_ranges, null)
+    # Pin a reserved static IP, e.g. so a firewalled public LB (Polis) has a
+    # stable address to allowlist. Null lets the cloud assign an ephemeral one.
+    load_balancer_ip = try(var.lb_overrides[each.value.role].load_balancer_ip, null)
 
     selector = {
       "app.kubernetes.io/name"     = each.value.app_name
@@ -890,6 +893,7 @@ resource "kubernetes_service_v1" "single_domain_proxy_lb" {
     load_balancer_class         = var.lb_load_balancer_class
     external_traffic_policy     = var.lb_external_traffic_policy
     load_balancer_source_ranges = try(var.lb_overrides["single_domain"].source_ranges, null)
+    load_balancer_ip            = try(var.lb_overrides["single_domain"].load_balancer_ip, null)
 
     selector = { "app.kubernetes.io/name" = local.single_domain_proxy_name }
 

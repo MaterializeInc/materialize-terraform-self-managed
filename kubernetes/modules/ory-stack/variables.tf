@@ -176,10 +176,11 @@ variable "lb_annotations" {
 }
 
 variable "lb_overrides" {
-  description = "Per-service overrides for the LoadBalancer Services, keyed by service role: hydra, kratos, ui (the Ory selfservice UI, as in ui_fqdn and the lb_addresses output), polis, and single_domain (the single-domain reverse-proxy LB, used when single_domain_fqdn is set). annotations are merged over lb_annotations, with the override winning on key collisions; use this to mix internal and external LBs, e.g. internal Hydra/Kratos/selfservice UI with an internet-facing Polis for SCIM, or to restrict the single_domain proxy LB to a tailnet. source_ranges sets spec.loadBalancerSourceRanges, which the cloud controller enforces in the provider firewall; unlike lb_source_cidrs it restricts ingress even on clusters whose datapath does not enforce NetworkPolicy."
+  description = "Per-service overrides for the LoadBalancer Services, keyed by service role: hydra, kratos, ui (the Ory selfservice UI, as in ui_fqdn and the lb_addresses output), polis, and single_domain (the single-domain reverse-proxy LB, used when single_domain_fqdn is set). annotations are merged over lb_annotations, with the override winning on key collisions; use this to mix internal and external LBs, e.g. internal Hydra/Kratos/selfservice UI with an internet-facing Polis for SCIM, or to restrict the single_domain proxy LB to a tailnet. source_ranges sets spec.loadBalancerSourceRanges, which the cloud controller enforces in the provider firewall; unlike lb_source_cidrs it restricts ingress even on clusters whose datapath does not enforce NetworkPolicy. load_balancer_ip sets spec.loadBalancerIP to a reserved static address, so a firewalled public LB (e.g. Polis) keeps a stable IP that peers can allowlist; null lets the cloud assign an ephemeral one."
   type = map(object({
-    annotations   = optional(map(string), {})
-    source_ranges = optional(list(string))
+    annotations      = optional(map(string), {})
+    source_ranges    = optional(list(string))
+    load_balancer_ip = optional(string)
   }))
   default  = {}
   nullable = false
