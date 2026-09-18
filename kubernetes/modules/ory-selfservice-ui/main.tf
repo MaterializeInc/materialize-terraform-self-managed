@@ -46,20 +46,26 @@ locals {
     CSRF_COOKIE_SECRET = local.csrf_cookie_secret
   }))
 
-  # Patches the upstream consent handler so identity.traits.groups is
-  # propagated into the OIDC id_token. Runs in an initContainer because the
-  # main container is non-root and can't write to /usr/src/app; we produce
-  # the patched file in a shared emptyDir and mount it over the original path.
-  consent_groups_patch_script = <<-EOT
+  # Patch the consent handler so groups + email land on the access token (not
+  # just the id_token) and the audience is granted from the client's config.
+  # This is what makes MCP OAuth work; pair with ory-stack's
+  # allowed_top_level_claims so the claims sit top-level, not under Hydra's ext.
+  # initContainer because the main container is non-root; patched file is mounted
+  # over the original.
+  consent_claims_patch_script = <<-EOT
     set -eu
     node -e '
       const fs = require("fs");
       const src = fs.readFileSync("/usr/src/app/lib/routes/consent.js", "utf8");
-      const inject = "    if (identity.traits && identity.traits.groups) { session.id_token.groups = identity.traits.groups; session.access_token.groups = identity.traits.groups; }\n    ";
+      const inject = "    if (identity.traits && identity.traits.groups) { session.id_token.groups = identity.traits.groups; session.access_token.groups = identity.traits.groups; } var mzEmail = (identity.traits && identity.traits.email) ? identity.traits.email : null; if (!mzEmail && Array.isArray(identity.verifiable_addresses)) { var mzA = identity.verifiable_addresses.filter(function (x) { return x && x.via === \"email\"; })[0]; if (mzA) mzEmail = mzA.value; } if (mzEmail) { session.access_token.email = mzEmail; if (!session.id_token.email) session.id_token.email = mzEmail; }\n    ";
       const idx = src.lastIndexOf("return session;");
-      if (idx < 0) throw new Error("consent.js: pattern not found");
-      fs.writeFileSync("/consent-patched/consent.js", src.slice(0, idx) + inject + src.slice(idx));
-      console.error("consent.js: groups propagation patch applied");
+      if (idx < 0) throw new Error("consent.js: session pattern not found");
+      var out = src.slice(0, idx) + inject + src.slice(idx);
+      const needle = "grant_access_token_audience: body.requested_access_token_audience";
+      if (!out.includes(needle)) throw new Error("consent.js: audience pattern not found");
+      out = out.split(needle).join("grant_access_token_audience: ((body.requested_access_token_audience && body.requested_access_token_audience.length) ? body.requested_access_token_audience : ((body.client && body.client.audience) || []))");
+      fs.writeFileSync("/consent-patched/consent.js", out);
+      console.error("consent.js: claims + audience patch applied");
     '
   EOT
 }
@@ -136,7 +142,7 @@ resource "kubernetes_deployment" "ui" {
           name    = "patch-consent"
           image   = local.image
           command = ["sh", "-c"]
-          args    = [local.consent_groups_patch_script]
+          args    = [local.consent_claims_patch_script]
 
           volume_mount {
             name       = "consent-patched"

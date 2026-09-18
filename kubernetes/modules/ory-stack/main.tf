@@ -212,6 +212,12 @@ locals {
         strategies = {
           access_token = "jwt"
         }
+        # Promote email/groups from Hydra's nested `ext` to the access token's
+        # top level, where Materialize reads the auth and group claims. Without
+        # this, MCP access tokens are rejected (claims stay under ext).
+        oauth2 = {
+          allowed_top_level_claims = ["email", "groups"]
+        }
       }
     }
   }
