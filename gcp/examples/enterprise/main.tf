@@ -736,6 +736,8 @@ module "materialize_instance" {
   # https://materialize.com/docs/sql/alter-system-set/#key-configuration-parameters
   system_parameters = local.materialize_oidc_parameters
 
+  balancerd_parameters = var.balancerd_parameters
+
   # Wire the materialize -> ory NetworkPolicy.
   ory_namespace = local.ory_namespace
 
