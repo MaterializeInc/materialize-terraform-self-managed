@@ -647,6 +647,8 @@ module "materialize_instance" {
     console_oidc_scopes       = "openid email"
   }
 
+  balancerd_config = var.balancerd_config
+
   # Wire the materialize -> ory NetworkPolicy.
   ory_namespace = local.ory_namespace
 

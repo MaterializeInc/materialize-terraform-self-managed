@@ -229,6 +229,17 @@ variable "system_parameters" {
   default     = {}
 }
 
+variable "balancerd_config" {
+  description = "Dynamic configuration for balancerd, written as JSON to a ConfigMap that balancerd re-reads at runtime; editing values needs no pod restart, but setting or unsetting this variable restarts balancerd pods. Values are matched against each config's type, so numbers must be JSON numbers (e.g. balancerd_max_connections = 5000, not \"5000\") and durations humantime strings (e.g. \"60s\"); a mismatched value is logged and ignored. Requires an operator that supports spec.balancerdConfigmapName. Set to null to skip creating the ConfigMap."
+  type        = any
+  default     = null
+
+  validation {
+    condition     = var.balancerd_config == null || can(keys(var.balancerd_config))
+    error_message = "balancerd_config must be an object mapping config names to values."
+  }
+}
+
 variable "enable_network_policies" {
   description = "Enable default-deny-ingress network policy for the instance namespace. Helm chart creates specific allow policies."
   type        = bool

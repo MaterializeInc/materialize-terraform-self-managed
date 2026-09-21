@@ -178,6 +178,12 @@ variable "materialize_version" {
   default     = null
 }
 
+variable "balancerd_config" {
+  description = "Dynamic configuration for balancerd, applied at runtime via a ConfigMap. Values are typed: numbers must be JSON numbers, e.g. { balancerd_max_connections = 5000 }. Null skips the ConfigMap."
+  type        = any
+  default     = null
+}
+
 variable "grafana_host" {
   description = "Hostname to expose Grafana on. Null keeps it on a ClusterIP Service, reachable only with `kubectl port-forward`. Exposure follows `internal_load_balancer` and `ingress_cidr_blocks`, the same as the Materialize load balancer. DNS for this name is yours to create."
   type        = string

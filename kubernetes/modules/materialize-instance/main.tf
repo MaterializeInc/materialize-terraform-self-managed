@@ -25,6 +25,25 @@ resource "kubernetes_config_map" "system_params" {
   ]
 }
 
+# Create a ConfigMap for balancerd dynamic configuration; orchestratord mounts
+# only its config.json key.
+resource "kubernetes_config_map" "balancerd_config" {
+  count = var.balancerd_config != null ? 1 : 0
+
+  metadata {
+    name      = "${var.instance_name}-balancerd-config"
+    namespace = var.instance_namespace
+  }
+
+  data = {
+    "config.json" = jsonencode(var.balancerd_config)
+  }
+
+  depends_on = [
+    kubernetes_namespace.instance
+  ]
+}
+
 # Create the Materialize instance using the kubernetes_manifest resource
 resource "kubectl_manifest" "materialize_instance" {
   field_manager   = "terraform"
@@ -50,6 +69,7 @@ resource "kubectl_manifest" "materialize_instance" {
         rolloutStrategy              = var.rollout_strategy
         forceRollout                 = var.force_rollout
         systemParameterConfigmapName = var.system_parameters != null ? "${var.instance_name}-system-params" : null
+        balancerdConfigmapName       = var.balancerd_config != null ? "${var.instance_name}-balancerd-config" : null
 
         environmentdExtraEnv = length(var.environmentd_extra_env) > 0 ? [{
           name = "MZ_SYSTEM_PARAMETER_DEFAULT"
@@ -124,6 +144,7 @@ resource "kubectl_manifest" "materialize_instance" {
     kubernetes_secret.materialize_backend,
     kubernetes_namespace.instance,
     kubernetes_config_map.system_params,
+    kubernetes_config_map.balancerd_config,
   ]
 }
 
