@@ -157,6 +157,17 @@ resource "kubernetes_deployment" "ui" {
             protocol       = "TCP"
           }
 
+          # Metrics stay on their own port: the public Service only targets
+          # var.port, so they are reachable from inside the cluster only.
+          dynamic "port" {
+            for_each = var.metrics_port != null ? [1] : []
+            content {
+              name           = "metrics"
+              container_port = var.metrics_port
+              protocol       = "TCP"
+            }
+          }
+
           dynamic "volume_mount" {
             for_each = local.tls_enabled ? [1] : []
             content {
@@ -243,6 +254,14 @@ resource "kubernetes_deployment" "ui" {
           env {
             name  = "LOG_REDACT_PII"
             value = tostring(var.log_redact_pii)
+          }
+
+          dynamic "env" {
+            for_each = var.metrics_port != null ? [1] : []
+            content {
+              name  = "METRICS_PORT"
+              value = tostring(var.metrics_port)
+            }
           }
 
           env {
