@@ -206,7 +206,7 @@ The storage modules' default lifecycle rules now match Materialize Cloud's persi
     condition = { age = 30 }
   }]
   ```
-- **The noncurrent-version TTL is unchanged.** `versioning` and `version_ttl` still control it.
+- **`versioning = true` now plans.** The `version_ttl` rule was built with an API field name the module never mapped to the provider, so any root with versioning on failed at plan time with `Unsupported attribute`. It now emits a `Delete` rule with `days_since_noncurrent_time = var.version_ttl`, and `lifecycle_rules` accepts `condition.days_since_noncurrent_time` too. Roots with `versioning = false`, including both examples, see no diff.
 
 **Impact on existing AWS deployments:**
 

@@ -1,10 +1,16 @@
 locals {
+  # Same shape as var.lifecycle_rules so concat yields one object type.
   version_ttl = (var.versioning && var.version_ttl != null) ? [{
     action = {
-      type = "delete"
+      type          = "Delete"
+      storage_class = null
     }
     condition = {
-      daysSinceNoncurrentTime = var.version_ttl
+      age                        = null
+      created_before             = null
+      with_state                 = null
+      num_newer_versions         = null
+      days_since_noncurrent_time = var.version_ttl
     }
   }] : []
 
@@ -32,10 +38,11 @@ resource "google_storage_bucket" "materialize" {
         storage_class = lifecycle_rule.value.action.storage_class
       }
       condition {
-        age                = lifecycle_rule.value.condition.age
-        created_before     = lifecycle_rule.value.condition.created_before
-        with_state         = lifecycle_rule.value.condition.with_state
-        num_newer_versions = lifecycle_rule.value.condition.num_newer_versions
+        age                        = lifecycle_rule.value.condition.age
+        created_before             = lifecycle_rule.value.condition.created_before
+        with_state                 = lifecycle_rule.value.condition.with_state
+        num_newer_versions         = lifecycle_rule.value.condition.num_newer_versions
+        days_since_noncurrent_time = lifecycle_rule.value.condition.days_since_noncurrent_time
       }
     }
   }
