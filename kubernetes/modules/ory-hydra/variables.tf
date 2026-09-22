@@ -78,6 +78,17 @@ variable "logout_url" {
   default     = null
 }
 
+variable "token_hook" {
+  description = "Hydra's OAuth2 token hook. Hydra calls this URL on every token issuance (authorization code, refresh, client credentials) and merges the response's claims into the issued tokens, which is how claims stay fresh on refresh-token grants instead of being frozen at consent time. The ory-selfservice UI serves the hook; its module exports token_hook_url, token_hook_api_key_header and token_hook_api_key. The api_key is rendered into the chart's Helm values, so it lands in the Helm release Secret in the cluster (like the Hydra system and cookie secrets already do). Null disables the hook."
+  type = object({
+    url            = string
+    api_key_header = string
+    api_key        = string
+  })
+  default   = null
+  sensitive = true
+}
+
 variable "automigration_enabled" {
   description = "Whether to enable automatic database migration."
   type        = bool
