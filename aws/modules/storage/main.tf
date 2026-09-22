@@ -54,13 +54,26 @@ resource "aws_s3_bucket_lifecycle_configuration" "materialize_storage" {
       id     = rule.value.id
       status = rule.value.enabled ? "Enabled" : "Disabled"
 
-      transition {
-        days          = rule.value.transition_days
-        storage_class = rule.value.transition_storage_class
+      dynamic "transition" {
+        for_each = rule.value.transition_days != null ? [1] : []
+        content {
+          days          = rule.value.transition_days
+          storage_class = rule.value.transition_storage_class
+        }
       }
 
-      noncurrent_version_expiration {
-        noncurrent_days = rule.value.noncurrent_version_expiration_days
+      dynamic "noncurrent_version_expiration" {
+        for_each = rule.value.noncurrent_version_expiration_days != null ? [1] : []
+        content {
+          noncurrent_days = rule.value.noncurrent_version_expiration_days
+        }
+      }
+
+      dynamic "abort_incomplete_multipart_upload" {
+        for_each = rule.value.abort_incomplete_multipart_upload_days != null ? [1] : []
+        content {
+          days_after_initiation = rule.value.abort_incomplete_multipart_upload_days
+        }
       }
     }
   }

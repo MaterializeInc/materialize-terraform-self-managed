@@ -480,10 +480,9 @@ module "ory_polis_database" {
 
 # 8. Setup S3 bucket for Materialize
 module "storage" {
-  source                 = "../../modules/storage"
-  name_prefix            = var.name_prefix
-  bucket_lifecycle_rules = []
-  bucket_force_destroy   = true
+  source               = "../../modules/storage"
+  name_prefix          = var.name_prefix
+  bucket_force_destroy = true
 
   # For testing purposes, we are disabling versioning to allow for easier cleanup.
   # SSE-S3 encryption remains enabled by default for this example.

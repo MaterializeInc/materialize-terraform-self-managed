@@ -51,15 +51,12 @@ variable "lifecycle_rules" {
     })
   }))
   nullable = false
+  # Matches Materialize Cloud: no storage-class tiering. Persist reads every
+  # surviving blob on restart, so colder classes only add retrieval fees.
   default = [
     {
-      action = {
-        type          = "SetStorageClass"
-        storage_class = "NEARLINE"
-      }
-      condition = {
-        age = 30
-      }
+      action    = { type = "AbortIncompleteMultipartUpload" }
+      condition = { age = 1 }
     }
   ]
 }

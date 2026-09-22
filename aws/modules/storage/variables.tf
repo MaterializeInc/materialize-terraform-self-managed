@@ -46,13 +46,24 @@ variable "bucket_kms_key_arn" {
 variable "bucket_lifecycle_rules" {
   description = "List of lifecycle rules for the S3 bucket"
   type = list(object({
-    id                                 = string
-    enabled                            = bool
-    prefix                             = string
-    transition_days                    = number
-    transition_storage_class           = string
-    noncurrent_version_expiration_days = number
+    id                                     = string
+    enabled                                = bool
+    prefix                                 = optional(string)
+    transition_days                        = optional(number)
+    transition_storage_class               = optional(string)
+    noncurrent_version_expiration_days     = optional(number)
+    abort_incomplete_multipart_upload_days = optional(number)
   }))
+  nullable = false
+  # Matches Materialize Cloud: no storage-class tiering. Persist reads every
+  # surviving blob on restart, so colder classes only add retrieval fees.
+  default = [
+    {
+      id                                     = "abort-incomplete-multipart-uploads"
+      enabled                                = true
+      abort_incomplete_multipart_upload_days = 1
+    }
+  ]
 }
 
 variable "tags" {

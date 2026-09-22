@@ -195,6 +195,24 @@ If you don't pin it, Terraform tries a major version upgrade of the metadata dat
 
 Run `terraform plan` and check that it shows no change to the database version. If you want PostgreSQL 18 on an existing deployment, do the upgrade on purpose in a maintenance window, and take a backup first.
 
+The storage modules' default lifecycle rules now match Materialize Cloud's persist buckets: no storage-class tiering, and incomplete multipart uploads are aborted after one day. Persist reads every surviving blob on restart and rehydration, so tiering those blobs to a colder class only adds retrieval fees, higher operation costs, and early-deletion charges when compaction removes them.
+
+**Impact on existing GCP deployments:**
+
+- **The default `SetStorageClass NEARLINE` at 30 days rule is removed from the persist bucket** in `gcp/modules/storage`, replaced by `AbortIncompleteMultipartUpload` at 1 day. Both GCP examples inherit the default, so every deployment that did not set `lifecycle_rules` sees this change on the next apply. Objects already tiered to NEARLINE stay there until rewritten. To keep the old behavior, pass the previous rule explicitly:
+  ```hcl
+  lifecycle_rules = [{
+    action    = { type = "SetStorageClass", storage_class = "NEARLINE" }
+    condition = { age = 30 }
+  }]
+  ```
+- **The noncurrent-version TTL is unchanged.** `versioning` and `version_ttl` still control it.
+
+**Impact on existing AWS deployments:**
+
+- **`bucket_lifecycle_rules` in `aws/modules/storage` is now optional**, defaulting to a single rule that aborts incomplete multipart uploads after one day. Roots that pass `[]`, as the examples used to, keep an empty configuration and can drop the argument to pick up the default. Roots that pass their own rules are unaffected.
+- **`prefix`, `transition_days`, `transition_storage_class`, and `noncurrent_version_expiration_days` are now optional** in each rule, and a rule may set `abort_incomplete_multipart_upload_days`. A block is only emitted for the fields you set, so an existing rule that sets all of them produces the same configuration as before.
+
 #### v13.0.0
 
 `aws/modules/monitoring` moves its two telemetry buckets into the S3 account regional namespace, which **replaces both of them**. That namespace is house policy for new buckets: the name is reserved to your account, so no other account can take it and none can ever take it back. This is the whole of the release, and it affects every existing AWS deployment of the monitoring stack. Nothing outside `aws/modules/monitoring` changes, and GCP and Azure are untouched.
