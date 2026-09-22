@@ -114,8 +114,12 @@ resource "google_container_node_pool" "primary_nodes" {
   }
 
   lifecycle {
-    create_before_destroy = true
-    prevent_destroy       = false
+    # No create_before_destroy: the pool name is fixed, so creating the
+    # replacement first collides with the pool still holding that name and the
+    # apply fails on "already exists". A unique name would allow it, but
+    # name_prefix appends 26 characters to a 40-character limit, which does not
+    # fit "${prefix}-nodepool". Replacement therefore has a gap.
+    prevent_destroy = false
   }
 }
 
