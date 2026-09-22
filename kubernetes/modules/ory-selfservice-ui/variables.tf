@@ -232,6 +232,17 @@ variable "log_level" {
   }
 }
 
+variable "metrics_port" {
+  description = "Port for the service's Prometheus metrics listener (METRICS_PORT). Served separately from the public port so the LoadBalancer never exposes it; scrape it from the pod. Null disables the listener. Must differ from var.port."
+  type        = number
+  default     = null
+
+  validation {
+    condition     = var.metrics_port == null || var.metrics_port != var.port
+    error_message = "metrics_port must differ from port."
+  }
+}
+
 variable "log_redact_pii" {
   description = "Redact personally identifiable information (email addresses, trait values) from the service's logs. Leave false while debugging sign-in issues; turn it on where logs are shipped off-cluster."
   type        = bool
