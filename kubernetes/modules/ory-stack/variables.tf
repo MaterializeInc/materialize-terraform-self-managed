@@ -268,6 +268,55 @@ variable "hydra_helm_values" {
   default     = {}
 }
 
+variable "selfservice_ui_mode" {
+  description = "How much of the selfservice UI to serve. \"full\" serves every Kratos self-service screen (login, registration, recovery, verification, settings, error) plus Hydra's consent screen. \"consent-only\" serves only the consent endpoint, the health endpoints and (when enabled) the token hook, leaving the user-facing flows to another app - typically the Materialize console; login_url is then required."
+  type        = string
+  default     = "full"
+  nullable    = false
+
+  validation {
+    condition     = contains(["full", "consent-only"], var.selfservice_ui_mode)
+    error_message = "selfservice_ui_mode must be one of: full, consent-only."
+  }
+}
+
+variable "login_url" {
+  description = "Full URL Hydra sends users to for login when the selfservice UI runs in consent-only mode, e.g. the Materialize console's https://console.example.com/account/login. Also becomes Kratos's login flow ui_url so Kratos redirects to the same page. Required when selfservice_ui_mode is \"consent-only\"; ignored otherwise (the UI's own /login is used)."
+  type        = string
+  default     = null
+
+  validation {
+    condition     = var.selfservice_ui_mode != "consent-only" || var.login_url != null
+    error_message = "login_url must be set when selfservice_ui_mode is \"consent-only\": nothing else serves the login page in that mode."
+  }
+}
+
+variable "selfservice_ui_token_hook_enabled" {
+  description = "Serve Hydra's OAuth2 token hook from the selfservice UI and point Hydra at it. Hydra then calls the hook on every token issuance, so identity claims are refreshed from Kratos on refresh-token grants instead of being frozen at consent time. Requires deploy_selfservice_ui."
+  type        = bool
+  default     = false
+  nullable    = false
+
+  validation {
+    condition     = !var.selfservice_ui_token_hook_enabled || var.deploy_selfservice_ui
+    error_message = "selfservice_ui_token_hook_enabled requires deploy_selfservice_ui: the hook is served by the selfservice UI."
+  }
+}
+
+variable "selfservice_ui_claim_traits" {
+  description = "Kratos identity trait names copied onto the issued tokens (applied to both the id_token and the access token). Materialize reads groups off the access token, so this pairs with Hydra's allowed_top_level_claims."
+  type        = list(string)
+  default     = ["groups"]
+  nullable    = false
+}
+
+variable "selfservice_ui_log_redact_pii" {
+  description = "Redact personally identifiable information (email addresses, trait values) from the selfservice UI's logs. Leave false while debugging sign-in issues; turn it on where logs are shipped off-cluster."
+  type        = bool
+  default     = false
+  nullable    = false
+}
+
 variable "selfservice_ui_extra_env" {
   description = "Additional environment variables passed to the selfservice UI container."
   type        = map(string)
