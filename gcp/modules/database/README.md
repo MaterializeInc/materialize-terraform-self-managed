@@ -31,7 +31,7 @@ No resources.
 | <a name="input_database_deletion_policy"></a> [database\_deletion\_policy](#input\_database\_deletion\_policy) | Deletion policy for databases | `string` | `"ABANDON"` | no |
 | <a name="input_database_flags"></a> [database\_flags](#input\_database\_flags) | List of database flags to apply to the instance | <pre>list(object({<br/>    name  = string<br/>    value = string<br/>  }))</pre> | `[]` | no |
 | <a name="input_databases"></a> [databases](#input\_databases) | List of additional databases to create | <pre>list(object({<br/>    name      = string<br/>    charset   = optional(string, "UTF8")<br/>    collation = optional(string, "en_US.UTF8")<br/>  }))</pre> | n/a | yes |
-| <a name="input_db_version"></a> [db\_version](#input\_db\_version) | The PostgreSQL version to use | `string` | `"POSTGRES_15"` | no |
+| <a name="input_db_version"></a> [db\_version](#input\_db\_version) | The PostgreSQL version to use | `string` | `"POSTGRES_18"` | no |
 | <a name="input_delete_timeout"></a> [delete\_timeout](#input\_delete\_timeout) | Timeout for delete operations | `string` | `"45m"` | no |
 | <a name="input_disk_autoresize"></a> [disk\_autoresize](#input\_disk\_autoresize) | Enable automatic increase of disk size | `bool` | `true` | no |
 | <a name="input_disk_autoresize_limit"></a> [disk\_autoresize\_limit](#input\_disk\_autoresize\_limit) | The maximum size to which storage can be auto increased | `number` | `0` | no |

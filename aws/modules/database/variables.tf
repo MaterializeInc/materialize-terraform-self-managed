@@ -7,7 +7,7 @@ variable "name_prefix" {
 variable "postgres_version" {
   description = "Version of PostgreSQL to use"
   type        = string
-  default     = "15"
+  default     = "18"
   nullable    = false
 }
 

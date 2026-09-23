@@ -22,7 +22,7 @@ This example provisions the following infrastructure:
   - Materialize nodepool: r7gd.2xlarge instances with swap enabled and dedicated taints to run materialize instance workloads.
 
 ### Database
-- **RDS PostgreSQL**: Version 15, db.t3.large instance
+- **RDS PostgreSQL**: Version 18, db.t3.large instance
 - **Storage**: 50GB allocated, autoscaling up to 100GB
 - **Deployment**: Single-AZ (non-production configuration)
 - **Backups**: 7-day retention

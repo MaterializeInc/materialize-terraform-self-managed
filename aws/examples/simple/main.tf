@@ -476,7 +476,7 @@ resource "random_password" "external_login_password_mz_system" {
 module "database" {
   source                    = "../../modules/database"
   name_prefix               = var.name_prefix
-  postgres_version          = "15"
+  postgres_version          = "18"
   instance_class            = "db.t3.large"
   allocated_storage         = 50
   max_allocated_storage     = 100
