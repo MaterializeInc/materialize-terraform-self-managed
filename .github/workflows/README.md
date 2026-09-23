@@ -15,7 +15,7 @@ merge_queue.yml (merge_group)
   └── test-azure.yml
   └── ci-success (gates on all above)
 
-tag.yml (push to main)
+tag.yml (manual, workflow_dispatch on main)
   └── creates the tag and GitHub release, bump level from PR labels
 ```
 
@@ -29,7 +29,7 @@ Infrastructure tests **integrate with GitHub's merge queue** to ensure only appr
 2. **Get approval** - PR enters merge queue automatically
 3. **Tests run** - `merge_queue.yml` runs full infrastructure tests (AWS, GCP, Azure)
 4. **Auto-merge** - When `ci-success` passes, code merges to `main`
-5. **Release** - `tag.yml` creates the tag and GitHub release, see [Releases](#releases)
+5. **Release** - Run `tag.yml` manually to create the tag and GitHub release, see [Releases](#releases)
 6. **Manual trigger** - Use `gh workflow run test-<cloud>.yml` if needed
 
 ### PR vs Merge Queue Behavior
@@ -38,14 +38,14 @@ Infrastructure tests **integrate with GitHub's merge queue** to ensure only appr
 |-------|----------|-----------|---------------------|
 | `pull_request` | `pr.yml` | Lint + version label check | Lint + version label |
 | `merge_group` | `merge_queue.yml` | Lint + all cloud tests | Lint + AWS + GCP + Azure |
-| `push` to `main` | `tag.yml` | Tag and GitHub release | N/A |
+| `workflow_dispatch` | `tag.yml` | Tag and GitHub release | N/A |
 | `workflow_dispatch` | `test-*.yml` | Individual cloud test | N/A |
 
 ### Releases
 
-`tag.yml` runs on every push to `main` and creates the tag and GitHub release
-automatically. The version bump is determined by the labels of the PRs merged
-since the latest release, the highest level wins:
+`tag.yml` is run manually (`gh workflow run tag.yml`) and creates the tag and
+GitHub release for everything merged to `main` since the latest release. The
+version bump is determined by the labels of those PRs, the highest level wins:
 
 | Label | Release |
 |-------|---------|
@@ -55,9 +55,7 @@ since the latest release, the highest level wins:
 | `ignore-for-release` | none, ships with the next labeled PR |
 
 The `version-label` job in `pr.yml` blocks PRs that carry none of these
-labels. Merging happens through the merge queue, so a release is only created
-after the infrastructure tests have passed. Direct pushes to `main` are not
-released automatically, their changes ship with the next labeled PR.
+labels. If no merged PR carries a version label, no release is created.
 
 ### What Gets Tested (Merge Queue Only)
 
