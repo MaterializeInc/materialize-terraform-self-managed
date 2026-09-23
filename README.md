@@ -179,7 +179,7 @@ We follow semantic versioning with our tags. If a particular version requires ad
 
 #### v14.0.0
 
-The Materialize metadata database now defaults to PostgreSQL 18, up from 15. This changes the `postgres_version` default in `aws/modules/database` and the `db_version` default in `gcp/modules/database`, plus the hardcoded version in the AWS and Azure `simple` examples. The Grafana databases and the `migration` examples keep their current versions.
+The Materialize metadata database now defaults to PostgreSQL 18, up from 15. This changes the `postgres_version` default in `aws/modules/database` and the `db_version` default in `gcp/modules/database`, plus the hardcoded version in the AWS and Azure `simple` examples. The Grafana databases and the `migration` examples keep their current versions. On Azure, PostgreSQL 18 needs `azurerm` 4.55.0 or later.
 
 **Existing deployments that picked up 15 from a default or a copied example must pin it before bumping `ref=<tag>`:**
 
@@ -190,10 +190,10 @@ The Materialize metadata database now defaults to PostgreSQL 18, up from 15. Thi
 If you don't pin it, Terraform tries a major version upgrade of the metadata database. What happens next depends on the cloud:
 
 - GCP: the provider upgrades the database in place, and the database is down while the upgrade runs.
-- Azure: depending on your `azurerm` provider version, the provider either upgrades the server in place or replaces it. Replacing the server destroys the metadata.
-- AWS: the apply fails, because the module doesn't allow major version upgrades.
+- Azure: on `azurerm` 4.27.0 or later, the provider upgrades the server in place, and the server is down while the upgrade runs. On earlier versions, the provider replaces the server, which destroys the metadata.
+- AWS: the apply fails partway through, because the module doesn't allow major version upgrades. By then, Terraform has already created a new `postgres18` parameter group. Pin 15 and apply again to remove it.
 
- Run `terraform plan` and check that it shows no change to the database version. If you want PostgreSQL 18 on an existing deployment, do the upgrade on purpose in a maintenance window, and take a backup first.
+Run `terraform plan` and check that it shows no change to the database version. If you want PostgreSQL 18 on an existing deployment, do the upgrade on purpose in a maintenance window, and take a backup first.
 
 #### v13.0.0
 

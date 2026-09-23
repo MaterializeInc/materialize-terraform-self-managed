@@ -39,7 +39,7 @@ variable "postgres_version" {
   type        = string
   validation {
     condition     = can(regex("^[0-9]+$", var.postgres_version))
-    error_message = "Version must be a number (e.g., 15)"
+    error_message = "Version must be a number (e.g., 18)"
   }
 }
 
