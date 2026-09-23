@@ -1,22 +1,20 @@
 name: Tag
 
 on:
-  push:
-    branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: write
   pull-requests: read
 
-# Serialize runs so concurrent pushes cannot race on computing the next
-# version. A superseded pending run is skipped, its commits are picked up by
-# the newest run since every run considers everything since the latest tag.
+# Serialize runs so concurrent runs cannot race on computing the next version.
 concurrency:
   group: tag-main
 
 jobs:
   tag:
     name: Tag and Release
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - name: Create release for merged changes
@@ -29,7 +27,7 @@ jobs:
           echo "Latest release: $latest"
 
           # Everything merged since the latest release is part of this
-          # release, not just the commits of this push.
+          # release.
           prs=$(gh api "repos/$GITHUB_REPOSITORY/compare/$latest...$GITHUB_SHA" --jq '.commits[].sha' \
             | while read -r sha; do
                 gh api "repos/$GITHUB_REPOSITORY/commits/$sha/pulls" \
