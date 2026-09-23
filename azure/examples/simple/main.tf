@@ -73,7 +73,7 @@ locals {
 
   database_config = {
     sku_name                      = "GP_Standard_D2s_v3"
-    postgres_version              = "15"
+    postgres_version              = "18"
     storage_mb                    = 32768
     backup_retention_days         = 7
     administrator_login           = "materialize"

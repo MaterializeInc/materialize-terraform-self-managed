@@ -27,7 +27,7 @@ This example provisions the following infrastructure:
   - Workload identity: Used by Materialize pods for secure, passwordless authentication to Azure Storage (no storage account keys stored in cluster)
 
 ### Database
-- **Azure PostgreSQL Flexible Server**: Version 15
+- **Azure PostgreSQL Flexible Server**: Version 18
 - **SKU**: GP_Standard_D2s_v3 (2 vCores, 4GB memory)
 - **Storage**: 32GB with 7-day backup retention
 - **Network Access**: Public Network Access is disabled, Private access only (no public endpoint)

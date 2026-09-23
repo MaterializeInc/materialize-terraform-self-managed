@@ -177,6 +177,24 @@ We follow semantic versioning with our tags. If a particular version requires ad
 
 ### Upgrade Notes
 
+#### v14.0.0
+
+The Materialize metadata database now defaults to PostgreSQL 18, up from 15. This changes the `postgres_version` default in `aws/modules/database` and the `db_version` default in `gcp/modules/database`, plus the hardcoded version in the AWS and Azure `simple` examples. The Grafana databases and the `migration` examples keep their current versions.
+
+**Existing deployments that picked up 15 from a default or a copied example must pin it before bumping `ref=<tag>`:**
+
+- AWS: `postgres_version = "15"` on the `database` module.
+- GCP: `db_version = "POSTGRES_15"` on the `database` module.
+- Azure: `postgres_version = "15"` in `database_config`.
+
+If you don't pin it, Terraform tries a major version upgrade of the metadata database. What happens next depends on the cloud:
+
+- GCP: the provider upgrades the database in place, and the database is down while the upgrade runs.
+- Azure: depending on your `azurerm` provider version, the provider either upgrades the server in place or replaces it. Replacing the server destroys the metadata.
+- AWS: the apply fails, because the module doesn't allow major version upgrades.
+
+ Run `terraform plan` and check that it shows no change to the database version. If you want PostgreSQL 18 on an existing deployment, do the upgrade on purpose in a maintenance window, and take a backup first.
+
 #### v13.0.0
 
 `aws/modules/monitoring` moves its two telemetry buckets into the S3 account regional namespace, which **replaces both of them**. That namespace is house policy for new buckets: the name is reserved to your account, so no other account can take it and none can ever take it back. This is the whole of the release, and it affects every existing AWS deployment of the monitoring stack. Nothing outside `aws/modules/monitoring` changes, and GCP and Azure are untouched.

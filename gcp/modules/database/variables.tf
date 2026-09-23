@@ -32,7 +32,7 @@ variable "tier" {
 variable "db_version" {
   description = "The PostgreSQL version to use"
   type        = string
-  default     = "POSTGRES_15"
+  default     = "POSTGRES_18"
   validation {
     condition     = can(regex("^POSTGRES_[0-9]+$", var.db_version))
     error_message = "Version must be in format POSTGRES_XX where XX is the version number"

@@ -53,7 +53,7 @@
 | <a name="input_multi_az"></a> [multi\_az](#input\_multi\_az) | Enable multi-AZ deployment | `bool` | `false` | no |
 | <a name="input_name_prefix"></a> [name\_prefix](#input\_name\_prefix) | Prefix for all resource names | `string` | n/a | yes |
 | <a name="input_node_security_group_id"></a> [node\_security\_group\_id](#input\_node\_security\_group\_id) | Security group ID of the EKS nodes | `string` | n/a | yes |
-| <a name="input_postgres_version"></a> [postgres\_version](#input\_postgres\_version) | Version of PostgreSQL to use | `string` | `"15"` | no |
+| <a name="input_postgres_version"></a> [postgres\_version](#input\_postgres\_version) | Version of PostgreSQL to use | `string` | `"18"` | no |
 | <a name="input_skip_final_snapshot"></a> [skip\_final\_snapshot](#input\_skip\_final\_snapshot) | Whether to skip the final snapshot when the database is destroyed. Defaults to true. Set to false in production so that destroying the database leaves a recovery snapshot behind. | `bool` | `true` | no |
 | <a name="input_storage_throughput"></a> [storage\_throughput](#input\_storage\_throughput) | Storage throughput in MiBps. Only valid for gp3 (>=400GiB). Null uses baseline. | `number` | `null` | no |
 | <a name="input_storage_type"></a> [storage\_type](#input\_storage\_type) | EBS storage type (gp2, gp3, io1, io2). Null uses the provider default (gp2). | `string` | `null` | no |
