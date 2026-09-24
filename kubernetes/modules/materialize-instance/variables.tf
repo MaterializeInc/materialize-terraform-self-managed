@@ -229,6 +229,17 @@ variable "system_parameters" {
   default     = {}
 }
 
+variable "balancerd_parameters" {
+  description = "Balancerd dynamic configuration for the Materialize instance, written as config.json to a ConfigMap referenced by spec.balancerdConfigmapName. Values keep their JSON types and must match the setting's type (numbers and bools unquoted), e.g. { balancerd_max_connections = 250 }. Requires operator and instance v26.44 or later. Set to null to skip creating the ConfigMap."
+  type        = any
+  default     = null
+
+  validation {
+    condition     = var.balancerd_parameters == null || can(keys(var.balancerd_parameters))
+    error_message = "balancerd_parameters must be an object (map) of settings"
+  }
+}
+
 variable "enable_network_policies" {
   description = "Enable default-deny-ingress network policy for the instance namespace. Helm chart creates specific allow policies."
   type        = bool
