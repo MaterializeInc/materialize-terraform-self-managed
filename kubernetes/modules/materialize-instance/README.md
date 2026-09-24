@@ -22,6 +22,7 @@ No modules.
 | Name | Type |
 | ---- | ---- |
 | [kubectl_manifest.materialize_instance](https://registry.terraform.io/providers/alekc/kubectl/2.4.1/docs/resources/manifest) | resource |
+| [kubernetes_config_map.balancerd_params](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/config_map) | resource |
 | [kubernetes_config_map.system_params](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/config_map) | resource |
 | [kubernetes_namespace.instance](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/namespace) | resource |
 | [kubernetes_network_policy_v1.allow_api_server_egress](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/network_policy_v1) | resource |
@@ -40,6 +41,7 @@ No modules.
 | <a name="input_balancer_memory_limit"></a> [balancer\_memory\_limit](#input\_balancer\_memory\_limit) | Memory limit for balancer | `string` | `"256Mi"` | no |
 | <a name="input_balancer_memory_request"></a> [balancer\_memory\_request](#input\_balancer\_memory\_request) | Memory request for balancer | `string` | `"256Mi"` | no |
 | <a name="input_balancerd_extra_dns_names"></a> [balancerd\_extra\_dns\_names](#input\_balancerd\_extra\_dns\_names) | Additional DNS names to include in the balancerd TLS certificate. Useful when balancerd is exposed via an external hostname. | `list(string)` | `[]` | no |
+| <a name="input_balancerd_parameters"></a> [balancerd\_parameters](#input\_balancerd\_parameters) | Balancerd dynamic configuration for the Materialize instance, written as config.json to a ConfigMap referenced by spec.balancerdConfigmapName. Values keep their JSON types and must match the setting's type (numbers and bools unquoted), e.g. { balancerd\_max\_connections = 250 }. Requires operator and instance v26.44 or later. Set to null to skip creating the ConfigMap. | `any` | `null` | no |
 | <a name="input_console_extra_dns_names"></a> [console\_extra\_dns\_names](#input\_console\_extra\_dns\_names) | Additional DNS names to include in the console TLS certificate. Useful when the console is exposed via an external hostname (e.g., materialize.internal.example.com). | `list(string)` | `[]` | no |
 | <a name="input_cpu_request"></a> [cpu\_request](#input\_cpu\_request) | CPU request for environmentd | `string` | `"1"` | no |
 | <a name="input_crd_version"></a> [crd\_version](#input\_crd\_version) | CRD API version to use for the Materialize instance (v1alpha1 or v1). We recommend v1, but default to v1alpha1 for backwards compatibility. We will change this default in an upcoming major release. | `string` | `"v1"` | no |
