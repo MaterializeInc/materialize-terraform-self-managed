@@ -57,6 +57,13 @@ resource "kubernetes_service_account" "coredns" {
   }
 }
 
+# Always-present proxy for the ServiceAccount, for the Deployment's
+# replace_triggered_by: referencing the counted resource directly fails with
+# "no change found" when it has no instances.
+resource "terraform_data" "coredns_service_account" {
+  input = kubernetes_service_account.coredns[*].metadata[0].uid
+}
+
 # ClusterRole for CoreDNS
 resource "kubernetes_cluster_role" "coredns" {
   count = var.create_coredns_service_account ? 1 : 0
@@ -309,7 +316,7 @@ resource "kubernetes_deployment" "coredns" {
   # is already gone, leaves coredns pointing at a deleted SA and cluster DNS down.
   # A replace is a create, which Warden allows.
   lifecycle {
-    replace_triggered_by = [kubernetes_service_account.coredns]
+    replace_triggered_by = [terraform_data.coredns_service_account]
   }
 }
 

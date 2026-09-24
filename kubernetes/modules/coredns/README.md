@@ -29,6 +29,7 @@
 | [kubernetes_deployment.coredns](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/deployment) | resource |
 | [kubernetes_service.kube_dns](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/service) | resource |
 | [kubernetes_service_account.coredns](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/service_account) | resource |
+| [terraform_data.coredns_service_account](https://registry.terraform.io/providers/hashicorp/terraform/latest/docs/resources/data) | resource |
 | [terraform_data.scale_down_kube_dns](https://registry.terraform.io/providers/hashicorp/terraform/latest/docs/resources/data) | resource |
 | [terraform_data.scale_down_kube_dns_autoscaler](https://registry.terraform.io/providers/hashicorp/terraform/latest/docs/resources/data) | resource |
 
