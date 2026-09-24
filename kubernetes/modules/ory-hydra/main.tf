@@ -38,6 +38,15 @@ locals {
   tls_enabled   = var.tls_cert_secret_name != null
   tls_mount_dir = "/etc/hydra/tls"
 
+  # The chart defaults serve.tls.allow_termination_from, which Hydra 26.3.13
+  # removed and now rejects at startup. Older versions need it to serve plain
+  # HTTP on listeners without a cert, so only null it out from 26.3.13 on.
+  image_tag_parts            = try(regex("^v?(\\d+)\\.(\\d+)\\.(\\d+)$", var.image_tag), null)
+  drop_tls_allow_termination = local.image_tag_parts == null ? false : (tonumber(local.image_tag_parts[0]) * 1000000 + tonumber(local.image_tag_parts[1]) * 1000 + tonumber(local.image_tag_parts[2])) >= 26003013
+  tls_allow_termination_config = local.drop_tls_allow_termination ? {
+    hydra = { config = { serve = { tls = { allow_termination_from = null } } } }
+  } : {}
+
   # Configure TLS on the public listener so Hydra serves HTTPS there.
   # The admin listener stays HTTP (internal-only, probes work, selfservice UI and
   # Maester access it within the cluster). `enabled: true` is required — without
@@ -214,6 +223,7 @@ locals {
       local.tls_deployment_config,
     ),
     local.cors_config,
+    local.tls_allow_termination_config,
   )
 }
 
