@@ -163,6 +163,8 @@ locals {
         issuer_url    = p.issuer_url
         scope         = p.scope
         mapper_url    = local.upstream_oidc_mapper_data_uri
+        # Same as the SAML providers: refresh traits (groups) on every login.
+        update_identity_on_login = "automatic"
       },
       p.label != null ? { label = p.label } : {},
     )
@@ -239,6 +241,9 @@ locals {
         token_url            = p.token_url
         raw_idp_metadata_xml = "base64://${base64encode(p.raw_idp_metadata_xml)}"
         mapper_url           = local.upstream_oidc_mapper_data_uri
+        # Re-run the mapper on every login, not just registration, so a group
+        # removed in the IdP drops the matching Materialize role at next sign-in.
+        update_identity_on_login = "automatic"
       },
       p.label != null ? { label = p.label } : {},
     )
