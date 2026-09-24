@@ -30,31 +30,13 @@
     },
     {
       "customType": "regex",
-      "description": "Bump the Ory OEL Hydra/Kratos tag in the enterprise examples. Both images share one tag and are released together, so Hydra's tags drive it. Matched by variable name so new examples are covered without an annotation. Commit shas and `latest` are also published to the repo, hence the strict x.y.z versioning.",
+      "description": "Generic `# renovate:` annotation for pinned values in Terraform, e.g. image tags in variable defaults or locals. Put the comment on the line directly above the assignment: `# renovate: datasource=docker depName=<image> registryUrl=<registry>` (packageName, registryUrl and versioning are optional).",
       "managerFilePatterns": [
-        "/(^|/)variables\\.tf$/"
+        "/\\.tf$/"
       ],
       "matchStrings": [
-        "variable \"ory_oel_image_tag\" \\{[^}]*?default\\s*=\\s*\"(?<currentValue>\\d+\\.\\d+\\.\\d+)\""
-      ],
-      "depNameTemplate": "hydra-oel",
-      "packageNameTemplate": "ory.registry.cloud.materialize.com/ory-artifacts/ory-enterprise/hydra-oel",
-      "datasourceTemplate": "docker",
-      "versioningTemplate": "regex:^(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)$"
-    },
-    {
-      "customType": "regex",
-      "description": "Bump the pinned Polis OEL tag in ory-stack. Polis releases on its own cadence, but grouped with the Hydra/Kratos bump below so there is one Ory PR to review.",
-      "managerFilePatterns": [
-        "/(^|/)variables\\.tf$/"
-      ],
-      "matchStrings": [
-        "variable \"polis_oel_image_tag\" \\{[^}]*?default\\s*=\\s*\"(?<currentValue>\\d+\\.\\d+\\.\\d+)\""
-      ],
-      "depNameTemplate": "polis-oel",
-      "packageNameTemplate": "ory.registry.cloud.materialize.com/ory-artifacts/ory-enterprise-polis/polis-oel",
-      "datasourceTemplate": "docker",
-      "versioningTemplate": "regex:^(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)$"
+        "#\\s*renovate:\\s*datasource=(?<datasource>\\S+)\\s+depName=(?<depName>\\S+)(?:\\s+packageName=(?<packageName>\\S+))?(?:\\s+registryUrl=(?<registryUrl>\\S+))?(?:\\s+versioning=(?<versioning>\\S+))?\\s*\\n\\s*[\\w.-]+\\s*=\\s*\"(?<currentValue>[^\"]+)\""
+      ]
     }
   ],
   "packageRules": [
@@ -107,11 +89,14 @@
       ]
     },
     {
-      "description": "One PR for all Ory OEL images. Read the per-version OEL changelogs (https://www.ory.com/docs/self-hosted/oel/) before merging, since Ory ships breaking changes in patch releases.",
-      "matchPackageNames": [
-        "ory.registry.cloud.materialize.com/ory-artifacts/ory-enterprise/hydra-oel",
-        "ory.registry.cloud.materialize.com/ory-artifacts/ory-enterprise-polis/polis-oel"
+      "description": "One PR for all Ory OEL images. The registry also publishes commit-sha and `latest` tags, so only plain x.y.z tags count as versions. Read the per-version OEL changelogs (https://www.ory.com/docs/self-hosted/oel/) before merging, since Ory ships breaking changes in patch releases.",
+      "matchDatasources": [
+        "docker"
       ],
+      "matchPackageNames": [
+        "ory-artifacts/**"
+      ],
+      "versioning": "regex:^(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)$",
       "groupName": "Ory OEL images"
     }
   ],
