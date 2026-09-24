@@ -12,9 +12,9 @@ This example provisions the following infrastructure:
 - **Resource Group**: New resource group to contain all resources
 
 ### Networking
-- **Virtual Network**: 20.0.0.0/16 address space
-- **AKS Subnet**: 20.0.0.0/20 with NAT Gateway association and service endpoints for Storage and SQL
-- **PostgreSQL Subnet**: 20.0.16.0/24 delegated to PostgreSQL Flexible Server
+- **Virtual Network**: 10.0.0.0/16 address space
+- **AKS Subnet**: 10.0.0.0/20 with NAT Gateway association and service endpoints for Storage and SQL
+- **PostgreSQL Subnet**: 10.0.16.0/24 delegated to PostgreSQL Flexible Server
 - **NAT Gateway**: Standard SKU with static public IP for outbound connectivity
 - **Private DNS Zone**: For PostgreSQL private endpoint resolution with VNet link
 
