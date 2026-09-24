@@ -92,7 +92,7 @@ variable "ory_oel_registry" {
 variable "ory_oel_image_tag" {
   description = "Image tag for OEL images."
   type        = string
-  default     = "26.2.22"
+  default     = "26.3.17"
 }
 
 variable "ory_hydra_fqdn" {
