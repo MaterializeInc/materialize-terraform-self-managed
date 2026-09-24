@@ -179,6 +179,8 @@ We follow semantic versioning with our tags. If a particular version requires ad
 
 #### v14.0.0
 
+##### Metadata database defaults to PostgreSQL 18
+
 The Materialize metadata database now defaults to PostgreSQL 18, up from 15. This changes the `postgres_version` default in `aws/modules/database` and the `db_version` default in `gcp/modules/database`, plus the hardcoded version in the AWS and Azure `simple` examples. The Grafana databases and the `migration` examples keep their current versions. On Azure, PostgreSQL 18 needs `azurerm` 4.55.0 or later.
 
 **Existing deployments that picked up 15 from a default or a copied example must pin it before bumping `ref=<tag>`:**
@@ -194,6 +196,8 @@ If you don't pin it, Terraform tries a major version upgrade of the metadata dat
 - AWS: the apply fails partway through, because the module doesn't allow major version upgrades. By then, Terraform has already created a new `postgres18` parameter group. Pin 15 and apply again to remove it.
 
 Run `terraform plan` and check that it shows no change to the database version. If you want PostgreSQL 18 on an existing deployment, do the upgrade on purpose in a maintenance window, and take a backup first.
+
+##### Storage lifecycle rule changes
 
 The storage modules' default lifecycle rules now match Materialize Cloud's persist buckets: no storage-class tiering, and incomplete multipart uploads are aborted after one day. Persist reads every surviving blob on restart and rehydration, so tiering those blobs to a colder class only adds retrieval fees, higher operation costs, and early-deletion charges when compaction removes them.
 
