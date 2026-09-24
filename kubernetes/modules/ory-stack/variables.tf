@@ -299,7 +299,7 @@ variable "oauth2_client_scope" {
 }
 
 variable "oauth2_client_post_logout_redirect_uris" {
-  description = "URLs Hydra will accept as post_logout_redirect_uri when the Materialize console signs a user out. Null falls back to https://<materialize_console_fqdn>/."
+  description = "URLs Hydra will accept as post_logout_redirect_uri when the Materialize console signs a user out. Null falls back to https://<materialize_console_fqdn>/ and https://<materialize_console_fqdn>/account/login, the path the console sends."
   type        = list(string)
   default     = null
 }

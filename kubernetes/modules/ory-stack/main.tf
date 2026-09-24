@@ -567,9 +567,11 @@ resource "kubectl_manifest" "materialize_oauth2_client" {
       scope         = var.oauth2_client_scope
       audience      = var.oauth2_client_audience
       redirectUris  = [for fqdn in local.materialize_console_fqdns : "https://${fqdn}/auth/callback"]
-      postLogoutRedirectUris = var.oauth2_client_post_logout_redirect_uris != null ? var.oauth2_client_post_logout_redirect_uris : [
-        for fqdn in local.materialize_console_fqdns : "https://${fqdn}/"
-      ]
+      # The console sends /account/login as post_logout_redirect_uri; Hydra
+      # rejects sign-out unless it is registered here.
+      postLogoutRedirectUris = var.oauth2_client_post_logout_redirect_uris != null ? var.oauth2_client_post_logout_redirect_uris : flatten([
+        for fqdn in local.materialize_console_fqdns : ["https://${fqdn}/", "https://${fqdn}/account/login"]
+      ])
       # Run the consent flow: Hydra has no user store, so the consent handler
       # is what injects the identity's email/groups into the token. skip_consent
       # would mint an empty-claims token that Materialize rejects.
