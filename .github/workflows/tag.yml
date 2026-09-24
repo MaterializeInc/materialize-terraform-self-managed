@@ -22,6 +22,14 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
+          blockers=$(gh pr list --repo "$GITHUB_REPOSITORY" --state open --label release-blocker \
+            --json number,title --jq '.[] | "#\(.number) \(.title)"')
+          if [ -n "$blockers" ]; then
+            echo "::error::Open PRs labeled release-blocker:"
+            echo "$blockers"
+            exit 1
+          fi
+
           latest=$(gh api --paginate "repos/$GITHUB_REPOSITORY/tags" --jq '.[].name' \
             | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n 1)
           echo "Latest release: $latest"

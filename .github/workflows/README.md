@@ -56,6 +56,7 @@ version bump is determined by the labels of those PRs, the highest level wins:
 
 The `version-label` job in `pr.yml` blocks PRs that carry none of these
 labels. If no merged PR carries a version label, no release is created.
+The release fails while any open PR carries the `release-blocker` label.
 
 ### What Gets Tested (Merge Queue Only)
 
