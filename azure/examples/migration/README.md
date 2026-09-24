@@ -133,7 +133,7 @@ See `terraform.tfvars.example` for the full list with inline documentation and A
 | Aspect | Old Module | New Module | Migration Impact |
 |--------|-----------|------------|------------------|
 | **Structure** | Monolithic (`azure-old/`) | Modular (`azure/modules/*` + `kubernetes/modules/*`) | State paths change |
-| **Provider** | azurerm >= 3.75 | azurerm 4.54.0 | Provider upgrade |
+| **Provider** | azurerm >= 3.75 | azurerm 4.55.0 | Provider upgrade |
 | **AKS Network** | `network_plugin=azure`, `network_policy=azure` | New module defaults to `cilium` | Migration keeps old config inline |
 | **AKS Outbound** | Default `loadBalancer` | New module uses `userAssignedNATGateway` | Migration keeps old config inline |
 | **Networking** | Direct VNet/Subnet resources | New uses Azure Verified Module (AVM) + NAT gateway | Migration keeps old resources inline |
