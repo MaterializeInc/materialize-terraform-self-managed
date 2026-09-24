@@ -44,22 +44,20 @@ variable "lifecycle_rules" {
       storage_class = optional(string)
     })
     condition = object({
-      age                = optional(number)
-      created_before     = optional(string)
-      with_state         = optional(string)
-      num_newer_versions = optional(number)
+      age                        = optional(number)
+      created_before             = optional(string)
+      with_state                 = optional(string)
+      num_newer_versions         = optional(number)
+      days_since_noncurrent_time = optional(number)
     })
   }))
   nullable = false
+  # Matches Materialize Cloud: no storage-class tiering. Persist reads every
+  # surviving blob on restart, so colder classes only add retrieval fees.
   default = [
     {
-      action = {
-        type          = "SetStorageClass"
-        storage_class = "NEARLINE"
-      }
-      condition = {
-        age = 30
-      }
+      action    = { type = "AbortIncompleteMultipartUpload" }
+      condition = { age = 1 }
     }
   ]
 }

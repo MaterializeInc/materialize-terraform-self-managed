@@ -179,6 +179,8 @@ We follow semantic versioning with our tags. If a particular version requires ad
 
 #### v14.0.0
 
+##### Metadata database defaults to PostgreSQL 18
+
 The Materialize metadata database now defaults to PostgreSQL 18, up from 15. This changes the `postgres_version` default in `aws/modules/database` and the `db_version` default in `gcp/modules/database`, plus the hardcoded version in the AWS and Azure `simple` examples. The Grafana databases and the `migration` examples keep their current versions. On Azure, PostgreSQL 18 needs `azurerm` 4.55.0 or later.
 
 **Existing deployments that picked up 15 from a default or a copied example must pin it before bumping `ref=<tag>`:**
@@ -194,6 +196,26 @@ If you don't pin it, Terraform tries a major version upgrade of the metadata dat
 - AWS: the apply fails partway through, because the module doesn't allow major version upgrades. By then, Terraform has already created a new `postgres18` parameter group. Pin 15 and apply again to remove it.
 
 Run `terraform plan` and check that it shows no change to the database version. If you want PostgreSQL 18 on an existing deployment, do the upgrade on purpose in a maintenance window, and take a backup first.
+
+##### Storage lifecycle rule changes
+
+The storage modules' default lifecycle rules now match Materialize Cloud's persist buckets: no storage-class tiering, and incomplete multipart uploads are aborted after one day. Persist reads every surviving blob on restart and rehydration, so tiering those blobs to a colder class only adds retrieval fees, higher operation costs, and early-deletion charges when compaction removes them.
+
+**Impact on existing GCP deployments:**
+
+- **The default `SetStorageClass NEARLINE` at 30 days rule is removed from the persist bucket** in `gcp/modules/storage`, replaced by `AbortIncompleteMultipartUpload` at 1 day. Both GCP examples inherit the default, so every deployment that did not set `lifecycle_rules` sees this change on the next apply. Objects already tiered to NEARLINE stay there until rewritten. To keep the old behavior, pass the previous rule explicitly:
+  ```hcl
+  lifecycle_rules = [{
+    action    = { type = "SetStorageClass", storage_class = "NEARLINE" }
+    condition = { age = 30 }
+  }]
+  ```
+- **`versioning = true` now plans.** The `version_ttl` rule was built with an API field name the module never mapped to the provider, so any root with versioning on failed at plan time with `Unsupported attribute`. It now emits a `Delete` rule with `days_since_noncurrent_time = var.version_ttl`, and `lifecycle_rules` accepts `condition.days_since_noncurrent_time` too. Roots with `versioning = false`, including both examples, see no diff.
+
+**Impact on existing AWS deployments:**
+
+- **`bucket_lifecycle_rules` in `aws/modules/storage` is now optional**, defaulting to a single rule that aborts incomplete multipart uploads after one day. Roots that pass `[]`, as the examples used to, keep an empty configuration and can drop the argument to pick up the default. Roots that pass their own rules are unaffected.
+- **`prefix`, `transition_days`, `transition_storage_class`, and `noncurrent_version_expiration_days` are now optional** in each rule, and a rule may set `abort_incomplete_multipart_upload_days`. A block is only emitted for the fields you set, so an existing rule that sets all of them produces the same configuration as before.
 
 #### v13.0.0
 
