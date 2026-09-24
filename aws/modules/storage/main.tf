@@ -54,6 +54,10 @@ resource "aws_s3_bucket_lifecycle_configuration" "materialize_storage" {
       id     = rule.value.id
       status = rule.value.enabled ? "Enabled" : "Disabled"
 
+      filter {
+        prefix = rule.value.prefix
+      }
+
       dynamic "transition" {
         for_each = rule.value.transition_days != null ? [1] : []
         content {
