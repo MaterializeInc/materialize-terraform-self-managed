@@ -314,9 +314,10 @@ variable "enable_polis" {
 }
 
 variable "polis_oel_image_tag" {
-  description = "Tag for the Polis OEL image. Polis releases independently of Kratos/Hydra, so it has its own tag knob. When null, the chart's pinned AppVersion is used."
+  description = "Tag for the Polis OEL image. Polis releases independently of Kratos/Hydra, so it has its own tag knob."
   type        = string
-  default     = null
+  default     = "26.3.17"
+  nullable    = false
 }
 
 variable "polis_chart_version" {

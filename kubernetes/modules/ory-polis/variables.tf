@@ -145,7 +145,7 @@ variable "image_repository" {
 }
 
 variable "image_tag" {
-  description = "Override for the Polis container image tag. Null uses the chart's default (typically pinned to the chart's AppVersion)."
+  description = "Override for the Polis container image tag. Null uses the chart's default, which is the floating `latest` tag, so set this to pin a version."
   type        = string
   default     = null
 }
