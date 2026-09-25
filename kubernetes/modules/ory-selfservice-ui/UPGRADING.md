@@ -8,12 +8,11 @@ upstream `oryd/kratos-selfservice-ui-node` reference UI:
 
 | | before | after |
 |---|---|---|
-| `image_repository` | `oryd/kratos-selfservice-ui-node` | `ghcr.io/materializeinc/ory-selfservice` |
+| `image_repository` | `oryd/kratos-selfservice-ui-node` | `materialize/ory-selfservice` |
 | `image_tag` | `v25.4.0` | `v0.1.0` |
 
-The image will also be published to Docker Hub as `materialize/ory-selfservice` once it is
-public. Air-gapped installs mirror whichever of the two they can reach into their own
-registry and point `image_repository` at the mirror.
+The image is public on Docker Hub. Air-gapped installs mirror it into their own registry
+and point `image_repository` at the mirror.
 
 The new image is a drop-in replacement: same port (3000), same health endpoints
 (`/health/alive`, `/health/ready`), same uid (10000), and the same environment variables

@@ -20,17 +20,18 @@ variable "name" {
 }
 
 variable "image_repository" {
-  description = "Docker image repository for the selfservice UI. Defaults to Materialize's own ory-selfservice service (https://github.com/MaterializeInc/ory-selfservice), published to GHCR today and to Docker Hub as materialize/ory-selfservice once it is public. Air-gapped installs mirror the image into their own registry and point this at the mirror."
+  description = "Docker image repository for the selfservice UI. Defaults to Materialize's own ory-selfservice service (https://github.com/MaterializeInc/ory-selfservice), published publicly on Docker Hub. Air-gapped installs mirror the image into their own registry and point this at the mirror."
   type        = string
-  default     = "ghcr.io/materializeinc/ory-selfservice"
+  default     = "materialize/ory-selfservice"
   nullable    = false
 }
 
 variable "image_tag" {
   description = "Docker image tag for the selfservice UI. Tracks ory-selfservice releases; pin it (rather than following a floating tag) so upgrades are deliberate, and mirror the same tag for air-gapped installs."
   type        = string
-  default     = "v0.1.0"
-  nullable    = false
+  # renovate: datasource=docker depName=materialize/ory-selfservice versioning=regex:^v(?<major>\d+)\.(?<minor>\d+)\.(?<patch>\d+)$
+  default  = "v0.1.0"
+  nullable = false
 }
 
 variable "image_pull_policy" {
