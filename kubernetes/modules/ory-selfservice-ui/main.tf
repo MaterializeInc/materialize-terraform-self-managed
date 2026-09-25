@@ -264,6 +264,23 @@ resource "kubernetes_deployment" "ui" {
             }
           }
 
+          # Audience for self-registered (DCR) clients; see the variables.
+          dynamic "env" {
+            for_each = length(var.dcr_audience_allowlist) > 0 ? [1] : []
+            content {
+              name  = "DCR_AUDIENCE_ALLOWLIST"
+              value = join(",", var.dcr_audience_allowlist)
+            }
+          }
+
+          dynamic "env" {
+            for_each = length(var.dcr_default_audience) > 0 ? [1] : []
+            content {
+              name  = "DCR_DEFAULT_AUDIENCE"
+              value = join(",", var.dcr_default_audience)
+            }
+          }
+
           env {
             name  = "REMEMBER_CONSENT_SESSION_FOR_SECONDS"
             value = tostring(var.remember_consent_for_seconds)
