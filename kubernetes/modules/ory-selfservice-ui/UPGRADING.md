@@ -42,6 +42,14 @@ requests). On `ory-stack`, `dcr_default_audience` keeps its name and meaning, so
 callers of the stack need no change. The image also still reads the old
 `MZ_DEFAULT_ACCESS_TOKEN_AUDIENCE` variable as an alias.
 
+### The console no longer shows a consent screen
+
+`ory-stack` now sets `skipConsent = true` on the Materialize console's OAuth2
+client. Hydra still calls the consent endpoint for it, and `ory-selfservice`
+adds the email and groups claims without showing a page. This only works with
+`ory-selfservice`: the old image returned tokens without those claims when
+consent was skipped. Self-registered (DCR) clients still see the consent screen.
+
 ### Rollout and rollback
 
 This is an in-place rolling update: the Deployment's name, selector labels
