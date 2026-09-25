@@ -310,6 +310,20 @@ variable "selfservice_ui_claim_traits" {
   nullable    = false
 }
 
+variable "dcr_audience_allowlist" {
+  description = "Audience allow-list for OAuth2 clients that register themselves through dynamic client registration, such as MCP clients like Claude Code. A client asking for an RFC 8707 resource under one of these https URIs is granted that entry as its audience. Set it to the Materialize MCP resource URL(s), which must also be in Materialize's oidc_audience."
+  type        = list(string)
+  default     = []
+  nullable    = false
+}
+
+variable "dcr_default_audience" {
+  description = "Audience granted to self-registered OAuth2 clients that have none and requested no resource. Empty leaves those clients without an audience, so Materialize rejects their tokens."
+  type        = list(string)
+  default     = []
+  nullable    = false
+}
+
 variable "selfservice_ui_log_redact_pii" {
   description = "Redact personally identifiable information (email addresses, trait values) from the selfservice UI's logs. Leave false while debugging sign-in issues; turn it on where logs are shipped off-cluster."
   type        = bool

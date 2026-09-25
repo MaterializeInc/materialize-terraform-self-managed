@@ -479,6 +479,9 @@ module "ory_selfservice_ui" {
 
   log_redact_pii = var.selfservice_ui_log_redact_pii
 
+  dcr_audience_allowlist = var.dcr_audience_allowlist
+  dcr_default_audience   = var.dcr_default_audience
+
   node_selector = var.node_selector
   extra_env     = var.selfservice_ui_extra_env
 
