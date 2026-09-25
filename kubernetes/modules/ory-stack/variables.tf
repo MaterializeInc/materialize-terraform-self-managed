@@ -291,6 +291,13 @@ variable "oauth2_client_audience" {
   nullable    = false
 }
 
+variable "dcr_default_audience" {
+  description = "Audience given to OAuth2 clients that register themselves without one through dynamic client registration, such as MCP clients like Claude Code. Set it to the Materialize MCP resource URL(s), which must also be in Materialize's OIDC audience. Empty leaves those clients without an audience, so Materialize rejects their tokens."
+  type        = list(string)
+  default     = []
+  nullable    = false
+}
+
 variable "oauth2_client_scope" {
   description = "OAuth2 scopes requested by the Materialize console during the authorization code flow."
   type        = string

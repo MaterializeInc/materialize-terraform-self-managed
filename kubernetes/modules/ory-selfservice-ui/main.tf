@@ -48,6 +48,9 @@ locals {
 
   # Patch the consent handler so groups + email land on the access token (not
   # just the id_token) and the audience is granted from the client's config.
+  # Clients with no audience (e.g. from dynamic client registration) get
+  # default_access_token_audience written onto the client before the grant, so
+  # refreshes, which Hydra checks against the client's audience, keep working.
   # This is what makes MCP OAuth work; pair with ory-stack's
   # allowed_top_level_claims so the claims sit top-level, not under Hydra's ext.
   # initContainer because the main container is non-root; patched file is mounted
@@ -64,6 +67,13 @@ locals {
       const needle = "grant_access_token_audience: body.requested_access_token_audience";
       if (!out.includes(needle)) throw new Error("consent.js: audience pattern not found");
       out = out.split(needle).join("grant_access_token_audience: ((body.requested_access_token_audience && body.requested_access_token_audience.length) ? body.requested_access_token_audience : ((body.client && body.client.audience) || []))");
+      const accepts = out.match(/oauth2\s*\.acceptOAuth2ConsentRequest\(/g) || [];
+      if (accepts.length !== 2) throw new Error("consent.js: expected 2 acceptOAuth2ConsentRequest calls, found " + accepts.length);
+      out = out.replace(/oauth2\s*\.acceptOAuth2ConsentRequest\(/g, "mzAcceptConsent(oauth2, body, ");
+      const helper = "var mzDefaultAudience = (function () { try { return JSON.parse(process.env.MZ_DEFAULT_ACCESS_TOKEN_AUDIENCE || \"[]\"); } catch (e) { return []; } })();\nfunction mzAcceptConsent(oauth2, body, params) { var client = body.client || {}; var granted = params.acceptOAuth2ConsentRequest.grant_access_token_audience || []; if (granted.length || !mzDefaultAudience.length || !client.client_id) return oauth2.acceptOAuth2ConsentRequest(params); return oauth2.patchOAuth2Client({ id: client.client_id, jsonPatch: [{ op: \"add\", path: \"/audience\", value: mzDefaultAudience }] }).then(function () { params.acceptOAuth2ConsentRequest.grant_access_token_audience = mzDefaultAudience; return oauth2.acceptOAuth2ConsentRequest(params); }); }\n";
+      const anchor = "var pkg_1 = require(\"../pkg\");";
+      if (!out.includes(anchor)) throw new Error("consent.js: require anchor not found");
+      out = out.replace(anchor, anchor + "\n" + helper);
       fs.writeFileSync("/consent-patched/consent.js", out);
       console.error("consent.js: claims + audience patch applied");
     '
@@ -205,6 +215,14 @@ resource "kubernetes_deployment" "ui" {
           env {
             name  = "PROJECT_NAME"
             value = var.project_name
+          }
+
+          dynamic "env" {
+            for_each = length(var.default_access_token_audience) > 0 ? [1] : []
+            content {
+              name  = "MZ_DEFAULT_ACCESS_TOKEN_AUDIENCE"
+              value = jsonencode(var.default_access_token_audience)
+            }
           }
 
           env {

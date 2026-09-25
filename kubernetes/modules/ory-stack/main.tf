@@ -420,6 +420,8 @@ module "ory_selfservice_ui" {
   kratos_browser_url = local.kratos_external_url
   hydra_admin_url    = local.hydra_admin_internal_url
 
+  default_access_token_audience = var.dcr_default_audience
+
   # The UI keeps its own hostname (off the single-domain proxy, since its assets
   # are root-mounted), so it terminates its own TLS in both modes.
   tls_cert_secret_name = "ory-selfservice-ui-tls"

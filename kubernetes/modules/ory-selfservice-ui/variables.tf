@@ -177,3 +177,10 @@ variable "extra_env" {
   default     = {}
   nullable    = false
 }
+
+variable "default_access_token_audience" {
+  description = "Audience written onto OAuth2 clients that have none (such as MCP clients registered through dynamic client registration) and granted on their access tokens. Set it to the Materialize MCP resource URL(s). Empty leaves such clients without an audience."
+  type        = list(string)
+  default     = []
+  nullable    = false
+}
