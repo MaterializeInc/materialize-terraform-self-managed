@@ -63,3 +63,17 @@ tags = {
   environment = "demo"
   project     = "materialize-enterprise"
 }
+
+# Optional: adopt Ory on a deployment that already authenticates against your
+# own identity provider. With direct_oidc set, Materialize keeps trusting that
+# provider while the Ory stack runs alongside; clearing it is the cutover. See
+# "Migrating an existing OIDC deployment onto Ory" in the README.
+#
+# direct_oidc = {
+#   issuer            = "https://sso.example.com"
+#   audience          = ["0oaEXAMPLEclientid"]
+#   console_client_id = "0oaEXAMPLEclientid"
+#   # Defaults, override only if your provider differs.
+#   # scopes               = "openid email"
+#   # authentication_claim = "email"
+# }

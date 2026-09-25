@@ -234,6 +234,47 @@ After `terraform apply`, create CNAME (or ALIAS) records for your hostnames (Hyd
 
 ---
 
+## Migrating an existing OIDC deployment onto Ory
+
+If Materialize already authenticates against an identity provider you run, such as an Okta or
+Entra application, you can bring Ory up next to it and switch over when you are ready.
+`direct_oidc` decides which provider Materialize trusts, so the cutover is a single variable.
+
+**Phase 1: Ory alongside, existing provider still authoritative.** The Ory stack comes up and you
+can exercise sign-in through it directly, while every token Materialize accepts still comes from
+the old provider. Nothing about sign-in changes for users during this phase.
+
+```hcl
+direct_oidc = {
+  issuer            = "https://sso.example.com"
+  audience          = ["0oaEXAMPLEclientid"]
+  console_client_id = "0oaEXAMPLEclientid"
+}
+```
+
+Before going further, point DNS at the Ory load balancers, complete a sign-in through Hydra, and
+confirm the issued token carries the `email` claim (and `groups`, if you map groups to roles).
+Doing that here, rather than after the cutover, is what keeps the next step reversible.
+
+**Phase 2: cut over.** Clearing `direct_oidc` points Materialize at Hydra.
+
+```hcl
+direct_oidc = null
+```
+
+`terraform output materialize_oidc` reports which side is authoritative at any point.
+
+Things to know:
+
+- **Identity continuity.** Materialize keys users on the `email` claim, so a user who signs in
+  through Ory with the same email keeps their existing role and grants.
+- **The cutover rolls Materialize.** System parameters are applied on rollout, so set
+  `force_rollout` to a new value in the same apply.
+- **Rolling back is re-setting `direct_oidc`**, not a restore. Keep the old application enabled
+  until you are confident.
+
+---
+
 ## Architecture
 
 ```
