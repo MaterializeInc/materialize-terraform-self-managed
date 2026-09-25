@@ -9,7 +9,7 @@ upstream `oryd/kratos-selfservice-ui-node` reference UI:
 | | before | after |
 |---|---|---|
 | `image_repository` | `oryd/kratos-selfservice-ui-node` | `materialize/ory-selfservice` |
-| `image_tag` | `v25.4.0` | `v0.2.3` |
+| `image_tag` | `v25.4.0` | `v0.2.4` |
 
 The image is public on Docker Hub. Air-gapped installs mirror it into their own registry
 and point `image_repository` at the mirror.
