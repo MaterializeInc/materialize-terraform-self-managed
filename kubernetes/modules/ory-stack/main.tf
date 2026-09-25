@@ -640,11 +640,9 @@ resource "kubectl_manifest" "materialize_oauth2_client" {
       postLogoutRedirectUris = var.oauth2_client_post_logout_redirect_uris != null ? var.oauth2_client_post_logout_redirect_uris : flatten([
         for fqdn in local.materialize_console_fqdns : ["https://${fqdn}/", "https://${fqdn}/account/login"]
       ])
-      # Run the consent flow: Hydra has no user store, so the selfservice
-      # service's consent endpoint is what injects the identity's email/groups
-      # into the token (see selfservice_ui_claim_traits). skip_consent would
-      # mint an empty-claims token that Materialize rejects.
-      skipConsent = false
+      # First-party client: no consent page. Hydra still calls the consent
+      # endpoint, which adds email/groups (see selfservice_ui_claim_traits).
+      skipConsent = true
       # Public SPA client. No secret; PKCE on the console side.
       secretName              = var.oauth2_client_name
       tokenEndpointAuthMethod = "none"
