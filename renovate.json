@@ -27,6 +27,16 @@
       "datasourceTemplate": "github-releases",
       "extractVersionTemplate": "^v(?<version>.+)$",
       "versioningTemplate": "semver"
+    },
+    {
+      "customType": "regex",
+      "description": "Generic `# renovate:` annotation for pinned values in Terraform, e.g. image tags in variable defaults or locals. Put the comment on the line directly above the assignment: `# renovate: datasource=docker depName=<image> registryUrl=<registry>` (packageName, registryUrl and versioning are optional).",
+      "managerFilePatterns": [
+        "/\\.tf$/"
+      ],
+      "matchStrings": [
+        "#\\s*renovate:\\s*datasource=(?<datasource>\\S+)\\s+depName=(?<depName>\\S+)(?:\\s+packageName=(?<packageName>\\S+))?(?:\\s+registryUrl=(?<registryUrl>\\S+))?(?:\\s+versioning=(?<versioning>\\S+))?\\s*\\n\\s*[\\w.-]+\\s*=\\s*\"(?<currentValue>[^\"]+)\""
+      ]
     }
   ],
   "packageRules": [
@@ -77,6 +87,26 @@
       "prBodyNotes": [
         ":warning: **The version constraints in this PR are wrong and it will not actually upgrade anything.** Renovate cannot widen a Terraform `AND`-only constraint across a major boundary: it moves the upper bound but leaves the old `~> N.0` floor in place, so the range still resolves to the previous major. Rewrite the floor by hand (`~> 5.0, < 6.57.0` -> `~> 6.0, < 6.57.0`) before merging, and check that no upstream module caps the provider below the new major."
       ]
+    },
+    {
+      "description": "One PR for all Ory OEL images. The registry also publishes commit-sha and `latest` tags, so only plain x.y.z tags count as versions. Read the per-version OEL changelogs (https://www.ory.com/docs/self-hosted/oel/) before merging, since Ory ships breaking changes in patch releases.",
+      "matchDatasources": [
+        "docker"
+      ],
+      "matchPackageNames": [
+        "ory-artifacts/**"
+      ],
+      "versioning": "regex:^(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)$",
+      "groupName": "Ory OEL images"
+    }
+  ],
+  "hostRules": [
+    {
+      "description": "The Materialize registry proxy authenticates with a license key JWT that carries the `ory` entitlement (any username). ORY_OEL_LICENSE_KEY is a Mend app secret, set in the Renovate developer portal.",
+      "matchHost": "ory.registry.cloud.materialize.com",
+      "hostType": "docker",
+      "username": "renovate",
+      "password": "{{ secrets.ORY_OEL_LICENSE_KEY }}"
     }
   ]
 }
