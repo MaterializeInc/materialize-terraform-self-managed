@@ -548,6 +548,9 @@ module "materialize_instance" {
     oidc_authentication_claim = "email"
     console_oidc_client_id    = module.ory.oauth2_client_id
     console_oidc_scopes       = "openid email"
+    # The consent endpoint puts `groups` on the access token; sync maps each
+    # group onto an existing Materialize role of the same name.
+    oidc_group_role_sync_enabled = "true"
   }
 
   # Wire the materialize -> ory NetworkPolicy.

@@ -459,6 +459,10 @@ module "operator" {
   # node selector for operator and metrics-server workloads
   operator_node_selector = local.generic_node_labels
 
+  # Must follow the node pool: requesting swap on nodes without it leaves
+  # Materialize pods unschedulable.
+  swap_enabled = var.materialize_nodepool.swap_enabled
+
   # Trigger rollouts of Materialize instances when GKE upgrades the node
   # pools they run on, so that their pods move to the replacement nodes
   # gracefully instead of being evicted.
@@ -645,6 +649,9 @@ module "materialize_instance" {
     oidc_authentication_claim = "email"
     console_oidc_client_id    = module.ory.oauth2_client_id
     console_oidc_scopes       = "openid email"
+    # The consent endpoint puts `groups` on the access token; sync maps each
+    # group onto an existing Materialize role of the same name.
+    oidc_group_role_sync_enabled = "true"
   }
 
   # Wire the materialize -> ory NetworkPolicy.
