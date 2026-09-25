@@ -18,11 +18,36 @@ resource "random_password" "secrets_cookie" {
   special = false
 }
 
+# DSN and secrets live here instead of in the Helm values, which the helm
+# provider echoes in plain text in helm_release.metadata on every plan.
+# The chart's old Secret (named after the release, e.g. `hydra`) is a Helm hook
+# with resource-policy keep, so upgrading leaves it behind; delete it by hand.
+resource "kubernetes_secret" "hydra" {
+  metadata {
+    name      = "${var.release_name}-secrets"
+    namespace = local.namespace
+  }
+
+  data = local.secret_data
+
+  type = "Opaque"
+}
+
 locals {
   namespace = var.create_namespace ? kubernetes_namespace.hydra[0].metadata[0].name : var.namespace
 
   secrets_system = var.secrets_system != null ? var.secrets_system : random_password.secrets_system[0].result
   secrets_cookie = var.secrets_cookie != null ? var.secrets_cookie : random_password.secrets_cookie[0].result
+
+  # Key names the chart reads when secret.nameOverride points at an existing Secret.
+  secret_data = {
+    dsn           = var.dsn
+    secretsSystem = local.secrets_system
+    secretsCookie = local.secrets_cookie
+  }
+
+  # The chart only checksums its own Secret, so roll the pods ourselves when ours changes.
+  secret_checksum = nonsensitive(sha256(jsonencode(local.secret_data)))
 
   image_config = var.image_repository != null || var.image_tag != null ? {
     image = merge(
@@ -121,7 +146,8 @@ locals {
     replicaCount = var.replica_count
 
     secret = {
-      enabled = true
+      enabled      = false
+      nameOverride = kubernetes_secret.hydra.metadata[0].name
     }
 
     maester = {
@@ -152,8 +178,6 @@ locals {
       }
 
       config = {
-        dsn = var.dsn
-
         serve = {
           public = {
             port = 4444
@@ -163,16 +187,15 @@ locals {
           }
         }
 
-        secrets = {
-          system = [local.secrets_system]
-          cookie = [local.secrets_cookie]
-        }
-
         urls = local.urls_config
       }
     }
 
     deployment = {
+      annotations = {
+        "checksum/secrets" = local.secret_checksum
+      }
+
       resources = {
         requests = {
           cpu    = var.resources.requests.cpu

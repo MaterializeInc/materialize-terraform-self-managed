@@ -41,15 +41,22 @@ locals {
 
   secret_name = "${var.release_name}-config"
 
-  # Hash of the secret data feeding the pod's envFrom. Surfaced as a pod
-  # annotation so updating any of these values forces a rollout, since
-  # Kubernetes does not automatically re-roll a Deployment when a referenced
-  # Secret's contents change.
-  secret_checksum = sha256(jsonencode({
-    DB_URL          = var.dsn
-    API_KEYS        = local.admin_api_keys
-    NEXTAUTH_SECRET = local.nextauth_secret
-  }))
+  # Everything secret reaches the container through the chart's envFrom, never
+  # through the Helm values, which the helm provider echoes in plan output.
+  # OPENID_RSA_* are the OIDC token signing keys, base64 of the PEM so the env
+  # var stays one line. The private key must be PKCS#8 (Polis rejects PKCS#1).
+  secret_data = {
+    DB_URL                  = var.dsn
+    API_KEYS                = local.admin_api_keys
+    NEXTAUTH_SECRET         = local.nextauth_secret
+    POLIS_DB_ENCRYPTION_KEY = local.db_encryption_key
+    OPENID_RSA_PRIVATE_KEY  = base64encode(tls_private_key.openid_rsa.private_key_pem_pkcs8)
+    OPENID_RSA_PUBLIC_KEY   = base64encode(tls_private_key.openid_rsa.public_key_pem)
+  }
+
+  # Hash of the secret data surfaced as a pod annotation so updating any value
+  # forces a rollout, since Kubernetes does not re-roll on Secret changes.
+  secret_checksum = nonsensitive(sha256(jsonencode(local.secret_data)))
 
   image_config = {
     image = merge(
@@ -79,21 +86,6 @@ locals {
     value = var.external_url
   }]
 
-  # OPENID_RSA_PRIVATE_KEY / OPENID_RSA_PUBLIC_KEY are the signing keys Polis
-  # uses to issue OIDC tokens. Base64 of the PEM so the env var stays one line.
-  # Private key must be PKCS#8 (Polis errors with `"pkcs8" must be PKCS#8
-  # formatted string` against the PKCS#1 form tls_private_key emits by default).
-  openid_rsa_env = [
-    {
-      name  = "OPENID_RSA_PRIVATE_KEY"
-      value = base64encode(tls_private_key.openid_rsa.private_key_pem_pkcs8)
-    },
-    {
-      name  = "OPENID_RSA_PUBLIC_KEY"
-      value = base64encode(tls_private_key.openid_rsa.public_key_pem)
-    },
-  ]
-
   # Chart bakes OPENID_REDIRECT_EXACT_MATCH=true; append to override (last-wins).
   openid_redirect_exact_match_env = [{
     name  = "OPENID_REDIRECT_EXACT_MATCH"
@@ -103,7 +95,6 @@ locals {
   extra_envs = concat(
     local.saml_audience_env,
     local.external_url_env,
-    local.openid_rsa_env,
     local.openid_redirect_exact_match_env,
     [for k, v in var.extra_env : { name = k, value = v }],
   )
@@ -158,9 +149,11 @@ locals {
       hosted            = var.hosted
       idpEnabled        = var.idp_enabled
       dbManualMigration = false
-      dbEncryptionKey   = local.db_encryption_key
-      nextAuthUrl       = var.external_url
-      nextAuthAcl       = var.nextauth_acl
+      # The chart hardcodes DB_ENCRYPTION_KEY as a literal env value, so point
+      # it at the envFrom copy; the kubelet expands $(VAR) from envFrom vars.
+      dbEncryptionKey = "$(POLIS_DB_ENCRYPTION_KEY)"
+      nextAuthUrl     = var.external_url
+      nextAuthAcl     = var.nextauth_acl
     }
 
     service = {
@@ -198,18 +191,14 @@ locals {
 
 # Secret feeding the chart's envFrom. The chart's built-in secret template
 # hardcodes a CockroachDB DSN, so we always disable it and provide our own
-# with the Postgres DB_URL plus the auth secrets the container expects.
+# with the Postgres DB_URL plus every other secret the container expects.
 resource "kubernetes_secret" "polis" {
   metadata {
     name      = local.secret_name
     namespace = local.namespace
   }
 
-  data = {
-    DB_URL          = var.dsn
-    API_KEYS        = local.admin_api_keys
-    NEXTAUTH_SECRET = local.nextauth_secret
-  }
+  data = local.secret_data
 }
 
 resource "helm_release" "polis" {
