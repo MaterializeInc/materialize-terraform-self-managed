@@ -612,11 +612,12 @@ module "materialize_instance" {
   # the OAuth2 client Secret. system_parameters can also set any of the
   # parameters listed at https://materialize.com/docs/sql/alter-system-set/#key-configuration-parameters
   system_parameters = {
-    oidc_issuer               = module.ory.hydra_external_url
-    oidc_audience             = jsonencode([module.ory.oauth2_client_id])
-    oidc_authentication_claim = "email"
-    console_oidc_client_id    = module.ory.oauth2_client_id
-    console_oidc_scopes       = "openid email"
+    oidc_issuer                  = module.ory.hydra_external_url
+    oidc_audience                = jsonencode([module.ory.oauth2_client_id])
+    oidc_authentication_claim    = "email"
+    console_oidc_client_id       = module.ory.oauth2_client_id
+    console_oidc_scopes          = "openid email"
+    oidc_group_role_sync_enabled = "true"
   }
 
   # Wire the materialize -> ory NetworkPolicy.
