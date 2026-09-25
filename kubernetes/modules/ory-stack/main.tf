@@ -201,11 +201,17 @@ locals {
                 saml = { hooks = [{ hook = "session" }] }
               }
             }
-            recovery     = { ui_url = "${local.ui_external_url}/recovery" }
-            verification = { ui_url = "${local.ui_external_url}/verification" }
-            settings     = { ui_url = "${local.ui_external_url}/settings" }
-            error        = { ui_url = "${local.ui_external_url}/error" }
-            logout       = { after = { default_browser_return_url = local.ui_external_url } }
+            recovery = {
+              enabled = var.kratos_recovery_enabled
+              ui_url  = "${local.ui_external_url}/recovery"
+            }
+            verification = {
+              enabled = var.kratos_verification_enabled
+              ui_url  = "${local.ui_external_url}/verification"
+            }
+            settings = { ui_url = "${local.ui_external_url}/settings" }
+            error    = { ui_url = "${local.ui_external_url}/error" }
+            logout   = { after = { default_browser_return_url = local.ui_external_url } }
           }
         }
         identity = {
@@ -481,6 +487,12 @@ module "ory_selfservice_ui" {
 
   dcr_audience_allowlist = var.dcr_audience_allowlist
   dcr_default_audience   = var.dcr_default_audience
+
+  # The screens link only to flows Kratos actually offers; sourced from the
+  # same variables that configure Kratos above so the two cannot drift.
+  screens_registration_enabled = var.screens_registration_link_enabled
+  screens_recovery_enabled     = var.kratos_recovery_enabled
+  screens_verification_enabled = var.kratos_verification_enabled
 
   node_selector = var.node_selector
   extra_env     = var.selfservice_ui_extra_env

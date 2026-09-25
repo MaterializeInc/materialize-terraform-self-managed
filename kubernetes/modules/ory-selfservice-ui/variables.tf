@@ -232,6 +232,27 @@ variable "log_level" {
   }
 }
 
+variable "screens_registration_enabled" {
+  description = "Whether the login screen links to registration (SCREENS_REGISTRATION_ENABLED). Set to match Kratos's selfservice.flows.registration.enabled; the link otherwise leads to a flow Kratos refuses."
+  type        = bool
+  default     = true
+  nullable    = false
+}
+
+variable "screens_recovery_enabled" {
+  description = "Whether the login screen offers account recovery (SCREENS_RECOVERY_ENABLED). Set to match Kratos's selfservice.flows.recovery.enabled."
+  type        = bool
+  default     = true
+  nullable    = false
+}
+
+variable "screens_verification_enabled" {
+  description = "Whether the screens link to address verification (SCREENS_VERIFICATION_ENABLED). Set to match Kratos's selfservice.flows.verification.enabled."
+  type        = bool
+  default     = true
+  nullable    = false
+}
+
 variable "dcr_audience_allowlist" {
   description = "https URIs (DCR_AUDIENCE_ALLOWLIST). A client with no registered audience, typically an MCP client that registered itself through Hydra's dynamic client registration, that asks for an RFC 8707 resource under one of these entries is granted that entry as its access token audience, and the entry is written onto the client so refresh keeps working. Set it to the Materialize MCP resource URL(s), which must also be in Materialize's oidc_audience."
   type        = list(string)

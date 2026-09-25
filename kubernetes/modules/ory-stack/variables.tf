@@ -310,6 +310,27 @@ variable "selfservice_ui_claim_traits" {
   nullable    = false
 }
 
+variable "kratos_recovery_enabled" {
+  description = "Enable Kratos account recovery (selfservice.flows.recovery.enabled) and the matching link on the login screen. Off by default: identities come from the upstream IdP, which owns password resets."
+  type        = bool
+  default     = false
+  nullable    = false
+}
+
+variable "kratos_verification_enabled" {
+  description = "Enable Kratos address verification (selfservice.flows.verification.enabled) and the matching links on the screens. Off by default: addresses are asserted by the upstream IdP."
+  type        = bool
+  default     = false
+  nullable    = false
+}
+
+variable "screens_registration_link_enabled" {
+  description = "Whether the login screen links to registration. Kratos registration stays enabled for IdP just-in-time provisioning, but with password sign-up off the registration screen only repeats the SSO buttons, so the link is hidden by default."
+  type        = bool
+  default     = false
+  nullable    = false
+}
+
 variable "dcr_audience_allowlist" {
   description = "Audience allow-list for OAuth2 clients that register themselves through dynamic client registration, such as MCP clients like Claude Code. A client asking for an RFC 8707 resource under one of these https URIs is granted that entry as its audience. Set it to the Materialize MCP resource URL(s), which must also be in Materialize's oidc_audience."
   type        = list(string)
