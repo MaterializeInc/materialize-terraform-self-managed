@@ -30,7 +30,7 @@ variable "image_tag" {
   description = "Docker image tag for the selfservice UI. Tracks ory-selfservice releases; pin it (rather than following a floating tag) so upgrades are deliberate, and mirror the same tag for air-gapped installs."
   type        = string
   # renovate: datasource=docker depName=materialize/ory-selfservice versioning=regex:^v(?<major>\d+)\.(?<minor>\d+)\.(?<patch>\d+)$
-  default  = "v0.2.2"
+  default  = "v0.2.3"
   nullable = false
 }
 
