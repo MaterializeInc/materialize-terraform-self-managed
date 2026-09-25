@@ -201,6 +201,16 @@ resource "kubernetes_deployment" "ui" {
             }
           }
 
+          # Scopes Kratos's Domain-less cookies (the SSO continuity cookie) to
+          # the parent domain so the IdP callback on Kratos's host sees them.
+          dynamic "env" {
+            for_each = var.screens_enabled && var.kratos_cookie_domain != null ? [1] : []
+            content {
+              name  = "KRATOS_COOKIE_DOMAIN"
+              value = var.kratos_cookie_domain
+            }
+          }
+
           env {
             name  = "KRATOS_ADMIN_URL"
             value = var.kratos_admin_url

@@ -459,6 +459,12 @@ module "ory_selfservice_ui" {
   kratos_browser_url = local.kratos_external_url
   hydra_admin_url    = local.hydra_admin_internal_url
 
+  # The UI is on its own hostname in both modes, a sibling of the Kratos host,
+  # so SSO needs Kratos's Domain-less continuity cookie scoped to the same
+  # parent domain as its session and CSRF cookies. A single-label fallback is
+  # not a valid cookie domain, so it leaves the setting off.
+  kratos_cookie_domain = length(split(".", local.cookie_parent_domain)) > 1 ? local.cookie_parent_domain : null
+
   # The UI keeps its own hostname (off the single-domain proxy, since its assets
   # are root-mounted), so it terminates its own TLS in both modes.
   tls_cert_secret_name = "ory-selfservice-ui-tls"
