@@ -252,6 +252,68 @@ After `terraform apply`, create A records for your hostnames (Hydra, Kratos, sel
 
 ---
 
+## Migrating an existing OIDC deployment onto Ory
+
+If Materialize already authenticates against an identity provider you run, such as an Okta or
+Entra application, you do not have to adopt Ory in one step. `enable_ory` controls whether the
+stack is deployed at all, and `direct_oidc` controls which provider Materialize trusts, so the two
+move independently and the cutover is a single variable.
+
+**Phase 1: your existing provider, no Ory.** Materialize trusts the application you already have,
+and no Ory resources are created.
+
+```hcl
+enable_ory = false
+
+direct_oidc = {
+  issuer            = "https://sso.example.com"
+  audience          = ["0oaEXAMPLEclientid"]
+  console_client_id = "0oaEXAMPLEclientid"
+}
+```
+
+**Phase 2: Ory alongside, existing provider still authoritative.** The stack comes up and you can
+exercise sign-in through it directly, while every token Materialize accepts still comes from the
+old provider. Nothing about sign-in changes for users during this phase.
+
+```hcl
+enable_ory = true
+
+direct_oidc = {
+  issuer            = "https://sso.example.com"
+  audience          = ["0oaEXAMPLEclientid"]
+  console_client_id = "0oaEXAMPLEclientid"
+}
+```
+
+Verify before going further: `terraform output ory` gives you the Hydra issuer URL and the Kratos
+and self-service UI URLs. Point DNS at the addresses in that output, complete a sign-in against
+Hydra, and confirm the issued token carries the `email` claim. Doing that here, rather than after
+the cutover, is what keeps the next step reversible.
+
+**Phase 3: cut over.** Clearing `direct_oidc` points Materialize at Hydra.
+
+```hcl
+enable_ory  = true
+direct_oidc = null
+```
+
+`terraform output materialize_oidc` reports which side is authoritative at any point, which is
+worth checking between phases.
+
+Two things to know:
+
+- **Rolling back is re-setting `direct_oidc`**, not a restore. Phase 3 changes only Materialize's
+  system parameters, so putting the old values back returns it to the previous provider. Keep the
+  old application enabled until you are confident.
+- **`enable_ory = false` on a deployment that has Ory destroys its database**, and with it every
+  identity Kratos holds. It is meant for phase 1, not as a rollback from phase 3.
+
+Existing deployments pick up `moved` blocks that re-address the Ory stack and its database under
+the new `count`. Check `terraform plan` reports no destroys against them before applying.
+
+---
+
 ## Architecture
 
 ```

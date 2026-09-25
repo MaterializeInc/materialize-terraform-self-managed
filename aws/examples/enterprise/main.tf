@@ -139,7 +139,7 @@ module "coredns" {
   cluster_identifier             = module.eks.cluster_name
   # Resolve the Polis FQDN to its internal service in-cluster (hairpin fix).
   # Built here, not from module.ory, to avoid a cycle: ory depends_on coredns.
-  extra_rewrites = var.enable_polis ? [{
+  extra_rewrites = var.enable_ory && var.enable_polis ? [{
     from = var.ory_polis_fqdn
     to   = "polis-internal.${local.ory_namespace}.svc.cluster.local"
   }] : []
@@ -412,6 +412,7 @@ module "database" {
 
 # Separate RDS instance for Ory Kratos
 module "ory_kratos_database" {
+  count                     = var.enable_ory ? 1 : 0
   source                    = "../../modules/database"
   name_prefix               = "${var.name_prefix}-ory-kratos"
   postgres_version          = "18"
@@ -434,6 +435,7 @@ module "ory_kratos_database" {
 
 # Separate RDS instance for Ory Hydra
 module "ory_hydra_database" {
+  count                     = var.enable_ory ? 1 : 0
   source                    = "../../modules/database"
   name_prefix               = "${var.name_prefix}-ory-hydra"
   postgres_version          = "18"
@@ -456,7 +458,7 @@ module "ory_hydra_database" {
 
 # Separate RDS instance for Ory Polis (one-DB-per-instance).
 module "ory_polis_database" {
-  count  = var.enable_polis ? 1 : 0
+  count  = var.enable_ory && var.enable_polis ? 1 : 0
   source = "../../modules/database"
 
   name_prefix               = "${var.name_prefix}-ory-polis"
@@ -539,19 +541,14 @@ module "materialize_instance" {
   console_extra_dns_names   = [var.materialize_console_fqdn]
   balancerd_extra_dns_names = [var.materialize_balancerd_fqdn]
 
-  # OIDC config; client_id is the Hydra Maester-generated UUID read from
-  # the OAuth2 client Secret. system_parameters can also set any of the
+  # OIDC config. Against Ory the client_id is the Hydra Maester-generated UUID
+  # read from the OAuth2 client Secret; var.direct_oidc points Materialize at an
+  # existing provider instead. system_parameters can also set any of the
   # parameters listed at https://materialize.com/docs/sql/alter-system-set/#key-configuration-parameters
-  system_parameters = {
-    oidc_issuer               = module.ory.hydra_external_url
-    oidc_audience             = jsonencode([module.ory.oauth2_client_id])
-    oidc_authentication_claim = "email"
-    console_oidc_client_id    = module.ory.oauth2_client_id
-    console_oidc_scopes       = "openid email"
-  }
+  system_parameters = local.materialize_oidc_parameters
 
-  # Wire the materialize -> ory NetworkPolicy.
-  ory_namespace = local.ory_namespace
+  # Wire the materialize -> ory NetworkPolicy. Nothing to reach when Ory is off.
+  ory_namespace = var.enable_ory ? local.ory_namespace : null
 
   depends_on = [
     module.operator,
@@ -706,6 +703,7 @@ module "materialize_nlb" {
 # Example feeds cloud-specific inputs (DSNs, LB annotations, cert issuer)
 # and reads back the OIDC issuer URL + OAuth2 client id from its outputs.
 module "ory" {
+  count  = var.enable_ory ? 1 : 0
   source = "../../../kubernetes/modules/ory-stack"
 
   namespace = local.ory_namespace
@@ -758,13 +756,33 @@ module "ory" {
   ]
 }
 
+# State migration: the Ory stack and its databases gained a count for
+# var.enable_ory, so every address under them picks up an index. Without these
+# a deployment that predates the variable reads as destroy-and-recreate, which
+# for the databases means losing every identity Kratos holds.
+moved {
+  from = module.ory
+  to   = module.ory[0]
+}
+
+moved {
+  from = module.ory_kratos_database
+  to   = module.ory_kratos_database[0]
+}
+
+moved {
+  from = module.ory_hydra_database
+  to   = module.ory_hydra_database[0]
+}
+
 # State migration: the ory -> materialize egress NetworkPolicy moved from
 # ory-stack to materialize-instance. The console HTTPS LoadBalancer that used
 # to live in ory-stack is destroyed on apply; the existing shared NLB
 # (module.materialize_nlb) is retargeted so its console listener binds to 443
-# instead of 8080. NLB DNS name is preserved.
+# instead of 8080. NLB DNS name is preserved. Chained after the move above, so
+# the source address carries the index.
 moved {
-  from = module.ory.kubernetes_network_policy_v1.materialize_to_ory_egress[0]
+  from = module.ory[0].kubernetes_network_policy_v1.materialize_to_ory_egress[0]
   to   = module.materialize_instance.kubernetes_network_policy_v1.allow_ory_egress[0]
 }
 
@@ -878,25 +896,25 @@ locals {
     ],
   })
 
-  # Ory database DSNs
-  ory_kratos_dsn = format(
+  # Ory database DSNs. Null when the Ory stack is off, along with the instances.
+  ory_kratos_dsn = var.enable_ory ? format(
     "postgres://%s:%s@%s/%s?sslmode=require",
-    module.ory_kratos_database.db_instance_username,
+    module.ory_kratos_database[0].db_instance_username,
     urlencode(random_password.ory_database_password.result),
-    module.ory_kratos_database.db_instance_endpoint,
+    module.ory_kratos_database[0].db_instance_endpoint,
     "kratos"
-  )
+  ) : null
 
-  ory_hydra_dsn = format(
+  ory_hydra_dsn = var.enable_ory ? format(
     "postgres://%s:%s@%s/%s?sslmode=require",
-    module.ory_hydra_database.db_instance_username,
+    module.ory_hydra_database[0].db_instance_username,
     urlencode(random_password.ory_database_password.result),
-    module.ory_hydra_database.db_instance_endpoint,
+    module.ory_hydra_database[0].db_instance_endpoint,
     "hydra"
-  )
+  ) : null
 
   # uselibpqcompat=true keeps sslmode=require at libpq semantics (encrypt, don't verify).
-  ory_polis_dsn = var.enable_polis ? format(
+  ory_polis_dsn = var.enable_ory && var.enable_polis ? format(
     "postgres://%s:%s@%s/%s?sslmode=require&uselibpqcompat=true",
     module.ory_polis_database[0].db_instance_username,
     urlencode(random_password.ory_database_password.result),
@@ -905,6 +923,27 @@ locals {
   ) : null
 
   ory_namespace = "ory"
+
+  # Which provider Materialize trusts. var.direct_oidc wins when set, so an
+  # existing provider stays authoritative while Ory comes up beside it; clearing
+  # it is the cutover. Indexing module.ory is safe on the else branch because
+  # var.direct_oidc is required whenever enable_ory is false.
+  materialize_oidc_parameters = var.direct_oidc != null ? {
+    oidc_issuer               = var.direct_oidc.issuer
+    oidc_audience             = jsonencode(var.direct_oidc.audience)
+    oidc_authentication_claim = var.direct_oidc.authentication_claim
+    console_oidc_client_id    = var.direct_oidc.console_client_id
+    console_oidc_scopes       = var.direct_oidc.scopes
+    } : {
+    oidc_issuer               = module.ory[0].hydra_external_url
+    oidc_audience             = jsonencode([module.ory[0].oauth2_client_id])
+    oidc_authentication_claim = "email"
+    console_oidc_client_id    = module.ory[0].oauth2_client_id
+    console_oidc_scopes       = "openid email"
+    # The consent endpoint puts `groups` on the access token; sync maps each
+    # group onto an existing Materialize role of the same name.
+    oidc_group_role_sync_enabled = "true"
+  }
 
   # cert-manager ClusterIssuer for browser-facing TLS. Defaults to the built-in
   # self-signed issuer; override via var.cert_issuer_ref to plug in a real one.

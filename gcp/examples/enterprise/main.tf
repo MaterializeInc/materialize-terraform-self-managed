@@ -94,9 +94,10 @@ locals {
   node_locations = slice(data.google_compute_zones.available.names, 0, min(3, length(data.google_compute_zones.available.names)))
 
   database_config = {
-    tier = "db-custom-N4-2-4096"
-    # N4 instances only support Hyperdisk Balanced, not PD_SSD.
-    disk_type               = "HYPERDISK_BALANCED"
+    # N4 instances only support Hyperdisk Balanced, not PD_SSD, so
+    # var.database_machine sets the pair together.
+    tier                    = var.database_machine != null ? var.database_machine.tier : "db-custom-N4-2-4096"
+    disk_type               = var.database_machine != null ? var.database_machine.disk_type : "HYPERDISK_BALANCED"
     database                = { name = "materialize", charset = "UTF8", collation = "en_US.UTF8" }
     user_name               = "materialize"
     db_version              = "POSTGRES_18"
@@ -165,31 +166,31 @@ locals {
   # Persistent Disk, so a PVC on those pools never attaches.
   storage_class = kubernetes_storage_class.hyperdisk_balanced.metadata[0].name
 
-  # Ory database DSNs
-  ory_kratos_dsn = format(
+  # Ory database DSNs. Null when the Ory stack is off, along with the instance.
+  ory_kratos_dsn = var.enable_ory ? format(
     "postgres://%s:%s@%s/%s?sslmode=require",
-    module.ory_database.users[0].name,
-    urlencode(module.ory_database.users[0].password),
-    module.ory_database.private_ip,
+    module.ory_database[0].users[0].name,
+    urlencode(module.ory_database[0].users[0].password),
+    module.ory_database[0].private_ip,
     "kratos"
-  )
+  ) : null
 
-  ory_hydra_dsn = format(
+  ory_hydra_dsn = var.enable_ory ? format(
     "postgres://%s:%s@%s/%s?sslmode=require",
-    module.ory_database.users[0].name,
-    urlencode(module.ory_database.users[0].password),
-    module.ory_database.private_ip,
+    module.ory_database[0].users[0].name,
+    urlencode(module.ory_database[0].users[0].password),
+    module.ory_database[0].private_ip,
     "hydra"
-  )
+  ) : null
 
   # uselibpqcompat=true keeps sslmode=require at libpq semantics (encrypt, don't verify).
-  ory_polis_dsn = format(
+  ory_polis_dsn = var.enable_ory ? format(
     "postgres://%s:%s@%s/%s?sslmode=require&uselibpqcompat=true",
-    module.ory_database.users[0].name,
-    urlencode(module.ory_database.users[0].password),
-    module.ory_database.private_ip,
+    module.ory_database[0].users[0].name,
+    urlencode(module.ory_database[0].users[0].password),
+    module.ory_database[0].private_ip,
     "polis"
-  )
+  ) : null
 
   ory_namespace = "ory"
 
@@ -197,6 +198,27 @@ locals {
   # plus any operator internal/VPN ranges, applied as the Polis LB allowlist.
   okta_scim_source_ranges = fileexists("${path.module}/okta-scim-source-ranges.json") ? jsondecode(file("${path.module}/okta-scim-source-ranges.json")) : []
   polis_lb_source_ranges  = concat(local.okta_scim_source_ranges, var.ory_polis_source_ranges)
+
+  # Which provider Materialize trusts. var.direct_oidc wins when set, so an
+  # existing provider stays authoritative while Ory comes up beside it; clearing
+  # it is the cutover. Indexing module.ory is safe on the else branch because
+  # var.direct_oidc is required whenever enable_ory is false.
+  materialize_oidc_parameters = var.direct_oidc != null ? {
+    oidc_issuer               = var.direct_oidc.issuer
+    oidc_audience             = jsonencode(var.direct_oidc.audience)
+    oidc_authentication_claim = var.direct_oidc.authentication_claim
+    console_oidc_client_id    = var.direct_oidc.console_client_id
+    console_oidc_scopes       = var.direct_oidc.scopes
+    } : {
+    oidc_issuer               = module.ory[0].hydra_external_url
+    oidc_audience             = jsonencode([module.ory[0].oauth2_client_id])
+    oidc_authentication_claim = "email"
+    console_oidc_client_id    = module.ory[0].oauth2_client_id
+    console_oidc_scopes       = "openid email"
+    # The consent endpoint puts `groups` on the access token; sync maps each
+    # group onto an existing Materialize role of the same name.
+    oidc_group_role_sync_enabled = "true"
+  }
 
   # cert-manager ClusterIssuer for browser-facing TLS. Defaults to the built-in
   # self-signed issuer; override via var.cert_issuer_ref to plug in a real one.
@@ -333,7 +355,7 @@ module "coredns" {
   coredns_autoscaler_deployment_to_scale_down = "kube-dns-autoscaler"
   # Resolve the Polis FQDN to its internal service in-cluster (hairpin fix).
   # Built here, not from module.ory, to avoid a cycle: ory depends_on coredns.
-  extra_rewrites = var.enable_polis ? [{
+  extra_rewrites = var.enable_ory && var.enable_polis ? [{
     from = var.ory_polis_fqdn
     to   = "polis-internal.${local.ory_namespace}.svc.cluster.local"
   }] : []
@@ -354,10 +376,11 @@ module "database" {
   # We don't provide password, so random password is generated
   users = [{ name = local.database_config.user_name }]
 
-  project_id = var.project_id
-  region     = var.region
-  prefix     = var.name_prefix
-  network_id = module.networking.network_id
+  project_id           = var.project_id
+  region               = var.region
+  prefix               = var.name_prefix
+  network_id           = module.networking.network_id
+  random_instance_name = var.database_random_instance_name
 
   tier                    = local.database_config.tier
   disk_type               = local.database_config.disk_type
@@ -373,6 +396,7 @@ module "database" {
 
 # Separate Cloud SQL instance for Ory (Kratos + Hydra)
 module "ory_database" {
+  count  = var.enable_ory ? 1 : 0
   source = "../../modules/database"
 
   databases = concat(
@@ -386,10 +410,11 @@ module "ory_database" {
   )
   users = [{ name = local.ory_database_config.user_name }]
 
-  project_id = var.project_id
-  region     = var.region
-  prefix     = "${var.name_prefix}-ory"
-  network_id = module.networking.network_id
+  project_id           = var.project_id
+  region               = var.region
+  prefix               = "${var.name_prefix}-ory"
+  network_id           = module.networking.network_id
+  random_instance_name = var.database_random_instance_name
 
   tier                    = local.ory_database_config.tier
   db_version              = local.ory_database_config.db_version
@@ -455,6 +480,12 @@ module "operator" {
   # ARM tolerations and node selector for all operator workloads on GCP
   instance_pod_tolerations = local.materialize_tolerations
   instance_node_selector   = local.materialize_node_labels
+
+  # Must track the node pool. With swap on, the operator schedules clusterd onto
+  # nodes labelled materialize.cloud/swap=true, which only a swap-enabled pool
+  # carries. Left at its default while the pool has swap off, every clusterd pod
+  # sits Pending on an unsatisfiable node selector.
+  swap_enabled = var.materialize_nodepool.swap_enabled
 
   # node selector for operator and metrics-server workloads
   operator_node_selector = local.generic_node_labels
@@ -639,16 +670,10 @@ module "materialize_instance" {
   # OIDC config; client_id is the Hydra Maester-generated UUID read from
   # the OAuth2 client Secret. system_parameters can also set any of the
   # parameters listed at https://materialize.com/docs/sql/alter-system-set/#key-configuration-parameters
-  system_parameters = {
-    oidc_issuer               = module.ory.hydra_external_url
-    oidc_audience             = jsonencode([module.ory.oauth2_client_id])
-    oidc_authentication_claim = "email"
-    console_oidc_client_id    = module.ory.oauth2_client_id
-    console_oidc_scopes       = "openid email"
-  }
+  system_parameters = local.materialize_oidc_parameters
 
-  # Wire the materialize -> ory NetworkPolicy.
-  ory_namespace = local.ory_namespace
+  # Wire the materialize -> ory NetworkPolicy. Nothing to reach when Ory is off.
+  ory_namespace = var.enable_ory ? local.ory_namespace : null
 
   depends_on = [
     module.operator,
@@ -681,6 +706,7 @@ module "load_balancers" {
 # Example feeds cloud-specific inputs (DSNs, LB annotations, cert issuer)
 # and reads back the OIDC issuer URL + OAuth2 client id from its outputs.
 module "ory" {
+  count  = var.enable_ory ? 1 : 0
   source = "../../../kubernetes/modules/ory-stack"
 
   namespace = local.ory_namespace
@@ -742,12 +768,27 @@ module "ory" {
   ]
 }
 
+# State migration: the Ory stack and its database gained a count for
+# var.enable_ory, so every address under them picks up an index. Without these
+# a deployment that predates the variable reads as destroy-and-recreate, which
+# for the database means losing every identity Kratos holds.
+moved {
+  from = module.ory
+  to   = module.ory[0]
+}
+
+moved {
+  from = module.ory_database
+  to   = module.ory_database[0]
+}
+
 # State migration: the ory -> materialize egress NetworkPolicy moved from
 # ory-stack to materialize-instance. The console HTTPS LoadBalancer that used
 # to live in ory-stack is destroyed on apply; the existing per-cloud console
 # LB (module.load_balancers) is retargeted from 8080 to 443 in place. Update
-# the console DNS record after apply to point at the retargeted LB IP.
+# the console DNS record after apply to point at the retargeted LB IP. Chained
+# after the move above, so the source address carries the index.
 moved {
-  from = module.ory.kubernetes_network_policy_v1.materialize_to_ory_egress[0]
+  from = module.ory[0].kubernetes_network_policy_v1.materialize_to_ory_egress[0]
   to   = module.materialize_instance.kubernetes_network_policy_v1.allow_ory_egress[0]
 }

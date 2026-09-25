@@ -151,34 +151,48 @@ output "grafana_admin_password" {
 
 # Ory outputs
 output "ory_kratos_database_endpoint" {
-  description = "RDS instance endpoint for Ory Kratos"
-  value       = module.ory_kratos_database.db_instance_endpoint
+  description = "RDS instance endpoint for Ory Kratos (null when enable_ory = false)"
+  value       = one(module.ory_kratos_database[*].db_instance_endpoint)
 }
 
 output "ory_hydra_database_endpoint" {
-  description = "RDS instance endpoint for Ory Hydra"
-  value       = module.ory_hydra_database.db_instance_endpoint
+  description = "RDS instance endpoint for Ory Hydra (null when enable_ory = false)"
+  value       = one(module.ory_hydra_database[*].db_instance_endpoint)
 }
 
 output "ory_polis_database_endpoint" {
-  description = "RDS instance endpoint for Ory Polis (null when enable_polis = false)"
-  value       = var.enable_polis ? module.ory_polis_database[0].db_instance_endpoint : null
+  description = "RDS instance endpoint for Ory Polis (null unless both enable_ory and enable_polis are set)"
+  value       = one(module.ory_polis_database[*].db_instance_endpoint)
 }
 
 output "ory" {
-  description = "Ory stack deployment details (Hydra issuer URL, Kratos and UI external URLs, OAuth2 client secret name, optional Polis URL)."
-  value = {
-    namespace                 = module.ory.namespace
-    hydra_external_url        = module.ory.hydra_external_url
-    kratos_external_url       = module.ory.kratos_external_url
-    ui_external_url           = module.ory.ui_external_url
-    polis_external_url        = module.ory.polis_external_url
-    oauth2_client_secret_name = module.ory.oauth2_client_secret_name
-    materialize_console_fqdn  = var.materialize_console_fqdn
-  }
+  description = "Ory stack deployment details (Hydra issuer URL, Kratos and UI external URLs, OAuth2 client secret name, optional Polis URL). Null when enable_ory = false."
+  value = one([
+    for m in module.ory : {
+      namespace                 = m.namespace
+      hydra_external_url        = m.hydra_external_url
+      kratos_external_url       = m.kratos_external_url
+      ui_external_url           = m.ui_external_url
+      polis_external_url        = m.polis_external_url
+      oauth2_client_secret_name = m.oauth2_client_secret_name
+      materialize_console_fqdn  = var.materialize_console_fqdn
+    }
+  ])
 }
 
 output "ory_lb_addresses" {
-  description = "Ingress addresses of the Ory-side browser-facing LoadBalancers (hydra, kratos, ui, polis). Feed these into your DNS records for the corresponding hostnames. AWS populates the hostname key, not ip."
-  value       = module.ory.lb_addresses
+  description = "Ingress addresses of the Ory-side browser-facing LoadBalancers (hydra, kratos, ui, polis). Feed these into your DNS records for the corresponding hostnames. AWS populates the hostname key, not ip. Null when enable_ory = false."
+  value       = one(module.ory[*].lb_addresses)
+}
+
+output "materialize_oidc" {
+  description = "The OIDC provider Materialize trusts: Hydra by default, or var.direct_oidc when set. Useful for confirming which side is authoritative mid-migration."
+  # The client ID is public (the console hands it to every browser), but the Ory
+  # module reads it from a Secret, which marks it sensitive.
+  value = {
+    issuer            = local.materialize_oidc_parameters.oidc_issuer
+    audience          = nonsensitive(local.materialize_oidc_parameters.oidc_audience)
+    console_client_id = nonsensitive(local.materialize_oidc_parameters.console_oidc_client_id)
+    provider          = var.direct_oidc != null ? "direct" : "ory"
+  }
 }

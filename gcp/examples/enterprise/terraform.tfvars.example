@@ -75,6 +75,24 @@ materialize_balancerd_fqdn = "balancerd.mz.example.com"
 #   },
 # ]
 
+# Optional: adopt Ory on a deployment that already authenticates against your
+# own identity provider. `enable_ory` deploys the stack; `direct_oidc` decides
+# which provider Materialize trusts, so the cutover is one variable. Defaults
+# (enable_ory = true, direct_oidc unset) deploy Ory and trust it, which is what
+# you want for a fresh install. See "Migrating an existing OIDC deployment onto
+# Ory" in the README for the phased walk-through.
+#
+# enable_ory = false
+#
+# direct_oidc = {
+#   issuer            = "https://sso.example.com"
+#   audience          = ["0oaEXAMPLEclientid"]
+#   console_client_id = "0oaEXAMPLEclientid"
+#   # Defaults, override only if your provider differs.
+#   # scopes               = "openid email"
+#   # authentication_claim = "email"
+# }
+
 labels = {
   environment = "demo"
   project     = "materialize-enterprise"

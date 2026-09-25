@@ -275,3 +275,89 @@ variable "grafana_allow_public_access" {
   default     = false
   nullable    = false
 }
+
+variable "database_machine" {
+  description = <<-EOT
+    Machine tier and disk type for the Materialize metadata database.
+
+    Defaults to `db-custom-N4-2-4096` on Hyperdisk Balanced. N4 machines accept only Hyperdisk and
+    older families accept only PD_SSD, so the two are set together rather than independently.
+
+    Worth overriding when a region is short on N4 capacity, which surfaces as "the zone or region
+    does not have sufficient resources to handle the request". An older family is more widely
+    available: `{ tier = "db-custom-2-4096", disk_type = "PD_SSD" }`.
+  EOT
+  type = object({
+    tier      = string
+    disk_type = string
+  })
+  default = null
+}
+
+variable "database_random_instance_name" {
+  description = <<-EOT
+    Append a random suffix to the Cloud SQL instance names, for both the Materialize and Ory
+    databases.
+
+    Cloud SQL reserves a deleted instance's name for about a week, so a failed apply that leaves an
+    instance behind blocks the retry until either the name frees up or `name_prefix` changes. Set
+    this `true` when you expect to tear down and rebuild, such as a throwaway or test environment.
+
+    Leave it `false` for a long-lived deployment, where a predictable instance name is worth more
+    than retryability.
+  EOT
+  type        = bool
+  default     = false
+  nullable    = false
+}
+
+variable "enable_ory" {
+  description = <<-EOT
+    Deploy the Ory stack: Kratos, Hydra, the self-service UI, and the Cloud SQL instance behind them.
+
+    Leave this `true` for the usual enterprise topology, where Hydra is the OIDC issuer Materialize
+    trusts. Set it `false` to run Materialize against an identity provider you already have, such as
+    an existing Okta or Entra application, and set `direct_oidc` to point at it.
+
+    Turning this off on a deployment that already has Ory destroys the stack and its database,
+    including every identity Kratos holds.
+  EOT
+  type        = bool
+  default     = true
+  nullable    = false
+}
+
+variable "direct_oidc" {
+  description = <<-EOT
+    Point Materialize at an OIDC provider other than this example's Ory stack.
+
+    Leave `null` to trust Hydra, which is the default topology. When set, these values become
+    Materialize's issuer, audience and console client, and Hydra issues nothing Materialize accepts
+    even if the Ory stack is deployed.
+
+    Setting this alongside `enable_ory = true` runs both side by side: the existing provider stays
+    authoritative while Ory comes up next to it, which is how you move an existing deployment onto
+    Ory without a sign-in outage. Clearing it afterwards is the cutover.
+
+    `audience` is the list of accepted `aud` values, and `console_client_id` is the public client
+    the console starts its authorization code flow with.
+  EOT
+  type = object({
+    issuer               = string
+    audience             = list(string)
+    console_client_id    = string
+    scopes               = optional(string, "openid email")
+    authentication_claim = optional(string, "email")
+  })
+  default = null
+
+  validation {
+    condition     = var.enable_ory || var.direct_oidc != null
+    error_message = "With enable_ory = false, direct_oidc must name the OIDC provider Materialize should trust, otherwise nothing issues tokens it accepts."
+  }
+
+  validation {
+    condition     = var.direct_oidc == null || length(var.direct_oidc.audience) > 0
+    error_message = "direct_oidc.audience must list at least one accepted audience; an empty list disables audience validation."
+  }
+}

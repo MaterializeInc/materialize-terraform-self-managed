@@ -149,8 +149,8 @@ output "balancerd_load_balancer_ip" {
 }
 
 output "ory_lb_addresses" {
-  description = "Ingress addresses of the Ory-side browser-facing LoadBalancers (hydra, kratos, ui, polis). Feed these into your DNS records for the corresponding hostnames."
-  value       = module.ory.lb_addresses
+  description = "Ingress addresses of the Ory-side browser-facing LoadBalancers (hydra, kratos, ui, polis). Feed these into your DNS records for the corresponding hostnames. Null when enable_ory = false."
+  value       = one(module.ory[*].lb_addresses)
 }
 
 output "external_login_password_mz_system" {
@@ -183,25 +183,39 @@ output "grafana_admin_password" {
 
 # Ory outputs
 output "ory_database_instance_name" {
-  description = "Cloud SQL instance name for Ory"
-  value       = module.ory_database.instance_name
+  description = "Cloud SQL instance name for Ory (null when enable_ory = false)"
+  value       = one(module.ory_database[*].instance_name)
 }
 
 output "ory_database_private_ip" {
-  description = "Cloud SQL instance private IP for Ory"
-  value       = module.ory_database.private_ip
+  description = "Cloud SQL instance private IP for Ory (null when enable_ory = false)"
+  value       = one(module.ory_database[*].private_ip)
 }
 
 output "ory" {
-  description = "Ory stack deployment details (Hydra issuer URL, Kratos and UI external URLs, OAuth2 client secret name, optional Polis URL)."
+  description = "Ory stack deployment details (Hydra issuer URL, Kratos and UI external URLs, OAuth2 client secret name, optional Polis URL). Null when enable_ory = false."
+  value = one([
+    for m in module.ory : {
+      namespace                 = m.namespace
+      hydra_external_url        = m.hydra_external_url
+      kratos_external_url       = m.kratos_external_url
+      ui_external_url           = m.ui_external_url
+      polis_external_url        = m.polis_external_url
+      oauth2_client_secret_name = m.oauth2_client_secret_name
+      materialize_console_fqdn  = var.materialize_console_fqdn
+      lb_addresses              = m.lb_addresses
+    }
+  ])
+}
+
+output "materialize_oidc" {
+  description = "The OIDC provider Materialize trusts: Hydra by default, or var.direct_oidc when set. Useful for confirming which side is authoritative mid-migration."
+  # The client ID is public (the console hands it to every browser), but the Ory
+  # module reads it from a Secret, which marks it sensitive.
   value = {
-    namespace                 = module.ory.namespace
-    hydra_external_url        = module.ory.hydra_external_url
-    kratos_external_url       = module.ory.kratos_external_url
-    ui_external_url           = module.ory.ui_external_url
-    polis_external_url        = module.ory.polis_external_url
-    oauth2_client_secret_name = module.ory.oauth2_client_secret_name
-    materialize_console_fqdn  = var.materialize_console_fqdn
-    lb_addresses              = module.ory.lb_addresses
+    issuer            = local.materialize_oidc_parameters.oidc_issuer
+    audience          = nonsensitive(local.materialize_oidc_parameters.oidc_audience)
+    console_client_id = nonsensitive(local.materialize_oidc_parameters.console_oidc_client_id)
+    provider          = var.direct_oidc != null ? "direct" : "ory"
   }
 }
