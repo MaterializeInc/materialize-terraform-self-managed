@@ -117,6 +117,25 @@ locals {
     var.logout_url != null ? { logout = var.logout_url } : {},
   )
 
+  # Hydra calls the token hook on every token issuance; the shared key goes in
+  # a header the hook validates. Only emitted when a hook is configured, so the
+  # chart keeps its own defaults otherwise.
+  token_hook_config = var.token_hook != null ? {
+    token_hook = {
+      url = var.token_hook.url
+      auth = {
+        type = "api_key"
+        config = {
+          in    = "header"
+          name  = var.token_hook.api_key_header
+          value = var.token_hook.api_key
+        }
+      }
+    }
+  } : {}
+
+  oauth2_config = length(local.token_hook_config) > 0 ? { oauth2 = local.token_hook_config } : {}
+
   default_helm_values = merge({
     replicaCount = var.replica_count
 
@@ -151,7 +170,7 @@ locals {
         type    = var.automigration_type
       }
 
-      config = {
+      config = merge({
         dsn = var.dsn
 
         serve = {
@@ -169,7 +188,7 @@ locals {
         }
 
         urls = local.urls_config
-      }
+      }, local.oauth2_config)
     }
 
     deployment = {

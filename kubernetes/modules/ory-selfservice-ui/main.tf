@@ -18,10 +18,23 @@ resource "random_password" "csrf_cookie_secret" {
   special = false
 }
 
+# Only generated when the token hook is on: Hydra authenticates to the hook with
+# this key, so an unused one would still churn the Secret and roll the pods.
+resource "random_password" "token_hook_api_key" {
+  count   = var.token_hook_enabled && var.token_hook_api_key == null ? 1 : 0
+  length  = 48
+  special = false
+}
+
 locals {
   namespace          = var.create_namespace ? kubernetes_namespace.ui[0].metadata[0].name : var.namespace
   cookie_secret      = var.cookie_secret != null ? var.cookie_secret : random_password.cookie_secret[0].result
   csrf_cookie_secret = var.csrf_cookie_secret != null ? var.csrf_cookie_secret : random_password.csrf_cookie_secret[0].result
+
+  token_hook_api_key = (
+    !var.token_hook_enabled ? null :
+    var.token_hook_api_key != null ? var.token_hook_api_key : random_password.token_hook_api_key[0].result
+  )
 
   tls_enabled   = var.tls_cert_secret_name != null
   tls_mount_dir = "/etc/selfservice-ui/tls"
@@ -29,6 +42,11 @@ locals {
 
   image = "${var.image_repository}:${var.image_tag}"
 
+  service_url = "${local.tls_enabled ? "https" : "http"}://${var.name}.${local.namespace}.svc.cluster.local:${var.port}"
+
+  # app.kubernetes.io/name stays "kratos-selfservice-ui-node" even though the
+  # image is now Materialize's ory-selfservice: it is part of the Deployment's
+  # immutable selector (see below) and of ory-stack's LoadBalancer selector.
   labels = {
     "app.kubernetes.io/name"       = "kratos-selfservice-ui-node"
     "app.kubernetes.io/instance"   = var.name
@@ -41,43 +59,15 @@ locals {
   # Secret's contents change. The upstream Hydra and Kratos Helm charts emit
   # an equivalent annotation themselves; this module is raw resources so we
   # have to do it by hand.
-  secret_checksum = sha256(jsonencode({
-    COOKIE_SECRET      = local.cookie_secret
-    CSRF_COOKIE_SECRET = local.csrf_cookie_secret
-  }))
+  secret_checksum = sha256(jsonencode(local.secret_data))
 
-  # Patch the consent handler so groups + email land on the access token (not
-  # just the id_token) and the audience is granted from the client's config.
-  # Clients with no audience (e.g. from dynamic client registration) get
-  # default_access_token_audience written onto the client before the grant, so
-  # refreshes, which Hydra checks against the client's audience, keep working.
-  # This is what makes MCP OAuth work; pair with ory-stack's
-  # allowed_top_level_claims so the claims sit top-level, not under Hydra's ext.
-  # initContainer because the main container is non-root; patched file is mounted
-  # over the original.
-  consent_claims_patch_script = <<-EOT
-    set -eu
-    node -e '
-      const fs = require("fs");
-      const src = fs.readFileSync("/usr/src/app/lib/routes/consent.js", "utf8");
-      const inject = "    if (identity.traits && identity.traits.groups) { session.id_token.groups = identity.traits.groups; session.access_token.groups = identity.traits.groups; } var mzEmail = (identity.traits && identity.traits.email) ? identity.traits.email : null; if (!mzEmail && Array.isArray(identity.verifiable_addresses)) { var mzA = identity.verifiable_addresses.filter(function (x) { return x && x.via === \"email\"; })[0]; if (mzA) mzEmail = mzA.value; } if (mzEmail) { session.access_token.email = mzEmail; if (!session.id_token.email) session.id_token.email = mzEmail; }\n    ";
-      const idx = src.lastIndexOf("return session;");
-      if (idx < 0) throw new Error("consent.js: session pattern not found");
-      var out = src.slice(0, idx) + inject + src.slice(idx);
-      const needle = "grant_access_token_audience: body.requested_access_token_audience";
-      if (!out.includes(needle)) throw new Error("consent.js: audience pattern not found");
-      out = out.split(needle).join("grant_access_token_audience: ((body.requested_access_token_audience && body.requested_access_token_audience.length) ? body.requested_access_token_audience : ((body.client && body.client.audience) || []))");
-      const accepts = out.match(/oauth2\s*\.acceptOAuth2ConsentRequest\(/g) || [];
-      if (accepts.length !== 2) throw new Error("consent.js: expected 2 acceptOAuth2ConsentRequest calls, found " + accepts.length);
-      out = out.replace(/oauth2\s*\.acceptOAuth2ConsentRequest\(/g, "mzAcceptConsent(oauth2, body, ");
-      const helper = "var mzDefaultAudience = (function () { try { return JSON.parse(process.env.MZ_DEFAULT_ACCESS_TOKEN_AUDIENCE || \"[]\"); } catch (e) { return []; } })();\nfunction mzAcceptConsent(oauth2, body, params) { var client = body.client || {}; var granted = params.acceptOAuth2ConsentRequest.grant_access_token_audience || []; if (granted.length || !mzDefaultAudience.length || !client.client_id) return oauth2.acceptOAuth2ConsentRequest(params); return oauth2.patchOAuth2Client({ id: client.client_id, jsonPatch: [{ op: \"add\", path: \"/audience\", value: mzDefaultAudience }] }).then(function () { params.acceptOAuth2ConsentRequest.grant_access_token_audience = mzDefaultAudience; return oauth2.acceptOAuth2ConsentRequest(params); }); }\n";
-      const anchor = "var pkg_1 = require(\"../pkg\");";
-      if (!out.includes(anchor)) throw new Error("consent.js: require anchor not found");
-      out = out.replace(anchor, anchor + "\n" + helper);
-      fs.writeFileSync("/consent-patched/consent.js", out);
-      console.error("consent.js: claims + audience patch applied");
-    '
-  EOT
+  secret_data = merge(
+    {
+      COOKIE_SECRET      = local.cookie_secret
+      CSRF_COOKIE_SECRET = local.csrf_cookie_secret
+    },
+    local.token_hook_api_key != null ? { TOKEN_HOOK_API_KEY = local.token_hook_api_key } : {},
+  )
 }
 
 resource "kubernetes_secret" "secrets" {
@@ -87,10 +77,7 @@ resource "kubernetes_secret" "secrets" {
     labels    = local.labels
   }
 
-  data = {
-    COOKIE_SECRET      = local.cookie_secret
-    CSRF_COOKIE_SECRET = local.csrf_cookie_secret
-  }
+  data = local.secret_data
 
   depends_on = [kubernetes_namespace.ui]
 }
@@ -105,6 +92,13 @@ resource "kubernetes_deployment" "ui" {
   spec {
     replicas = var.replica_count
 
+    # Do not touch these labels. A Deployment's selector is immutable, so
+    # changing it forces a replacement of the Deployment (and its pods) rather
+    # than an in-place rolling upgrade, which is the whole point of the
+    # drop-in image swap from oryd/kratos-selfservice-ui-node to
+    # ory-selfservice. ory-stack's selfservice UI LoadBalancer selects on the
+    # same app.kubernetes.io/name value, so renaming it here would also orphan
+    # that Service.
     selector {
       match_labels = {
         "app.kubernetes.io/name"     = "kratos-selfservice-ui-node"
@@ -133,6 +127,15 @@ resource "kubernetes_deployment" "ui" {
 
         node_selector = var.node_selector
 
+        security_context {
+          run_as_non_root = true
+          run_as_user     = 10000
+          run_as_group    = 10000
+          seccomp_profile {
+            type = "RuntimeDefault"
+          }
+        }
+
         dynamic "volume" {
           for_each = local.tls_enabled ? [1] : []
           content {
@@ -140,23 +143,6 @@ resource "kubernetes_deployment" "ui" {
             secret {
               secret_name = var.tls_cert_secret_name
             }
-          }
-        }
-
-        volume {
-          name = "consent-patched"
-          empty_dir {}
-        }
-
-        init_container {
-          name    = "patch-consent"
-          image   = local.image
-          command = ["sh", "-c"]
-          args    = [local.consent_claims_patch_script]
-
-          volume_mount {
-            name       = "consent-patched"
-            mount_path = "/consent-patched"
           }
         }
 
@@ -171,6 +157,17 @@ resource "kubernetes_deployment" "ui" {
             protocol       = "TCP"
           }
 
+          # Metrics stay on their own port: the public Service only targets
+          # var.port, so they are reachable from inside the cluster only.
+          dynamic "port" {
+            for_each = var.metrics_port != null ? [1] : []
+            content {
+              name           = "metrics"
+              container_port = var.metrics_port
+              protocol       = "TCP"
+            }
+          }
+
           dynamic "volume_mount" {
             for_each = local.tls_enabled ? [1] : []
             content {
@@ -180,26 +177,38 @@ resource "kubernetes_deployment" "ui" {
             }
           }
 
-          volume_mount {
-            name       = "consent-patched"
-            mount_path = "/usr/src/app/lib/routes/consent.js"
-            sub_path   = "consent.js"
-            read_only  = true
-          }
-
           env {
             name  = "PORT"
             value = tostring(var.port)
           }
 
-          env {
-            name  = "KRATOS_PUBLIC_URL"
-            value = var.kratos_public_url
+          # Only emitted when set: consent-only deployments never call the
+          # Kratos public API, and an empty value would fail the service's own
+          # config validation.
+          dynamic "env" {
+            for_each = var.kratos_public_url != null ? [1] : []
+            content {
+              name  = "KRATOS_PUBLIC_URL"
+              value = var.kratos_public_url
+            }
           }
 
-          env {
-            name  = "KRATOS_BROWSER_URL"
-            value = var.kratos_browser_url != null ? var.kratos_browser_url : var.kratos_public_url
+          dynamic "env" {
+            for_each = coalesce(var.kratos_browser_url, var.kratos_public_url, "") != "" ? [1] : []
+            content {
+              name  = "KRATOS_BROWSER_URL"
+              value = coalesce(var.kratos_browser_url, var.kratos_public_url)
+            }
+          }
+
+          # Scopes Kratos's Domain-less cookies (the SSO continuity cookie) to
+          # the parent domain so the IdP callback on Kratos's host sees them.
+          dynamic "env" {
+            for_each = var.screens_enabled && var.kratos_cookie_domain != null ? [1] : []
+            content {
+              name  = "KRATOS_COOKIE_DOMAIN"
+              value = var.kratos_cookie_domain
+            }
           }
 
           env {
@@ -217,17 +226,90 @@ resource "kubernetes_deployment" "ui" {
             value = var.project_name
           }
 
+          env {
+            name  = "CSRF_COOKIE_NAME"
+            value = var.csrf_cookie_name
+          }
+
+          # false puts the service in consent-only mode: just Hydra's consent
+          # endpoint, the health endpoints and (when enabled) the token hook.
+          env {
+            name  = "SELF_SERVICE_SCREENS_ENABLED"
+            value = tostring(var.screens_enabled)
+          }
+
+          # Which flows the screens link to; mirrors the Kratos configuration.
+          env {
+            name  = "SCREENS_REGISTRATION_ENABLED"
+            value = tostring(var.screens_registration_enabled)
+          }
+
+          env {
+            name  = "SCREENS_RECOVERY_ENABLED"
+            value = tostring(var.screens_recovery_enabled)
+          }
+
+          env {
+            name  = "SCREENS_VERIFICATION_ENABLED"
+            value = tostring(var.screens_verification_enabled)
+          }
+
+          # Identity traits copied onto the issued tokens. This is what makes
+          # MCP OAuth work; pair with ory-stack's allowed_top_level_claims so
+          # the claims sit top-level rather than under Hydra's ext.
+          env {
+            name  = "CLAIM_TRAITS_ID_TOKEN"
+            value = join(",", var.claim_traits_id_token)
+          }
+
+          env {
+            name  = "CLAIM_TRAITS_ACCESS_TOKEN"
+            value = join(",", var.claim_traits_access_token)
+          }
+
+          env {
+            name  = "TOKEN_HOOK_ENABLED"
+            value = tostring(var.token_hook_enabled)
+          }
+
+          env {
+            name  = "LOG_LEVEL"
+            value = var.log_level
+          }
+
+          env {
+            name  = "LOG_REDACT_PII"
+            value = tostring(var.log_redact_pii)
+          }
+
           dynamic "env" {
-            for_each = length(var.default_access_token_audience) > 0 ? [1] : []
+            for_each = var.metrics_port != null ? [1] : []
             content {
-              name  = "MZ_DEFAULT_ACCESS_TOKEN_AUDIENCE"
-              value = jsonencode(var.default_access_token_audience)
+              name  = "METRICS_PORT"
+              value = tostring(var.metrics_port)
+            }
+          }
+
+          # Audience for self-registered (DCR) clients; see the variables.
+          dynamic "env" {
+            for_each = length(var.dcr_audience_allowlist) > 0 ? [1] : []
+            content {
+              name  = "DCR_AUDIENCE_ALLOWLIST"
+              value = join(",", var.dcr_audience_allowlist)
+            }
+          }
+
+          dynamic "env" {
+            for_each = length(var.dcr_default_audience) > 0 ? [1] : []
+            content {
+              name  = "DCR_DEFAULT_AUDIENCE"
+              value = join(",", var.dcr_default_audience)
             }
           }
 
           env {
-            name  = "CSRF_COOKIE_NAME"
-            value = var.csrf_cookie_name
+            name  = "REMEMBER_CONSENT_SESSION_FOR_SECONDS"
+            value = tostring(var.remember_consent_for_seconds)
           }
 
           env {
@@ -246,6 +328,19 @@ resource "kubernetes_deployment" "ui" {
               secret_key_ref {
                 name = kubernetes_secret.secrets.metadata[0].name
                 key  = "CSRF_COOKIE_SECRET"
+              }
+            }
+          }
+
+          dynamic "env" {
+            for_each = local.token_hook_api_key != null ? [1] : []
+            content {
+              name = "TOKEN_HOOK_API_KEY"
+              value_from {
+                secret_key_ref {
+                  name = kubernetes_secret.secrets.metadata[0].name
+                  key  = "TOKEN_HOOK_API_KEY"
+                }
               }
             }
           }
@@ -330,8 +425,32 @@ resource "kubernetes_deployment" "ui" {
             initial_delay_seconds = 3
             period_seconds        = 5
           }
+
+          # The image writes nothing at runtime (the old consent.js patch was
+          # the only reason it ever needed a writable path), so it runs with a
+          # read-only root filesystem and no capabilities.
+          security_context {
+            allow_privilege_escalation = false
+            read_only_root_filesystem  = true
+            run_as_non_root            = true
+            run_as_user                = 10000
+            run_as_group               = 10000
+            capabilities {
+              drop = ["ALL"]
+            }
+            seccomp_profile {
+              type = "RuntimeDefault"
+            }
+          }
         }
       }
+    }
+  }
+
+  lifecycle {
+    precondition {
+      condition     = !var.screens_enabled || var.kratos_public_url != null
+      error_message = "kratos_public_url must be set when screens_enabled is true; only consent-only mode (screens_enabled = false) can leave it null."
     }
   }
 

@@ -58,11 +58,20 @@ locals {
   # The standalone UI on its own FQDN when deployed (in both modes: its static
   # assets are root-mounted and can't sit under a path prefix), else whatever app
   # hosts the flow pages (e.g. the console). Kratos/Hydra redirect the browser here.
+  # In consent-only mode the UI is still deployed and still serves /consent from
+  # this URL; only the login page moves elsewhere (var.login_url).
   ui_external_url = (
     var.deploy_selfservice_ui ? "https://${var.ui_fqdn}" :
     var.selfservice_ui_url
   )
-  polis_external_url = local.wire_polis ? "https://${var.polis_fqdn}" : null
+
+  # Consent-only: the selfservice service serves just Hydra's consent endpoint
+  # (plus health and, when enabled, the token hook) and another app - typically
+  # the Materialize console - owns the login screen, so Hydra and Kratos send
+  # the browser to var.login_url instead of the UI's own /login.
+  selfservice_ui_consent_only = var.selfservice_ui_mode == "consent-only"
+  login_flow_url              = local.selfservice_ui_consent_only ? var.login_url : "${local.ui_external_url}/login"
+  polis_external_url          = local.wire_polis ? "https://${var.polis_fqdn}" : null
 
   # Cookie domain for Kratos session/CSRF cookies. Even in single-domain mode the
   # selfservice UI keeps its own hostname (a sibling of the Hydra/Kratos host), so
@@ -108,7 +117,9 @@ locals {
     },
     var.deploy_selfservice_ui ? {
       ory-selfservice-ui-lb = {
-        role         = "ui"
+        role = "ui"
+        # Still the historical label value: it is part of the UI Deployment's
+        # immutable selector, so the ory-selfservice image swap kept it.
         app_name     = "kratos-selfservice-ui-node"
         app_instance = module.ory_selfservice_ui[0].service_name
         target_port  = module.ory_selfservice_ui[0].port
@@ -173,7 +184,12 @@ locals {
             profile  = { enabled = false }
           }
           flows = {
-            login = { ui_url = "${local.ui_external_url}/login" }
+            # In consent-only mode this points at whatever app serves login
+            # (var.login_url). The other flow ui_urls keep pointing at the
+            # selfservice UI service: it does not serve them in consent-only
+            # mode, but the console will own those pages, and Kratos still
+            # wants a URL for each flow.
+            login = { ui_url = local.login_flow_url }
             # session hook logs the user in on first registration; without it
             # Hydra consent gets no identity and the JWT has no email claim.
             # Needed per method, so both the OIDC and SAML (Polis) methods carry
@@ -185,11 +201,17 @@ locals {
                 saml = { hooks = [{ hook = "session" }] }
               }
             }
-            recovery     = { ui_url = "${local.ui_external_url}/recovery" }
-            verification = { ui_url = "${local.ui_external_url}/verification" }
-            settings     = { ui_url = "${local.ui_external_url}/settings" }
-            error        = { ui_url = "${local.ui_external_url}/error" }
-            logout       = { after = { default_browser_return_url = local.ui_external_url } }
+            recovery = {
+              enabled = var.kratos_recovery_enabled
+              ui_url  = "${local.ui_external_url}/recovery"
+            }
+            verification = {
+              enabled = var.kratos_verification_enabled
+              ui_url  = "${local.ui_external_url}/verification"
+            }
+            settings = { ui_url = "${local.ui_external_url}/settings" }
+            error    = { ui_url = "${local.ui_external_url}/error" }
+            logout   = { after = { default_browser_return_url = local.ui_external_url } }
           }
         }
         identity = {
@@ -214,7 +236,10 @@ locals {
         }
         # Promote email/groups from Hydra's nested `ext` to the access token's
         # top level, where Materialize reads the auth and group claims. Without
-        # this, MCP access tokens are rejected (claims stay under ext).
+        # this, MCP access tokens are rejected (claims stay under ext). Still
+        # required with the ory-selfservice image: it is what puts the claims on
+        # the token in the first place (see selfservice_ui_claim_traits), this
+        # is what lifts them out of ext.
         oauth2 = {
           allowed_top_level_claims = ["email", "groups"]
         }
@@ -385,9 +410,20 @@ module "ory_hydra" {
 
   cors_allowed_origins = local.wire_materialize ? [for fqdn in local.materialize_console_fqdns : "https://${fqdn}"] : []
 
-  login_url   = "${local.ui_external_url}/login"
+  login_url   = local.login_flow_url
   consent_url = "${local.ui_external_url}/consent"
   logout_url  = "${local.ui_external_url}/logout"
+
+  # Hydra calls the token hook server-side, over the UI's own TLS listener (the
+  # UI terminates TLS with the ory-selfservice-ui-tls cert), so Hydra has to
+  # trust that certificate. With the self-signed cluster issuer it does not: the
+  # hook then needs a publicly trusted cert, or the issuing CA added to Hydra's
+  # trust store. Left off by default for that reason.
+  token_hook = var.selfservice_ui_token_hook_enabled ? {
+    url            = module.ory_selfservice_ui[0].token_hook_url
+    api_key_header = module.ory_selfservice_ui[0].token_hook_api_key_header
+    api_key        = module.ory_selfservice_ui[0].token_hook_api_key
+  } : null
 
   helm_values = provider::deepmerge::mergo(local.hydra_helm_values_baseline, var.hydra_helm_values)
 
@@ -404,7 +440,10 @@ module "ory_hydra" {
 # Ory selfservice UI ---------------------------------------------------------
 
 # Sits between Hydra and Kratos. Hydra has no built-in way to authenticate
-# users or collect consent; the UI fills both roles.
+# users or collect consent; the UI fills both roles. The image is Materialize's
+# ory-selfservice (https://github.com/MaterializeInc/ory-selfservice), a drop-in
+# replacement for oryd/kratos-selfservice-ui-node that copies identity traits
+# onto the issued tokens itself, so no runtime patching of the image is needed.
 module "ory_selfservice_ui" {
   source = "../ory-selfservice-ui"
   count  = var.deploy_selfservice_ui ? 1 : 0
@@ -420,7 +459,11 @@ module "ory_selfservice_ui" {
   kratos_browser_url = local.kratos_external_url
   hydra_admin_url    = local.hydra_admin_internal_url
 
-  default_access_token_audience = var.dcr_default_audience
+  # The UI is on its own hostname in both modes, a sibling of the Kratos host,
+  # so SSO needs Kratos's Domain-less continuity cookie scoped to the same
+  # parent domain as its session and CSRF cookies. A single-label fallback is
+  # not a valid cookie domain, so it leaves the setting off.
+  kratos_cookie_domain = length(split(".", local.cookie_parent_domain)) > 1 ? local.cookie_parent_domain : null
 
   # The UI keeps its own hostname (off the single-domain proxy, since its assets
   # are root-mounted), so it terminates its own TLS in both modes.
@@ -431,6 +474,29 @@ module "ory_selfservice_ui" {
   # single-domain mode those calls are plain HTTP (see kratos_public_url), so no
   # CA is needed.
   trust_mounted_ca_cert = !local.single_domain_enabled && var.cert_issuer_signs_cluster_local
+
+  # Consent-only mode drops every self-service screen; the consent endpoint,
+  # health and the token hook keep working.
+  screens_enabled = !local.selfservice_ui_consent_only
+
+  # Traits copied onto the issued tokens. Pairs with Hydra's
+  # allowed_top_level_claims (see hydra_helm_values_baseline) so they land
+  # top-level rather than under Hydra's ext.
+  claim_traits_id_token     = var.selfservice_ui_claim_traits
+  claim_traits_access_token = var.selfservice_ui_claim_traits
+
+  token_hook_enabled = var.selfservice_ui_token_hook_enabled
+
+  log_redact_pii = var.selfservice_ui_log_redact_pii
+
+  dcr_audience_allowlist = var.dcr_audience_allowlist
+  dcr_default_audience   = var.dcr_default_audience
+
+  # The screens link only to flows Kratos actually offers; sourced from the
+  # same variables that configure Kratos above so the two cannot drift.
+  screens_registration_enabled = var.screens_registration_link_enabled
+  screens_recovery_enabled     = var.kratos_recovery_enabled
+  screens_verification_enabled = var.kratos_verification_enabled
 
   node_selector = var.node_selector
   extra_env     = var.selfservice_ui_extra_env
@@ -574,9 +640,10 @@ resource "kubectl_manifest" "materialize_oauth2_client" {
       postLogoutRedirectUris = var.oauth2_client_post_logout_redirect_uris != null ? var.oauth2_client_post_logout_redirect_uris : flatten([
         for fqdn in local.materialize_console_fqdns : ["https://${fqdn}/", "https://${fqdn}/account/login"]
       ])
-      # Run the consent flow: Hydra has no user store, so the consent handler
-      # is what injects the identity's email/groups into the token. skip_consent
-      # would mint an empty-claims token that Materialize rejects.
+      # Run the consent flow: Hydra has no user store, so the selfservice
+      # service's consent endpoint is what injects the identity's email/groups
+      # into the token (see selfservice_ui_claim_traits). skip_consent would
+      # mint an empty-claims token that Materialize rejects.
       skipConsent = false
       # Public SPA client. No secret; PKCE on the console side.
       secretName              = var.oauth2_client_name

@@ -268,6 +268,90 @@ variable "hydra_helm_values" {
   default     = {}
 }
 
+variable "selfservice_ui_mode" {
+  description = "How much of the selfservice UI to serve. \"full\" serves every Kratos self-service screen (login, registration, recovery, verification, settings, error) plus Hydra's consent screen. \"consent-only\" serves only the consent endpoint, the health endpoints and (when enabled) the token hook, leaving the user-facing flows to another app - typically the Materialize console; login_url is then required."
+  type        = string
+  default     = "full"
+  nullable    = false
+
+  validation {
+    condition     = contains(["full", "consent-only"], var.selfservice_ui_mode)
+    error_message = "selfservice_ui_mode must be one of: full, consent-only."
+  }
+}
+
+variable "login_url" {
+  description = "Full URL Hydra sends users to for login when the selfservice UI runs in consent-only mode, e.g. the Materialize console's https://console.example.com/account/login. Also becomes Kratos's login flow ui_url so Kratos redirects to the same page. Required when selfservice_ui_mode is \"consent-only\"; ignored otherwise (the UI's own /login is used)."
+  type        = string
+  default     = null
+
+  validation {
+    condition     = var.selfservice_ui_mode != "consent-only" || var.login_url != null
+    error_message = "login_url must be set when selfservice_ui_mode is \"consent-only\": nothing else serves the login page in that mode."
+  }
+}
+
+variable "selfservice_ui_token_hook_enabled" {
+  description = "Serve Hydra's OAuth2 token hook from the selfservice UI and point Hydra at it. Hydra then calls the hook on every token issuance, so identity claims are refreshed from Kratos on refresh-token grants instead of being frozen at consent time. Requires deploy_selfservice_ui."
+  type        = bool
+  default     = false
+  nullable    = false
+
+  validation {
+    condition     = !var.selfservice_ui_token_hook_enabled || var.deploy_selfservice_ui
+    error_message = "selfservice_ui_token_hook_enabled requires deploy_selfservice_ui: the hook is served by the selfservice UI."
+  }
+}
+
+variable "selfservice_ui_claim_traits" {
+  description = "Kratos identity trait names copied onto the issued tokens (applied to both the id_token and the access token). Materialize reads groups off the access token, so this pairs with Hydra's allowed_top_level_claims."
+  type        = list(string)
+  default     = ["groups"]
+  nullable    = false
+}
+
+variable "kratos_recovery_enabled" {
+  description = "Enable Kratos account recovery (selfservice.flows.recovery.enabled) and the matching link on the login screen. Off by default: identities come from the upstream IdP, which owns password resets."
+  type        = bool
+  default     = false
+  nullable    = false
+}
+
+variable "kratos_verification_enabled" {
+  description = "Enable Kratos address verification (selfservice.flows.verification.enabled) and the matching links on the screens. Off by default: addresses are asserted by the upstream IdP."
+  type        = bool
+  default     = false
+  nullable    = false
+}
+
+variable "screens_registration_link_enabled" {
+  description = "Whether the login screen links to registration. Kratos registration stays enabled for IdP just-in-time provisioning, but with password sign-up off the registration screen only repeats the SSO buttons, so the link is hidden by default."
+  type        = bool
+  default     = false
+  nullable    = false
+}
+
+variable "dcr_audience_allowlist" {
+  description = "Audience allow-list for OAuth2 clients that register themselves through dynamic client registration, such as MCP clients like Claude Code. A client asking for an RFC 8707 resource under one of these https URIs is granted that entry as its audience. Set it to the Materialize MCP resource URL(s), which must also be in Materialize's oidc_audience."
+  type        = list(string)
+  default     = []
+  nullable    = false
+}
+
+variable "dcr_default_audience" {
+  description = "Audience granted to self-registered OAuth2 clients that have none and requested no resource. Empty leaves those clients without an audience, so Materialize rejects their tokens."
+  type        = list(string)
+  default     = []
+  nullable    = false
+}
+
+variable "selfservice_ui_log_redact_pii" {
+  description = "Redact personally identifiable information (email addresses, trait values) from the selfservice UI's logs. Leave false while debugging sign-in issues; turn it on where logs are shipped off-cluster."
+  type        = bool
+  default     = false
+  nullable    = false
+}
+
 variable "selfservice_ui_extra_env" {
   description = "Additional environment variables passed to the selfservice UI container."
   type        = map(string)
@@ -288,13 +372,6 @@ variable "oauth2_client_audience" {
   description = "Audience value(s) the OAuth2 client embeds in issued JWTs. Materialize validates this against its OIDC_AUDIENCE setting."
   type        = list(string)
   default     = ["materialize"]
-  nullable    = false
-}
-
-variable "dcr_default_audience" {
-  description = "Audience given to OAuth2 clients that register themselves without one through dynamic client registration, such as MCP clients like Claude Code. Set it to the Materialize MCP resource URL(s), which must also be in Materialize's OIDC audience. Empty leaves those clients without an audience, so Materialize rejects their tokens."
-  type        = list(string)
-  default     = []
   nullable    = false
 }
 
