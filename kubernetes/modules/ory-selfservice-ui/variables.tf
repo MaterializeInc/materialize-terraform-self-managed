@@ -232,6 +232,20 @@ variable "log_level" {
   }
 }
 
+variable "dcr_audience_allowlist" {
+  description = "https URIs (DCR_AUDIENCE_ALLOWLIST). A client with no registered audience, typically an MCP client that registered itself through Hydra's dynamic client registration, that asks for an RFC 8707 resource under one of these entries is granted that entry as its access token audience, and the entry is written onto the client so refresh keeps working. Set it to the Materialize MCP resource URL(s), which must also be in Materialize's oidc_audience."
+  type        = list(string)
+  default     = []
+  nullable    = false
+}
+
+variable "dcr_default_audience" {
+  description = "https URIs (DCR_DEFAULT_AUDIENCE) granted to a client that has no registered audience and requested no resource. Same rules as dcr_audience_allowlist. Empty leaves such clients without an audience, which Materialize rejects."
+  type        = list(string)
+  default     = []
+  nullable    = false
+}
+
 variable "metrics_port" {
   description = "Port for the service's Prometheus metrics listener (METRICS_PORT). Served separately from the public port so the LoadBalancer never exposes it; scrape it from the pod. Null disables the listener. Must differ from var.port."
   type        = number
