@@ -228,6 +228,22 @@ resource "kubernetes_deployment" "ui" {
             value = tostring(var.screens_enabled)
           }
 
+          # Which flows the screens link to; mirrors the Kratos configuration.
+          env {
+            name  = "SCREENS_REGISTRATION_ENABLED"
+            value = tostring(var.screens_registration_enabled)
+          }
+
+          env {
+            name  = "SCREENS_RECOVERY_ENABLED"
+            value = tostring(var.screens_recovery_enabled)
+          }
+
+          env {
+            name  = "SCREENS_VERIFICATION_ENABLED"
+            value = tostring(var.screens_verification_enabled)
+          }
+
           # Identity traits copied onto the issued tokens. This is what makes
           # MCP OAuth work; pair with ory-stack's allowed_top_level_claims so
           # the claims sit top-level rather than under Hydra's ext.
