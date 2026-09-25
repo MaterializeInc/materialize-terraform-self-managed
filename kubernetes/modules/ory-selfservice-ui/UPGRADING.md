@@ -35,6 +35,13 @@ Because nothing needs to be written at runtime any more, the pod now runs with
 `readOnlyRootFilesystem: true`, all capabilities dropped, `runAsNonRoot` and the
 `RuntimeDefault` seccomp profile.
 
+The patch also carried the stopgap default audience for DCR-registered clients
+(#467). Its `default_access_token_audience` input is replaced by
+`dcr_default_audience` (plus `dcr_audience_allowlist` for RFC 8707 `resource`
+requests). On `ory-stack`, `dcr_default_audience` keeps its name and meaning, so
+callers of the stack need no change. The image also still reads the old
+`MZ_DEFAULT_ACCESS_TOKEN_AUDIENCE` variable as an alias.
+
 ### Rollout and rollback
 
 This is an in-place rolling update: the Deployment's name, selector labels
