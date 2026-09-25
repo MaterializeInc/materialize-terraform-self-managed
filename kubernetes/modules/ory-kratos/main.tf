@@ -60,12 +60,57 @@ resource "kubernetes_secret" "saml_providers_env" {
   type = "Opaque"
 }
 
+# DSN, secrets and the SMTP URI live here instead of in the Helm values, which
+# the helm provider echoes in plain text in helm_release.metadata on every plan.
+# The chart's old Secret (named after the release, e.g. `kratos`) is a Helm hook
+# with resource-policy keep, so upgrading leaves it behind; delete it by hand.
+resource "kubernetes_secret" "kratos" {
+  metadata {
+    name      = "${var.release_name}-secrets"
+    namespace = local.namespace
+  }
+
+  data = local.secret_data
+
+  type = "Opaque"
+}
+
 locals {
   namespace = var.create_namespace ? kubernetes_namespace.kratos[0].metadata[0].name : var.namespace
 
   secrets_default = var.secrets_default != null ? var.secrets_default : random_password.secrets_default[0].result
   secrets_cookie  = var.secrets_cookie != null ? var.secrets_cookie : random_password.secrets_cookie[0].result
   secrets_cipher  = var.secrets_cipher != null ? var.secrets_cipher : random_password.secrets_cipher[0].result
+
+  smtp_enabled = var.smtp_connection_uri != null
+
+  # Key names the chart reads when secret.nameOverride points at an existing Secret.
+  secret_data = merge(
+    {
+      dsn            = var.dsn
+      secretsDefault = local.secrets_default
+      secretsCookie  = local.secrets_cookie
+      secretsCipher  = local.secrets_cipher
+    },
+    local.smtp_enabled ? { smtpConnectionURI = var.smtp_connection_uri } : {},
+  )
+
+  # The chart only checksums its own Secret, so roll the pods ourselves when ours changes.
+  secret_checksum = nonsensitive(sha256(jsonencode(local.secret_data)))
+
+  # The chart only wires smtpConnectionURI when connection_uri is in the values,
+  # so inject it here. The courier StatefulSet inherits deployment.extraEnv.
+  smtp_extra_env = local.smtp_enabled ? [
+    {
+      name = "COURIER_SMTP_CONNECTION_URI"
+      valueFrom = {
+        secretKeyRef = {
+          name = kubernetes_secret.kratos.metadata[0].name
+          key  = "smtpConnectionURI"
+        }
+      }
+    },
+  ] : []
 
   identity_schemas_config = length(var.identity_schemas) > 0 ? {
     identitySchemas = var.identity_schemas
@@ -119,10 +164,9 @@ locals {
     },
   ] : []
 
-  smtp_config = var.smtp_connection_uri != null ? {
+  smtp_config = local.smtp_enabled && (var.smtp_from_address != null || var.smtp_from_name != null) ? {
     courier = {
       smtp = merge(
-        { connection_uri = var.smtp_connection_uri },
         var.smtp_from_address != null ? { from_address = var.smtp_from_address } : {},
         var.smtp_from_name != null ? { from_name = var.smtp_from_name } : {},
       )
@@ -195,7 +239,9 @@ locals {
     "checksum/upstream-oidc-providers" = sha256(jsonencode(local.upstream_oidc_provider_objects))
   } : {}
 
-  deployment_config = length(local.tls_volumes) > 0 || length(local.upstream_oidc_extra_env) > 0 || length(local.saml_extra_env) > 0 ? {
+  extra_env = concat(local.upstream_oidc_extra_env, local.saml_extra_env, local.smtp_extra_env)
+
+  deployment_config = {
     deployment = merge(
       # One attribute per conditional: a multi-attribute object and {} cannot
       # unify as a map when the attribute types differ, so a two-attribute
@@ -203,10 +249,10 @@ locals {
       # TLS is enabled.
       length(local.tls_volumes) > 0 ? { extraVolumes = local.tls_volumes } : {},
       length(local.tls_volumes) > 0 ? { extraVolumeMounts = local.tls_volume_mounts } : {},
-      length(concat(local.upstream_oidc_extra_env, local.saml_extra_env)) > 0 ? { extraEnv = concat(local.upstream_oidc_extra_env, local.saml_extra_env) } : {},
-      length(merge(local.upstream_oidc_env_annotations, local.saml_env_annotations)) > 0 ? { annotations = merge(local.upstream_oidc_env_annotations, local.saml_env_annotations) } : {},
+      length(local.extra_env) > 0 ? { extraEnv = local.extra_env } : {},
+      { annotations = merge({ "checksum/secrets" = local.secret_checksum }, local.upstream_oidc_env_annotations, local.saml_env_annotations) },
     )
-  } : {}
+  }
 
   # The providers themselves are delivered exclusively via the environment
   # variable; enabled-with-no-providers is valid configuration for workloads
@@ -293,7 +339,8 @@ locals {
     replicaCount = var.replica_count
 
     secret = {
-      enabled = true
+      enabled      = false
+      nameOverride = kubernetes_secret.kratos.metadata[0].name
     }
 
     kratos = merge(
@@ -305,8 +352,6 @@ locals {
 
         config = merge(
           {
-            dsn = var.dsn
-
             serve = {
               public = {
                 port = 4433
@@ -314,12 +359,6 @@ locals {
               admin = {
                 port = 4434
               }
-            }
-
-            secrets = {
-              default = [local.secrets_default]
-              cookie  = [local.secrets_cookie]
-              cipher  = [local.secrets_cipher]
             }
 
             identity = {
