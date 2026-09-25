@@ -568,6 +568,26 @@ module "monitoring" {
   ]
 }
 
+locals {
+  # Which provider Materialize trusts. var.direct_oidc wins when set, so an
+  # existing provider stays authoritative while Ory runs beside it; clearing it
+  # is the cutover.
+  materialize_oidc_parameters = var.direct_oidc != null ? {
+    oidc_issuer               = var.direct_oidc.issuer
+    oidc_audience             = jsonencode(var.direct_oidc.audience)
+    oidc_authentication_claim = var.direct_oidc.authentication_claim
+    console_oidc_client_id    = var.direct_oidc.console_client_id
+    console_oidc_scopes       = var.direct_oidc.scopes
+    } : {
+    oidc_issuer                  = module.ory.hydra_external_url
+    oidc_audience                = jsonencode([module.ory.oauth2_client_id])
+    oidc_authentication_claim    = "email"
+    console_oidc_client_id       = module.ory.oauth2_client_id
+    console_oidc_scopes          = "openid email"
+    oidc_group_role_sync_enabled = "true"
+  }
+}
+
 module "materialize_instance" {
   source               = "../../../kubernetes/modules/materialize-instance"
   environmentd_version = var.materialize_version
@@ -611,14 +631,7 @@ module "materialize_instance" {
   # OIDC config; client_id is the Hydra Maester-generated UUID read from
   # the OAuth2 client Secret. system_parameters can also set any of the
   # parameters listed at https://materialize.com/docs/sql/alter-system-set/#key-configuration-parameters
-  system_parameters = {
-    oidc_issuer                  = module.ory.hydra_external_url
-    oidc_audience                = jsonencode([module.ory.oauth2_client_id])
-    oidc_authentication_claim    = "email"
-    console_oidc_client_id       = module.ory.oauth2_client_id
-    console_oidc_scopes          = "openid email"
-    oidc_group_role_sync_enabled = "true"
-  }
+  system_parameters = local.materialize_oidc_parameters
 
   # Wire the materialize -> ory NetworkPolicy.
   ory_namespace = local.ory_namespace

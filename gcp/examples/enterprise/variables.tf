@@ -275,3 +275,29 @@ variable "grafana_allow_public_access" {
   default     = false
   nullable    = false
 }
+
+variable "direct_oidc" {
+  description = <<-EOT
+    Point Materialize at an OIDC provider other than this example's Ory stack.
+
+    Leave `null` to trust Hydra, which is the default. When set, these values become Materialize's
+    issuer, audience and console client while the Ory stack keeps running alongside, which is how
+    you move an existing deployment onto Ory without a sign-in outage. Clearing it is the cutover.
+
+    `audience` is the list of accepted `aud` values, and `console_client_id` is the public client
+    the console starts its authorization code flow with.
+  EOT
+  type = object({
+    issuer               = string
+    audience             = list(string)
+    console_client_id    = string
+    scopes               = optional(string, "openid email")
+    authentication_claim = optional(string, "email")
+  })
+  default = null
+
+  validation {
+    condition     = var.direct_oidc == null || length(var.direct_oidc.audience) > 0
+    error_message = "direct_oidc.audience must list at least one accepted audience; an empty list disables audience validation."
+  }
+}

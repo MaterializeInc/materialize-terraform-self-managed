@@ -182,3 +182,15 @@ output "ory_lb_addresses" {
   description = "Ingress addresses of the Ory-side browser-facing LoadBalancers (hydra, kratos, ui, polis). Feed these into your DNS records for the corresponding hostnames. AWS populates the hostname key, not ip."
   value       = module.ory.lb_addresses
 }
+
+output "materialize_oidc" {
+  description = "The OIDC provider Materialize trusts: Hydra by default, or var.direct_oidc when set. Useful for confirming which side is authoritative mid-migration."
+  # The client ID is public (the console hands it to every browser), but the Ory
+  # module reads it from a Secret, which marks it sensitive.
+  value = {
+    issuer            = local.materialize_oidc_parameters.oidc_issuer
+    audience          = nonsensitive(local.materialize_oidc_parameters.oidc_audience)
+    console_client_id = nonsensitive(local.materialize_oidc_parameters.console_oidc_client_id)
+    provider          = var.direct_oidc != null ? "direct" : "ory"
+  }
+}
