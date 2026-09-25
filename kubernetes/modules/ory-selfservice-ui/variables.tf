@@ -66,6 +66,23 @@ variable "kratos_browser_url" {
   default     = null
 }
 
+variable "kratos_cookie_domain" {
+  description = "Parent domain shared by the UI's hostname and the Kratos browser host (KRATOS_COOKIE_DOMAIN), e.g. example.com. Set it to Kratos's cookies.domain whenever the two are on different hostnames: Kratos sets its SSO continuity cookie without a Domain, and without this the cookie stays on the UI's host, so the OIDC/SAML callback to Kratos fails with \"no resumable session found\". Null leaves such cookies host-only. Unused when screens_enabled is false."
+  type        = string
+  default     = null
+
+  validation {
+    condition = var.kratos_cookie_domain == null || (
+      can(regex(
+        "^\\.?([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\\.)+[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$",
+        lower(var.kratos_cookie_domain),
+      )) &&
+      !can(regex("^\\.?[0-9.]+$", var.kratos_cookie_domain))
+    )
+    error_message = "kratos_cookie_domain must be a bare domain with at least two labels, e.g. example.com (no scheme, port, path, wildcard or IP address)."
+  }
+}
+
 variable "hydra_admin_url" {
   description = "Internal URL for the Hydra admin API. Example: http://hydra-admin.ory.svc.cluster.local:4445"
   type        = string

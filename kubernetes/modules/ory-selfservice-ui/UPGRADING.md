@@ -75,10 +75,27 @@ Rotating either secret invalidates existing browser sessions (users sign in agai
 | `log_level` | `"info"` | One of `fatal`, `error`, `warn`, `info`, `debug`, `trace`. |
 | `log_redact_pii` | `false` | Redact emails and trait values from logs. |
 | `remember_consent_for_seconds` | `3600` | How long a granted consent is remembered. |
+| `kratos_cookie_domain` | `null` | Parent domain of the UI and Kratos hosts; needed for SSO when they differ (below). |
 
 `kratos_public_url` and `kratos_browser_url` are now optional, because consent-only mode
 does not talk to the Kratos public API. `kratos_public_url` is still required (enforced by
 a precondition) when `screens_enabled` is true.
+
+### SSO with the UI and Kratos on different hostnames
+
+The new image serves the Kratos API to the browser through its own origin (`/.ory/...`)
+rather than having the browser call Kratos directly. Kratos sets its SSO continuity
+cookie (`ory_kratos_continuity`) without a Domain, so through the UI it would land
+host-only on the UI's hostname, and the IdP callback, which goes to Kratos's own
+hostname, would fail with "no resumable session found". `kratos_cookie_domain` makes the
+UI scope that cookie to the shared parent domain, the same one Kratos's `cookies.domain`
+uses.
+
+`ory-stack` sets it to `cookie_parent_domain` automatically: the UI keeps its own
+hostname in both per-service and single-domain mode, so it is always a sibling of the
+Kratos host. Standalone users of this module must set it themselves whenever `ui_fqdn`
+and the Kratos browser host differ. The service refuses to start if the value does not
+cover the Kratos browser host.
 
 ### Consent-only mode
 
