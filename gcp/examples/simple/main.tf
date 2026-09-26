@@ -455,6 +455,17 @@ module "monitoring" {
   enable_google_cloud_metrics         = false
   google_cloud_metrics_min_importance = "recommended"
 
+  # The other direction: Cloud Monitoring's view of the dependencies Materialize
+  # cannot run without — the metadata database's CPU, memory, disk, connections
+  # and transaction-ID use, and the persist bucket's size, split into live,
+  # noncurrent and soft-deleted bytes. The module adds its own buckets and
+  # Grafana's database. Resources are named here rather than discovered, so
+  # nothing else in the project is pulled.
+  provider_metrics = var.enable_provider_metrics ? {
+    cloud_sql_instances = [module.database.instance_name]
+    gcs_buckets         = [module.storage.bucket_name]
+  } : null
+
   # Datadog and generic OTLP (Honeycomb, Grafana Cloud, your own collector) fan
   # out the same way, and need no cloud resources — so they are set here rather
   # than behind an `enable_*` toggle. Commented out because both need a

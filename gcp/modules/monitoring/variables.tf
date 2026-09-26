@@ -203,6 +203,59 @@ variable "google_cloud_metrics_prefix" {
   default     = null
 }
 
+variable "provider_metrics" {
+  description = <<-EOT
+    Pull Cloud Monitoring metrics for the listed Cloud SQL instances and GCS buckets into the Alloy
+    gateway, beside everything else it collects. Null disables it. Thanos is where they land; the
+    `enable_google_cloud_metrics` export is unaffected and, at its default tier, does not write them
+    back.
+
+    Grants `roles/monitoring.viewer` on the project to the gateway's service account, creating that
+    account and its Workload Identity binding if `enable_google_cloud_metrics` has not already.
+
+    `cloud_sql_instances` are instance names, not `project:region:instance` connection names. The
+    Materialize database and persist bucket are siblings of this module, so the caller passes them.
+    `include_monitoring_resources` adds this module's own two buckets and, when this module creates
+    it, Grafana's database.
+
+    `importance` is the tier the chart assigns these families, and decides which filtered
+    destinations receive them. Null keeps the chart's default, `extended`.
+
+    Needs materialize-monitoring chart 0.25.0 or later. An older chart ignores the values and the
+    grant goes unused.
+  EOT
+  type = object({
+    cloud_sql_instances          = optional(list(string), [])
+    gcs_buckets                  = optional(list(string), [])
+    include_monitoring_resources = optional(bool, true)
+    scrape_interval              = optional(string)
+    importance                   = optional(string)
+  })
+  default = null
+
+  validation {
+    condition = var.provider_metrics == null ? true : (
+      var.provider_metrics.importance == null ? true : contains(["essential", "recommended", "extended", "diagnostic"], var.provider_metrics.importance)
+    )
+    error_message = "provider_metrics.importance must be one of essential, recommended, extended, diagnostic."
+  }
+
+  validation {
+    condition = var.provider_metrics == null ? true : (
+      var.provider_metrics.include_monitoring_resources ||
+      length(var.provider_metrics.cloud_sql_instances) + length(var.provider_metrics.gcs_buckets) > 0
+    )
+    error_message = "provider_metrics names no resources. List cloud_sql_instances or gcs_buckets, or leave include_monitoring_resources on — the chart refuses a pull with nothing to watch."
+  }
+
+  validation {
+    condition = var.provider_metrics == null ? true : alltrue([
+      for i in var.provider_metrics.cloud_sql_instances : !strcontains(i, ":")
+    ])
+    error_message = "provider_metrics.cloud_sql_instances takes instance names, not connection names. Drop the `project:region:` prefix; the project is added from project_id."
+  }
+}
+
 # ==============================================================================
 # Extra metrics destinations
 # ==============================================================================

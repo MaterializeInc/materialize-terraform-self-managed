@@ -299,6 +299,50 @@ variable "otlp_auth_bearer_token" {
   sensitive   = true
 }
 
+variable "provider_metrics" {
+  description = <<-EOT
+    Pull CloudWatch metrics for the listed RDS instances and S3 buckets into the Alloy gateway,
+    beside everything else it collects. Null disables it.
+
+    Creates an IRSA role, `<name_prefix>-mzmon-gateway`, allowed only
+    `cloudwatch:GetMetricStatistics` and `iam:ListAccountAliases`, and binds the gateway's
+    ServiceAccount to it.
+
+    The Materialize database and persist bucket are siblings of this module, so the caller
+    passes them. `include_monitoring_resources` adds this module's own two buckets and, when
+    this module creates it, Grafana's database.
+
+    `importance` is the tier the chart assigns these families, and decides which filtered
+    destinations receive them. Null keeps the chart's default, `extended`.
+
+    Needs materialize-monitoring chart 0.25.0 or later. An older chart ignores the values and
+    the role goes unused.
+  EOT
+  type = object({
+    rds_instance_ids             = optional(list(string), [])
+    s3_bucket_names              = optional(list(string), [])
+    include_monitoring_resources = optional(bool, true)
+    scrape_interval              = optional(string)
+    importance                   = optional(string)
+  })
+  default = null
+
+  validation {
+    condition = var.provider_metrics == null ? true : (
+      var.provider_metrics.importance == null ? true : contains(["essential", "recommended", "extended", "diagnostic"], var.provider_metrics.importance)
+    )
+    error_message = "provider_metrics.importance must be one of essential, recommended, extended, diagnostic."
+  }
+
+  validation {
+    condition = var.provider_metrics == null ? true : (
+      var.provider_metrics.include_monitoring_resources ||
+      length(var.provider_metrics.rds_instance_ids) + length(var.provider_metrics.s3_bucket_names) > 0
+    )
+    error_message = "provider_metrics names no resources. List rds_instance_ids or s3_bucket_names, or leave include_monitoring_resources on — the chart refuses a pull with nothing to watch."
+  }
+}
+
 variable "tolerations" {
   description = "Tolerations for the monitoring workloads, including the Alloy agent DaemonSet."
   type = list(object({

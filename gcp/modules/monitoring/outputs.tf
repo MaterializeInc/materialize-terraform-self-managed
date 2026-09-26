@@ -65,8 +65,11 @@ output "metrics_bucket" {
 }
 
 output "service_account_emails" {
-  description = "Google service account emails, by backend."
-  value       = { for k, sa in google_service_account.telemetry : k => sa.email }
+  description = "Google service account emails, by backend. Includes `gateway` when `enable_google_cloud_metrics` or `provider_metrics` is set."
+  value = merge(
+    { for k, sa in google_service_account.telemetry : k => sa.email },
+    { for sa in google_service_account.gateway : "gateway" => sa.email },
+  )
 }
 
 output "workload_identity_subjects" {

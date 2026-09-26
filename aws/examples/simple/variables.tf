@@ -73,6 +73,19 @@ variable "enable_observability" {
   default     = true
 }
 
+variable "enable_provider_metrics" {
+  description = <<-EOT
+    Pull CloudWatch metrics for the Materialize database and persist bucket, and for the monitoring
+    stack's own buckets and Grafana database, into the monitoring stack. Creates a read-only IRSA
+    role for the Alloy gateway. Needs materialize-monitoring chart 0.25.0 or later.
+
+    Off by default: CloudWatch bills each `GetMetricStatistics` call, about 30 every five minutes for
+    this example.
+  EOT
+  type        = bool
+  default     = false
+}
+
 variable "materialize_version" {
   description = "Materialize release for both the operator Helm chart and environmentd, which must not drift. Null uses each module's default."
   type        = string

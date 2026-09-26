@@ -616,6 +616,16 @@ module "monitoring" {
   # }
   # otlp_auth_header_secrets = { "x-honeycomb-team" = var.honeycomb_api_key }
 
+  # CloudWatch's view of the dependencies Materialize cannot run without: the
+  # metadata database's CPU, memory, storage, connections and burst balances,
+  # and the persist bucket's size. The module adds its own buckets and Grafana's
+  # database. Resources are named here rather than discovered by tag, so nothing
+  # else in the account is pulled or billed.
+  provider_metrics = var.enable_provider_metrics ? {
+    rds_instance_ids = [module.database.db_instance_id]
+    s3_bucket_names  = [module.storage.bucket_name]
+  } : null
+
   materialize_instance_namespace = local.materialize_instance_namespace
   materialize_operator_namespace = local.operator_namespace
 
