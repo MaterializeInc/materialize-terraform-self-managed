@@ -25,6 +25,25 @@ resource "kubernetes_config_map" "system_params" {
   ]
 }
 
+# Balancerd dynamic configuration (e.g. balancerd_max_connections). Balancerd
+# rereads config.json at runtime, so edits here apply without a rollout.
+resource "kubernetes_config_map" "balancerd_params" {
+  count = var.balancerd_parameters != null ? 1 : 0
+
+  metadata {
+    name      = "${var.instance_name}-balancerd-params"
+    namespace = var.instance_namespace
+  }
+
+  data = {
+    "config.json" = jsonencode(var.balancerd_parameters)
+  }
+
+  depends_on = [
+    kubernetes_namespace.instance
+  ]
+}
+
 # Create the Materialize instance using the kubernetes_manifest resource
 resource "kubectl_manifest" "materialize_instance" {
   field_manager   = "terraform"
@@ -108,6 +127,11 @@ resource "kubectl_manifest" "materialize_instance" {
       # requestRollout only applies to v1alpha1
       var.crd_version == "v1alpha1" ? {
         requestRollout = var.request_rollout
+      } : {},
+      # Only present in operator >= v26.44; omit the key entirely so older CRDs
+      # don't reject the manifest.
+      var.balancerd_parameters != null ? {
+        balancerdConfigmapName = kubernetes_config_map.balancerd_params[0].metadata[0].name
       } : {}
     )
   })
@@ -124,6 +148,7 @@ resource "kubectl_manifest" "materialize_instance" {
     kubernetes_secret.materialize_backend,
     kubernetes_namespace.instance,
     kubernetes_config_map.system_params,
+    kubernetes_config_map.balancerd_params,
   ]
 }
 
