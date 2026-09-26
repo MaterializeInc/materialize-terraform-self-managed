@@ -86,10 +86,11 @@ locals {
     value = var.external_url
   }]
 
-  # Chart bakes OPENID_REDIRECT_EXACT_MATCH=true; append to override (last-wins).
-  openid_redirect_exact_match_env = [{
+  # The chart hardcodes OPENID_REDIRECT_EXACT_MATCH=true, so only append an
+  # override (last-wins) when disabling it, to avoid a duplicate env by default.
+  openid_redirect_exact_match_env = var.openid_redirect_exact_match ? [] : [{
     name  = "OPENID_REDIRECT_EXACT_MATCH"
-    value = tostring(var.openid_redirect_exact_match)
+    value = "false"
   }]
 
   extra_envs = concat(
