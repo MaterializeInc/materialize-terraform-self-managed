@@ -65,6 +65,12 @@ materialize_balancerd_fqdn = "balancerd.mz.example.com"
 #   },
 # ]
 
+# Optional: balancerd dynamic configuration, applied at runtime without a pod
+# restart. Values are typed, so numbers must be numbers, not strings.
+# balancerd_config = {
+#   balancerd_max_connections = 5000
+# }
+
 tags = {
   environment = "demo"
   project     = "materialize-enterprise"

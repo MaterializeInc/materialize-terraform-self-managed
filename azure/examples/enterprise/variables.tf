@@ -189,6 +189,12 @@ variable "materialize_version" {
   default     = null
 }
 
+variable "balancerd_config" {
+  description = "Dynamic configuration for balancerd, applied at runtime via a ConfigMap. Values are typed: numbers must be JSON numbers, e.g. { balancerd_max_connections = 5000 }. Null skips the ConfigMap."
+  type        = any
+  default     = null
+}
+
 variable "grafana_host" {
   description = "Optional hostname to reach Grafana on. The load balancer is created regardless and answers on an IP; setting this configures Grafana's `root_url` for share links, alert notifications, and OAuth redirects. DNS for this name is yours to create."
   type        = string
