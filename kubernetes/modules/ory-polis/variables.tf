@@ -227,9 +227,9 @@ variable "extra_env" {
 }
 
 variable "openid_redirect_exact_match" {
-  description = "When true, the OAuth2 redirect_uri must match a connection's redirectUrl allowlist entry exactly (including pathname). When false, only scheme, host, and port are compared. Overrides the chart's baked-in true so redirect_uri patterns work as documented."
+  description = "When true, the OAuth2 redirect_uri must match a connection's redirectUrl entry on scheme, host, port, and path. When false, the path is ignored. The chart always sets this env to true, so false adds a second OPENID_REDIRECT_EXACT_MATCH entry to override it, and duplicate env names can make Helm upgrades fail to patch the Deployment."
   type        = bool
-  default     = false
+  default     = true
   nullable    = false
 }
 
