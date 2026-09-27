@@ -1,0 +1,14 @@
+terraform {
+  required_version = ">= 1.10"
+
+  required_providers {
+    kubernetes = {
+      source  = "hashicorp/kubernetes"
+      version = ">= 2.10.0, < 2.39.0"
+    }
+    random = {
+      source  = "hashicorp/random"
+      version = "~> 3.1, < 3.10.0"
+    }
+  }
+}

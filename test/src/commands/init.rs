@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result};
 use tokio::process::Command;
 
-use crate::cli::InitProvider;
+use crate::cli::{InitProvider, PersistBackend};
 use crate::helpers::{
     ci_log_group, example_dir, generate_test_run_id, project_root, run_cmd, runs_dir,
     upload_tfvars_to_backend, write_lifecycle,
@@ -54,6 +54,14 @@ pub async fn phase_init(provider_args: &InitProvider) -> Result<PathBuf> {
             println!("\nApplying dev overrides...");
             write_dev_variables_tf(&dest).await?;
             inject_dev_overrides(&dest, &overrides).await?;
+        }
+
+        // Unlike the dev overrides, this applies to every provider including
+        // kind. The store itself runs in the cluster, so only its node pool is
+        // cloud-specific, and that is handled by the module the injector picks.
+        if common.persist_backend.module_name().is_some() {
+            println!("\nDeploying an in-cluster object store for persist...");
+            inject_object_store(&dest, common.persist_backend, provider).await?;
         }
 
         println!("\nBuilding terraform.tfvars.json...");
@@ -390,10 +398,25 @@ pub(crate) async fn inject_dev_overrides(dest: &Path, overrides: &DevOverrides) 
 ///
 /// Returns whether the module block was modified.
 fn set_module_var(module: &mut hcl_edit::structure::Block, module_name: &str, key: &str) -> bool {
-    let want = format!("var.{key}");
+    set_module_attr(module, module_name, key, var_ref(key))
+}
+
+/// Points `<key>` at an arbitrary expression in the given module block,
+/// replacing whatever value is already there. See [`set_module_var`] for why
+/// replacing rather than skipping matters.
+///
+/// Returns whether the module block was modified.
+fn set_module_attr(
+    module: &mut hcl_edit::structure::Block,
+    module_name: &str,
+    key: &str,
+    value: hcl_edit::expr::Expression,
+) -> bool {
+    let want = value.to_string();
+    let want = want.trim().to_string();
 
     let Some(mut attr) = module.body.get_attribute_mut(key) else {
-        module.body.push(module_var_attr(key));
+        module.body.push(module_attr(key, value));
         println!("  Injected {key} into {module_name} module in main.tf");
         return true;
     };
@@ -404,8 +427,190 @@ fn set_module_var(module: &mut hcl_edit::structure::Block, module_name: &str, ke
         return false;
     }
     println!("  Repointed {key} from {current} to {want} in {module_name} module in main.tf");
-    *attr.value_mut() = var_ref(key);
+    *attr.value_mut() = value;
     true
+}
+
+/// Deploys an S3-compatible object store into the cluster and points persist
+/// at it, replacing the example's own object storage.
+///
+/// Both stores are reachable only from inside the cluster, so nothing outside
+/// terraform needs to learn the endpoint: the module emits a
+/// `persist_backend_url` in the form `materialize-instance` already consumes,
+/// and this repoints that one attribute at it. The example's own bucket is
+/// left in place and simply goes unused, which costs a bucket and keeps the
+/// edit to a single attribute rather than deleting module blocks.
+///
+/// Idempotent, so `sync` can re-run it after a module change.
+pub(crate) async fn inject_object_store(
+    dest: &Path,
+    backend: PersistBackend,
+    provider: CloudProvider,
+) -> Result<()> {
+    let Some(module_dir) = backend.module_name() else {
+        return Ok(());
+    };
+
+    let main_tf_path = dest.join("main.tf");
+    let content = tokio::fs::read_to_string(&main_tf_path)
+        .await
+        .context("Failed to read main.tf")?;
+    let mut body: hcl_edit::structure::Body = content.parse().context("Failed to parse main.tf")?;
+
+    let already_present = body
+        .get_blocks("module")
+        .any(|b| b.has_labels(&["object_store"]));
+
+    if !already_present {
+        let snippet = object_store_module_block(module_dir, provider);
+        let parsed: hcl_edit::structure::Body = snippet
+            .parse()
+            .context("Failed to build the object store module block")?;
+        for block in parsed.into_blocks() {
+            body.push(block);
+        }
+        println!("  Injected object_store module ({module_dir}) into main.tf");
+    }
+
+    let module = find_module_mut(&mut body, "materialize_instance")?;
+    set_module_attr(
+        module,
+        "materialize_instance",
+        "persist_backend_url",
+        module_output_ref("object_store", "persist_backend_url"),
+    );
+
+    tokio::fs::write(&main_tf_path, body.to_string()).await?;
+    write_object_store_outputs(dest).await?;
+    Ok(())
+}
+
+/// Builds the `module "object_store"` block for a provider.
+///
+/// On AWS the store gets its own storage node pool, so the block comes from
+/// `aws/modules`, which wraps the portable store module with a node class, a
+/// node pool and a CSI driver for the instance store NVMe. That wrapper needs
+/// the cluster's identity, wired here to the same outputs the example's own
+/// node classes use.
+///
+/// Everywhere else the portable module is used directly and the store lands on
+/// whatever the default StorageClass provides. That is right for kind, which
+/// has no Karpenter and no instance store, and it is a gap on GCP and Azure:
+/// the store will run, but on network storage, so numbers from those providers
+/// measure the disk the cluster happens to offer.
+///
+/// Run directories sit at `test/runs/<id>`, the same depth
+/// `rewrite_module_sources` assumes for the provider modules.
+fn object_store_module_block(module_dir: &str, provider: CloudProvider) -> String {
+    match provider {
+        CloudProvider::Aws => format!(
+            r#"
+module "object_store" {{
+  source = "../../../aws/modules/{module_dir}"
+
+  instance_profile   = module.karpenter.node_instance_profile
+  security_group_ids = [module.eks.node_security_group_id]
+  subnet_ids         = module.networking.private_subnet_ids
+  kubeconfig_data    = local.kubeconfig_data
+  tags               = var.tags
+
+  depends_on = [module.karpenter]
+}}
+"#
+        ),
+        _ => format!(
+            r#"
+module "object_store" {{
+  source = "../../../kubernetes/modules/{module_dir}"
+}}
+"#
+        ),
+    }
+}
+
+/// Exposes the injected store's connection details as root outputs, so a
+/// benchmark can find it with `terraform output`.
+///
+/// Written into the run directory rather than added to the example, which is
+/// customer-facing and has no reason to publish a store's credentials. The
+/// file is overwritten on every injection, so it stays in step with the module
+/// that `sync` re-injects.
+async fn write_object_store_outputs(dest: &Path) -> Result<()> {
+    let content = r#"# Written by the test harness for --persist-backend runs.
+output "object_store_persist_backend_url" {
+  description = "S3 connection URL for the in-cluster object store."
+  value       = module.object_store.persist_backend_url
+  sensitive   = true
+}
+
+output "object_store_endpoint" {
+  description = "In-cluster S3 endpoint for the object store."
+  value       = module.object_store.endpoint
+}
+
+output "object_store_node_selector" {
+  description = "Node selector the store was pinned with. A benchmark client must share its nodes, or it measures the network between them."
+  value       = module.object_store.node_selector
+}
+
+output "object_store_tolerations" {
+  description = "Tolerations needed to schedule alongside the store."
+  value       = module.object_store.tolerations
+}
+
+output "object_store_bucket" {
+  description = "Bucket holding persist data."
+  value       = module.object_store.bucket
+}
+
+output "object_store_namespace" {
+  description = "Namespace the object store runs in."
+  value       = module.object_store.namespace
+}
+"#;
+    let path = dest.join("object_store_outputs.tf");
+    tokio::fs::write(&path, content).await?;
+    println!("  Wrote object_store_outputs.tf");
+    Ok(())
+}
+
+/// Reads back which object store a run was initialized with, by looking for
+/// the injected module block in its `main.tf`.
+///
+/// The choice is not a terraform variable, so it is not in tfvars; recovering
+/// it from the file the injector wrote keeps `sync` from needing one, and
+/// keeps the run directory self-describing. Must be called before
+/// `copy_example_files` overwrites `main.tf`.
+pub(crate) async fn detect_object_store(dir: &Path) -> Result<PersistBackend> {
+    let main_tf_path = dir.join("main.tf");
+    let Ok(content) = tokio::fs::read_to_string(&main_tf_path).await else {
+        return Ok(PersistBackend::Default);
+    };
+    let Ok(body) = content.parse::<hcl_edit::structure::Body>() else {
+        return Ok(PersistBackend::Default);
+    };
+
+    let Some(block) = body
+        .get_blocks("module")
+        .find(|b| b.has_labels(&["object_store"]))
+    else {
+        return Ok(PersistBackend::Default);
+    };
+
+    let source = block
+        .body
+        .get_attribute("source")
+        .and_then(|a| a.value.as_str().map(str::to_owned))
+        .unwrap_or_default();
+
+    for backend in [PersistBackend::Rustfs, PersistBackend::Ceph] {
+        if let Some(name) = backend.module_name()
+            && source.ends_with(name)
+        {
+            return Ok(backend);
+        }
+    }
+    Ok(PersistBackend::Default)
 }
 
 /// Finds a `module "<name>"` block in the body, returning a mutable reference.
@@ -418,14 +623,33 @@ fn find_module_mut<'a>(
         .with_context(|| format!("could not find module \"{name}\" in tf file"))
 }
 
-/// Builds an `Attribute` like `key = var.key` with 2-space indentation to
+/// Builds an `Attribute` like `key = <value>` with 2-space indentation to
 /// match the surrounding module block.
-fn module_var_attr(name: &str) -> hcl_edit::structure::Attribute {
+fn module_attr(name: &str, value: hcl_edit::expr::Expression) -> hcl_edit::structure::Attribute {
     use hcl_edit::Decorate;
 
-    let mut attr = hcl_edit::structure::Attribute::new(hcl_edit::Ident::new(name), var_ref(name));
+    let mut attr = hcl_edit::structure::Attribute::new(hcl_edit::Ident::new(name), value);
     attr.decor_mut().set_prefix("  ");
     attr
+}
+
+/// Builds a `module.<module>.<attr>` traversal expression.
+fn module_output_ref(module: &str, attr: &str) -> hcl_edit::expr::Expression {
+    use hcl_edit::Decorated;
+    use hcl_edit::expr::{Traversal, TraversalOperator};
+
+    Traversal::new(
+        hcl_edit::Ident::new("module"),
+        vec![
+            Decorated::new(TraversalOperator::GetAttr(Decorated::new(
+                hcl_edit::Ident::new(module),
+            ))),
+            Decorated::new(TraversalOperator::GetAttr(Decorated::new(
+                hcl_edit::Ident::new(attr),
+            ))),
+        ],
+    )
+    .into()
 }
 
 /// Builds a `var.<name>` traversal expression.
@@ -492,4 +716,182 @@ async fn create_kind_cluster(test_run_id: &str, dest: &Path) -> Result<()> {
     )
     .await
     .context("failed to deploy the kind test backends")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Stands in for the part of an example this injector touches: a
+    /// `materialize_instance` whose `persist_backend_url` already points at
+    /// the example's own object storage.
+    const EXAMPLE: &str = r#"
+module "storage" {
+  source = "../../../aws/modules/storage"
+}
+
+module "materialize_instance" {
+  source              = "../../../kubernetes/modules/materialize-instance"
+  instance_name       = "main"
+  persist_backend_url = local.persist_backend_url
+}
+"#;
+
+    async fn scratch_example() -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("inject-{}", generate_test_run_id()));
+        tokio::fs::create_dir_all(&dir).await.unwrap();
+        tokio::fs::write(dir.join("main.tf"), EXAMPLE)
+            .await
+            .unwrap();
+        dir
+    }
+
+    async fn main_tf(dir: &Path) -> String {
+        tokio::fs::read_to_string(dir.join("main.tf"))
+            .await
+            .unwrap()
+    }
+
+    #[tokio::test]
+    async fn injects_object_store_and_repoints_persist() {
+        let dir = scratch_example().await;
+
+        inject_object_store(&dir, PersistBackend::Rustfs, CloudProvider::Kind)
+            .await
+            .unwrap();
+
+        // Parsing rather than string-matching: a malformed injection would
+        // still contain the right substrings but fail `terraform init`.
+        let body: hcl_edit::structure::Body = main_tf(&dir)
+            .await
+            .parse()
+            .expect("injected main.tf must still be valid HCL");
+
+        let object_store = body
+            .get_blocks("module")
+            .find(|b| b.has_labels(&["object_store"]))
+            .expect("object_store module was not injected");
+        assert_eq!(
+            object_store
+                .body
+                .get_attribute("source")
+                .and_then(|a| a.value.as_str().map(str::to_owned))
+                .unwrap(),
+            "../../../kubernetes/modules/object-store-rustfs",
+        );
+
+        let mz = body
+            .get_blocks("module")
+            .find(|b| b.has_labels(&["materialize_instance"]))
+            .expect("materialize_instance went missing");
+        let persist = mz
+            .body
+            .get_attribute("persist_backend_url")
+            .unwrap()
+            .value
+            .to_string();
+        assert_eq!(
+            persist.trim(),
+            "module.object_store.persist_backend_url",
+            "persist must point at the injected store, not the example's bucket",
+        );
+
+        assert!(
+            body.get_blocks("module")
+                .any(|b| b.has_labels(&["storage"])),
+            "the example's own storage module should be left alone",
+        );
+
+        tokio::fs::remove_dir_all(&dir).await.ok();
+    }
+
+    #[tokio::test]
+    async fn injection_is_idempotent_and_detectable() {
+        let dir = scratch_example().await;
+
+        inject_object_store(&dir, PersistBackend::Ceph, CloudProvider::Kind)
+            .await
+            .unwrap();
+        let once = main_tf(&dir).await;
+
+        // `sync` re-runs this against an already-injected file.
+        inject_object_store(&dir, PersistBackend::Ceph, CloudProvider::Kind)
+            .await
+            .unwrap();
+        assert_eq!(
+            once,
+            main_tf(&dir).await,
+            "re-injecting must not duplicate the block",
+        );
+
+        // And `sync` recovers the choice from the file, not from tfvars.
+        assert_eq!(
+            detect_object_store(&dir).await.unwrap(),
+            PersistBackend::Ceph,
+        );
+
+        tokio::fs::remove_dir_all(&dir).await.ok();
+    }
+
+    #[tokio::test]
+    async fn default_backend_leaves_the_example_alone() {
+        let dir = scratch_example().await;
+
+        inject_object_store(&dir, PersistBackend::Default, CloudProvider::Kind)
+            .await
+            .unwrap();
+
+        assert_eq!(
+            main_tf(&dir).await,
+            EXAMPLE,
+            "the default must not rewrite the example",
+        );
+        assert_eq!(
+            detect_object_store(&dir).await.unwrap(),
+            PersistBackend::Default,
+        );
+
+        tokio::fs::remove_dir_all(&dir).await.ok();
+    }
+
+    #[tokio::test]
+    async fn aws_gets_the_module_that_brings_a_storage_node_pool() {
+        let dir = scratch_example().await;
+
+        inject_object_store(&dir, PersistBackend::Rustfs, CloudProvider::Aws)
+            .await
+            .unwrap();
+
+        let body: hcl_edit::structure::Body = main_tf(&dir).await.parse().unwrap();
+        let object_store = body
+            .get_blocks("module")
+            .find(|b| b.has_labels(&["object_store"]))
+            .expect("object_store module was not injected");
+
+        assert_eq!(
+            object_store
+                .body
+                .get_attribute("source")
+                .and_then(|a| a.value.as_str().map(str::to_owned))
+                .unwrap(),
+            "../../../aws/modules/object-store-rustfs",
+            "aws must use the wrapper that adds a storage node pool, not the portable module",
+        );
+
+        // The wrapper needs the cluster's identity, which only the example can
+        // supply. Missing any of these fails at plan time rather than here.
+        for required in [
+            "instance_profile",
+            "security_group_ids",
+            "subnet_ids",
+            "kubeconfig_data",
+        ] {
+            assert!(
+                object_store.body.get_attribute(required).is_some(),
+                "aws module block is missing {required}",
+            );
+        }
+
+        tokio::fs::remove_dir_all(&dir).await.ok();
+    }
 }

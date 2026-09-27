@@ -1,9 +1,97 @@
 use std::path::PathBuf;
 
 use anyhow::{Context, Result, bail};
-use clap::{Args as ClapArgs, Parser, Subcommand};
+use clap::{Args as ClapArgs, Parser, Subcommand, ValueEnum};
 
 use crate::types::CloudProvider;
+
+/// Which object store backs persist.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, ValueEnum)]
+pub enum PersistBackend {
+    /// Whatever the example provisions, which is the cloud's object storage.
+    Default,
+    /// RustFS, deployed into the cluster as a StatefulSet.
+    Rustfs,
+    /// Ceph, deployed into the cluster by the Rook operator.
+    Ceph,
+}
+
+/// Shape of the benchmark matrix.
+#[derive(ClapArgs, Debug, Clone)]
+pub struct BenchmarkArgs {
+    /// Object sizes to measure, in bytes.
+    ///
+    /// The defaults bracket persist's own shape: batch parts from a few
+    /// hundred KiB up to a 128 MiB target, uploaded in 8 MiB multipart pieces,
+    /// so the last two sizes cross the multipart threshold.
+    #[arg(long, default_value = "4096,65536,1048576,8388608,67108864")]
+    pub sizes: String,
+    /// Operations in flight.
+    #[arg(long, default_value_t = 32)]
+    pub concurrency: u32,
+    /// Bytes written per cell, which sets how many objects each size writes.
+    #[arg(long, default_value_t = 268435456)]
+    pub bytes_per_cell: u64,
+    /// Ceiling on objects per cell, so small sizes stay bounded.
+    #[arg(long, default_value_t = 4096)]
+    pub max_objects: u64,
+    /// Seconds spent reading in each cell.
+    #[arg(long, default_value_t = 10)]
+    pub read_secs: u32,
+    /// Image providing `persistcli`, which drives the store through persist's
+    /// own S3 client.
+    ///
+    /// Required, with no default on purpose. `persistcli` ships only in
+    /// `materialize/jobs`, which publishes no stable release tag, and whose
+    /// `mzbuild-*` tags are single-architecture: a tag that works on amd64
+    /// will not pull on arm64, and vice versa. A wrong default would surface
+    /// as an ImagePullBackOff well into a run rather than immediately. Pick a
+    /// tag matching the node architecture from
+    /// <https://hub.docker.com/r/materialize/jobs/tags>.
+    #[arg(long)]
+    pub image: String,
+    /// Store to measure, overriding the in-cluster one this run was built
+    /// with.
+    ///
+    /// The form `persistcli bench blob` takes, for example
+    /// `s3://bucket/prefix?region=us-east-1`. This is how a cloud provider's
+    /// own object store is measured from the same cluster and the same nodes
+    /// as the in-cluster stores, which is what makes the numbers comparable.
+    #[arg(long)]
+    pub blob_uri: Option<String>,
+    /// Service account the benchmark Job runs as.
+    ///
+    /// A cloud object store authenticates by identity rather than by keys in
+    /// the URL, and the identity is bound to one service account in one
+    /// namespace, so measuring one means borrowing the account persist itself
+    /// uses, together with `--namespace`.
+    #[arg(long)]
+    pub service_account: Option<String>,
+    /// Namespace the benchmark Job runs in, overriding the store's own.
+    #[arg(long)]
+    pub namespace: Option<String>,
+    /// Seconds to wait for the whole matrix.
+    #[arg(long, default_value_t = 7200)]
+    pub timeout_secs: u64,
+    /// Skip the blob-level benchmark.
+    #[arg(long)]
+    pub skip_blob: bool,
+    /// Skip the SQL-level benchmark.
+    #[arg(long)]
+    pub skip_sql: bool,
+}
+
+impl PersistBackend {
+    /// The `kubernetes/modules` directory holding this backend's module, or
+    /// `None` when the example's own object storage is used.
+    pub fn module_name(self) -> Option<&'static str> {
+        match self {
+            PersistBackend::Default => None,
+            PersistBackend::Rustfs => Some("object-store-rustfs"),
+            PersistBackend::Ceph => Some("object-store-rook-ceph"),
+        }
+    }
+}
 
 #[derive(Parser, Debug)]
 pub struct Args {
@@ -30,6 +118,18 @@ pub enum SubCommand {
         /// Which test run to verify.
         #[arg(long)]
         test_run: String,
+    },
+    /// Measures the object store backing persist, against an already applied
+    /// test environment.
+    ///
+    /// Deliberately outside `run`: it holds the environment for as long as the
+    /// matrix takes and produces numbers rather than a pass or fail.
+    Benchmark {
+        /// Which test run to benchmark.
+        #[arg(long)]
+        test_run: String,
+        #[clap(flatten)]
+        args: BenchmarkArgs,
     },
     /// Lists test runs, sorted by creation date.
     List {
@@ -114,6 +214,15 @@ pub struct CommonInitArgs {
     /// Environmentd image version.
     #[arg(long)]
     pub environmentd_version: Option<String>,
+    /// Object store to back persist with.
+    ///
+    /// The default leaves the example alone, so persist uses whatever object
+    /// storage that example provisions. The other values deploy an
+    /// S3-compatible store into the cluster and point Materialize at that
+    /// instead, which is what makes two stores comparable on identical
+    /// hardware. The example's own bucket is still created and goes unused.
+    #[arg(long, value_enum, default_value_t = PersistBackend::Default)]
+    pub persist_backend: PersistBackend,
     /// S3 bucket for remote terraform state. If omitted, state is stored locally.
     #[arg(long)]
     pub backend_s3_bucket: Option<String>,
