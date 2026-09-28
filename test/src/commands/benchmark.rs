@@ -227,10 +227,18 @@ async fn run_blob_benchmark(
         }
 
         // persistcli already emits the size as its second column, so the rows
-        // go in as it printed them.
+        // go in as it printed them. Its tracing output shares the same stream,
+        // so an SDK warning logged mid-run would land in the CSV as if it were
+        // a measurement. Only lines opening with an operation name are kept;
+        // the rest are echoed but not recorded.
         for line in logs.lines().filter(|l| !l.trim().is_empty()) {
-            rows.push(line.to_string());
             println!("    {line}");
+            if ["set,", "get,", "delete,", "list,"]
+                .iter()
+                .any(|op| line.starts_with(op))
+            {
+                rows.push(line.to_string());
+            }
         }
 
         tokio::fs::remove_file(&manifest_path).await.ok();
