@@ -29,7 +29,9 @@ No resources.
 | ---- | ----------- | ---- | ------- | :------: |
 | <a name="input_ami_selector_terms"></a> [ami\_selector\_terms](#input\_ami\_selector\_terms) | AMI selector terms for the storage node class. | `any` | <pre>[<br/>  {<br/>    "alias": "bottlerocket@latest"<br/>  }<br/>]</pre> | no |
 | <a name="input_bucket"></a> [bucket](#input\_bucket) | Bucket created for Materialize's persist data. | `string` | `"materialize"` | no |
+| <a name="input_data_dir_host_path"></a> [data\_dir\_host\_path](#input\_data\_dir\_host\_path) | Host path where Rook keeps daemon state. Must be empty of any previous cluster's state. | `string` | `"/var/lib/rook"` | no |
 | <a name="input_gateway_instances"></a> [gateway\_instances](#input\_gateway\_instances) | Number of RGW gateway pods serving S3. This is the request path, so it is the first thing to scale for throughput. | `number` | `2` | no |
+| <a name="input_install_csi_driver"></a> [install\_csi\_driver](#input\_install\_csi\_driver) | Whether this store's node pool installs the LVM CSI driver. Set false for a second store sharing a cluster with one that already did. | `bool` | `true` | no |
 | <a name="input_instance_profile"></a> [instance\_profile](#input\_instance\_profile) | Instance profile for storage nodes, from the karpenter module. | `string` | n/a | yes |
 | <a name="input_instance_types"></a> [instance\_types](#input\_instance\_types) | Instance types for the storage node pool. Needs a family with local NVMe. | `list(string)` | <pre>[<br/>  "i8g.2xlarge"<br/>]</pre> | no |
 | <a name="input_kubeconfig_data"></a> [kubeconfig\_data](#input\_kubeconfig\_data) | Contents of the kubeconfig, used by the node pool module to clean up EC2 instances on destroy. | `string` | n/a | yes |

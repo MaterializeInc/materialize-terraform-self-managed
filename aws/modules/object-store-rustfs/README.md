@@ -32,6 +32,7 @@ No resources.
 | <a name="input_drive_size"></a> [drive\_size](#input\_drive\_size) | Size of each volume. | `string` | `"500Gi"` | no |
 | <a name="input_drives_per_replica"></a> [drives\_per\_replica](#input\_drives\_per\_replica) | Volumes per pod. One suits the single-NVMe instance families; raise it only on a family with several devices per node. | `number` | `1` | no |
 | <a name="input_image"></a> [image](#input\_image) | RustFS server image. | `string` | `"rustfs/rustfs:1.0.0-rc.5"` | no |
+| <a name="input_install_csi_driver"></a> [install\_csi\_driver](#input\_install\_csi\_driver) | Whether this store's node pool installs the LVM CSI driver. Set false for a second store sharing a cluster with one that already did. | `bool` | `true` | no |
 | <a name="input_instance_profile"></a> [instance\_profile](#input\_instance\_profile) | Instance profile for storage nodes, from the karpenter module. | `string` | n/a | yes |
 | <a name="input_instance_types"></a> [instance\_types](#input\_instance\_types) | Instance types for the storage node pool. Needs a family with local NVMe. | `list(string)` | <pre>[<br/>  "i8g.2xlarge"<br/>]</pre> | no |
 | <a name="input_kubeconfig_data"></a> [kubeconfig\_data](#input\_kubeconfig\_data) | Contents of the kubeconfig, used by the node pool module to clean up EC2 instances on destroy. | `string` | n/a | yes |
