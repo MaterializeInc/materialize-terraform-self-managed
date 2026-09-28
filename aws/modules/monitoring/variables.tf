@@ -314,9 +314,6 @@ variable "provider_metrics" {
 
     `importance` is the tier the chart assigns these families, and decides which filtered
     destinations receive them. Null keeps the chart's default, `extended`.
-
-    Needs materialize-monitoring chart 0.25.0 or later. An older chart ignores the values and
-    the role goes unused.
   EOT
   type = object({
     rds_instance_ids             = optional(list(string), [])

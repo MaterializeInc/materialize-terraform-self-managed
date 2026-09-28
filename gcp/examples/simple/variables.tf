@@ -89,8 +89,7 @@ variable "enable_provider_metrics" {
   description = <<-EOT
     Pull Cloud Monitoring metrics for the Materialize database and persist bucket, and for the
     monitoring stack's own buckets and Grafana database, into the monitoring stack. Grants the Alloy
-    gateway's service account `roles/monitoring.viewer`. Needs materialize-monitoring chart 0.25.0 or
-    later.
+    gateway's service account `roles/monitoring.viewer`.
   EOT
   type        = bool
   default     = false
