@@ -44,11 +44,6 @@ module "ceph" {
   rgw_chunk_size_bytes = var.rgw_chunk_size_bytes
   data_dir_host_path   = var.data_dir_host_path
 
-  # Defaults on here, unlike in the portable module: this pool's OSDs live on
-  # instance store, which does not survive the node in any case, and the nodes
-  # do outlive a cluster, which is the situation that needs the cleanup.
-  destroy_data_on_delete = var.destroy_data_on_delete
-
   node_selector = module.storage_pool.node_selector
   tolerations   = module.storage_pool.tolerations
 

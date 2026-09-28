@@ -16,16 +16,31 @@ variable "create_namespace" {
   default     = true
 }
 
+# NOTE: these two versions are coupled, and a mismatch fails silently. Ceph
+# v19.2.6 and v20.2.4 introduced the `aes256k` cephx key type for
+# CVE-2025-30156, and a cluster created on them allows only that cipher in its
+# monmap. Rook generates the cluster's keys itself, and releases before v1.19.10
+# and v1.20.6 generate the legacy `aes` type. The result is a cluster with
+# healthy quorum that rejects every key it was given, the operator's included:
+# `handle_auth_bad_method ... [errno 13] RADOS permission denied`, with the
+# CephCluster stuck in "Configuring Ceph Mons". `ceph mon dump` on a mon shows
+# the monmap's `auth_allowed_ciphers`.
 variable "operator_chart_version" {
-  description = "Version of the rook-ceph operator Helm chart."
+  description = "Version of the rook-ceph operator Helm chart. Must generate `aes256k` keys when `ceph_image` is Ceph v19.2.6, v20.2.4 or later: Rook v1.19.10, v1.20.6 or later."
   type        = string
-  default     = "v1.16.7"
+  default     = "v1.20.7"
 }
 
 variable "ceph_image" {
   description = "Ceph container image run by the daemons."
   type        = string
   default     = "quay.io/ceph/ceph:v19.2.6"
+}
+
+variable "install_csi" {
+  description = "Install Ceph CSI, for PersistentVolumes backed by this cluster. Not needed for persist, which uses only the object store."
+  type        = bool
+  default     = false
 }
 
 variable "install_timeout" {
@@ -193,23 +208,8 @@ variable "setup_image" {
   default     = "amazon/aws-cli:2.31.19"
 }
 
-# Rook only removes `data_dir_host_path` and wipes the OSD drives when the
-# cluster is deleted with this set. Without it a mon on a node that outlives the
-# cluster finds the previous cluster's store and adopts its identity, which no
-# longer matches the keyrings Rook mints for the replacement: the operator is
-# then locked out of a mon that reports itself healthy, with
-# `handle_auth_bad_method ... [errno 13] RADOS permission denied`, and the
-# cluster sits in "Configuring Ceph Mons" indefinitely. Recovering by hand means
-# clearing the host path and the `rook-ceph-mon*` / `rook-ceph-admin-keyring`
-# secrets together, since either one left behind reproduces it.
-variable "destroy_data_on_delete" {
-  description = "Let Rook erase `data_dir_host_path` and the OSD drives when the cluster is deleted. Needed to rebuild a cluster on nodes that outlive it. Never set this where the data matters."
-  type        = bool
-  default     = false
-}
-
 variable "wait_for_ready" {
-  description = "Wait for the bucket Job to complete before returning. Ceph takes several minutes to reach HEALTH_OK on a fresh cluster."
+  description = "Wait for the cluster, object store and user to reach Ready, and the bucket Job to complete, before returning. A fresh cluster takes several minutes. Without it the module's outputs cannot be read until a later apply, since they come from a secret Rook writes once the user is reconciled."
   type        = bool
   default     = true
 }

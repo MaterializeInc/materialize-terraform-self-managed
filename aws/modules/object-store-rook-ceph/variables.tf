@@ -142,9 +142,3 @@ variable "data_dir_host_path" {
   type        = string
   default     = "/var/lib/rook"
 }
-
-variable "destroy_data_on_delete" {
-  description = "Let Rook erase `data_dir_host_path` and the OSD drives when the cluster is deleted, so the pool's nodes can carry a replacement cluster. On by default here because these OSDs are instance store, which the node does not outlive anyway."
-  type        = bool
-  default     = true
-}

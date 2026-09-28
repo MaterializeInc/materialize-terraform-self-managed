@@ -52,8 +52,8 @@ locals {
           portable            = false
           tuneFastDeviceClass = true
           encrypted           = false
-          placement           = local.placement.all
-          preparePlacement    = local.placement.all
+          placement           = local.osd_placement
+          preparePlacement    = local.osd_prepare_placement
           volumeClaimTemplates = [
             {
               metadata = {
@@ -108,6 +108,34 @@ locals {
       ] } : {},
     )
   }
+
+  # A node-local volume binds to whichever node its OSD's prepare pod first
+  # schedules on, and nothing else stops two of them choosing the same node.
+  # Two OSDs on one host leave a `host` failure domain a host short, and
+  # replicas that need distinct hosts sit undersized. The hard constraint
+  # therefore goes on the prepare pods. The OSD pods only get a soft one:
+  # their volume already pins them, and a hard constraint there could leave
+  # one unschedulable forever. OSD pods are counted too, because a prepare pod
+  # that has completed no longer counts for spreading.
+  osd_spread = {
+    maxSkew     = 1
+    topologyKey = "kubernetes.io/hostname"
+    labelSelector = {
+      matchExpressions = [{
+        key      = "app"
+        operator = "In"
+        values   = ["rook-ceph-osd", "rook-ceph-osd-prepare"]
+      }]
+    }
+  }
+
+  osd_prepare_placement = merge(local.placement.all, {
+    topologySpreadConstraints = [merge(local.osd_spread, { whenUnsatisfiable = "DoNotSchedule" })]
+  })
+
+  osd_placement = merge(local.placement.all, {
+    topologySpreadConstraints = [merge(local.osd_spread, { whenUnsatisfiable = "ScheduleAnyway" })]
+  })
 }
 
 resource "kubernetes_namespace" "this" {
@@ -141,6 +169,15 @@ resource "helm_release" "rook_operator" {
   chart      = "rook-ceph"
   version    = var.operator_chart_version
   timeout    = var.install_timeout
+
+  # Persist reaches Ceph through the RGW's S3 API and never mounts a Ceph
+  # volume, so the CSI stack is dead weight: a controller plus plugin pods on
+  # every node in the cluster, each holding a pod IP and each able to hold up
+  # the release, since Helm waits for all of them to be ready.
+  set {
+    name  = "csi.installCsiOperator"
+    value = var.install_csi
+  }
 
   dynamic "set" {
     for_each = var.node_selector
@@ -204,7 +241,14 @@ resource "kubectl_manifest" "ceph_cluster" {
       namespace = local.namespace
       labels    = local.labels
     }
-    spec = merge({
+    # NOTE: no `cleanupPolicy` here, however much it looks like the field that
+    # erases `dataDirHostPath`. Rook reads it as "this cluster is being torn
+    # down" and stops reconciling: a cluster created with it set never
+    # orchestrates at all, and the only sign is one operator log line,
+    # `skipping orchestration for cluster object ... because its cleanup policy
+    # is set`, while the CR sits with an empty phase. It is a patch applied to
+    # a live cluster immediately before deleting it.
+    spec = {
       dataDirHostPath = var.data_dir_host_path
       cephVersion = {
         image = var.ceph_image
@@ -225,18 +269,33 @@ resource "kubectl_manifest" "ceph_cluster" {
       }
       storage   = local.storage
       placement = local.placement
-      },
-      # Omitted rather than set to null when disabled: yamlencode would emit an
-      # explicit null, which is not the same as an absent key to the API server.
-      var.destroy_data_on_delete ? {
-        cleanupPolicy = {
-          confirmation = "yes-really-destroy-data"
-        }
-      } : {},
-    )
+    }
   })
 
-  wait = var.wait_for_ready
+  # NOTE: `wait` only ever affects deletion. It holds a delete until Rook's
+  # finalizers finish, which is what tears the user, the store and the cluster
+  # down in dependency order. Readiness on create is `wait_for`, and without it
+  # Terraform moves on the moment the API server accepts the manifest: the
+  # user's credentials secret is then read before Rook has written it, and the
+  # first apply fails indexing a null secret. Each of these resources reports
+  # `status.phase: Ready` once reconciled.
+  wait = true
+
+  dynamic "wait_for" {
+    for_each = var.wait_for_ready ? [1] : []
+    content {
+      field {
+        key   = "status.phase"
+        value = "Ready"
+      }
+    }
+  }
+
+  # A cluster can outlast the default ten minutes when a mon is left in
+  # scheduler backoff after its canary.
+  timeouts {
+    create = "30m"
+  }
 
   depends_on = [helm_release.rook_operator]
 }
@@ -269,12 +328,45 @@ resource "kubectl_manifest" "object_store" {
       gateway = {
         port      = 80
         instances = var.gateway_instances
-        placement = local.placement
+        # NOTE: `.all`, not the map itself. A CephCluster's placement is keyed
+        # by daemon type and the gateway's is a bare placement, and Rook
+        # ignores the unknown `all` key without complaint, which leaves the
+        # gateway free to land on any node. The gateway is the request path,
+        # so on a general-purpose node it caps the store at that node's
+        # network allowance.
+        placement = local.placement.all
+
+        # Beast leaves Nagle's algorithm on by default. A GET response goes
+        # out as headers then body, so the body waits on the client's delayed
+        # ACK: every read paid a flat 50 ms, capping 4 KiB reads at 637 ops/s
+        # against 23,160 with this set, and each gateway at about 590 MiB/s.
+        # PUT and DELETE answer with headers alone and never showed it.
+        #
+        # Rook passes its own `--rgw-frontends` first and this one after it,
+        # and the later flag wins, so it has to restate the whole value. 8080
+        # is Rook's internal container port behind the service's `port`.
+        rgwCommandFlags = {
+          rgw_frontends = "beast port=8080 tcp_nodelay=1"
+        }
       }
     }
   })
 
-  wait = var.wait_for_ready
+  wait = true
+
+  dynamic "wait_for" {
+    for_each = var.wait_for_ready ? [1] : []
+    content {
+      field {
+        key   = "status.phase"
+        value = "Ready"
+      }
+    }
+  }
+
+  timeouts {
+    create = "30m"
+  }
 
   depends_on = [kubectl_manifest.ceph_cluster]
 }
@@ -294,7 +386,21 @@ resource "kubectl_manifest" "object_store_user" {
     }
   })
 
-  wait = var.wait_for_ready
+  wait = true
+
+  dynamic "wait_for" {
+    for_each = var.wait_for_ready ? [1] : []
+    content {
+      field {
+        key   = "status.phase"
+        value = "Ready"
+      }
+    }
+  }
+
+  timeouts {
+    create = "30m"
+  }
 
   depends_on = [kubectl_manifest.object_store]
 }

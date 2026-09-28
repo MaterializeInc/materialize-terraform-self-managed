@@ -11,9 +11,9 @@
 
 | Name | Version |
 | ---- | ------- |
-| <a name="provider_helm"></a> [helm](#provider\_helm) | 2.17.0 |
+| <a name="provider_helm"></a> [helm](#provider\_helm) | >= 2.5.0, < 2.18.0 |
 | <a name="provider_kubectl"></a> [kubectl](#provider\_kubectl) | 2.4.1 |
-| <a name="provider_kubernetes"></a> [kubernetes](#provider\_kubernetes) | 2.38.0 |
+| <a name="provider_kubernetes"></a> [kubernetes](#provider\_kubernetes) | >= 2.10.0, < 2.39.0 |
 
 ## Modules
 
@@ -40,18 +40,18 @@ No modules.
 | <a name="input_ceph_image"></a> [ceph\_image](#input\_ceph\_image) | Ceph container image run by the daemons. | `string` | `"quay.io/ceph/ceph:v19.2.6"` | no |
 | <a name="input_create_namespace"></a> [create\_namespace](#input\_create\_namespace) | Whether to create the namespace. Set false when another module already owns it. | `bool` | `true` | no |
 | <a name="input_data_dir_host_path"></a> [data\_dir\_host\_path](#input\_data\_dir\_host\_path) | Host path where Rook keeps daemon state. Must be writable on every node running a Ceph daemon, and empty of any previous cluster's state. | `string` | `"/var/lib/rook"` | no |
-| <a name="input_destroy_data_on_delete"></a> [destroy\_data\_on\_delete](#input\_destroy\_data\_on\_delete) | Let Rook erase `data_dir_host_path` and the OSD drives when the cluster is deleted. Needed to rebuild a cluster on nodes that outlive it. Never set this where the data matters. | `bool` | `false` | no |
 | <a name="input_device_filter"></a> [device\_filter](#input\_device\_filter) | Regex selecting which devices Rook turns into OSDs, for example `^nvme[1-9]n1$`.<br/><br/>Storage-optimized instances expose their local NVMe separately from the<br/>root volume, and this is what keeps Rook off the root volume. Ignored when<br/>`use_all_devices` is true. | `string` | `null` | no |
 | <a name="input_extra_ceph_config"></a> [extra\_ceph\_config](#input\_extra\_ceph\_config) | Additional lines appended to the `[global]` section of `rook-config-override`.<br/><br/>Daemons read this ConfigMap at start-up, so the module creates it before<br/>the cluster. Changing it afterwards needs a daemon restart to take effect. | `string` | `""` | no |
 | <a name="input_failure_domain"></a> [failure\_domain](#input\_failure\_domain) | CRUSH failure domain for the object store's pools. Use `osd` only when every OSD shares a node. | `string` | `"host"` | no |
 | <a name="input_gateway_instances"></a> [gateway\_instances](#input\_gateway\_instances) | Number of RGW gateway pods serving S3. This is the request path, so it is the first thing to scale for throughput. | `number` | `2` | no |
+| <a name="input_install_csi"></a> [install\_csi](#input\_install\_csi) | Install Ceph CSI, for PersistentVolumes backed by this cluster. Not needed for persist, which uses only the object store. | `bool` | `false` | no |
 | <a name="input_install_timeout"></a> [install\_timeout](#input\_install\_timeout) | Seconds to wait for the operator chart to install. | `number` | `600` | no |
 | <a name="input_mon_count"></a> [mon\_count](#input\_mon\_count) | Number of Ceph monitors. Three is the smallest count that tolerates losing one; use one only for a single-node test cluster. | `number` | `3` | no |
 | <a name="input_name"></a> [name](#input\_name) | Name for the Ceph cluster and object store, used for resource names and labels. | `string` | `"ceph"` | no |
 | <a name="input_namespace"></a> [namespace](#input\_namespace) | Namespace to deploy Rook and Ceph into. Rook expects the operator and cluster to share one. | `string` | `"rook-ceph"` | no |
 | <a name="input_node_selector"></a> [node\_selector](#input\_node\_selector) | Node selector for Ceph daemons. Use this to pin the store to a storage-optimized node pool. | `map(string)` | `{}` | no |
 | <a name="input_object_store_user"></a> [object\_store\_user](#input\_object\_store\_user) | Name of the CephObjectStoreUser whose credentials Materialize uses. | `string` | `"persist"` | no |
-| <a name="input_operator_chart_version"></a> [operator\_chart\_version](#input\_operator\_chart\_version) | Version of the rook-ceph operator Helm chart. | `string` | `"v1.16.7"` | no |
+| <a name="input_operator_chart_version"></a> [operator\_chart\_version](#input\_operator\_chart\_version) | Version of the rook-ceph operator Helm chart. Must generate `aes256k` keys when `ceph_image` is Ceph v19.2.6, v20.2.4 or later: Rook v1.19.10, v1.20.6 or later. | `string` | `"v1.20.7"` | no |
 | <a name="input_osd_count"></a> [osd\_count](#input\_osd\_count) | Number of OSDs to create from `osd_storage_class`.<br/><br/>Each needs a node with room in its volume group, so this should not exceed<br/>the size of the storage node pool when the class is node-local. Ignored<br/>when `osd_storage_class` is null. | `number` | `3` | no |
 | <a name="input_osd_memory_target_bytes"></a> [osd\_memory\_target\_bytes](#input\_osd\_memory\_target\_bytes) | Value for `osd_memory_target`. Null leaves Ceph's default of 4 GiB, which is appropriate when OSDs have a node to themselves. | `number` | `null` | no |
 | <a name="input_osd_size"></a> [osd\_size](#input\_osd\_size) | Size of each OSD volume. Ignored when `osd_storage_class` is null. | `string` | `"500Gi"` | no |
@@ -62,7 +62,7 @@ No modules.
 | <a name="input_setup_image"></a> [setup\_image](#input\_setup\_image) | Image used by the bucket-creation Job. Needs an `aws` CLI. | `string` | `"amazon/aws-cli:2.31.19"` | no |
 | <a name="input_tolerations"></a> [tolerations](#input\_tolerations) | Tolerations for Ceph daemons, so they can schedule onto a tainted storage node pool. | <pre>list(object({<br/>    key      = string<br/>    operator = string<br/>    value    = optional(string)<br/>    effect   = string<br/>  }))</pre> | `[]` | no |
 | <a name="input_use_all_devices"></a> [use\_all\_devices](#input\_use\_all\_devices) | Let Rook consume every unused device on eligible nodes. Only used when `osd_storage_class` is null. | `bool` | `false` | no |
-| <a name="input_wait_for_ready"></a> [wait\_for\_ready](#input\_wait\_for\_ready) | Wait for the bucket Job to complete before returning. Ceph takes several minutes to reach HEALTH\_OK on a fresh cluster. | `bool` | `true` | no |
+| <a name="input_wait_for_ready"></a> [wait\_for\_ready](#input\_wait\_for\_ready) | Wait for the cluster, object store and user to reach Ready, and the bucket Job to complete, before returning. A fresh cluster takes several minutes. Without it the module's outputs cannot be read until a later apply, since they come from a secret Rook writes once the user is reconciled. | `bool` | `true` | no |
 
 ## Outputs
 
