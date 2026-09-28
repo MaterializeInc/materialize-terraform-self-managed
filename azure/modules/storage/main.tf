@@ -9,6 +9,20 @@ resource "azurerm_storage_account" "materialize" {
   account_kind             = "BlockBlobStorage"
   min_tls_version          = "TLS1_2"
 
+  blob_properties {
+    versioning_enabled = var.versioning
+
+    # Policy rules age versions from creation, not from becoming noncurrent, so
+    # an old blob's version can be deleted right after the blob is. Soft delete
+    # keeps it recoverable for version_ttl days after that.
+    dynamic "delete_retention_policy" {
+      for_each = var.version_ttl != null ? [1] : []
+      content {
+        days = var.version_ttl
+      }
+    }
+  }
+
   dynamic "network_rules" {
     for_each = length(var.subnets) == 0 ? [] : ["has_subnets"]
     content {
@@ -25,6 +39,28 @@ resource "azurerm_storage_container" "materialize" {
   name                  = var.container_name
   storage_account_id    = azurerm_storage_account.materialize.id
   container_access_type = var.container_access_type
+}
+
+# Not gated on versioning: disabling it leaves existing previous versions.
+resource "azurerm_storage_management_policy" "materialize" {
+  count = var.version_ttl != null ? 1 : 0
+
+  storage_account_id = azurerm_storage_account.materialize.id
+
+  rule {
+    name    = "expire-noncurrent-versions"
+    enabled = true
+
+    filters {
+      blob_types = ["blockBlob"]
+    }
+
+    actions {
+      version {
+        delete_after_days_since_creation = var.version_ttl
+      }
+    }
+  }
 }
 
 resource "random_string" "unique" {

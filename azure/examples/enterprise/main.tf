@@ -373,6 +373,7 @@ module "storage" {
   workload_identity_principal_id = module.aks.workload_identity_principal_id
   subnets                        = [module.networking.aks_subnet_id]
   container_name                 = local.storage_container_name
+  versioning                     = false
 
   # Workload identity federation configuration
   workload_identity_id      = module.aks.workload_identity_id

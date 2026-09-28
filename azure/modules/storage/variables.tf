@@ -87,3 +87,16 @@ variable "network_rules_default_action" {
     error_message = "Valid values for network_rules_default_action are: Allow, Deny."
   }
 }
+
+variable "versioning" {
+  description = "Enable blob versioning. This should be enabled for production deployments."
+  type        = bool
+  default     = true
+  nullable    = false
+}
+
+variable "version_ttl" {
+  description = "Delete previous blob versions after this many days, with blob soft delete retaining them for the same period. Azure ages versions from creation, so the recovery window after a blob is deleted is between version_ttl and 2 * version_ttl days. Null disables both."
+  type        = number
+  default     = 7
+}

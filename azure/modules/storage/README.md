@@ -26,6 +26,7 @@ No modules.
 | [azurerm_role_assignment.storage_blob_contributor](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/role_assignment) | resource |
 | [azurerm_storage_account.materialize](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/storage_account) | resource |
 | [azurerm_storage_container.materialize](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/storage_container) | resource |
+| [azurerm_storage_management_policy.materialize](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/storage_management_policy) | resource |
 | [random_string.unique](https://registry.terraform.io/providers/hashicorp/random/latest/docs/resources/string) | resource |
 
 ## Inputs
@@ -43,6 +44,8 @@ No modules.
 | <a name="input_service_account_namespace"></a> [service\_account\_namespace](#input\_service\_account\_namespace) | Kubernetes namespace for the service account that will use workload identity | `string` | n/a | yes |
 | <a name="input_storage_account_tags"></a> [storage\_account\_tags](#input\_storage\_account\_tags) | Tags to apply to storage account | `map(string)` | `{}` | no |
 | <a name="input_subnets"></a> [subnets](#input\_subnets) | The subnet of the vnet that should be able to access this storage account | `list(string)` | `[]` | no |
+| <a name="input_version_ttl"></a> [version\_ttl](#input\_version\_ttl) | Delete previous blob versions after this many days, with blob soft delete retaining them for the same period. Azure ages versions from creation, so the recovery window after a blob is deleted is between version\_ttl and 2 * version\_ttl days. Null disables both. | `number` | `7` | no |
+| <a name="input_versioning"></a> [versioning](#input\_versioning) | Enable blob versioning. This should be enabled for production deployments. | `bool` | `true` | no |
 | <a name="input_workload_identity_id"></a> [workload\_identity\_id](#input\_workload\_identity\_id) | The ID of the workload identity for federated credential | `string` | n/a | yes |
 | <a name="input_workload_identity_principal_id"></a> [workload\_identity\_principal\_id](#input\_workload\_identity\_principal\_id) | The principal ID of the workload identity | `string` | n/a | yes |
 

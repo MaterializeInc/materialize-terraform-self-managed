@@ -33,7 +33,7 @@ No modules.
 | <a name="input_project_id"></a> [project\_id](#input\_project\_id) | The ID of the project where resources will be created | `string` | n/a | yes |
 | <a name="input_region"></a> [region](#input\_region) | The region where resources will be created | `string` | n/a | yes |
 | <a name="input_service_account"></a> [service\_account](#input\_service\_account) | The email of the service account to grant access to the bucket | `string` | n/a | yes |
-| <a name="input_version_ttl"></a> [version\_ttl](#input\_version\_ttl) | Sets the TTL (in days) on non current storage bucket objects. This must be set if versioning is turned on. | `number` | `7` | no |
+| <a name="input_version_ttl"></a> [version\_ttl](#input\_version\_ttl) | Delete noncurrent object versions after this many days. Null disables the rule. | `number` | `7` | no |
 | <a name="input_versioning"></a> [versioning](#input\_versioning) | Enable bucket versioning. This should be enabled for production deployments. | `bool` | `true` | no |
 
 ## Outputs

@@ -63,8 +63,7 @@ variable "lifecycle_rules" {
 }
 
 variable "version_ttl" {
-  description = "Sets the TTL (in days) on non current storage bucket objects. This must be set if versioning is turned on."
+  description = "Delete noncurrent object versions after this many days. Null disables the rule."
   type        = number
   default     = 7
-  nullable    = false
 }
