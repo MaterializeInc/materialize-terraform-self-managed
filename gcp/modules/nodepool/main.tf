@@ -25,7 +25,7 @@ locals {
     } : {}
   )
 
-  disk_setup_name = var.disk_setup_name
+  disk_setup_name = coalesce(var.disk_setup_name, "${var.prefix}-disk-setup")
 
   disk_setup_labels = merge(
     var.labels,
