@@ -34,12 +34,12 @@ No resources.
 | <a name="input_image"></a> [image](#input\_image) | RustFS server image. | `string` | `"rustfs/rustfs:1.0.0-rc.5"` | no |
 | <a name="input_install_csi_driver"></a> [install\_csi\_driver](#input\_install\_csi\_driver) | Whether this store's node pool installs the LVM CSI driver. Set false for a second store sharing a cluster with one that already did. | `bool` | `true` | no |
 | <a name="input_instance_profile"></a> [instance\_profile](#input\_instance\_profile) | Instance profile for storage nodes, from the karpenter module. | `string` | n/a | yes |
-| <a name="input_instance_types"></a> [instance\_types](#input\_instance\_types) | Instance types for the storage node pool. Needs a family with local NVMe. | `list(string)` | <pre>[<br/>  "i8g.2xlarge"<br/>]</pre> | no |
+| <a name="input_instance_types"></a> [instance\_types](#input\_instance\_types) | Instance types for the storage node pool. Needs a family with local NVMe and bandwidth the store will not outrun; see the node pool module for why the burstable sizes mislead a benchmark. | `list(string)` | <pre>[<br/>  "i8g.8xlarge"<br/>]</pre> | no |
 | <a name="input_kubeconfig_data"></a> [kubeconfig\_data](#input\_kubeconfig\_data) | Contents of the kubeconfig, used by the node pool module to clean up EC2 instances on destroy. | `string` | n/a | yes |
 | <a name="input_lvm_chart_version"></a> [lvm\_chart\_version](#input\_lvm\_chart\_version) | Version of the openebs lvm-localpv Helm chart. | `string` | `"1.6.2"` | no |
 | <a name="input_name"></a> [name](#input\_name) | Name prefix for the store, its node pool and their labels. | `string` | `"rustfs"` | no |
 | <a name="input_namespace"></a> [namespace](#input\_namespace) | Namespace to deploy RustFS into. | `string` | `"object-store"` | no |
-| <a name="input_node_limits"></a> [node\_limits](#input\_node\_limits) | Resource ceiling for the storage node pool. | `map(string)` | <pre>{<br/>  "cpu": "64"<br/>}</pre> | no |
+| <a name="input_node_limits"></a> [node\_limits](#input\_node\_limits) | Resource ceiling for the storage node pool. | `map(string)` | <pre>{<br/>  "cpu": "256"<br/>}</pre> | no |
 | <a name="input_region"></a> [region](#input\_region) | Region reported to S3 clients. RustFS ignores it, but the AWS SDKs require one to sign requests. | `string` | `"us-east-1"` | no |
 | <a name="input_replicas"></a> [replicas](#input\_replicas) | RustFS server pods.<br/><br/>Each claims a volume from the instance store of the node it lands on, so<br/>this should not exceed the number of nodes the pool will run. More than one<br/>replica erasure-codes across pods, which needs `replicas *<br/>drives_per_replica` to be at least 4. | `number` | `4` | no |
 | <a name="input_security_group_ids"></a> [security\_group\_ids](#input\_security\_group\_ids) | Security groups for storage nodes, normally the EKS node security group. | `list(string)` | n/a | yes |

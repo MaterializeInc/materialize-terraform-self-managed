@@ -204,7 +204,7 @@ resource "kubectl_manifest" "ceph_cluster" {
       namespace = local.namespace
       labels    = local.labels
     }
-    spec = {
+    spec = merge({
       dataDirHostPath = var.data_dir_host_path
       cephVersion = {
         image = var.ceph_image
@@ -225,7 +225,15 @@ resource "kubectl_manifest" "ceph_cluster" {
       }
       storage   = local.storage
       placement = local.placement
-    }
+      },
+      # Omitted rather than set to null when disabled: yamlencode would emit an
+      # explicit null, which is not the same as an absent key to the API server.
+      var.destroy_data_on_delete ? {
+        cleanupPolicy = {
+          confirmation = "yes-really-destroy-data"
+        }
+      } : {},
+    )
   })
 
   wait = var.wait_for_ready

@@ -12,15 +12,22 @@ variable "instance_types" {
     workload off EBS: the `i` families qualify, `m`/`c`/`r` generally do not.
     Every type listed must appear in the node class module's
     `instance-descriptions.json`, which is what sizes the kubelet reservations.
+
+    Size for sustained network bandwidth, not only for disk. An object store
+    serves every byte over the network, so a burstable allowance caps it once
+    the credits are spent, and a benchmark short enough to stay inside the
+    burst reports a rate the store cannot hold. Within i8g the smaller sizes
+    are burstable, 2xlarge being 4.688 Gbps baseline against a 12 Gbps burst,
+    and 8xlarge is the first with a guaranteed 25 Gbps.
   EOT
   type        = list(string)
-  default     = ["i8g.2xlarge"]
+  default     = ["i8g.8xlarge"]
 }
 
 variable "limits" {
   description = "Resource ceiling for the pool. Karpenter stops adding nodes once the pool reaches it."
   type        = map(string)
-  default     = { cpu = "64" }
+  default     = { cpu = "256" }
 }
 
 variable "ami_selector_terms" {

@@ -56,15 +56,15 @@ variable "drive_size" {
 # --- Node pool -------------------------------------------------------------
 
 variable "instance_types" {
-  description = "Instance types for the storage node pool. Needs a family with local NVMe."
+  description = "Instance types for the storage node pool. Needs a family with local NVMe and bandwidth the store will not outrun; see the node pool module for why the burstable sizes mislead a benchmark."
   type        = list(string)
-  default     = ["i8g.2xlarge"]
+  default     = ["i8g.8xlarge"]
 }
 
 variable "node_limits" {
   description = "Resource ceiling for the storage node pool."
   type        = map(string)
-  default     = { cpu = "64" }
+  default     = { cpu = "256" }
 }
 
 variable "ami_selector_terms" {

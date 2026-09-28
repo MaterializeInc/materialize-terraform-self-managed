@@ -193,6 +193,21 @@ variable "setup_image" {
   default     = "amazon/aws-cli:2.31.19"
 }
 
+# Rook only removes `data_dir_host_path` and wipes the OSD drives when the
+# cluster is deleted with this set. Without it a mon on a node that outlives the
+# cluster finds the previous cluster's store and adopts its identity, which no
+# longer matches the keyrings Rook mints for the replacement: the operator is
+# then locked out of a mon that reports itself healthy, with
+# `handle_auth_bad_method ... [errno 13] RADOS permission denied`, and the
+# cluster sits in "Configuring Ceph Mons" indefinitely. Recovering by hand means
+# clearing the host path and the `rook-ceph-mon*` / `rook-ceph-admin-keyring`
+# secrets together, since either one left behind reproduces it.
+variable "destroy_data_on_delete" {
+  description = "Let Rook erase `data_dir_host_path` and the OSD drives when the cluster is deleted. Needed to rebuild a cluster on nodes that outlive it. Never set this where the data matters."
+  type        = bool
+  default     = false
+}
+
 variable "wait_for_ready" {
   description = "Wait for the bucket Job to complete before returning. Ceph takes several minutes to reach HEALTH_OK on a fresh cluster."
   type        = bool
