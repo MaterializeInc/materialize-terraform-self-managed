@@ -11,6 +11,20 @@ variable "postgres_version" {
   nullable    = false
 }
 
+variable "allow_major_version_upgrade" {
+  description = "Allow major version upgrades when changing postgres_version."
+  type        = bool
+  default     = false
+  nullable    = false
+}
+
+variable "apply_immediately" {
+  description = "Apply modifications immediately instead of during the next maintenance window. May cause downtime."
+  type        = bool
+  default     = false
+  nullable    = false
+}
+
 variable "instance_class" {
   description = "Instance class for the RDS instance"
   type        = string
