@@ -32,14 +32,24 @@ exist before Ceph asks for them.
 
 ## Replacing a Ceph cluster
 
-Two things bite when a cluster is torn down and rebuilt on nodes that outlive
-it, both covered in the parent directory's notes:
+Rebuilding a cluster on nodes that outlive it has several traps:
 
 * A `CephCluster` will not finish deleting while a `CephObjectStore` or
   `CephObjectStoreUser` still exists. Delete the dependents first; the
   operator log names them.
-* Rook's `rook-ceph-mon`, `rook-ceph-mons-keyring` and
-  `rook-ceph-admin-keyring` secrets are garbage-collected with the cluster,
-  but not always before a new cluster starts bootstrapping. Confirm they are
-  gone rather than assuming a delete took effect, or the mon may come up with
-  an auth database the operator has no key for.
+* The `rook-ceph-mon` secret and `rook-ceph-mon-endpoints` ConfigMap carry a
+  `ceph.rook.io/disaster-protection` finalizer. With the operator stopped,
+  nothing removes it, so a plain delete leaves them in place.
+* lvm-localpv removes a logical volume without wiping it, so a new OSD volume
+  carved from the same extents can still hold the previous cluster's
+  BlueStore, and Rook refuses it as belonging to a different cluster.
+* `dataDirHostPath` keeps the previous cluster's mon state.
+
+With instance store the reset that clears all of it at once is replacing the
+nodes, since AWS erases instance store on termination. Delete the OSD claims
+first, while their nodes still exist, or the volume deletions hang.
+
+A `handle_auth_bad_method ... [errno 13] RADOS permission denied` failure
+with healthy quorum is not one of these. It is a Rook release too old for the
+Ceph release's cephx key type, described in the module's
+`operator_chart_version` variable.

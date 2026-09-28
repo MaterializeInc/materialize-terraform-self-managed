@@ -3,6 +3,16 @@
 S3 against an in-cluster store on local NVMe, measured from the same nodes so
 the client hardware is not a variable.
 
+> **The 1 MiB and 8 MiB figures here are not reproducible, and should not be
+> compared with anything.** `i8g.2xlarge` has a 4.688 Gbps network baseline
+> against a 12 Gbps burst, so its sustained allowance is 559 MiB/s. These cells
+> measured 1.0 to 1.4 GiB/s, twice the baseline and close to the burst ceiling:
+> ten-second cells ran entirely on burst credit. The same S3 cell
+> on `i8g.8xlarge`, which has a guaranteed 25 Gbps, read 8 MiB objects at
+> 2,635 MiB/s. See [`../aws-i8g-8xlarge`](../aws-i8g-8xlarge) for results on
+> hardware that can sustain what it reports. The 4 KiB rows are latency-bound
+> rather than bandwidth-bound and are unaffected.
+
 ## Setup
 
 | | |
@@ -63,10 +73,9 @@ latency and no transfer. Whether it reaches a user depends on persist's blob
 cache absorbing those reads, which the SQL-level benchmark would answer and
 does not yet exist.
 
-At 1 MiB and 8 MiB both stores land between 1.0 and 1.4 GiB/s. That looks like
-the instance's network allowance rather than either store's limit, so these
-figures bound the client, not the backend. Testing that would need a larger
-instance or several client pods.
+At 1 MiB and 8 MiB both stores land between 1.0 and 1.4 GiB/s. That is the
+instance's burst allowance, not either store's limit, as the note at the top
+explains.
 
 S3 deletes faster at every size, by 25% to 38%.
 
@@ -104,13 +113,12 @@ handle_auth_bad_method server allowed_methods [2] but i only support [2,1]
 [errno 13] RADOS permission denied
 ```
 
-leaving the cluster in `Configuring Ceph Mons` indefinitely. It survived a
-rebuild onto an unused `dataDirHostPath`, which rules out a mon adopting a
-previous cluster's identity from a node that outlived it. The open hypothesis
-is Rook's `rook-ceph-admin-keyring` / `rook-ceph-mons-keyring` / `rook-ceph-mon`
-secrets outliving a cluster generation, so a mon bootstraps a fresh store
-without `client.admin` in its auth database. Clearing all three and restarting
-the operator had not been confirmed either way when the run ended.
+leaving the cluster in `Configuring Ceph Mons` indefinitely. The cause was
+found on the next run: Ceph v19.2.6 creates clusters that allow only the new
+`aes256k` cephx key type, and Rook v1.16.7 generates keys of the legacy `aes`
+type, so the cluster rejected every key it had been given. Rook v1.20.7
+generates `aes256k` keys. Ceph is measured in
+[`../aws-i8g-8xlarge`](../aws-i8g-8xlarge).
 
 Two things about Ceph on Karpenter that the run did establish:
 
