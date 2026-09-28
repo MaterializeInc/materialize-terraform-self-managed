@@ -193,9 +193,11 @@ If you don't pin it, Terraform tries a major version upgrade of the metadata dat
 
 - GCP: the provider upgrades the database in place, and the database is down while the upgrade runs.
 - Azure: the provider upgrades the server in place, and the server is down while the upgrade runs.
-- AWS: the apply fails partway through, because the module doesn't allow major version upgrades. By then, Terraform has already created a new `postgres18` parameter group. Pin 15 and apply again to remove it.
+- AWS: the apply fails partway through, because the module doesn't allow major version upgrades by default. By then, Terraform has already created a new `postgres18` parameter group. Pin 15 and apply again to remove it.
 
 Run `terraform plan` and check that it shows no change to the database version. If you want PostgreSQL 18 on an existing deployment, do the upgrade on purpose in a maintenance window, and take a backup first.
+
+On AWS, the `database` module has two new inputs for this, both defaulting to `false`. Set `allow_major_version_upgrade = true` to allow the upgrade. Set `apply_immediately = true` to run it on this apply rather than in the next maintenance window. The database is down while the upgrade runs.
 
 ##### Storage lifecycle rule changes
 

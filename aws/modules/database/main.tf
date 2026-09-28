@@ -39,6 +39,9 @@ module "db" {
   major_engine_version = var.postgres_version
   instance_class       = var.instance_class
 
+  allow_major_version_upgrade = var.allow_major_version_upgrade
+  apply_immediately           = var.apply_immediately
+
   manage_master_user_password = false
   password                    = var.database_password
 
