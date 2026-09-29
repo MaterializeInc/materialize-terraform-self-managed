@@ -85,6 +85,16 @@ variable "enable_observability" {
   default     = true
 }
 
+variable "enable_provider_metrics" {
+  description = <<-EOT
+    Pull Cloud Monitoring metrics for the Materialize database and persist bucket, and for the
+    monitoring stack's own buckets and Grafana database, into the monitoring stack. Grants the Alloy
+    gateway's service account `roles/monitoring.viewer`.
+  EOT
+  type        = bool
+  default     = false
+}
+
 variable "datapath_provider" {
   description = "The datapath provider (CNI) for the GKE cluster. ADVANCED_DATAPATH is GKE Dataplane V2 (eBPF-based, enforces Kubernetes NetworkPolicy natively). DATAPATH_PROVIDER_UNSPECIFIED and LEGACY_DATAPATH use the legacy GKE CNI, which silently ignores NetworkPolicy resources. GKE cannot change the datapath provider on an existing cluster: changing this forces the cluster to be rebuilt."
   type        = string

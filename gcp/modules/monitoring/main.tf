@@ -66,6 +66,12 @@ locals {
   # Not in the map above: the gateway binds to Cloud Monitoring, not a bucket.
   gateway_service_account = "alloy-gateway"
 
+  # One Google service account serves both of the gateway's Cloud Monitoring
+  # roles: writing (the export) and reading (the provider pull). It exists when
+  # either is on, and each role is granted only for its own feature.
+  provider_metrics_enabled = var.provider_metrics != null
+  gateway_identity_enabled = var.enable_google_cloud_metrics || local.provider_metrics_enabled
+
   buckets = {
     loki = {
       name           = "${var.prefix}-mzmon-logs-${var.project_id}"
@@ -197,11 +203,11 @@ resource "google_service_account_iam_member" "workload_identity" {
 # ==============================================================================
 # Google Cloud Monitoring
 # ==============================================================================
-# Separate from the loop above: the gateway writes metrics, not objects, so it
-# gets a project-level role and no bucket.
+# Separate from the loop above: the gateway writes and reads metrics, not
+# objects, so it gets project-level roles and no bucket.
 
 resource "google_service_account" "gateway" {
-  count = var.enable_google_cloud_metrics ? 1 : 0
+  count = local.gateway_identity_enabled ? 1 : 0
 
   account_id   = substr("${var.prefix}-mzmon-gateway", 0, 30)
   display_name = "materialize-monitoring gateway"
@@ -218,12 +224,69 @@ resource "google_project_iam_member" "gateway_metric_writer" {
   member  = "serviceAccount:${google_service_account.gateway[0].email}"
 }
 
+# The provider pull lists metric descriptors and time series, and nothing
+# narrower than the project exists for either: Cloud Monitoring IAM has no
+# per-resource scoping for reads. The chart values are what confine the pull
+# to named instances and buckets.
+#
+# Predefined rather than a custom role holding just those two permissions. A
+# deleted custom role keeps its ID reserved for days, which breaks the destroy
+# and re-create cycle the examples are built around.
+resource "google_project_iam_member" "gateway_monitoring_viewer" {
+  count = local.provider_metrics_enabled ? 1 : 0
+
+  project = var.project_id
+  role    = "roles/monitoring.viewer"
+  member  = "serviceAccount:${google_service_account.gateway[0].email}"
+}
+
 resource "google_service_account_iam_member" "gateway_workload_identity" {
-  count = var.enable_google_cloud_metrics ? 1 : 0
+  count = local.gateway_identity_enabled ? 1 : 0
 
   service_account_id = google_service_account.gateway[0].name
   role               = "roles/iam.workloadIdentityUser"
   member             = "serviceAccount:${var.project_id}.svc.id.goog[${var.namespace}/${local.gateway_service_account}]"
+}
+
+# ==============================================================================
+# Provider metrics: what the gateway pulls
+# ==============================================================================
+# Named, never discovered: the chart pulls exactly these resources. The caller's
+# lists come first, and this module's own resources join them unless asked not
+# to — they are the monitoring stack's dependencies, and nothing else here knows
+# their names.
+
+locals {
+  provider_metrics_cloud_sql_instances = local.provider_metrics_enabled ? distinct(concat(
+    var.provider_metrics.cloud_sql_instances,
+    var.provider_metrics.include_monitoring_resources && local.create_grafana_database ? [module.grafana_database[0].instance_name] : [],
+  )) : []
+
+  provider_metrics_gcs_buckets = local.provider_metrics_enabled ? distinct(concat(
+    var.provider_metrics.gcs_buckets,
+    var.provider_metrics.include_monitoring_resources ? [for k in keys(local.service_accounts) : google_storage_bucket.telemetry[k].name] : [],
+  )) : []
+
+  # Optional fields are omitted rather than set to null, so the chart's own
+  # defaults survive.
+  provider_metrics_values = local.provider_metrics_enabled ? [yamlencode({
+    pipeline = {
+      metrics = {
+        provider = {
+          gcp = merge(
+            {
+              enabled   = true
+              projectId = var.project_id
+              cloudSql  = { instances = local.provider_metrics_cloud_sql_instances }
+              gcs       = { buckets = local.provider_metrics_gcs_buckets }
+            },
+            var.provider_metrics.scrape_interval == null ? {} : { scrapeInterval = var.provider_metrics.scrape_interval },
+            var.provider_metrics.importance == null ? {} : { metricImportance = var.provider_metrics.importance },
+          )
+        }
+      }
+    }
+  })] : []
 }
 
 # ==============================================================================
@@ -324,8 +387,9 @@ module "monitoring" {
     thanos_service_account_annotations = {
       "iam.gke.io/gcp-service-account" = google_service_account.telemetry["thanos"].email
     }
-    # Only set when Cloud Monitoring is on; the gateway needs no bucket access.
-    gateway_service_account_annotations = var.enable_google_cloud_metrics ? {
+    # Only set when the gateway talks to Cloud Monitoring; it needs no bucket
+    # access.
+    gateway_service_account_annotations = local.gateway_identity_enabled ? {
       "iam.gke.io/gcp-service-account" = google_service_account.gateway[0].email
     } : {}
   }
@@ -346,14 +410,19 @@ module "monitoring" {
   otlp_auth_header_secrets = var.otlp_auth_header_secrets
   otlp_auth_bearer_token   = var.otlp_auth_bearer_token
 
-  # Load-balancer values ahead of the caller's, so `additional_values` still
+  # Computed values ahead of the caller's, so `additional_values` still
   # overrides anything computed here.
-  additional_values = concat(local.grafana_load_balancer_values, var.additional_values)
+  additional_values = concat(
+    local.grafana_load_balancer_values,
+    local.provider_metrics_values,
+    var.additional_values,
+  )
 
   depends_on = [
     google_storage_bucket_iam_member.telemetry,
     google_service_account_iam_member.workload_identity,
     google_project_iam_member.gateway_metric_writer,
+    google_project_iam_member.gateway_monitoring_viewer,
     google_service_account_iam_member.gateway_workload_identity,
   ]
 }

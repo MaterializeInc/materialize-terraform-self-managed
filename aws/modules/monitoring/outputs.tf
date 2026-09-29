@@ -74,8 +74,11 @@ output "metrics_bucket" {
 }
 
 output "iam_role_arns" {
-  description = "IRSA role ARNs, by backend."
-  value       = { for k, r in aws_iam_role.telemetry : k => r.arn }
+  description = "IRSA role ARNs, by backend. Includes `gateway` when `provider_metrics` is set."
+  value = merge(
+    { for k, r in aws_iam_role.telemetry : k => r.arn },
+    { for r in aws_iam_role.gateway : "gateway" => r.arn },
+  )
 }
 
 output "workload_identity_subjects" {

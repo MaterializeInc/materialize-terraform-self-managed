@@ -75,6 +75,16 @@ locals {
     thanos = "thanos-thanos"
   }
 
+  # Not in the map above: the gateway reads CloudWatch, not a bucket, so it gets
+  # its own role and policy. It shares the trust-policy document with the other
+  # two, which is keyed by this merged map.
+  gateway_service_account  = "alloy-gateway"
+  provider_metrics_enabled = var.provider_metrics != null
+  irsa_service_accounts = merge(
+    local.service_accounts,
+    local.provider_metrics_enabled ? { gateway = local.gateway_service_account } : {},
+  )
+
   oidc_issuer_host = trimprefix(var.cluster_oidc_issuer_url, "https://")
 
   bucket_encryption_uses_kms = var.bucket_encryption_mode == "SSE-KMS"
@@ -289,7 +299,7 @@ resource "aws_s3_bucket_lifecycle_configuration" "telemetry" {
 # ==============================================================================
 
 data "aws_iam_policy_document" "assume_role" {
-  for_each = local.service_accounts
+  for_each = local.irsa_service_accounts
 
   statement {
     effect  = "Allow"
@@ -369,6 +379,55 @@ resource "aws_iam_role_policy" "telemetry" {
   name   = "${var.name_prefix}-mzmon-${each.key}"
   role   = aws_iam_role.telemetry[each.key].id
   policy = data.aws_iam_policy_document.bucket_access[each.key].json
+}
+
+# ==============================================================================
+# Provider metrics: the gateway reads CloudWatch
+# ==============================================================================
+# Only what the chart's CloudWatch pull calls. Its jobs are `static`, which go
+# through GetMetricStatistics; the exporter also lists the account alias to label
+# every series, and logs a warning on each pull without it.
+#
+# Both are `Resource: "*"` because neither action supports anything narrower:
+# the IAM service reference lists no resource types and no condition keys for
+# either. `cloudwatch:namespace` exists and applies only to PutMetricData. The
+# scoping to named resources is in the chart values instead, which never
+# discover.
+
+resource "aws_iam_role" "gateway" {
+  count = local.provider_metrics_enabled ? 1 : 0
+
+  name                 = "${var.name_prefix}-mzmon-gateway"
+  assume_role_policy   = data.aws_iam_policy_document.assume_role["gateway"].json
+  permissions_boundary = var.iam_permissions_boundary
+
+  tags = merge(local.common_tags, { Backend = "gateway" })
+}
+
+data "aws_iam_policy_document" "provider_metrics_read" {
+  count = local.provider_metrics_enabled ? 1 : 0
+
+  statement {
+    sid       = "CloudWatchRead"
+    effect    = "Allow"
+    actions   = ["cloudwatch:GetMetricStatistics"]
+    resources = ["*"]
+  }
+
+  statement {
+    sid       = "AccountAlias"
+    effect    = "Allow"
+    actions   = ["iam:ListAccountAliases"]
+    resources = ["*"]
+  }
+}
+
+resource "aws_iam_role_policy" "gateway" {
+  count = local.provider_metrics_enabled ? 1 : 0
+
+  name   = "${var.name_prefix}-mzmon-gateway"
+  role   = aws_iam_role.gateway[0].id
+  policy = data.aws_iam_policy_document.provider_metrics_read[0].json
 }
 
 # ==============================================================================
@@ -713,6 +772,47 @@ resource "kubectl_manifest" "grafana_target_group_binding" {
 }
 
 # ==============================================================================
+# Provider metrics: what the gateway pulls
+# ==============================================================================
+# Named, never discovered: the chart pulls exactly these resources. The caller's
+# lists come first, and this module's own resources join them unless asked not
+# to — they are the monitoring stack's dependencies, and nothing else here knows
+# their names.
+
+locals {
+  provider_metrics_rds_instances = local.provider_metrics_enabled ? distinct(concat(
+    var.provider_metrics.rds_instance_ids,
+    var.provider_metrics.include_monitoring_resources && local.create_grafana_database ? [module.grafana_database[0].db_instance_id] : [],
+  )) : []
+
+  provider_metrics_s3_buckets = local.provider_metrics_enabled ? distinct(concat(
+    var.provider_metrics.s3_bucket_names,
+    var.provider_metrics.include_monitoring_resources ? [for k in keys(local.service_accounts) : aws_s3_bucket.telemetry[k].id] : [],
+  )) : []
+
+  # Optional fields are omitted rather than set to null, so the chart's own
+  # defaults survive.
+  provider_metrics_values = local.provider_metrics_enabled ? [yamlencode({
+    pipeline = {
+      metrics = {
+        provider = {
+          cloudwatch = merge(
+            {
+              enabled = true
+              region  = var.region
+              rds     = { instances = local.provider_metrics_rds_instances }
+              s3      = { buckets = local.provider_metrics_s3_buckets }
+            },
+            var.provider_metrics.scrape_interval == null ? {} : { scrapeInterval = var.provider_metrics.scrape_interval },
+            var.provider_metrics.importance == null ? {} : { metricImportance = var.provider_metrics.importance },
+          )
+        }
+      }
+    }
+  })] : []
+}
+
+# ==============================================================================
 # The stack
 # ==============================================================================
 
@@ -814,6 +914,10 @@ module "monitoring" {
     thanos_service_account_annotations = {
       "eks.amazonaws.com/role-arn" = aws_iam_role.telemetry["thanos"].arn
     }
+    # Only set when the provider pull is on; the gateway needs no bucket access.
+    gateway_service_account_annotations = local.provider_metrics_enabled ? {
+      "eks.amazonaws.com/role-arn" = aws_iam_role.gateway[0].arn
+    } : {}
   }
 
   # Straight pass-through; the monitoring module validates the tiers, the OTLP
@@ -827,12 +931,17 @@ module "monitoring" {
   otlp_auth_header_secrets = var.otlp_auth_header_secrets
   otlp_auth_bearer_token   = var.otlp_auth_bearer_token
 
-  # Ingress values ahead of the caller's, so `additional_values` still overrides
+  # Computed values ahead of the caller's, so `additional_values` still overrides
   # anything computed here.
-  additional_values = concat(local.grafana_load_balancer_values, var.additional_values)
+  additional_values = concat(
+    local.grafana_load_balancer_values,
+    local.provider_metrics_values,
+    var.additional_values,
+  )
 
   depends_on = [
     aws_iam_role_policy.telemetry,
+    aws_iam_role_policy.gateway,
     aws_s3_bucket_public_access_block.telemetry,
   ]
 }
