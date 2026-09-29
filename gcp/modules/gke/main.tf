@@ -2,13 +2,26 @@
 #  Doing this will allow more flexibility in terms of permissions/firewalls for different nodepools.
 resource "google_service_account" "gke_sa" {
   project      = var.project_id
-  account_id   = "${var.prefix}-gke-sa"
+  account_id   = coalesce(var.node_service_account_id, "${var.prefix}-gke-sa")
   display_name = "GKE Service Account for Materialize"
+}
+
+# Google's recommended baseline for node service accounts, plus image pulls
+# from Artifact Registry.
+resource "google_project_iam_member" "gke_sa" {
+  for_each = var.grant_node_service_account_roles ? toset([
+    "roles/container.defaultNodeServiceAccount",
+    "roles/artifactregistry.reader",
+  ]) : toset([])
+
+  project = var.project_id
+  role    = each.value
+  member  = "serviceAccount:${google_service_account.gke_sa.email}"
 }
 
 resource "google_service_account" "workload_identity_sa" {
   project      = var.project_id
-  account_id   = "${var.prefix}-materialize-sa"
+  account_id   = coalesce(var.workload_identity_service_account_id, "${var.prefix}-materialize-sa")
   display_name = "Materialize Workload Identity Service Account"
 }
 

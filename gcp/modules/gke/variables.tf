@@ -10,11 +10,48 @@ variable "region" {
   nullable    = false
 }
 
-# TODO: add length validation on prefix
-# account_id   = "${var.prefix}-materialize-sa" length should be between [6-30]
 variable "prefix" {
-  description = "Prefix to be used for resource names"
+  description = "Prefix to be used for resource names. Service account ids derived from it must fit GCP's 30-character limit, so at most 15 characters unless node_service_account_id and workload_identity_service_account_id are set."
   type        = string
+  nullable    = false
+
+  validation {
+    condition = (
+      length(coalesce(var.node_service_account_id, "${var.prefix}-gke-sa")) <= 30 &&
+      length(coalesce(var.workload_identity_service_account_id, "${var.prefix}-materialize-sa")) <= 30
+    )
+    error_message = "Service account ids derived from prefix exceed 30 characters. Use a prefix of at most 15 characters, or set node_service_account_id and workload_identity_service_account_id."
+  }
+}
+
+variable "node_service_account_id" {
+  description = "account_id of the GKE node service account. Defaults to \"<prefix>-gke-sa\". Changing it on an existing deployment recreates the service account."
+  type        = string
+  default     = null
+  nullable    = true
+
+  validation {
+    condition     = var.node_service_account_id == null || can(regex("^[a-z][-a-z0-9]{4,28}[a-z0-9]$", var.node_service_account_id))
+    error_message = "node_service_account_id must be 6-30 characters of lowercase letters, digits, and hyphens, starting with a letter and not ending with a hyphen."
+  }
+}
+
+variable "workload_identity_service_account_id" {
+  description = "account_id of the Materialize workload identity service account. Defaults to \"<prefix>-materialize-sa\". Changing it on an existing deployment recreates the service account."
+  type        = string
+  default     = null
+  nullable    = true
+
+  validation {
+    condition     = var.workload_identity_service_account_id == null || can(regex("^[a-z][-a-z0-9]{4,28}[a-z0-9]$", var.workload_identity_service_account_id))
+    error_message = "workload_identity_service_account_id must be 6-30 characters of lowercase letters, digits, and hyphens, starting with a letter and not ending with a hyphen."
+  }
+}
+
+variable "grant_node_service_account_roles" {
+  description = "Grant the node service account roles/container.defaultNodeServiceAccount (logging, monitoring, metadata) and roles/artifactregistry.reader. Disable if you manage these grants yourself."
+  type        = bool
+  default     = true
   nullable    = false
 }
 
