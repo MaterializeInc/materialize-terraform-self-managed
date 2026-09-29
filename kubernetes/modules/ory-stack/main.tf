@@ -145,7 +145,9 @@ locals {
       kratos-tls = { fqdn = var.kratos_fqdn, cluster_svc = "kratos-public.${var.namespace}.svc.cluster.local" }
     },
     var.deploy_selfservice_ui ? {
-      ory-selfservice-ui-tls = { fqdn = var.ui_fqdn, cluster_svc = null }
+      # The in-cluster name is what Hydra calls the token hook on (see
+      # module.ory_hydra), so it is in the SAN whenever the issuer can sign it.
+      ory-selfservice-ui-tls = { fqdn = var.ui_fqdn, cluster_svc = "ory-selfservice-ui.${var.namespace}.svc.cluster.local" }
     } : {},
     local.wire_polis ? {
       polis-tls = { fqdn = var.polis_fqdn, cluster_svc = null, extra_dns = var.polis_extra_dns_names }
@@ -424,14 +426,24 @@ module "ory_hydra" {
   logout_url  = "${local.ui_external_url}/logout"
 
   # Hydra calls the token hook server-side, over the UI's own TLS listener (the
-  # UI terminates TLS with the ory-selfservice-ui-tls cert), so Hydra has to
-  # trust that certificate. With the self-signed cluster issuer it does not: the
-  # hook then needs a publicly trusted cert, or the issuing CA added to Hydra's
-  # trust store. Left off by default for that reason.
+  # UI terminates TLS with the ory-selfservice-ui-tls cert), so the URL's host
+  # must be in that cert and Hydra must trust its issuer:
+  #   - an issuer that signs cluster.local names (the self-signed default) puts
+  #     the in-cluster service name in the cert, so Hydra calls that and is
+  #     given the cert's ca.crt to trust;
+  #   - any other issuer only covers the public name, so Hydra calls that
+  #     (hairpin through the LB, like the other in-cluster callers) and trusts
+  #     it through its system roots. A private CA that cannot sign cluster.local
+  #     names needs its root added to Hydra (hydra_helm_values) as well.
   token_hook = var.selfservice_ui_token_hook_enabled ? {
-    url            = module.ory_selfservice_ui[0].token_hook_url
+    url = (
+      var.cert_issuer_signs_cluster_local
+      ? module.ory_selfservice_ui[0].token_hook_url
+      : "https://${var.ui_fqdn}/hooks/token"
+    )
     api_key_header = module.ory_selfservice_ui[0].token_hook_api_key_header
     api_key        = module.ory_selfservice_ui[0].token_hook_api_key
+    ca_secret_name = var.cert_issuer_signs_cluster_local ? "ory-selfservice-ui-tls" : null
   } : null
 
   helm_values = provider::deepmerge::mergo(local.hydra_helm_values_baseline, var.hydra_helm_values)
