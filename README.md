@@ -199,9 +199,9 @@ Run `terraform plan` and check that it shows no change to the database version. 
 
 On AWS, the `database` module has two new inputs for this, both defaulting to `false`. Set `allow_major_version_upgrade = true` to allow the upgrade. Set `apply_immediately = true` to run it on this apply rather than in the next maintenance window. The database is down while the upgrade runs.
 
-##### Monitoring stack moves to materialize-monitoring v0.25.0
+##### Monitoring stack moves to materialize-monitoring v0.25.1
 
-The `monitoring` modules now pin `materialize-monitoring/v0.25.0`, up from v0.23.0.
+The `monitoring` modules now pin `materialize-monitoring/v0.25.1`, up from v0.23.0.
 
 **Before applying, delete the Thanos workloads without deleting their pods:**
 
@@ -218,7 +218,7 @@ The same upgrade also changes:
 - **Dashboards install from a separate `materialize-monitoring-dashboards` release**, which the module creates. Set `enable_dashboards = false` to opt out.
 - **Thanos Ruler runs by default** and evaluates every `PrometheusRule` in the cluster.
 
-The full list is in the [v0.24.0](https://github.com/MaterializeInc/materialize-monitoring/releases/tag/materialize-monitoring/v0.24.0) and [v0.25.0](https://github.com/MaterializeInc/materialize-monitoring/releases/tag/materialize-monitoring/v0.25.0) release notes.
+The full list is in the [v0.24.0](https://github.com/MaterializeInc/materialize-monitoring/releases/tag/materialize-monitoring/v0.24.0) and [v0.25.1](https://github.com/MaterializeInc/materialize-monitoring/releases/tag/materialize-monitoring/v0.25.1) release notes.
 
 ##### Storage lifecycle rule changes
 
