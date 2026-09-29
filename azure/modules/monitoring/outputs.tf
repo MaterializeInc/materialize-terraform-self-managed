@@ -70,8 +70,11 @@ output "metrics_container" {
 }
 
 output "identity_client_ids" {
-  description = "User-assigned identity client IDs, by backend. One per backend, each scoped to its own container."
-  value       = { for k, id in azurerm_user_assigned_identity.telemetry : k => id.client_id }
+  description = "User-assigned identity client IDs, by backend. One per backend, each scoped to its own container. Includes `gateway` when `provider_metrics` is set."
+  value = merge(
+    { for k, id in azurerm_user_assigned_identity.telemetry : k => id.client_id },
+    { for id in azurerm_user_assigned_identity.gateway : "gateway" => id.client_id },
+  )
 }
 
 output "workload_identity_subjects" {

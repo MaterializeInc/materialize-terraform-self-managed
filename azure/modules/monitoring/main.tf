@@ -27,6 +27,9 @@
 #     `thanos.global.commonLabels` for Thanos, which has no `podLabels` of its
 #     own. The federated credentials below are what the projected tokens exchange
 #     against.
+#   * `provider_metrics` gives the Alloy gateway an identity of its own, which it
+#     uses only to read Azure Monitor. The monitoring module labels the gateway's
+#     pods for the webhook whenever its ServiceAccount carries a client ID.
 #   * The `monitoring` namespace is created by the operator module in the
 #     supported topology, so `create_namespace` defaults to false. Keep a
 #     `depends_on` for the operator or the release can race the namespace.
@@ -60,6 +63,10 @@ locals {
     loki   = var.loki_container_name
     thanos = var.thanos_container_name
   }
+
+  # Not in the map above: the gateway reads Azure Monitor, not a container.
+  gateway_service_account  = "alloy-gateway"
+  provider_metrics_enabled = var.provider_metrics != null
 }
 
 # ==============================================================================
@@ -153,6 +160,99 @@ resource "azurerm_federated_identity_credential" "telemetry" {
   issuer              = var.oidc_issuer_url
   parent_id           = azurerm_user_assigned_identity.telemetry[each.key].id
   subject             = "system:serviceaccount:${var.namespace}:${each.value}"
+}
+
+# ==============================================================================
+# Provider metrics: what the gateway pulls
+# ==============================================================================
+# The gateway's own identity, separate from the backends' for the reason theirs
+# are separate from each other: it reads Azure Monitor and no container, and
+# neither backend reads Azure Monitor.
+
+resource "azurerm_user_assigned_identity" "gateway" {
+  count = local.provider_metrics_enabled ? 1 : 0
+
+  name                = "${var.prefix}-mzmon-gateway"
+  resource_group_name = var.resource_group_name
+  location            = var.location
+
+  tags = var.tags
+}
+
+resource "azurerm_federated_identity_credential" "gateway" {
+  count = local.provider_metrics_enabled ? 1 : 0
+
+  name                = "${var.prefix}-mzmon-gateway"
+  resource_group_name = var.resource_group_name
+  audience            = ["api://AzureADTokenExchange"]
+  issuer              = var.oidc_issuer_url
+  parent_id           = azurerm_user_assigned_identity.gateway[0].id
+  subject             = "system:serviceaccount:${var.namespace}:${local.gateway_service_account}"
+}
+
+# Named, never discovered: the chart pulls exactly these resources. The caller's
+# lists come first, and this module's own resources join them unless asked not
+# to — they are the monitoring stack's dependencies, and nothing else here knows
+# them.
+#
+# Keyed by position rather than by ID, so the keys are known at plan even when
+# the IDs belong to resources created in the same apply.
+
+locals {
+  provider_metrics_postgres = local.provider_metrics_enabled ? merge(
+    { for i, id in var.provider_metrics.postgres_server_ids : "postgres-${i}" => id },
+    var.provider_metrics.include_monitoring_resources && local.create_grafana_database ? { grafana = module.grafana_database[0].server_id } : {},
+  ) : {}
+
+  provider_metrics_storage = local.provider_metrics_enabled ? merge(
+    { for i, id in var.provider_metrics.storage_account_ids : "storage-${i}" => id },
+    var.provider_metrics.include_monitoring_resources ? { telemetry = azurerm_storage_account.telemetry.id } : {},
+  ) : {}
+
+  # The subscription this module deploys into. The chart queries one, so every
+  # listed resource has to be in it; the grants below refuse any that is not.
+  subscription_id = split("/", azurerm_storage_account.telemetry.id)[2]
+
+  # Optional fields are omitted rather than set to null, so the chart's own
+  # defaults survive. A resource ID's ninth segment is its name.
+  provider_metrics_values = local.provider_metrics_enabled ? [yamlencode({
+    pipeline = {
+      metrics = {
+        provider = {
+          azure = merge(
+            {
+              enabled        = true
+              subscriptionId = local.subscription_id
+              postgres       = { servers = [for id in values(local.provider_metrics_postgres) : split("/", id)[8]] }
+              blob           = { storageAccounts = [for id in values(local.provider_metrics_storage) : split("/", id)[8]] }
+            },
+            var.provider_metrics.scrape_interval == null ? {} : { scrapeInterval = var.provider_metrics.scrape_interval },
+            var.provider_metrics.importance == null ? {} : { metricImportance = var.provider_metrics.importance },
+          )
+        }
+      }
+    }
+  })] : []
+}
+
+# Monitoring Reader is `*/read` at the scope it is granted on, so on one server or
+# one storage account it reads that resource's configuration and metrics and
+# nothing else: not its keys, which are an action, and not its blobs, which are
+# data actions. Unlike CloudWatch and Cloud Monitoring reads, Azure Monitor reads
+# scope to a resource, so nothing wider is granted.
+resource "azurerm_role_assignment" "gateway_monitoring_reader" {
+  for_each = merge(local.provider_metrics_postgres, local.provider_metrics_storage)
+
+  scope                = each.value
+  role_definition_name = "Monitoring Reader"
+  principal_id         = azurerm_user_assigned_identity.gateway[0].principal_id
+
+  lifecycle {
+    precondition {
+      condition     = lower(split("/", each.value)[2]) == lower(local.subscription_id)
+      error_message = "provider_metrics lists ${each.value}, which is outside the subscription this module deploys into. The chart queries one subscription, so the pull would never find it."
+    }
+  }
 }
 
 # ==============================================================================
@@ -258,6 +358,10 @@ module "monitoring" {
     thanos_service_account_annotations = {
       "azure.workload.identity/client-id" = azurerm_user_assigned_identity.telemetry["thanos"].client_id
     }
+    # Only set when the gateway reads Azure Monitor; it needs no container.
+    gateway_service_account_annotations = local.provider_metrics_enabled ? {
+      "azure.workload.identity/client-id" = azurerm_user_assigned_identity.gateway[0].client_id
+    } : {}
   }
 
   # Straight pass-through; the monitoring module validates the tiers, the OTLP
@@ -271,13 +375,15 @@ module "monitoring" {
   otlp_auth_header_secrets = var.otlp_auth_header_secrets
   otlp_auth_bearer_token   = var.otlp_auth_bearer_token
 
-  # Load-balancer values ahead of the caller's, so `additional_values` still
-  # overrides anything computed here.
-  additional_values = concat(local.grafana_load_balancer_values, var.additional_values)
+  # Load-balancer and provider values ahead of the caller's, so
+  # `additional_values` still overrides anything computed here.
+  additional_values = concat(local.grafana_load_balancer_values, local.provider_metrics_values, var.additional_values)
 
   depends_on = [
     azurerm_role_assignment.telemetry,
     azurerm_federated_identity_credential.telemetry,
+    azurerm_role_assignment.gateway_monitoring_reader,
+    azurerm_federated_identity_credential.gateway,
   ]
 }
 

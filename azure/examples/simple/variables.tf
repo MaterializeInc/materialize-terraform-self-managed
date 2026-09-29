@@ -87,6 +87,16 @@ variable "enable_observability" {
   default     = true
 }
 
+variable "enable_provider_metrics" {
+  description = <<-EOT
+    Pull Azure Monitor metrics for the Materialize database and persist storage account, and for the
+    monitoring stack's own storage account and Grafana database, into the monitoring stack. Creates
+    an identity for the Alloy gateway with Monitoring Reader on those resources only.
+  EOT
+  type        = bool
+  default     = false
+}
+
 variable "materialize_version" {
   description = "Materialize release for both the operator Helm chart and environmentd, which must not drift. Null uses each module's default."
   type        = string
