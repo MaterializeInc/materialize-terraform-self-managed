@@ -18,6 +18,12 @@ variable "enable_bucket_versioning" {
   nullable    = false
 }
 
+variable "noncurrent_version_expiration_days" {
+  description = "Expire noncurrent object versions after this many days. Null disables the rule."
+  type        = number
+  default     = 7
+}
+
 variable "enable_bucket_encryption" {
   description = "Enable server-side encryption for the S3 bucket"
   type        = bool

@@ -212,12 +212,18 @@ The storage modules' default lifecycle rules now match Materialize Cloud's persi
     condition = { age = 30 }
   }]
   ```
-- **`versioning = true` now plans.** The `version_ttl` rule was built with an API field name the module never mapped to the provider, so any root with versioning on failed at plan time with `Unsupported attribute`. It now emits a `Delete` rule with `days_since_noncurrent_time = var.version_ttl`, and `lifecycle_rules` accepts `condition.days_since_noncurrent_time` too. Roots with `versioning = false`, including both examples, see no diff.
+- **`versioning = true` now plans.** The `version_ttl` rule was built with an API field name the module never mapped to the provider, so any root with versioning on failed at plan time with `Unsupported attribute`. It now emits a `Delete` rule with `days_since_noncurrent_time = var.version_ttl`, and `lifecycle_rules` accepts `condition.days_since_noncurrent_time` too.
+- **The `version_ttl` rule is no longer gated on `versioning`**, so it is added even to unversioned buckets, including both examples, where it never matches. Turning versioning off leaves existing noncurrent versions behind, and this rule still expires them. `version_ttl` is now nullable; set it to `null` to drop the rule.
 
 **Impact on existing AWS deployments:**
 
 - **`bucket_lifecycle_rules` in `aws/modules/storage` is now optional**, defaulting to a single rule that aborts incomplete multipart uploads after one day. Roots that pass `[]`, as the examples used to, keep an empty configuration and can drop the argument to pick up the default. Roots that pass their own rules are unaffected.
 - **`prefix`, `transition_days`, `transition_storage_class`, and `noncurrent_version_expiration_days` are now optional** in each rule, and a rule may set `abort_incomplete_multipart_upload_days`. A block is only emitted for the fields you set, so an existing rule that sets all of them produces the same configuration as before.
+- **Noncurrent versions now expire after 7 days by default.** A new `noncurrent_version_expiration_days` variable (default `7`) adds an `expire-noncurrent-versions` rule to every bucket, whether or not versioning is enabled. If your `bucket_lifecycle_rules` already expire noncurrent versions, set it to `null` to keep only your rule.
+
+**Impact on existing Azure deployments:**
+
+- **Blob versioning is now enabled by default** on the persist storage account (`versioning = true`), along with blob soft delete and a management policy that deletes previous versions, both set by `version_ttl` (default `7` days). Azure ages a previous version from when it was created, not from when it became a previous version, so soft delete is what keeps a deleted blob recoverable for at least `version_ttl` days. Deleted data is kept for up to about `2 * version_ttl` days, which adds to storage cost. Set `versioning = false` and `version_ttl = null` to keep the old behavior. The Azure examples set `versioning = false`, matching the AWS and GCP examples.
 
 ##### GCP nodepool disk-setup resources are named per pool
 

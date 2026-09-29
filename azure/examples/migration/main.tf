@@ -363,6 +363,7 @@ module "storage" {
   workload_identity_principal_id = azurerm_user_assigned_identity.workload_identity.principal_id
   subnets                        = [azurerm_subnet.aks.id]
   container_name                 = "materialize"
+  versioning                     = false
 
   # Workload identity federation configuration
   workload_identity_id      = azurerm_user_assigned_identity.workload_identity.id

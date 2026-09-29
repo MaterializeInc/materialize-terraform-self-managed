@@ -44,7 +44,7 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "materialize_stora
 }
 
 resource "aws_s3_bucket_lifecycle_configuration" "materialize_storage" {
-  count = length(var.bucket_lifecycle_rules) > 0 ? 1 : 0
+  count = (length(var.bucket_lifecycle_rules) > 0 || var.noncurrent_version_expiration_days != null) ? 1 : 0
 
   bucket = aws_s3_bucket.materialize_storage.id
 
@@ -81,6 +81,24 @@ resource "aws_s3_bucket_lifecycle_configuration" "materialize_storage" {
       }
     }
   }
+
+  # Not gated on versioning: disabling it only suspends versioning, so the
+  # versions already written still need expiring.
+  dynamic "rule" {
+    for_each = var.noncurrent_version_expiration_days != null ? [1] : []
+    content {
+      id     = "expire-noncurrent-versions"
+      status = "Enabled"
+
+      filter {}
+
+      noncurrent_version_expiration {
+        noncurrent_days = var.noncurrent_version_expiration_days
+      }
+    }
+  }
+
+  depends_on = [aws_s3_bucket_versioning.materialize_storage]
 }
 
 # IAM Role for Service Account (IRSA) to access S3 bucket

@@ -1,6 +1,7 @@
 locals {
   # Same shape as var.lifecycle_rules so concat yields one object type.
-  version_ttl = (var.versioning && var.version_ttl != null) ? [{
+  # Not gated on versioning: disabling it leaves existing noncurrent versions.
+  version_ttl = var.version_ttl != null ? [{
     action = {
       type          = "Delete"
       storage_class = null
