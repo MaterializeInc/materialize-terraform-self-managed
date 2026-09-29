@@ -21,6 +21,7 @@ No modules.
 | ---- | ---- |
 | [google_compute_firewall.conversion_webhook](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/compute_firewall) | resource |
 | [google_container_cluster.primary](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/container_cluster) | resource |
+| [google_project_iam_member.gke_sa](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/project_iam_member) | resource |
 | [google_project_iam_member.orchestratord_cluster_viewer](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/project_iam_member) | resource |
 | [google_pubsub_subscription.orchestratord_upgrade_notifications](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/pubsub_subscription) | resource |
 | [google_pubsub_subscription_iam_member.orchestratord_upgrade_notifications_subscriber](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/pubsub_subscription_iam_member) | resource |
@@ -38,6 +39,7 @@ No modules.
 | <a name="input_enable_node_local_dns"></a> [enable\_node\_local\_dns](#input\_enable\_node\_local\_dns) | Whether to enable GKE's NodeLocal DNSCache addon, which runs a DNS cache on every node. This is the supported way to get node-local DNS on GKE: with Dataplane V2 a self-deployed node-local-dns cannot intercept kube-dns traffic (service IPs are rewritten in eBPF before iptables sees them). Note: NodeLocal DNSCache caches cluster records for up to 5s even when CoreDNS serves TTL-0 records, and toggling this on an existing cluster recreates all node pools. | `bool` | `false` | no |
 | <a name="input_enable_upgrade_notifications"></a> [enable\_upgrade\_notifications](#input\_enable\_upgrade\_notifications) | Publish GKE upgrade notifications to a Pub/Sub topic and let orchestratord's service account subscribe to them and read node pool state. Required for the operator module's enable\_node\_upgrade\_rollout\_trigger. | `bool` | `true` | no |
 | <a name="input_gce_persistent_disk_csi_driver_enabled"></a> [gce\_persistent\_disk\_csi\_driver\_enabled](#input\_gce\_persistent\_disk\_csi\_driver\_enabled) | Whether to enable the GCE persistent disk CSI driver | `bool` | `true` | no |
+| <a name="input_grant_node_service_account_roles"></a> [grant\_node\_service\_account\_roles](#input\_grant\_node\_service\_account\_roles) | Grant the node service account roles/container.defaultNodeServiceAccount (logging, monitoring, metadata) and roles/artifactregistry.reader. Disable if you manage these grants yourself. | `bool` | `true` | no |
 | <a name="input_horizontal_pod_autoscaling_disabled"></a> [horizontal\_pod\_autoscaling\_disabled](#input\_horizontal\_pod\_autoscaling\_disabled) | Whether to disable horizontal pod autoscaling | `bool` | `false` | no |
 | <a name="input_http_load_balancing_disabled"></a> [http\_load\_balancing\_disabled](#input\_http\_load\_balancing\_disabled) | Whether to disable HTTP load balancing | `bool` | `false` | no |
 | <a name="input_k8s_apiserver_authorized_networks"></a> [k8s\_apiserver\_authorized\_networks](#input\_k8s\_apiserver\_authorized\_networks) | List of CIDR blocks to allow access to the Kubernetes master endpoint. Each entry should have cidr\_block and display\_name. Defaults to 0.0.0.0/0 to allow access from anywhere. | <pre>list(object({<br/>    cidr_block   = string<br/>    display_name = string<br/>  }))</pre> | <pre>[<br/>  {<br/>    "cidr_block": "0.0.0.0/0",<br/>    "display_name": "Authorized networks"<br/>  }<br/>]</pre> | no |
@@ -47,13 +49,15 @@ No modules.
 | <a name="input_network_name"></a> [network\_name](#input\_network\_name) | The name of the VPC network | `string` | n/a | yes |
 | <a name="input_networking_mode"></a> [networking\_mode](#input\_networking\_mode) | The networking mode for the GKE cluster | `string` | `"VPC_NATIVE"` | no |
 | <a name="input_node_locations"></a> [node\_locations](#input\_node\_locations) | List of zones where cluster nodes will be created. Must be zones within the cluster's region. When null (the default), GKE distributes nodes across available zones. | `list(string)` | `null` | no |
+| <a name="input_node_service_account_id"></a> [node\_service\_account\_id](#input\_node\_service\_account\_id) | account\_id of the GKE node service account. Defaults to "<prefix>-gke-sa". Changing it on an existing deployment recreates the service account. | `string` | `null` | no |
 | <a name="input_orchestratord_service_account_name"></a> [orchestratord\_service\_account\_name](#input\_orchestratord\_service\_account\_name) | The name of the operator's Kubernetes service account bound to the workload identity service account. Must match the Materialize operator chart's serviceAccount.name value (the operator module leaves this at the chart default, "orchestratord"). | `string` | `"orchestratord"` | no |
-| <a name="input_prefix"></a> [prefix](#input\_prefix) | Prefix to be used for resource names | `string` | n/a | yes |
+| <a name="input_prefix"></a> [prefix](#input\_prefix) | Prefix to be used for resource names. Service account ids derived from it must fit GCP's 30-character limit, so at most 15 characters unless node\_service\_account\_id and workload\_identity\_service\_account\_id are set. | `string` | n/a | yes |
 | <a name="input_project_id"></a> [project\_id](#input\_project\_id) | The ID of the project where resources will be created | `string` | n/a | yes |
 | <a name="input_region"></a> [region](#input\_region) | The region where resources will be created | `string` | n/a | yes |
 | <a name="input_release_channel"></a> [release\_channel](#input\_release\_channel) | The release channel for the GKE cluster | `string` | `"REGULAR"` | no |
 | <a name="input_services_secondary_range_name"></a> [services\_secondary\_range\_name](#input\_services\_secondary\_range\_name) | The name of the secondary range to use for services | `string` | `"services"` | no |
 | <a name="input_subnet_name"></a> [subnet\_name](#input\_subnet\_name) | The name of the subnet | `string` | n/a | yes |
+| <a name="input_workload_identity_service_account_id"></a> [workload\_identity\_service\_account\_id](#input\_workload\_identity\_service\_account\_id) | account\_id of the Materialize workload identity service account. Defaults to "<prefix>-materialize-sa". Changing it on an existing deployment recreates the service account. | `string` | `null` | no |
 
 ## Outputs
 
