@@ -242,6 +242,15 @@ locals {
         # is what lifts them out of ext.
         oauth2 = {
           allowed_top_level_claims = ["email", "groups"]
+          # Public clients (the console SPA, self-registered MCP clients) have
+          # no secret, so PKCE is the only thing binding an authorization code
+          # to the client that asked for it. Enforce it: a leaked code (logs,
+          # Referer, history) is otherwise redeemable, refresh token and all.
+          # oidc-client-ts, which the console uses, sends PKCE by default, and
+          # the MCP spec requires it.
+          pkce = {
+            enforced_for_public_clients = true
+          }
         }
       }
     }
