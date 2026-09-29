@@ -199,6 +199,27 @@ Run `terraform plan` and check that it shows no change to the database version. 
 
 On AWS, the `database` module has two new inputs for this, both defaulting to `false`. Set `allow_major_version_upgrade = true` to allow the upgrade. Set `apply_immediately = true` to run it on this apply rather than in the next maintenance window. The database is down while the upgrade runs.
 
+##### Monitoring stack moves to materialize-monitoring v0.25.1
+
+The `monitoring` modules now pin `materialize-monitoring/v0.25.1`, up from v0.23.0.
+
+**Before applying, delete the Thanos workloads without deleting their pods:**
+
+```bash
+kubectl -n monitoring delete statefulset,deployment -l app.kubernetes.io/part-of=thanos,app.kubernetes.io/instance=mzmon --cascade=orphan
+```
+
+Thanos's Deployment and StatefulSet selectors change so that they stop matching Loki's pods. Selectors are immutable, so without this step the apply fails at the first Thanos workload. The pods keep running and are re-adopted without a restart. An apply that has already failed this way recovers the same way: run the command, then apply again. Use your own namespace in place of `monitoring` if you set `namespace` on the module. See [Upgrading](https://materializeinc.github.io/materialize-monitoring/operating/upgrading/#thanos-selectors-name-the-chart) in the materialize-monitoring docs.
+
+The same upgrade also changes:
+
+- **Alertmanager** runs two replicas spread across zones. A cluster whose nodes carry no zone label needs `min_zones = 0` on the module.
+- **Alertmanager's resources are renamed** and start on new volumes. The old `storage-mzmon-alertmanager-0` PersistentVolumeClaim is left behind and can be deleted. See [Alertmanager: two replicas, renamed](https://materializeinc.github.io/materialize-monitoring/operating/upgrading/#alertmanager-two-replicas-renamed).
+- **Dashboards install from a separate `materialize-monitoring-dashboards` release**, which the module creates. Set `enable_dashboards = false` to opt out.
+- **Thanos Ruler runs by default** and evaluates every `PrometheusRule` in the cluster.
+
+The full list is in the [v0.24.0](https://github.com/MaterializeInc/materialize-monitoring/releases/tag/materialize-monitoring/v0.24.0) and [v0.25.1](https://github.com/MaterializeInc/materialize-monitoring/releases/tag/materialize-monitoring/v0.25.1) release notes.
+
 ##### Storage lifecycle rule changes
 
 The storage modules' default lifecycle rules now match Materialize Cloud's persist buckets: no storage-class tiering, and incomplete multipart uploads are aborted after one day. Persist reads every surviving blob on restart and rehydration, so tiering those blobs to a colder class only adds retrieval fees, higher operation costs, and early-deletion charges when compaction removes them.
