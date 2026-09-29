@@ -227,6 +227,16 @@ The storage modules' default lifecycle rules now match Materialize Cloud's persi
 
 - **Swap-enabled pools that relied on the old default have their disk-setup resources replaced** under the new name on the next apply (in the examples, `disk-setup` becomes `<name_prefix>-mz-disk-setup`). The replacement DaemonSet reruns the swap setup on existing swap nodes. To keep the old name, set `disk_setup_name = "disk-setup"`.
 
+##### GCP internal load balancers get a client firewall rule
+
+GKE L4 firewall reconciliation is disabled, so GKE no longer creates allow rules for internal LoadBalancer Services. Before this release, `gcp/modules/load_balancers` created no client firewall rule for `internal = true`, which left balancerd and the console reachable only from the node subnet. It now creates `<prefix>-lb-internal-ingress-rule`, which allows tcp 8080, 6875, and 6876 from `ingress_cidr_blocks`.
+
+**Impact on existing GCP deployments:**
+
+- **`ingress_cidr_blocks` is now required and must be non-empty, whether the load balancer is internal or external.** Roots that pass `null` or omit it with `internal = true` fail validation. Pass the ranges your clients connect from, such as your VPC, peered VPCs, or on-prem networks.
+- **The examples default `ingress_cidr_blocks` to `["0.0.0.0/0"]`**, including `migration`, which used to default to `null`. On an internal load balancer, that admits any source that can route to the VPC. Narrow it if that's too broad.
+- Clients in the node subnet that already work stay unaffected.
+
 #### v13.0.0
 
 `aws/modules/monitoring` moves its two telemetry buckets into the S3 account regional namespace, which **replaces both of them**. That namespace is house policy for new buckets: the name is reserved to your account, so no other account can take it and none can ever take it back. This is the whole of the release, and it affects every existing AWS deployment of the monitoring stack. Nothing outside `aws/modules/monitoring` changes, and GCP and Azure are untouched.
