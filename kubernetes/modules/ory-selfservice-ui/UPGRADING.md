@@ -63,6 +63,25 @@ To roll back, revert the module version (or pin `image_repository` /`image_tag` 
 initContainer along with the old image. Sessions are cookie-based and the cookie secrets
 are unchanged, so users stay signed in across the roll in both directions.
 
+## Security changes that come with ory-selfservice v0.2.5
+
+- **The console's `OAuth2Client` is marked operator-managed** with
+  `metadata.materialize_managed: true`. ory-selfservice treats any client without the
+  marker as self-registered (dynamic client registration) and grants it only
+  `dcr_audience_allowlist` audiences, because Hydra lets a self-registered client declare
+  any audience it likes. **Any other OAuth2 client you create through Hydra's admin API or
+  as an `OAuth2Client` needs the same marker**, or it loses any audience that is not on the
+  allow-list. Self-registered clients cannot set `metadata`, so the marker cannot be forged.
+- **Hydra enforces PKCE for public clients** (`oauth2.pkce.enforced_for_public_clients`).
+  The console (oidc-client-ts) sends PKCE by default and MCP clients are required to.
+- **Secrets reach the UI as files.** The pod mounts the `<name>-secrets` Secret read-only
+  and sets `COOKIE_SECRET_FILE`, `CSRF_COOKIE_SECRET_FILE` and `TOKEN_HOOK_API_KEY_FILE`
+  instead of passing the values as env vars, which are readable through `/proc`,
+  `kubectl exec env` and crash dumps. The pod also no longer mounts a service-account
+  token.
+- **`public_url`** (new) sets `PUBLIC_URL`; `ory-stack` passes the UI's own URL, so the
+  service never builds URLs or cookie decisions from a request's `Host` header.
+
 ## Secret length requirement
 
 `COOKIE_SECRET` and `CSRF_COOKIE_SECRET` must now be **at least 32 characters**. The
@@ -83,6 +102,7 @@ Rotating either secret invalidates existing browser sessions (users sign in agai
 | `log_level` | `"info"` | One of `fatal`, `error`, `warn`, `info`, `debug`, `trace`. |
 | `log_redact_pii` | `false` | Redact emails and trait values from logs. |
 | `remember_consent_for_seconds` | `3600` | How long a granted consent is remembered. |
+| `public_url` | `null` | The UI's browser-facing origin; set by `ory-stack`. |
 | `kratos_cookie_domain` | `null` | Parent domain of the UI and Kratos hosts; needed for SSO when they differ (below). |
 
 `kratos_public_url` and `kratos_browser_url` are now optional, because consent-only mode
@@ -142,15 +162,27 @@ oauth2:
       config:
         in: header
         name: X-Token-Hook-Api-Key
-        value: <token_hook_api_key>
 ```
+
+The key itself is not in that config: the chart renders `hydra.config` into a ConfigMap,
+which anyone with the built-in `view` role can read. `ory-hydra` stores it in a
+`<release>-token-hook` Secret and hands it to Hydra as `OAUTH2_TOKEN_HOOK_AUTH_CONFIG_VALUE`.
+Setting `deployment.extraEnv` in `hydra_helm_values` replaces that env var, so add the
+module's entry back if you override it.
 
 Through `ory-stack` this is a single toggle: `selfservice_ui_token_hook_enabled = true`.
 
 Hydra calls the hook over the UI's own TLS listener (the UI terminates TLS with the
-`ory-selfservice-ui-tls` certificate), so **Hydra must trust that certificate**. With the
-self-signed cluster issuer it does not, so the hook needs a publicly trusted certificate
-(or the issuing CA added to Hydra's trust store) before it can be turned on.
+`ory-selfservice-ui-tls` certificate), so the URL's host must be in that certificate and
+Hydra must trust its issuer. `ory-stack` picks the URL from `cert_issuer_signs_cluster_local`:
+
+- `true` (the self-signed cluster issuer): the certificate gets the in-cluster name
+  `ory-selfservice-ui.<namespace>.svc.cluster.local`, Hydra calls that, and Hydra is given
+  the certificate's `ca.crt` to trust (`token_hook.ca_secret_name`, added to Hydra's roots
+  through `SSL_CERT_DIR`).
+- `false`: Hydra calls `https://<ui_fqdn>/hooks/token`, like the other in-cluster callers
+  that hairpin through the load balancer, and trusts it through its system roots. A private
+  CA that cannot sign cluster.local names also needs its root added to Hydra.
 
 The API key must be at least 32 characters; leave `token_hook_api_key` null to have the
 module generate a 48-character one and read it back from the `token_hook_api_key` output.
