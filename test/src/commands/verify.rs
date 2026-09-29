@@ -59,9 +59,18 @@ pub async fn phase_verify(dir: &Path) -> Result<()> {
             println!("\nVerifying Materialize SQL connectivity via port-forward...");
             verify_sql_connection_via_port_forward(&kubeconfig, instance_namespace, &outputs)
                 .await?;
+            println!("\nVerifying a large blob round trip via port-forward...");
+            verify_large_blob_round_trip_via_port_forward(
+                &kubeconfig,
+                instance_namespace,
+                &outputs,
+            )
+            .await?;
         } else if let Some(endpoint) = outputs.load_balancer_endpoint() {
             println!("\nVerifying Materialize SQL connectivity at {endpoint}...");
             verify_sql_connection(endpoint, &outputs).await?;
+            println!("\nVerifying a large blob round trip at {endpoint}...");
+            verify_large_blob_round_trip(endpoint, &outputs).await?;
         } else {
             println!("\nSkipping SQL connectivity check (no load balancer endpoint found).");
         }
@@ -603,4 +612,121 @@ async fn sql_select_1(host: &str, port: u16, password: &str) -> Result<String> {
             .env("PGSSLMODE", "require"),
     )
     .await
+}
+
+const LARGE_BLOB_MAX_ATTEMPTS: u32 = 3;
+const LARGE_BLOB_INTERVAL: std::time::Duration = std::time::Duration::from_secs(30);
+
+async fn verify_large_blob_round_trip_via_port_forward(
+    kubeconfig: &Path,
+    namespace: &str,
+    outputs: &TerraformOutputs,
+) -> Result<()> {
+    let service = outputs
+        .balancerd_service_name
+        .as_ref()
+        .map(|o| o.value.as_str())
+        .context("Missing terraform output: balancerd_service_name")?;
+    let password = outputs.mz_password()?;
+
+    retry(
+        LARGE_BLOB_MAX_ATTEMPTS,
+        LARGE_BLOB_INTERVAL,
+        |attempt, err| {
+            println!(
+                "  Attempt {attempt}/{LARGE_BLOB_MAX_ATTEMPTS}: {err:#}, retrying in {}s...",
+                LARGE_BLOB_INTERVAL.as_secs()
+            );
+        },
+        || async {
+            let (mut child, port) = spawn_port_forward(kubeconfig, namespace, service).await?;
+            let result = sql_large_blob_round_trip("127.0.0.1", port, password).await;
+            child.kill().await.ok();
+            result
+        },
+    )
+    .await
+    .context("Large blob round trip failed after all retries")
+}
+
+async fn verify_large_blob_round_trip(endpoint: &str, outputs: &TerraformOutputs) -> Result<()> {
+    let password = outputs.mz_password()?;
+    retry(
+        LARGE_BLOB_MAX_ATTEMPTS,
+        LARGE_BLOB_INTERVAL,
+        |attempt, err| {
+            println!(
+                "  Attempt {attempt}/{LARGE_BLOB_MAX_ATTEMPTS}: {err:#}, retrying in {}s...",
+                LARGE_BLOB_INTERVAL.as_secs()
+            );
+        },
+        || sql_large_blob_round_trip(endpoint, 6875, password),
+    )
+    .await
+    .context("Large blob round trip failed after all retries")
+}
+
+/// Writes a table of about 51 MB and reads it back on the quickstart cluster.
+///
+/// `SELECT 1` never touches persist's blob store. Persist uploads blobs larger
+/// than 8 MiB as multipart objects and reads them back part by part, relying
+/// on the store to report the part count, so this check covers the path real
+/// data takes. The table is written by environmentd and read by the cluster,
+/// so the read is served by the store rather than an in-process cache.
+async fn sql_large_blob_round_trip(host: &str, port: u16, password: &str) -> Result<()> {
+    const ROWS: u64 = 400_000;
+    // Four md5 hex digests per row: 128 bytes that do not compress away.
+    const ROW_LEN: u64 = 128;
+    const TIMEOUT: std::time::Duration = std::time::Duration::from_secs(300);
+
+    let insert = format!(
+        "INSERT INTO large_blob_check \
+         SELECT md5(g::text) || md5((g + 1)::text) || md5((g + 2)::text) || md5((g + 3)::text) \
+         FROM generate_series(1, {ROWS}) AS g"
+    );
+    let mut cmd = Command::new("psql");
+    cmd.args([
+        "-h",
+        host,
+        "-p",
+        &port.to_string(),
+        "-U",
+        "mz_system",
+        "-d",
+        "materialize",
+        "-v",
+        "ON_ERROR_STOP=1",
+        "-Atq",
+        "-c",
+        "SET cluster = quickstart",
+        "-c",
+        "DROP TABLE IF EXISTS large_blob_check",
+        "-c",
+        "CREATE TABLE large_blob_check (s text)",
+        "-c",
+        &insert,
+        "-c",
+        "SELECT count(*), sum(length(s)) FROM large_blob_check",
+        "-c",
+        "DROP TABLE large_blob_check",
+    ])
+    .env("PGPASSWORD", password)
+    .env("PGCONNECT_TIMEOUT", "30")
+    .env("PGSSLMODE", "require")
+    // A store that truncates multipart reads crash-loops the reading cluster,
+    // which leaves the SELECT hanging rather than failing.
+    .kill_on_drop(true);
+
+    let output = tokio::time::timeout(TIMEOUT, run_cmd_output(&mut cmd))
+        .await
+        .with_context(|| format!("Timed out after {}s", TIMEOUT.as_secs()))??;
+    let expected = format!("{ROWS}|{}", ROWS * ROW_LEN);
+    if output != expected {
+        bail!("Expected {expected} from the large blob read back, got {output:?}");
+    }
+    println!(
+        "  Wrote and read back {ROWS} rows ({} bytes)",
+        ROWS * ROW_LEN
+    );
+    Ok(())
 }
