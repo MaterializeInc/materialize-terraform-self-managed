@@ -79,11 +79,12 @@ variable "logout_url" {
 }
 
 variable "token_hook" {
-  description = "Hydra's OAuth2 token hook. Hydra calls this URL on every token issuance (authorization code, refresh, client credentials) and merges the response's claims into the issued tokens, which is how claims stay fresh on refresh-token grants instead of being frozen at consent time. The ory-selfservice UI serves the hook; its module exports token_hook_url, token_hook_api_key_header and token_hook_api_key. The api_key is rendered into the chart's Helm values, so it lands in the Helm release Secret in the cluster (like the Hydra system and cookie secrets already do). Null disables the hook."
+  description = "Hydra's OAuth2 token hook. Hydra calls this URL on every token issuance (authorization code, refresh, client credentials) and uses the response's claims for the issued tokens, which is how claims stay fresh on refresh-token grants instead of being frozen at consent time. The ory-selfservice UI serves the hook; its module exports token_hook_url, token_hook_api_key_header and token_hook_api_key. The api_key is stored in a Kubernetes Secret and handed to Hydra as the OAUTH2_TOKEN_HOOK_AUTH_CONFIG_VALUE env var, never in the chart's ConfigMap. ca_secret_name, when set, names a Secret in the same namespace whose ca.crt Hydra should trust for the hook's TLS certificate (a private or cluster-local CA); leave it null when the hook's certificate chains to a public CA. Setting deployment.extraEnv, extraVolumes or extraVolumeMounts in helm_values replaces the ones this module adds. Null disables the hook."
   type = object({
     url            = string
     api_key_header = string
     api_key        = string
+    ca_secret_name = optional(string)
   })
   default   = null
   sensitive = true
