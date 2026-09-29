@@ -62,7 +62,7 @@ No modules.
 | <a name="input_setup_image"></a> [setup\_image](#input\_setup\_image) | Image used by the bucket-creation Job. Needs an `aws` CLI. | `string` | `"amazon/aws-cli:2.31.19"` | no |
 | <a name="input_tolerations"></a> [tolerations](#input\_tolerations) | Tolerations for Ceph daemons, so they can schedule onto a tainted storage node pool. | <pre>list(object({<br/>    key      = string<br/>    operator = string<br/>    value    = optional(string)<br/>    effect   = string<br/>  }))</pre> | `[]` | no |
 | <a name="input_use_all_devices"></a> [use\_all\_devices](#input\_use\_all\_devices) | Let Rook consume every unused device on eligible nodes. Only used when `osd_storage_class` is null. | `bool` | `false` | no |
-| <a name="input_wait_for_ready"></a> [wait\_for\_ready](#input\_wait\_for\_ready) | Wait for the cluster, object store and user to reach Ready, and the bucket Job to complete, before returning. A fresh cluster takes several minutes. Without it the module's outputs cannot be read until a later apply, since they come from a secret Rook writes once the user is reconciled. | `bool` | `true` | no |
+| <a name="input_wait_for_ready"></a> [wait\_for\_ready](#input\_wait\_for\_ready) | Wait for the cluster, object store and user to reach Ready, and the bucket Job to complete, before returning. A fresh cluster takes several minutes. Without it the credential outputs are empty until a later apply, since they come from a secret Rook writes once the user is reconciled. | `bool` | `true` | no |
 
 ## Outputs
 
@@ -75,6 +75,6 @@ No modules.
 | <a name="output_namespace"></a> [namespace](#output\_namespace) | Namespace Rook and Ceph run in. |
 | <a name="output_node_selector"></a> [node\_selector](#output\_node\_selector) | Node selector the store was pinned with, for co-locating a benchmark client with it. |
 | <a name="output_object_store_name"></a> [object\_store\_name](#output\_object\_store\_name) | Name of the CephObjectStore, which is also the suffix of the gateway service. |
-| <a name="output_persist_backend_url"></a> [persist\_backend\_url](#output\_persist\_backend\_url) | S3 connection URL for this store, in the form `materialize-instance` expects for `persist_backend_url`. |
+| <a name="output_persist_backend_url"></a> [persist\_backend\_url](#output\_persist\_backend\_url) | S3 connection URL for this store, in the form `materialize-instance` expects for `persist_backend_url`. Empty until Rook has created the user's credentials. |
 | <a name="output_secret_key"></a> [secret\_key](#output\_secret\_key) | Secret key for the object store user. |
 | <a name="output_tolerations"></a> [tolerations](#output\_tolerations) | Tolerations the store was given, which a benchmark client needs to share its nodes. |

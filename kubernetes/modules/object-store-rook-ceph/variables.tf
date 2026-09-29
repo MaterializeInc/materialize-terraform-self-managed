@@ -209,7 +209,7 @@ variable "setup_image" {
 }
 
 variable "wait_for_ready" {
-  description = "Wait for the cluster, object store and user to reach Ready, and the bucket Job to complete, before returning. A fresh cluster takes several minutes. Without it the module's outputs cannot be read until a later apply, since they come from a secret Rook writes once the user is reconciled."
+  description = "Wait for the cluster, object store and user to reach Ready, and the bucket Job to complete, before returning. A fresh cluster takes several minutes. Without it the credential outputs are empty until a later apply, since they come from a secret Rook writes once the user is reconciled."
   type        = bool
   default     = true
 }

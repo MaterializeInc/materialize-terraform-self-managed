@@ -1,6 +1,13 @@
+# The credentials outputs are empty rather than an error while Rook's user
+# secret does not exist. Terraform evaluates outputs on destroy as well, and the
+# secret goes away with the user partway through one, so an output that indexed
+# it unconditionally would leave the module impossible to destroy. Empty rather
+# than null because `materialize-instance` declares its backend URL
+# non-nullable, and a null here fails that module's plan on the same destroy.
+# On create, `wait_for_ready` guarantees the secret exists before it is read.
 output "persist_backend_url" {
-  description = "S3 connection URL for this store, in the form `materialize-instance` expects for `persist_backend_url`."
-  value       = "s3://${data.kubernetes_secret.object_store_user.data["AccessKey"]}:${data.kubernetes_secret.object_store_user.data["SecretKey"]}@${var.bucket}/${var.name}?endpoint=${urlencode(local.endpoint)}&region=${var.region}"
+  description = "S3 connection URL for this store, in the form `materialize-instance` expects for `persist_backend_url`. Empty until Rook has created the user's credentials."
+  value       = try("s3://${data.kubernetes_secret.object_store_user.data["AccessKey"]}:${data.kubernetes_secret.object_store_user.data["SecretKey"]}@${var.bucket}/${var.name}?endpoint=${urlencode(local.endpoint)}&region=${var.region}", "")
   sensitive   = true
 }
 
@@ -26,13 +33,13 @@ output "credentials_secret_name" {
 
 output "access_key" {
   description = "Access key for the object store user."
-  value       = data.kubernetes_secret.object_store_user.data["AccessKey"]
+  value       = try(data.kubernetes_secret.object_store_user.data["AccessKey"], "")
   sensitive   = true
 }
 
 output "secret_key" {
   description = "Secret key for the object store user."
-  value       = data.kubernetes_secret.object_store_user.data["SecretKey"]
+  value       = try(data.kubernetes_secret.object_store_user.data["SecretKey"], "")
   sensitive   = true
 }
 
