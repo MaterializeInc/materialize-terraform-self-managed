@@ -137,7 +137,7 @@ See `terraform.tfvars.example` for the full list with inline documentation and g
 | **GKE** | Basic cluster + system node pool | Adds private_cluster_config, master_authorized_networks, L4 LB subsetting | Migration keeps old config inline |
 | **Database** | Direct Cloud SQL resources | `terraform-google-modules/sql-db/google//modules/postgresql` | Migration keeps old resources inline |
 | **Storage** | Direct GCS resources | Identical to old | No change |
-| **Nodepool** | Same resources, `disk_setup_name = "${prefix}-disk-setup"` | Same resources, `disk_setup_name = "disk-setup"` | Kubernetes disk setup resources recreated with shorter names |
+| **Nodepool** | Same resources, `disk_setup_name = "${prefix}-disk-setup"` | Same resources, same default | No change |
 | **Certificates** | `module.certificates` with `kubernetes_manifest` | `cert_manager` + `self_signed_cluster_issuer` with `kubectl_manifest` | Module rename, cert manifests recreated |
 | **Operator** | External GitHub source with `count` (`module.operator[0]`) | Local module without count (`module.operator`) | `[0]` index removed |
 | **Instances** | Managed by operator module | Separate `materialize-instance` module | Namespace + secret moved |

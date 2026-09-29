@@ -112,10 +112,9 @@ variable "swap_enabled" {
 }
 
 variable "disk_setup_name" {
-  description = "Name used for disk setup Kubernetes resources (namespace, daemonset, service account, cluster role, cluster role binding)"
+  description = "Name used for disk setup Kubernetes resources (namespace, daemonset, service account, cluster role, cluster role binding). Must be unique per swap-enabled node pool in the cluster. Defaults to \"<prefix>-disk-setup\"."
   type        = string
-  default     = "disk-setup"
-  nullable    = false
+  default     = null
 }
 
 variable "disk_setup_image" {

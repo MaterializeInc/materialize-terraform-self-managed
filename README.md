@@ -219,6 +219,14 @@ The storage modules' default lifecycle rules now match Materialize Cloud's persi
 - **`bucket_lifecycle_rules` in `aws/modules/storage` is now optional**, defaulting to a single rule that aborts incomplete multipart uploads after one day. Roots that pass `[]`, as the examples used to, keep an empty configuration and can drop the argument to pick up the default. Roots that pass their own rules are unaffected.
 - **`prefix`, `transition_days`, `transition_storage_class`, and `noncurrent_version_expiration_days` are now optional** in each rule, and a rule may set `abort_incomplete_multipart_upload_days`. A block is only emitted for the fields you set, so an existing rule that sets all of them produces the same configuration as before.
 
+##### GCP nodepool disk-setup resources are named per pool
+
+`disk_setup_name` in `gcp/modules/nodepool` now defaults to `"<prefix>-disk-setup"` instead of `"disk-setup"`, so two swap-enabled pools in the same cluster no longer collide on the disk-setup namespace, DaemonSet, and RBAC objects.
+
+**Impact on existing GCP deployments:**
+
+- **Swap-enabled pools that relied on the old default have their disk-setup resources replaced** under the new name on the next apply (in the examples, `disk-setup` becomes `<name_prefix>-mz-disk-setup`). The replacement DaemonSet reruns the swap setup on existing swap nodes. To keep the old name, set `disk_setup_name = "disk-setup"`.
+
 #### v13.0.0
 
 `aws/modules/monitoring` moves its two telemetry buckets into the S3 account regional namespace, which **replaces both of them**. That namespace is house policy for new buckets: the name is reserved to your account, so no other account can take it and none can ever take it back. This is the whole of the release, and it affects every existing AWS deployment of the monitoring stack. Nothing outside `aws/modules/monitoring` changes, and GCP and Azure are untouched.
