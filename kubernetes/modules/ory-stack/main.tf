@@ -480,6 +480,9 @@ module "ory_selfservice_ui" {
   kratos_browser_url = local.kratos_external_url
   hydra_admin_url    = local.hydra_admin_internal_url
 
+  # The UI's own origin, so it never has to trust the request's Host header.
+  public_url = local.ui_external_url
+
   # The UI is on its own hostname in both modes, a sibling of the Kratos host,
   # so SSO needs Kratos's Domain-less continuity cookie scoped to the same
   # parent domain as its session and CSRF cookies. A single-label fallback is

@@ -66,6 +66,12 @@ variable "kratos_browser_url" {
   default     = null
 }
 
+variable "public_url" {
+  description = "Browser-facing origin of the UI (PUBLIC_URL), e.g. https://auth.example.com. The service uses it to rewrite Kratos URLs and scope cookies, and to check kratos_cookie_domain at start; without it the origin is taken from each request's Host header. Null leaves it unset."
+  type        = string
+  default     = null
+}
+
 variable "kratos_cookie_domain" {
   description = "Parent domain shared by the UI's hostname and the Kratos browser host (KRATOS_COOKIE_DOMAIN), e.g. example.com. Set it to Kratos's cookies.domain whenever the two are on different hostnames: Kratos sets its SSO continuity cookie without a Domain, and without this the cookie stays on the UI's host, so the OIDC/SAML callback to Kratos fails with \"no resumable session found\". Null leaves such cookies host-only. Unused when screens_enabled is false."
   type        = string
