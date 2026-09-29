@@ -262,9 +262,10 @@ variable "internal_load_balancer" {
 }
 
 variable "ingress_cidr_blocks" {
-  description = "CIDR blocks allowed to reach external load balancers. Required when internal_load_balancer is false."
+  description = "CIDR blocks allowed to reach the load balancers."
   type        = list(string)
-  default     = null
+  default     = ["0.0.0.0/0"]
+  nullable    = false
 }
 
 # =============================================================================

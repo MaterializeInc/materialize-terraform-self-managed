@@ -108,7 +108,7 @@ labels = {
 
 **Optional Variables:**
 - `region`: GCP region (defaults to `us-east1`)
-- `ingress_cidr_blocks`: List of CIDR blocks allowed to reach the LoadBalancer frontends (no effect when `internal_load_balancer = true`)
+- `ingress_cidr_blocks`: List of CIDR blocks allowed to reach the LoadBalancer frontends (defaults to `["0.0.0.0/0"]`)
 - `internal_load_balancer`: Whether to use internal LBs (defaults to `true`). Set to `false` for prod-like demos validated against real DNS.
 - `enable_observability`: Enable Prometheus and Grafana monitoring stack (defaults to `true`)
 - `grafana_host`: Hostname to reach Grafana on (defaults to `null`). The GCP load balancer is created either way and answers on an IP; setting this is what makes Grafana's `root_url` — and so its share links, alert notification links, and OAuth redirect URIs — correct. DNS for the name is yours to create. Exposure follows `internal_load_balancer` and `ingress_cidr_blocks`, the same as the Materialize load balancers.
