@@ -646,6 +646,14 @@ resource "kubectl_manifest" "materialize_oauth2_client" {
       # Public SPA client. No secret; PKCE on the console side.
       secretName              = var.oauth2_client_name
       tokenEndpointAuthMethod = "none"
+      # Marks this client as operator-managed. ory-selfservice (v0.2.5+)
+      # treats any client without it as self-registered and grants it only
+      # DCR_AUDIENCE_ALLOWLIST audiences, so without the marker the console
+      # would lose its audience. Self-registered clients cannot set metadata,
+      # so the marker cannot be forged.
+      metadata = {
+        materialize_managed = true
+      }
     }
   })
 
