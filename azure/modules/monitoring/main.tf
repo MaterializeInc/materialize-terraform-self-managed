@@ -237,7 +237,7 @@ module "monitoring" {
 
   grafana_database_host     = local.grafana_database_host
   grafana_database_port     = local.grafana_database_port
-  grafana_database_name     = var.grafana_database_name
+  grafana_database_name     = local.grafana_database_name
   grafana_database_user     = var.grafana_database_user
   grafana_database_password = local.grafana_database_effective_password
   grafana_database_ssl_mode = var.grafana_database_ssl_mode
@@ -333,6 +333,11 @@ locals {
   grafana_database_host = local.create_grafana_database ? (
     module.grafana_database[0].server_fqdn
   ) : var.grafana_database_host
+
+  # Read from the database output so destroy removes the release before the database.
+  grafana_database_name = local.create_grafana_database ? (
+    module.grafana_database[0].databases[var.grafana_database_name].name
+  ) : var.grafana_database_name
 
   grafana_database_port = local.create_grafana_database ? 5432 : var.grafana_database_port
 
