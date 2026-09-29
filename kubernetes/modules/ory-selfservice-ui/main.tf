@@ -38,7 +38,9 @@ locals {
 
   tls_enabled   = var.tls_cert_secret_name != null
   tls_mount_dir = "/etc/selfservice-ui/tls"
-  probe_scheme  = local.tls_enabled ? "HTTPS" : "HTTP"
+  # Where the secrets volume is mounted; the service reads *_FILE paths here.
+  secrets_mount_dir = "/etc/ory-selfservice/secrets"
+  probe_scheme      = local.tls_enabled ? "HTTPS" : "HTTP"
 
   image = "${var.image_repository}:${var.image_tag}"
 
@@ -115,6 +117,10 @@ resource "kubernetes_deployment" "ui" {
       }
 
       spec {
+        # Nothing in the pod talks to the Kubernetes API; an internet-facing
+        # pod should not carry credentials for it.
+        automount_service_account_token = false
+
         dynamic "toleration" {
           for_each = var.tolerations
           content {
@@ -131,8 +137,20 @@ resource "kubernetes_deployment" "ui" {
           run_as_non_root = true
           run_as_user     = 10000
           run_as_group    = 10000
+          # Group-owns the secret volume so its 0440 files are readable.
+          fs_group = 10000
           seccomp_profile {
             type = "RuntimeDefault"
+          }
+        }
+
+        # Secrets reach the process as files (*_FILE), not env vars: env is
+        # readable through /proc/1/environ, `kubectl exec env` and crash dumps.
+        volume {
+          name = "secrets"
+          secret {
+            secret_name  = kubernetes_secret.secrets.metadata[0].name
+            default_mode = "0440"
           }
         }
 
@@ -166,6 +184,12 @@ resource "kubernetes_deployment" "ui" {
               container_port = var.metrics_port
               protocol       = "TCP"
             }
+          }
+
+          volume_mount {
+            name       = "secrets"
+            mount_path = local.secrets_mount_dir
+            read_only  = true
           }
 
           dynamic "volume_mount" {
@@ -313,35 +337,28 @@ resource "kubernetes_deployment" "ui" {
           }
 
           env {
-            name = "COOKIE_SECRET"
-            value_from {
-              secret_key_ref {
-                name = kubernetes_secret.secrets.metadata[0].name
-                key  = "COOKIE_SECRET"
-              }
-            }
+            name  = "COOKIE_SECRET_FILE"
+            value = "${local.secrets_mount_dir}/COOKIE_SECRET"
           }
 
           env {
-            name = "CSRF_COOKIE_SECRET"
-            value_from {
-              secret_key_ref {
-                name = kubernetes_secret.secrets.metadata[0].name
-                key  = "CSRF_COOKIE_SECRET"
-              }
-            }
+            name  = "CSRF_COOKIE_SECRET_FILE"
+            value = "${local.secrets_mount_dir}/CSRF_COOKIE_SECRET"
           }
 
           dynamic "env" {
             for_each = local.token_hook_api_key != null ? [1] : []
             content {
-              name = "TOKEN_HOOK_API_KEY"
-              value_from {
-                secret_key_ref {
-                  name = kubernetes_secret.secrets.metadata[0].name
-                  key  = "TOKEN_HOOK_API_KEY"
-                }
-              }
+              name  = "TOKEN_HOOK_API_KEY_FILE"
+              value = "${local.secrets_mount_dir}/TOKEN_HOOK_API_KEY"
+            }
+          }
+
+          dynamic "env" {
+            for_each = var.public_url != null ? [1] : []
+            content {
+              name  = "PUBLIC_URL"
+              value = var.public_url
             }
           }
 
