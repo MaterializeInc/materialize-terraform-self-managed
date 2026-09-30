@@ -164,7 +164,7 @@ variable "enable_network_policies" {
 }
 
 variable "enable_metrics_server_service_monitor" {
-  description = "Create a ServiceMonitor for metrics-server's own metrics. Needs `metrics_server_values.metrics_enabled`. The prometheus-operator CRDs must be installed before this module; the chart does not check, so the install fails without them."
+  description = "Create a ServiceMonitor for metrics-server's own metrics. Only takes effect with `install_metrics_server = true`, which is off by default because AKS runs a managed metrics-server this does not cover. Needs `metrics_server_values.metrics_enabled`. The prometheus-operator CRDs must be installed before this module; the chart does not check, so the install fails without them."
   type        = bool
   default     = false
   nullable    = false

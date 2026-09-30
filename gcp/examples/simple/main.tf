@@ -408,8 +408,7 @@ module "operator" {
 
   monitoring_namespace = module.monitoring_crds.namespace
   # module.monitoring_crds creates the monitoring namespace.
-  create_monitoring_namespace           = false
-  enable_metrics_server_service_monitor = module.monitoring_crds.crds_installed
+  create_monitoring_namespace = false
 
   operator_version = var.materialize_version
 
