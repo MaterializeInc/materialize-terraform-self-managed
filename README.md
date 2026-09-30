@@ -192,10 +192,13 @@ The AWS Load Balancer Controller, cert-manager, metrics-server and node-local-dn
 
 **A root copied from an example must add the module and both of its `moved` blocks together.**
 The namespace used to belong to the operator module and the CRDs release to the monitoring module, and both move to `monitoring-crds` unchanged.
-Without the `moved` blocks, Terraform plans to uninstall the `mzmon-crds` release.
-That deletes the CRDs, and with them every ServiceMonitor, PodMonitor, PrometheusRule and Grafana resource in the cluster.
-Run `terraform plan` first, and check that it shows both objects as moved and nothing destroyed in either.
-The CRDs release may show an in-place update, which is harmless.
+The namespace's block is the one that matters.
+Without it, the operator module stops creating the namespace, so Terraform plans to destroy `monitoring` and everything in it, the whole monitoring stack included.
+Without the CRDs' block, Terraform uninstalls the `mzmon-crds` release and installs it again.
+The CRDs carry `helm.sh/resource-policy: keep`, so they and everything that uses them survive.
+The first apply can still fail on the release name being in use, and a second apply adopts the CRDs.
+Run `terraform plan` first, and check that it shows both objects as moved and nothing destroyed.
+The CRDs release shows an in-place update, for its timeout and sometimes its chart source, which is harmless.
 
 A root that does not add the module is unaffected.
 The new inputs default to off, and the operator module's namespace changes address in place.

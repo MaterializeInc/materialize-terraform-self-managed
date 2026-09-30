@@ -11,13 +11,12 @@
 #
 # The release keeps the name and namespace the monitoring module used to give it,
 # `mzmon-crds` in the monitoring namespace, so an existing install moves it here
-# with a `moved` block rather than reinstalling it. That matters: the CRDs are
-# the schema of every PodMonitor, ServiceMonitor and Grafana resource in the
-# cluster, and uninstalling them deletes those resources along with them.
+# with a `moved` block rather than reinstalling it. The CRDs carry
+# `helm.sh/resource-policy: keep`, so a reinstall would leave them in place, but
+# it would uninstall first and could fail its install on the name still in use.
 #
-# The namespace lives here for the same reason. The release metadata has to sit
-# in it, and the operator module, which used to create it, is installed far
-# later.
+# The namespace lives here because the release metadata has to sit in it, and
+# the operator module, which used to create it, is installed far later.
 
 resource "kubernetes_namespace" "monitoring" {
   count = var.create_namespace ? 1 : 0
@@ -34,7 +33,6 @@ resource "helm_release" "crds" {
   namespace = var.namespace
   chart     = "${var.chart_registry}/materialize-monitoring-crds"
   version   = var.chart_version
-  timeout   = var.install_timeout
 
   # CRDs are cluster-scoped; the namespace only holds the release metadata.
   create_namespace = false

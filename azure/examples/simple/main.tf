@@ -221,8 +221,8 @@ module "monitoring_crds" {
 
 # State migration: the operator module used to create the namespace, and the
 # monitoring module used to install the CRDs. Both move here as they are, so
-# neither is recreated. Recreating the CRDs release would delete every
-# ServiceMonitor, PodMonitor and Grafana resource in the cluster with it.
+# neither is recreated. The namespace's block matters most: without it,
+# Terraform destroys the monitoring namespace and everything in it.
 moved {
   from = module.operator.kubernetes_namespace.monitoring[0]
   to   = module.monitoring_crds.kubernetes_namespace.monitoring[0]

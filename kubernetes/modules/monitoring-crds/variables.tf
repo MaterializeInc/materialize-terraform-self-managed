@@ -21,8 +21,8 @@ variable "install_crds" {
     Helm cannot install objects another release owns. Charts that ship ServiceMonitors then have to
     wait for whoever does install them.
 
-    Destroying this release deletes the CRDs, which cascades to every PodMonitor, ServiceMonitor,
-    PrometheusRule and Grafana resource in the cluster, including ones this stack did not create.
+    The CRDs carry `helm.sh/resource-policy: keep`, so turning this off uninstalls the release but
+    leaves the CRDs, and every resource that uses them, in place.
   EOT
   type        = bool
   default     = true
@@ -37,15 +37,9 @@ variable "chart_registry" {
 }
 
 variable "chart_version" {
-  description = "Version of the materialize-monitoring-crds chart. It is versioned separately from the monitoring chart; use the version the monitoring module's release pins."
+  description = "Version of the materialize-monitoring-crds chart. It is versioned separately from the monitoring chart."
   type        = string
-  default     = "0.3.0"
-  nullable    = false
-}
-
-variable "install_timeout" {
-  description = "Timeout for the CRDs release, in seconds."
-  type        = number
-  default     = 900
-  nullable    = false
+  # renovate: datasource=docker depName=materializeinc/helm-charts/materialize-monitoring-crds registryUrl=https://ghcr.io
+  default  = "0.3.0"
+  nullable = false
 }
