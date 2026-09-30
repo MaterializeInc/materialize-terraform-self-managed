@@ -181,6 +181,70 @@ variable "min_zones" {
 }
 
 # ==============================================================================
+# Provider metrics
+# ==============================================================================
+
+variable "provider_metrics" {
+  description = <<-EOT
+    Pull Azure Monitor metrics for the listed PostgreSQL Flexible Servers and storage accounts into
+    the Alloy gateway, beside everything else it collects. Null disables it.
+
+    Creates a user-assigned identity for the gateway, federated to its ServiceAccount, and grants it
+    Monitoring Reader on each listed resource and nothing wider. Resource Graph returns only what the
+    identity can read, so the grants are also what confine the pull.
+
+    Both lists take resource IDs, which the grants are scoped to; the chart is given the names. Every
+    resource must be in the subscription this module deploys into. The Materialize database and
+    persist storage account are siblings of this module, so the caller passes them.
+    `include_monitoring_resources` adds this module's own storage account and, when this module
+    creates it, Grafana's database.
+
+    `importance` is the tier the chart assigns these families, and decides which filtered
+    destinations receive them. Null keeps the chart's default, `extended`. On a sovereign cloud, set
+    the chart's `pipeline.metrics.provider.azure.cloudEnvironment` through `additional_values`.
+  EOT
+  type = object({
+    postgres_server_ids          = optional(list(string), [])
+    storage_account_ids          = optional(list(string), [])
+    include_monitoring_resources = optional(bool, true)
+    scrape_interval              = optional(string)
+    importance                   = optional(string)
+  })
+  default = null
+
+  validation {
+    condition = var.provider_metrics == null ? true : (
+      var.provider_metrics.importance == null ? true : contains(["essential", "recommended", "extended", "diagnostic"], var.provider_metrics.importance)
+    )
+    error_message = "provider_metrics.importance must be one of essential, recommended, extended, diagnostic."
+  }
+
+  validation {
+    condition = var.provider_metrics == null ? true : (
+      var.provider_metrics.include_monitoring_resources ||
+      length(var.provider_metrics.postgres_server_ids) + length(var.provider_metrics.storage_account_ids) > 0
+    )
+    error_message = "provider_metrics names no resources. List postgres_server_ids or storage_account_ids, or leave include_monitoring_resources on — the chart refuses a pull with nothing to watch."
+  }
+
+  validation {
+    condition = var.provider_metrics == null ? true : alltrue([
+      for id in var.provider_metrics.postgres_server_ids :
+      can(regex("(?i)^/subscriptions/[^/]+/resourceGroups/[^/]+/providers/Microsoft\\.DBforPostgreSQL/flexibleServers/[^/]+$", id))
+    ])
+    error_message = "provider_metrics.postgres_server_ids takes Flexible Server resource IDs, such as module.database.server_id, not names or FQDNs."
+  }
+
+  validation {
+    condition = var.provider_metrics == null ? true : alltrue([
+      for id in var.provider_metrics.storage_account_ids :
+      can(regex("(?i)^/subscriptions/[^/]+/resourceGroups/[^/]+/providers/Microsoft\\.Storage/storageAccounts/[^/]+$", id))
+    ])
+    error_message = "provider_metrics.storage_account_ids takes storage account resource IDs, such as module.storage.storage_account_id, not names or endpoints."
+  }
+}
+
+# ==============================================================================
 # Extra metrics destinations
 # ==============================================================================
 # Passed straight through to the monitoring module rather than flattened like the

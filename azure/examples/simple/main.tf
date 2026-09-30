@@ -419,6 +419,17 @@ module "monitoring" {
   materialize_instance_namespace = local.materialize_instance_namespace
   materialize_operator_namespace = local.materialize_operator_namespace
 
+  # Azure Monitor's view of the dependencies Materialize cannot run without —
+  # the metadata database's CPU, memory, storage, connections, disk throttling
+  # and transaction-ID use, and the persist account's size, availability and
+  # latency. The module adds its own storage account and Grafana's database.
+  # Resources are named here rather than discovered, and the gateway's identity
+  # can read only these, so nothing else in the subscription is pulled.
+  provider_metrics = var.enable_provider_metrics ? {
+    postgres_server_ids = [module.database.server_id]
+    storage_account_ids = [module.storage.storage_account_id]
+  } : null
+
   # A dedicated Flexible Server for Grafana's own state, so dashboards and API
   # tokens created in the UI survive a pod restart. Separate from
   # `module.database` because a Flexible Server has one administrator login and no
