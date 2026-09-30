@@ -8,6 +8,17 @@ provider "azurerm" {
   # control-plane role like Owner.
   storage_use_azuread = true
 
+  # azurerm 5 registers no resource providers by default. Register the ones
+  # these resources need, for subscriptions that have not used them yet.
+  resource_providers_to_register = [
+    "Microsoft.Compute",
+    "Microsoft.ContainerService",
+    "Microsoft.DBforPostgreSQL",
+    "Microsoft.ManagedIdentity",
+    "Microsoft.Network",
+    "Microsoft.Storage",
+  ]
+
   features {
     resource_group {
       prevent_deletion_if_contains_resources = false

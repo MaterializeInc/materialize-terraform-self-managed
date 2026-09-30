@@ -213,6 +213,15 @@ With `internal_load_balancer = false`, Hydra, Kratos, the selfservice UI and Pol
 - **Add every address that reaches Ory:** where your users sign in from, and any server that calls Hydra on its own, such as an MCP connector in claude.ai or ChatGPT. Anthropic's outbound range is `160.79.104.0/21`; use the published egress ranges of any other connector.
 - **If Okta pushes SCIM to Polis, generate Okta's ranges first:** `./scripts/update-okta-ip-ranges.sh <cloud>/examples/enterprise <okta-cell>`. Without `okta-scim-source-ranges.json`, Polis no longer admits Okta and provisioning stops. On GCP, that file and `ory_polis_source_ranges` replace `ingress_cidr_blocks` for Polis, as before, so add your users' addresses to `ory_polis_source_ranges`.
 
+##### Azure modules require azurerm 5
+
+The Azure modules now need `hashicorp/azurerm` 5.4 or later, and the examples pin 5.7.0. Update the `azurerm` version in your root, then run `terraform init -upgrade`.
+
+- **Run `terraform plan` first.** It should show changes but no replacements. If it plans to replace the VNet, a subnet, the AKS cluster, or a Postgres server, stop and open an issue.
+- **If the plan updates your AKS cluster, apply in a maintenance window.** The modules ignore the one cluster setting azurerm 5 adds a default for (`node_provisioning_profile.default_node_pools`), so a root built from them shouldn't see a cluster update. An AKS cluster update took up to 16 minutes in testing, and SQL through the load balancer stalled for most of it.
+- **If your root declares its own AKS cluster**, as `azure/examples/migration` does, add `node_provisioning_profile { mode = "Manual" }` to it.
+- **azurerm 5 no longer registers Azure resource providers for you.** If your subscription hasn't used AKS or Postgres Flexible Server before, add `resource_providers_to_register` to your provider block, as the examples do.
+
 #### v14.0.0
 
 ##### Metadata database defaults to PostgreSQL 18

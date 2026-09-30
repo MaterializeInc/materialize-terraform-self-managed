@@ -9,6 +9,17 @@ provider "azurerm" {
   storage_use_azuread = true
 
   # Conservative defaults for an enterprise stack. See README "Limitations".
+  # azurerm 5 registers no resource providers by default. Register the ones
+  # these resources need, for subscriptions that have not used them yet.
+  resource_providers_to_register = [
+    "Microsoft.Compute",
+    "Microsoft.ContainerService",
+    "Microsoft.DBforPostgreSQL",
+    "Microsoft.ManagedIdentity",
+    "Microsoft.Network",
+    "Microsoft.Storage",
+  ]
+
   features {
     resource_group {
       prevent_deletion_if_contains_resources = true

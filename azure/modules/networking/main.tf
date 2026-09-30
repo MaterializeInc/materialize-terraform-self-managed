@@ -25,16 +25,21 @@ resource "azurerm_nat_gateway_public_ip_association" "main" {
   public_ip_address_id = azurerm_public_ip.nat_gateway.id
 }
 
+# The AVM module takes the resource group's ID. Built from the subscription ID
+# rather than read with `data.azurerm_resource_group`, which would fail at plan
+# time when the example creates the resource group in the same apply.
+data "azurerm_client_config" "current" {}
+
 # Virtual Network using Azure Verified Module
 module "virtual_network" {
   source  = "Azure/avm-res-network-virtualnetwork/azurerm"
-  version = "0.10.0"
+  version = "0.22.2"
 
-  name                = "${var.prefix}-vnet"
-  location            = var.location
-  resource_group_name = var.resource_group_name
-  address_space       = [var.vnet_address_space]
-  tags                = var.tags
+  name          = "${var.prefix}-vnet"
+  location      = var.location
+  parent_id     = "/subscriptions/${data.azurerm_client_config.current.subscription_id}/resourceGroups/${var.resource_group_name}"
+  address_space = [var.vnet_address_space]
+  tags          = var.tags
 
   subnets = merge(
     {
@@ -97,10 +102,9 @@ resource "azurerm_private_dns_zone" "postgres" {
 }
 
 resource "azurerm_private_dns_zone_virtual_network_link" "postgres" {
-  name                  = "${var.prefix}-pg-dns-link"
-  private_dns_zone_name = azurerm_private_dns_zone.postgres.name
-  resource_group_name   = var.resource_group_name
-  virtual_network_id    = module.virtual_network.resource_id
-  registration_enabled  = true
-  tags                  = var.tags
+  name                 = "${var.prefix}-pg-dns-link"
+  private_dns_zone_id  = azurerm_private_dns_zone.postgres.id
+  virtual_network_id   = module.virtual_network.resource_id
+  registration_enabled = true
+  tags                 = var.tags
 }
