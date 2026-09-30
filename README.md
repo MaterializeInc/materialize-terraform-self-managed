@@ -177,6 +177,23 @@ We follow semantic versioning with our tags. If a particular version requires ad
 
 ### Upgrade Notes
 
+#### v15.0.0
+
+##### Azure defaults move off retiring VM series
+
+Microsoft is retiring B-series (V1) and no longer grows capacity for Dv3/Dsv3, so four Azure defaults move:
+
+| Where | Was | Now |
+|---|---|---|
+| `azure/modules/aks`, `default_node_pool_vm_size` | `Standard_D2s_v3` | `Standard_D2s_v5` |
+| `azure/examples/simple`, default node pool | `Standard_D4ps_v5` | `Standard_D4ps_v6` |
+| Materialize metadata database, both examples | `GP_Standard_D2s_v3` | `GP_Standard_D2ds_v5` |
+| Ory database, `azure/examples/enterprise` | `B_Standard_B1ms` | `GP_Standard_D2ds_v5` |
+
+If you use the `aks` module without setting `default_node_pool_vm_size`, upgrading replaces your default node pool with `Standard_D2s_v5` nodes, and the pods on it are rescheduled. To keep your current nodes, set `default_node_pool_vm_size = "Standard_D2s_v3"` in your `aks` module call.
+
+The other three rows change only the example files. Your deployment keeps its current sizes unless you copy the new values into it.
+
 #### v14.0.0
 
 ##### Metadata database defaults to PostgreSQL 18
