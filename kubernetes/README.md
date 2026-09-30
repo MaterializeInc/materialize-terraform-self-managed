@@ -55,7 +55,7 @@ It runs right after the cluster, so that Karpenter, cert-manager and the other c
 - `crds_installed` output for each component's ServiceMonitor toggle, which also makes the component wait for the CRDs
 - `install_crds = false` for clusters that get these CRDs from elsewhere
 
-**Usage:** Used by the `simple` and `enterprise` examples when `enable_observability` is on. See the v14.1.0 upgrade notes in the root README before adding it to an existing root.
+**Usage:** Used by the `simple` and `enterprise` examples when `enable_observability` is on. See the v15.0.0 upgrade notes in the root README before adding it to an existing root.
 
 **Documentation:** See [modules/monitoring-crds/README.md](./modules/monitoring-crds/README.md)
 
