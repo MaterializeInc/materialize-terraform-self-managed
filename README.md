@@ -241,6 +241,17 @@ You can lower `default_node_pool_node_count` afterwards. Pods evicted from the r
 
 If your root declares its own AKS cluster, as `azure/examples/migration` does, it's unaffected. To use NAP there, set `node_provisioning_profile { mode = "Auto", default_node_pools = "None" }` once no node pool autoscales.
 
+##### Kubernetes example allows the operator through its own NetworkPolicy
+
+The operator chart's `egress-to-environmentd` NetworkPolicy selects the operator pods and has only egress rules, so on a CNI that enforces NetworkPolicy it cuts the operator off from the API server and DNS and blocks its conversion webhook and health probes. The operator crash-loops and the Materialize instance never becomes ready. `kubernetes/examples/simple` now adds an `allow-materialize-operator` policy that gives the operator back egress and ingress on 8001 and 3100, and creates the `materialize` namespace itself so the policy exists before the chart is installed.
+
+**Impact on existing roots copied from `kubernetes/examples/simple`:**
+
+- **The `materialize` namespace is now a `kubernetes_namespace` resource**, where the Helm release used to create it. Import it before applying, or the apply fails because the namespace already exists:
+  ```sh
+  terraform import kubernetes_namespace.materialize_operator materialize
+  ```
+
 #### v17.0.0
 
 ##### AWS EBS volume tags move from the StorageClass to the CSI driver
