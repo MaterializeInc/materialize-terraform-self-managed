@@ -59,11 +59,16 @@ pub async fn phase_verify(dir: &Path) -> Result<()> {
             println!("\nVerifying Materialize SQL connectivity via port-forward...");
             verify_sql_connection_via_port_forward(&kubeconfig, instance_namespace, &outputs)
                 .await?;
-        } else if let Some(endpoint) = outputs.load_balancer_endpoint() {
+        } else {
+            // The test roots always get a public load balancer, so a missing
+            // endpoint means the outputs and this lookup have drifted apart.
+            // Fail rather than skip: a skip reads as a pass in CI.
+            let endpoint = outputs.load_balancer_endpoint().context(
+                "Missing terraform output for the balancerd load balancer \
+                 (expected nlb_dns_name or balancerd_load_balancer_ip)",
+            )?;
             println!("\nVerifying Materialize SQL connectivity at {endpoint}...");
             verify_sql_connection(endpoint, &outputs).await?;
-        } else {
-            println!("\nSkipping SQL connectivity check (no load balancer endpoint found).");
         }
 
         write_lifecycle(dir, "verify", "completed").await?;
