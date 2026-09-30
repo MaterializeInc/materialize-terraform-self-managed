@@ -80,8 +80,8 @@ variable "enable_provider_metrics" {
     monitoring stack. Creates a read-only IRSA role for the Alloy gateway.
 
     Off by default: CloudWatch bills each `GetMetricStatistics` call, about 30 every five minutes for
-    this example, and the cluster's pull adds `GetMetricData`, billed per metric: three per node, four
-    per managed node group and one for the account's vCPU usage, every five minutes.
+    this example. The cluster's pull adds one more for the account's vCPU usage, seven `ListMetrics`
+    calls, and `GetMetricData` billed per metric: three per node and four per managed node group.
   EOT
   type        = bool
   default     = false
