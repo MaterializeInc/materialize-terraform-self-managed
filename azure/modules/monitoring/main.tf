@@ -30,9 +30,12 @@
 #   * `provider_metrics` gives the Alloy gateway an identity of its own, which it
 #     uses only to read Azure Monitor. The monitoring module labels the gateway's
 #     pods for the webhook whenever its ServiceAccount carries a client ID.
-#   * The `monitoring` namespace is created by the operator module in the
-#     supported topology, so `create_namespace` defaults to false. Keep a
-#     `depends_on` for the operator or the release can race the namespace.
+#   * The `monitoring` namespace is created by the `monitoring-crds` module in
+#     the supported topology, so `create_namespace` defaults to false. That
+#     module also installs the CRDs, ahead of every component that ships a
+#     ServiceMonitor, so the examples pass `enable_monitoring_crds = false`
+#     here. Pass its `namespace` output as `namespace`, or keep a `depends_on`
+#     for it, or the release can race the namespace.
 #   * There are no container lifecycle rules, and no variables to configure
 #     them — unlike AWS and GCP, which take `logs_retention_days`,
 #     `metrics_retention_days`, and `enable_bucket_versioning`. Loki and Thanos

@@ -321,6 +321,13 @@ resource "helm_release" "aws_load_balancer_controller" {
     name  = "vpcId"
     value = var.vpc_id
   }
+  # Unlike most charts here, this one does not check for the
+  # monitoring.coreos.com API first, so enabling it without the CRDs fails the
+  # install.
+  set {
+    name  = "serviceMonitor.enabled"
+    value = var.enable_service_monitor
+  }
 
   # Add node selectors for AWS Load Balancer Controller pods if provided
   dynamic "set" {

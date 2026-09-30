@@ -19,6 +19,14 @@ resource "helm_release" "cert_manager" {
     value = "true"
   }
 
+  # One ServiceMonitor across the controller, webhook and cainjector. The
+  # chart's metrics Services exist regardless; it does not check for the
+  # monitoring.coreos.com API before rendering the monitor.
+  set {
+    name  = "prometheus.servicemonitor.enabled"
+    value = var.enable_service_monitor
+  }
+
   # Add node selectors for cert-manager pods if provided
   dynamic "set" {
     for_each = var.node_selector

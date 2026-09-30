@@ -204,6 +204,35 @@ module "aks" {
   depends_on = [azurerm_resource_group.materialize]
 }
 
+# Install the monitoring namespace and CRDs before anything that ships a
+# ServiceMonitor. A chart that declares one before the CRDs exist either fails
+# its install or quietly leaves the monitor out for good. Each component below
+# turns its monitor on from `crds_installed`, which also makes it wait for the
+# CRDs. Without the monitoring stack this still creates the namespace, as the
+# operator module used to.
+module "monitoring_crds" {
+  source = "../../../kubernetes/modules/monitoring-crds"
+
+  namespace    = local.monitoring_namespace
+  install_crds = var.enable_observability
+
+  depends_on = [module.aks]
+}
+
+# State migration: the operator module used to create the namespace, and the
+# monitoring module used to install the CRDs. Both move here as they are, so
+# neither is recreated. Recreating the CRDs release would delete every
+# ServiceMonitor, PodMonitor and Grafana resource in the cluster with it.
+moved {
+  from = module.operator.kubernetes_namespace.monitoring[0]
+  to   = module.monitoring_crds.kubernetes_namespace.monitoring[0]
+}
+
+moved {
+  from = module.monitoring[0].module.monitoring.helm_release.crds[0]
+  to   = module.monitoring_crds.helm_release.crds[0]
+}
+
 # Materialize-dedicated node pool with taints (via labels on Azure)
 module "materialize_nodepool" {
   source = "../../modules/nodepool"
@@ -314,6 +343,8 @@ module "coredns" {
 module "cert_manager" {
   source = "../../../kubernetes/modules/cert-manager"
 
+  enable_service_monitor = module.monitoring_crds.crds_installed
+
   node_selector = local.generic_node_labels
 
   depends_on = [
@@ -336,6 +367,10 @@ module "self_signed_cluster_issuer" {
 module "operator" {
   source = "../../modules/operator"
 
+  # module.monitoring_crds creates the monitoring namespace.
+  create_monitoring_namespace           = false
+  enable_metrics_server_service_monitor = module.monitoring_crds.crds_installed
+
   operator_version = var.materialize_version
 
   name_prefix = var.name_prefix
@@ -349,7 +384,7 @@ module "operator" {
 
   # The operator creates both namespaces; monitoring is a consumer of them.
   operator_namespace   = local.materialize_operator_namespace
-  monitoring_namespace = local.monitoring_namespace
+  monitoring_namespace = module.monitoring_crds.namespace
 
   # Enable Prometheus scrape annotations when observability is enabled
   helm_values = var.enable_observability ? {
@@ -380,9 +415,11 @@ module "monitoring" {
   resource_group_name = azurerm_resource_group.materialize.name
   location            = var.location
 
-  namespace = local.monitoring_namespace
-  # The operator module creates the "monitoring" namespace.
-  create_namespace = false
+  namespace = module.monitoring_crds.namespace
+  # module.monitoring_crds creates the namespace and installs the CRDs, ahead of
+  # the components whose ServiceMonitors need them.
+  create_namespace       = false
+  enable_monitoring_crds = false
 
   oidc_issuer_url = module.aks.cluster_oidc_issuer_url
 

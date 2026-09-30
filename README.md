@@ -177,6 +177,30 @@ We follow semantic versioning with our tags. If a particular version requires ad
 
 ### Upgrade Notes
 
+#### v14.1.0
+
+##### Components ship ServiceMonitors, so the monitoring CRDs install first
+
+A new module, `kubernetes/modules/monitoring-crds`, creates the `monitoring` namespace and installs the prometheus-operator and grafana-operator CRDs right after the cluster, before anything else.
+The examples use it to turn on the ServiceMonitors that Karpenter, the AWS Load Balancer Controller, the EBS CSI driver, node-local-dns, cert-manager and metrics-server ship, and in the `enterprise` examples, Kratos and Hydra.
+The monitoring stack scrapes them from then on.
+
+Each component's toggle is the module's `crds_installed` output, so each waits for the CRDs.
+Before this, the CRDs arrived with the monitoring stack, after every component.
+A chart that declares a ServiceMonitor without them either fails its install, or skips the monitor and never renders it.
+The AWS Load Balancer Controller, cert-manager, metrics-server and node-local-dns charts are the first kind, so turn their toggles on only where the CRDs are installed first.
+
+**A root copied from an example must add the module and both of its `moved` blocks together.**
+The namespace used to belong to the operator module and the CRDs release to the monitoring module, and both move to `monitoring-crds` unchanged.
+Without the `moved` blocks, Terraform plans to uninstall the `mzmon-crds` release.
+That deletes the CRDs, and with them every ServiceMonitor, PodMonitor, PrometheusRule and Grafana resource in the cluster.
+Run `terraform plan` first, and check that it shows both objects as moved and nothing destroyed in either.
+The CRDs release may show an in-place update, which is harmless.
+
+A root that does not add the module is unaffected.
+The new inputs default to off, and the operator module's namespace changes address in place.
+If the cluster gets these CRDs from somewhere else, such as kube-prometheus-stack, set `install_crds = false` on the new module.
+
 #### v14.0.0
 
 ##### Metadata database defaults to PostgreSQL 18

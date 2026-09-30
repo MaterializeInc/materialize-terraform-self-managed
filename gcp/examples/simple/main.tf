@@ -243,6 +243,35 @@ module "gke" {
   release_channel = "STABLE"
 }
 
+# Install the monitoring namespace and CRDs before anything that ships a
+# ServiceMonitor. A chart that declares one before the CRDs exist either fails
+# its install or quietly leaves the monitor out for good. Each component below
+# turns its monitor on from `crds_installed`, which also makes it wait for the
+# CRDs. Without the monitoring stack this still creates the namespace, as the
+# operator module used to.
+module "monitoring_crds" {
+  source = "../../../kubernetes/modules/monitoring-crds"
+
+  namespace    = "monitoring"
+  install_crds = var.enable_observability
+
+  depends_on = [module.gke]
+}
+
+# State migration: the operator module used to create the namespace, and the
+# monitoring module used to install the CRDs. Both move here as they are, so
+# neither is recreated. Recreating the CRDs release would delete every
+# ServiceMonitor, PodMonitor and Grafana resource in the cluster with it.
+moved {
+  from = module.operator.kubernetes_namespace.monitoring[0]
+  to   = module.monitoring_crds.kubernetes_namespace.monitoring[0]
+}
+
+moved {
+  from = module.monitoring[0].module.monitoring.helm_release.crds[0]
+  to   = module.monitoring_crds.helm_release.crds[0]
+}
+
 # Create and configure generic node pool for all workloads except Materialize
 module "generic_nodepool" {
   source     = "../../modules/nodepool"
@@ -352,6 +381,8 @@ module "storage" {
 module "cert_manager" {
   source = "../../../kubernetes/modules/cert-manager"
 
+  enable_service_monitor = module.monitoring_crds.crds_installed
+
   node_selector = local.generic_node_labels
 
   depends_on = [
@@ -374,6 +405,11 @@ module "self_signed_cluster_issuer" {
 # Install Materialize Kubernetes operator for managing Materialize instances
 module "operator" {
   source = "../../modules/operator"
+
+  monitoring_namespace = module.monitoring_crds.namespace
+  # module.monitoring_crds creates the monitoring namespace.
+  create_monitoring_namespace           = false
+  enable_metrics_server_service_monitor = module.monitoring_crds.crds_installed
 
   operator_version = var.materialize_version
 
@@ -443,9 +479,11 @@ module "monitoring" {
   # telemetry buckets. Set to false for anything you cannot afford to lose.
   bucket_force_destroy = true
 
-  namespace = "monitoring"
-  # The operator module creates the "monitoring" namespace.
-  create_namespace = false
+  namespace = module.monitoring_crds.namespace
+  # module.monitoring_crds creates the namespace and installs the CRDs, ahead of
+  # the components whose ServiceMonitors need them.
+  create_namespace       = false
+  enable_monitoring_crds = false
 
   node_selector = local.generic_node_labels
   storage_class = local.storage_class

@@ -37,3 +37,10 @@ variable "tolerations" {
   default  = []
   nullable = false
 }
+
+variable "enable_service_monitor" {
+  description = "Create a ServiceMonitor for the cert-manager controller, webhook and cainjector. The prometheus-operator CRDs must be installed before this module; the chart does not check, so the install fails without them."
+  type        = bool
+  default     = false
+  nullable    = false
+}

@@ -59,3 +59,10 @@ variable "iam_permissions_boundary" {
   type        = string
   default     = null
 }
+
+variable "enable_service_monitor" {
+  description = "Create a ServiceMonitor for the Karpenter controller's metrics. The prometheus-operator CRDs must be installed before this module, or the chart leaves the ServiceMonitor out."
+  type        = bool
+  default     = false
+  nullable    = false
+}

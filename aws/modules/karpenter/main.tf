@@ -349,6 +349,13 @@ resource "helm_release" "karpenter" {
           "vmMemoryOverheadPercent" : var.vm_memory_overhead_percent,
           "interruptionQueue" : aws_sqs_queue.interruption.name,
         },
+        # The chart renders its ServiceMonitor only when the
+        # monitoring.coreos.com API already exists, and Terraform only upgrades
+        # the release when its values change, so the CRDs have to be installed
+        # before this release, not after it.
+        "serviceMonitor" : {
+          "enabled" : var.enable_service_monitor,
+        },
       }
     )
   ]

@@ -109,6 +109,12 @@ resource "helm_release" "node_local_dns" {
           memory = var.memory_request
         }
       }
+      # The `prometheus :9253` plugin in the Corefile above, scraped per node.
+      # The chart does not check for the monitoring.coreos.com API first, and
+      # always puts the ServiceMonitor in kube-system.
+      serviceMonitor = {
+        enabled = var.enable_service_monitor
+      }
     })
   ]
 }

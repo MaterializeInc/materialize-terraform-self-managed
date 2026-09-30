@@ -30,6 +30,7 @@ No modules.
 | Name | Description | Type | Default | Required |
 | ---- | ----------- | ---- | ------- | :------: |
 | <a name="input_chart_version"></a> [chart\_version](#input\_chart\_version) | Version of the cert-manager helm chart to install. | `string` | `"v1.18.0"` | no |
+| <a name="input_enable_service_monitor"></a> [enable\_service\_monitor](#input\_enable\_service\_monitor) | Create a ServiceMonitor for the cert-manager controller, webhook and cainjector. The prometheus-operator CRDs must be installed before this module; the chart does not check, so the install fails without them. | `bool` | `false` | no |
 | <a name="input_install_timeout"></a> [install\_timeout](#input\_install\_timeout) | Timeout for installing the cert-manager helm chart, in seconds. | `number` | `300` | no |
 | <a name="input_namespace"></a> [namespace](#input\_namespace) | The name of the namespace in which cert-manager will be installed. | `string` | `"cert-manager"` | no |
 | <a name="input_node_selector"></a> [node\_selector](#input\_node\_selector) | Node selector for cert-manager pods. | `map(string)` | `{}` | no |

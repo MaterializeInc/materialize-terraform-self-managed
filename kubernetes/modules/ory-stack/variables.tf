@@ -428,3 +428,24 @@ variable "polis_chart_oci_password" {
   default     = null
   sensitive   = true
 }
+
+variable "enable_service_monitors" {
+  description = "Create ServiceMonitors for Kratos and Hydra, and admit the metrics scraper to their admin ports. The prometheus-operator CRDs must be installed before this module, or the charts leave the monitors out."
+  type        = bool
+  default     = false
+  nullable    = false
+}
+
+variable "monitoring_namespace" {
+  description = "Namespace the metrics scraper runs in, admitted to the Kratos and Hydra admin ports when `enable_service_monitors` is set."
+  type        = string
+  default     = "monitoring"
+  nullable    = false
+}
+
+variable "metrics_scraper_pod_labels" {
+  description = "Labels of the pods admitted to the Kratos and Hydra admin ports when `enable_service_monitors` is set. The default matches the materialize-monitoring gateway, which is what scrapes ServiceMonitors."
+  type        = map(string)
+  default     = { "app.kubernetes.io/name" = "alloy-gateway" }
+  nullable    = false
+}
