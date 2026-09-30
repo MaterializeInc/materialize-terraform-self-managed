@@ -1,9 +1,9 @@
 name: Kind Tests
 
 # Self-managed Materialize on a local kind cluster. Needs no cloud
-# credentials, only the MATERIALIZE_LICENSE_KEY secret. Manually
-# dispatchable for now; wiring into the merge queue is deferred until the
-# workflow has proven reliable.
+# credentials, only the MATERIALIZE_LICENSE_KEY secret. Called by
+# pr-kind.yml on pull requests that touch kubernetes/ or test/, and
+# manually dispatchable.
 
 on:
   workflow_call:
