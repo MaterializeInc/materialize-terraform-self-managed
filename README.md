@@ -179,30 +179,17 @@ We follow semantic versioning with our tags. If a particular version requires ad
 
 #### v14.1.0
 
-##### Components ship ServiceMonitors, so the monitoring CRDs install first
+##### Monitoring CRDs install first, so components can ship ServiceMonitors
 
-A new module, `kubernetes/modules/monitoring-crds`, creates the `monitoring` namespace and installs the prometheus-operator and grafana-operator CRDs right after the cluster, before anything else.
-The examples use it to turn on the ServiceMonitors that Karpenter, the AWS Load Balancer Controller, the EBS CSI driver, node-local-dns, cert-manager and metrics-server ship, and in the `enterprise` examples, Kratos and Hydra.
-The monitoring stack scrapes them from then on.
+The examples add a `monitoring_crds` module, which creates the `monitoring` namespace and installs the monitoring CRDs right after the cluster.
+They use it to turn on the ServiceMonitors that Karpenter, cert-manager, metrics-server and the other components ship.
+A root that does not adopt it is unaffected.
 
-Each component's toggle is the module's `crds_installed` output, so each waits for the CRDs.
-Before this, the CRDs arrived with the monitoring stack, after every component.
-A chart that declares a ServiceMonitor without them either fails its install, or skips the monitor and never renders it.
-The AWS Load Balancer Controller, cert-manager, metrics-server and node-local-dns charts are the first kind, so turn their toggles on only where the CRDs are installed first.
+To adopt it in a root based on an example, copy the `monitoring_crds` module, both of its `moved` blocks, and the new arguments on the other modules.
+Before applying, check that `terraform plan` shows the namespace and the `mzmon-crds` release as moved, and destroys nothing.
+**Without the namespace's `moved` block, Terraform destroys the `monitoring` namespace and the whole monitoring stack with it.**
 
-**A root copied from an example must add the module and both of its `moved` blocks together.**
-The namespace used to belong to the operator module and the CRDs release to the monitoring module, and both move to `monitoring-crds` unchanged.
-The namespace's block is the one that matters.
-Without it, the operator module stops creating the namespace, so Terraform plans to destroy `monitoring` and everything in it, the whole monitoring stack included.
-Without the CRDs' block, Terraform uninstalls the `mzmon-crds` release and installs it again.
-The CRDs carry `helm.sh/resource-policy: keep`, so they and everything that uses them survive.
-The first apply can still fail on the release name being in use, and a second apply adopts the CRDs.
-Run `terraform plan` first, and check that it shows both objects as moved and nothing destroyed.
-The CRDs release shows an in-place update, for its timeout and sometimes its chart source, which is harmless.
-
-A root that does not add the module is unaffected.
-The new inputs default to off, and the operator module's namespace changes address in place.
-If the cluster gets these CRDs from somewhere else, such as kube-prometheus-stack, set `install_crds = false` on the new module.
+If the cluster gets these CRDs from elsewhere, such as kube-prometheus-stack, set `install_crds = false`.
 
 #### v14.0.0
 
