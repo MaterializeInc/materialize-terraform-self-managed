@@ -199,6 +199,8 @@ module "karpenter" {
   source = "../../modules/karpenter"
 
   enable_service_monitor = module.monitoring_crds.crds_installed
+  # The node pools' instance types, for Karpenter's capacity-availability metric.
+  service_monitor_instance_types = distinct(concat(local.instance_types_generic, local.instance_types_materialize))
 
   name_prefix             = var.name_prefix
   cluster_name            = module.eks.cluster_name

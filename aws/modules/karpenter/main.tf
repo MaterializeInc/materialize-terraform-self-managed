@@ -316,6 +316,52 @@ resource "kubernetes_service_account" "karpenter_controller" {
   }
 }
 
+locals {
+  # What the ServiceMonitor keeps. Karpenter publishes a series per instance
+  # type, zone and capacity type for every instance type in the region: about
+  # 49,000 for the offering price estimates and availability together in
+  # us-east-1, and 2,700 more for each type's CPU and memory, on every scrape.
+  #
+  # Availability is worth keeping for the types the node pools can launch: it
+  # drops to 0 for a zone and capacity type when EC2 refuses a launch for lack of
+  # capacity, until Karpenter retries. The rest describe the catalogue rather
+  # than the cluster, so they are dropped.
+  #
+  # `scheduling_id` changes on every scheduling pass, so it would start a new
+  # series each time; only one pass per controller is live at once.
+  offering_instance_types = join("|", [for t in var.service_monitor_instance_types : replace(t, ".", "\\.")])
+
+  service_monitor_metric_relabelings = concat(
+    [
+      {
+        action       = "drop"
+        sourceLabels = ["__name__"]
+        regex        = "karpenter_cloudprovider_instance_type_(offering_price_estimate|cpu_cores|memory_bytes)"
+      },
+    ],
+    length(var.service_monitor_instance_types) > 0 ? [
+      {
+        action       = "replace"
+        sourceLabels = ["__name__", "instance_type"]
+        regex        = "karpenter_cloudprovider_instance_type_offering_available;(${local.offering_instance_types})"
+        targetLabel  = "__tmp_keep_offering"
+        replacement  = "true"
+      },
+    ] : [],
+    [
+      {
+        action       = "drop"
+        sourceLabels = ["__name__", "__tmp_keep_offering"]
+        regex        = "karpenter_cloudprovider_instance_type_offering_available;"
+      },
+      {
+        action = "labeldrop"
+        regex  = "__tmp_keep_offering|scheduling_id"
+      },
+    ],
+  )
+}
+
 resource "helm_release" "karpenter" {
   namespace  = kubernetes_namespace.karpenter.metadata[0].name
   name       = "karpenter"
@@ -355,6 +401,7 @@ resource "helm_release" "karpenter" {
         # before this release, not after it.
         "serviceMonitor" : {
           "enabled" : var.enable_service_monitor,
+          "metricRelabelings" : local.service_monitor_metric_relabelings,
         },
       }
     )

@@ -63,6 +63,7 @@ No modules.
 | <a name="input_name_prefix"></a> [name\_prefix](#input\_name\_prefix) | Prefix for all resource names. | `string` | n/a | yes |
 | <a name="input_node_selector"></a> [node\_selector](#input\_node\_selector) | Node selector for the Karpenter controller pods. | `map(string)` | n/a | yes |
 | <a name="input_oidc_provider_arn"></a> [oidc\_provider\_arn](#input\_oidc\_provider\_arn) | ARN of the EKS cluster's OIDC provider. | `string` | n/a | yes |
+| <a name="input_service_monitor_instance_types"></a> [service\_monitor\_instance\_types](#input\_service\_monitor\_instance\_types) | Instance types to keep offering-availability metrics for, which drop to 0 when EC2 has no capacity for a type in a zone. Pass the types the node pools allow. The metric is dropped for every other type, and entirely when this is empty, since Karpenter publishes it for every type in the region. | `list(string)` | `[]` | no |
 | <a name="input_tags"></a> [tags](#input\_tags) | Tags to apply to all resources | `map(string)` | `{}` | no |
 | <a name="input_vm_memory_overhead_percent"></a> [vm\_memory\_overhead\_percent](#input\_vm\_memory\_overhead\_percent) | Reduction in memory from advertized, to account for VM overhead. | `number` | `0.05` | no |
 
