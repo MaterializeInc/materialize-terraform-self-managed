@@ -84,6 +84,10 @@ resource "google_compute_global_address" "private_ip_address" {
   lifecycle {
     create_before_destroy = true
   }
+
+  # When auto-allocating, GCP only avoids ranges that already exist, so the
+  # subnets and their secondary ranges must be created first.
+  depends_on = [module.vpc]
 }
 
 resource "google_service_networking_connection" "private_vpc_connection" {
