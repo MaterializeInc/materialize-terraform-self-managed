@@ -206,6 +206,12 @@ output "ory" {
   }
 }
 
+output "polis_admin_api_keys" {
+  description = "API key for the Polis admin API, used to register SAML connections and SCIM directories. Null when enable_polis is false."
+  value       = module.ory.polis_admin_api_keys
+  sensitive   = true
+}
+
 output "materialize_oidc" {
   description = "The OIDC provider Materialize trusts: Hydra by default, or var.direct_oidc when set. Useful for confirming which side is authoritative mid-migration."
   # The client ID is public (the console hands it to every browser), but the Ory

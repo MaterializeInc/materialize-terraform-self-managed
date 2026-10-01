@@ -178,6 +178,12 @@ output "ory" {
   }
 }
 
+output "polis_admin_api_keys" {
+  description = "API key for the Polis admin API, used to register SAML connections and SCIM directories. Null when enable_polis is false."
+  value       = module.ory.polis_admin_api_keys
+  sensitive   = true
+}
+
 output "ory_lb_addresses" {
   description = "Ingress addresses of the Ory-side browser-facing LoadBalancers (hydra, kratos, ui, polis). Feed these into your DNS records for the corresponding hostnames. AWS populates the hostname key, not ip."
   value       = module.ory.lb_addresses
