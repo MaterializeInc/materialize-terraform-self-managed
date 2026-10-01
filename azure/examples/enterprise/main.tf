@@ -235,8 +235,11 @@ module "aks" {
   default_node_pool_vm_size             = "Standard_D4pds_v6"
   default_node_pool_enable_auto_scaling = true
   default_node_pool_min_count           = 2
-  default_node_pool_max_count           = 5
-  default_node_pool_node_labels         = local.generic_node_labels
+  # The default pool runs the Ory stack and, with enable_observability, the
+  # zone-spread monitoring stack. 5 nodes is not enough room for both: Loki's
+  # third ingester stays Pending with "max node group size reached".
+  default_node_pool_max_count   = 8
+  default_node_pool_node_labels = local.generic_node_labels
 
   # Optional: Enable monitoring
   enable_azure_monitor       = local.aks_config.enable_azure_monitor
