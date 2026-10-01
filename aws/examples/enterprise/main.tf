@@ -829,6 +829,14 @@ module "ory" {
   lb_load_balancer_class     = "service.k8s.aws/nlb"
   lb_external_traffic_policy = "Local"
 
+  # Firewall the public Ory NLBs like the Materialize ones. The LBC turns
+  # loadBalancerSourceRanges into the NLB security group's inbound rules.
+  lb_overrides = var.internal_load_balancer || local.ory_lb_source_ranges == null ? {} : {
+    for role in ["hydra", "kratos", "ui", "polis"] : role => {
+      source_ranges = role == "polis" ? concat(local.ory_lb_source_ranges, local.okta_scim_source_ranges) : local.ory_lb_source_ranges
+    }
+  }
+
   node_selector = local.generic_node_labels
 
   upstream_identity_providers = var.upstream_identity_providers
@@ -1000,6 +1008,20 @@ locals {
     name = module.self_signed_cluster_issuer.issuer_name
     kind = "ClusterIssuer"
   }
+
+  # Sources allowed through the public Ory NLBs: ingress_cidr_blocks plus the
+  # cluster itself. Pods that call the Ory hostnames reach these NLBs from
+  # the VPC, and an internet-facing NLB sees them as the NAT gateways' public
+  # IPs. A null ingress_cidr_blocks leaves the NLBs unrestricted.
+  ory_lb_source_ranges = var.ingress_cidr_blocks == null ? null : concat(
+    var.ingress_cidr_blocks,
+    [for ip in module.networking.nat_public_ips : "${ip}/32"],
+    [module.networking.vpc_cidr_block],
+  )
+
+  # Okta's SCIM egress ranges, written by scripts/update-okta-ip-ranges.sh.
+  # Okta pushes SCIM to Polis from its own cloud, so Polis admits them too.
+  okta_scim_source_ranges = fileexists("${path.module}/okta-scim-source-ranges.json") ? jsondecode(file("${path.module}/okta-scim-source-ranges.json")) : []
 
   # AWS LBC annotations for the Ory and Materialize console NLBs.
   ory_lb_annotations = merge(

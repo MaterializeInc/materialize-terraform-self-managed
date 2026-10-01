@@ -198,6 +198,15 @@ locals {
   okta_scim_source_ranges = fileexists("${path.module}/okta-scim-source-ranges.json") ? jsondecode(file("${path.module}/okta-scim-source-ranges.json")) : []
   polis_lb_source_ranges  = concat(local.okta_scim_source_ranges, var.ory_polis_source_ranges)
 
+  # Sources allowed through the public Ory LBs: ingress_cidr_blocks plus the
+  # cluster itself. GKE serves a pod's traffic to an LB IP inside the cluster,
+  # so it arrives from the node subnet or the pod and service ranges.
+  ory_lb_source_ranges = concat(
+    var.ingress_cidr_blocks,
+    [local.subnets[0].cidr],
+    [for r in local.subnets[0].secondary_ranges : r.ip_cidr_range],
+  )
+
   # cert-manager ClusterIssuer for browser-facing TLS. Defaults to the built-in
   # self-signed issuer; override via var.cert_issuer_ref to plug in a real one.
   cert_issuer = var.cert_issuer_ref != null ? var.cert_issuer_ref : {
@@ -801,11 +810,18 @@ module "ory" {
     "networking.gke.io/load-balancer-type" = "Internal"
   } : {}
 
-  # Lock the Polis LB to Okta's SCIM egress ranges plus your internal ranges,
-  # when ory_polis_source_ranges is set or okta-scim-source-ranges.json exists.
-  lb_overrides = length(local.polis_lb_source_ranges) > 0 ? {
-    polis = { source_ranges = local.polis_lb_source_ranges }
-  } : {}
+  # Firewall the public Ory LBs to ory_lb_source_ranges. Polis keeps its own
+  # allowlist when ory_polis_source_ranges is set or okta-scim-source-ranges.json
+  # exists (Okta's SCIM egress plus your ranges), so a default
+  # ingress_cidr_blocks of 0.0.0.0/0 never reopens a Polis locked to Okta.
+  lb_overrides = merge(
+    var.internal_load_balancer ? {} : {
+      for role in ["hydra", "kratos", "ui", "polis"] : role => { source_ranges = local.ory_lb_source_ranges }
+    },
+    length(local.polis_lb_source_ranges) > 0 ? {
+      polis = { source_ranges = local.polis_lb_source_ranges }
+    } : {},
+  )
 
   node_selector = local.generic_node_labels
 
