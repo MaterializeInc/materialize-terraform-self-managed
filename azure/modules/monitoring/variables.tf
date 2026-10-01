@@ -186,8 +186,8 @@ variable "min_zones" {
 
 variable "provider_metrics" {
   description = <<-EOT
-    Pull Azure Monitor metrics for the listed PostgreSQL Flexible Servers and storage accounts into
-    the Alloy gateway, beside everything else it collects. Null disables it.
+    Pull Azure Monitor metrics for the listed PostgreSQL Flexible Servers, storage accounts and AKS
+    clusters into the Alloy gateway, beside everything else it collects. Null disables it.
 
     Creates a user-assigned identity for the gateway, federated to its ServiceAccount, and grants it
     Monitoring Reader on each listed resource and nothing wider. Resource Graph returns only what the
@@ -199,13 +199,22 @@ variable "provider_metrics" {
     `include_monitoring_resources` adds this module's own storage account and, when this module
     creates it, Grafana's database.
 
+    `aks_clusters` pulls each cluster's managed cluster autoscaler, which AKS runs in its control
+    plane where nothing in the cluster can scrape it, and Azure's own view of whether each node VM
+    is up. The pull finds the node pools' scale sets through the cluster's node resource group, so
+    each entry takes that group's name beside the cluster's ID, and both get Monitoring Reader.
+
     `importance` is the tier the chart assigns these families, and decides which filtered
     destinations receive them. Null keeps the chart's default, `extended`. On a sovereign cloud, set
     the chart's `pipeline.metrics.provider.azure.cloudEnvironment` through `additional_values`.
   EOT
   type = object({
-    postgres_server_ids          = optional(list(string), [])
-    storage_account_ids          = optional(list(string), [])
+    postgres_server_ids = optional(list(string), [])
+    storage_account_ids = optional(list(string), [])
+    aks_clusters = optional(list(object({
+      id                  = string
+      node_resource_group = string
+    })), [])
     include_monitoring_resources = optional(bool, true)
     scrape_interval              = optional(string)
     importance                   = optional(string)
@@ -222,9 +231,9 @@ variable "provider_metrics" {
   validation {
     condition = var.provider_metrics == null ? true : (
       var.provider_metrics.include_monitoring_resources ||
-      length(var.provider_metrics.postgres_server_ids) + length(var.provider_metrics.storage_account_ids) > 0
+      length(var.provider_metrics.postgres_server_ids) + length(var.provider_metrics.storage_account_ids) + length(var.provider_metrics.aks_clusters) > 0
     )
-    error_message = "provider_metrics names no resources. List postgres_server_ids or storage_account_ids, or leave include_monitoring_resources on — the chart refuses a pull with nothing to watch."
+    error_message = "provider_metrics names no resources. List postgres_server_ids, storage_account_ids or aks_clusters, or leave include_monitoring_resources on — the chart refuses a pull with nothing to watch."
   }
 
   validation {
@@ -241,6 +250,21 @@ variable "provider_metrics" {
       can(regex("(?i)^/subscriptions/[^/]+/resourceGroups/[^/]+/providers/Microsoft\\.Storage/storageAccounts/[^/]+$", id))
     ])
     error_message = "provider_metrics.storage_account_ids takes storage account resource IDs, such as module.storage.storage_account_id, not names or endpoints."
+  }
+
+  validation {
+    condition = var.provider_metrics == null ? true : alltrue([
+      for c in var.provider_metrics.aks_clusters :
+      can(regex("(?i)^/subscriptions/[^/]+/resourceGroups/[^/]+/providers/Microsoft\\.ContainerService/managedClusters/[^/]+$", c.id))
+    ])
+    error_message = "provider_metrics.aks_clusters[*].id takes the cluster's resource ID, such as module.aks.cluster_id, not its name."
+  }
+
+  validation {
+    condition = var.provider_metrics == null ? true : alltrue([
+      for c in var.provider_metrics.aks_clusters : can(regex("^[^/]+$", c.node_resource_group))
+    ])
+    error_message = "provider_metrics.aks_clusters[*].node_resource_group takes the group's name, such as module.aks.cluster_node_resource_group, not its ID."
   }
 }
 

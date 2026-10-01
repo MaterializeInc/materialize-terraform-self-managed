@@ -423,11 +423,19 @@ module "monitoring" {
   # the metadata database's CPU, memory, storage, connections, disk throttling
   # and transaction-ID use, and the persist account's size, availability and
   # latency. The module adds its own storage account and Grafana's database.
-  # Resources are named here rather than discovered, and the gateway's identity
-  # can read only these, so nothing else in the subscription is pulled.
+  # Those are named here rather than discovered.
+  #
+  # The cluster's autoscaler is read from the cluster, and its node VMs from the
+  # scale sets in its node resource group, which AKS creates and replaces, so
+  # the pull finds them there. The gateway's identity can read only these
+  # resources and that group, so nothing else in the subscription is pulled.
   provider_metrics = var.enable_provider_metrics ? {
     postgres_server_ids = [module.database.server_id]
     storage_account_ids = [module.storage.storage_account_id]
+    aks_clusters = [{
+      id                  = module.aks.cluster_id
+      node_resource_group = module.aks.cluster_node_resource_group
+    }]
   } : null
 
   # A dedicated Flexible Server for Grafana's own state, so dashboards and API

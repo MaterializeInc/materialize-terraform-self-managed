@@ -209,6 +209,14 @@ locals {
     var.provider_metrics.include_monitoring_resources ? { telemetry = azurerm_storage_account.telemetry.id } : {},
   ) : {}
 
+  # Each cluster, and its node resource group: the pull finds the node pools'
+  # scale sets through it with a Resource Graph join, and reads their metrics
+  # there. AKS creates that group in the cluster's subscription.
+  provider_metrics_aks = local.provider_metrics_enabled ? merge(
+    { for i, c in var.provider_metrics.aks_clusters : "aks-${i}" => c.id },
+    { for i, c in var.provider_metrics.aks_clusters : "aks-${i}-nodes" => "/subscriptions/${split("/", c.id)[2]}/resourceGroups/${c.node_resource_group}" },
+  ) : {}
+
   # The subscription this module deploys into. The chart queries one, so every
   # listed resource has to be in it; the grants below refuse any that is not.
   subscription_id = split("/", azurerm_storage_account.telemetry.id)[2]
@@ -225,6 +233,7 @@ locals {
               subscriptionId = local.subscription_id
               postgres       = { servers = [for id in values(local.provider_metrics_postgres) : split("/", id)[8]] }
               blob           = { storageAccounts = [for id in values(local.provider_metrics_storage) : split("/", id)[8]] }
+              aks            = { clusters = [for c in var.provider_metrics.aks_clusters : split("/", c.id)[8]] }
             },
             var.provider_metrics.scrape_interval == null ? {} : { scrapeInterval = var.provider_metrics.scrape_interval },
             var.provider_metrics.importance == null ? {} : { metricImportance = var.provider_metrics.importance },
@@ -240,8 +249,13 @@ locals {
 # nothing else: not its keys, which are an action, and not its blobs, which are
 # data actions. Unlike CloudWatch and Cloud Monitoring reads, Azure Monitor reads
 # scope to a resource, so nothing wider is granted.
+#
+# The one exception is an AKS cluster's node resource group, which the grant
+# covers whole: the node scale sets are created and replaced by AKS, so there is
+# nothing narrower to name. The group holds only what AKS manages for the
+# cluster, and the same limits apply: configuration and metrics, no keys.
 resource "azurerm_role_assignment" "gateway_monitoring_reader" {
-  for_each = merge(local.provider_metrics_postgres, local.provider_metrics_storage)
+  for_each = merge(local.provider_metrics_postgres, local.provider_metrics_storage, local.provider_metrics_aks)
 
   scope                = each.value
   role_definition_name = "Monitoring Reader"

@@ -205,8 +205,8 @@ variable "google_cloud_metrics_prefix" {
 
 variable "provider_metrics" {
   description = <<-EOT
-    Pull Cloud Monitoring metrics for the listed Cloud SQL instances and GCS buckets into the Alloy
-    gateway, beside everything else it collects. Null disables it. Thanos is where they land; the
+    Pull Cloud Monitoring metrics for the listed Cloud SQL instances, GCS buckets and Compute Engine
+    regions into the Alloy gateway, beside everything else it collects. Null disables it. Thanos is where they land; the
     `enable_google_cloud_metrics` export is unaffected and, at its default tier, does not write them
     back.
 
@@ -218,12 +218,17 @@ variable "provider_metrics" {
     `include_monitoring_resources` adds this module's own two buckets and, when this module creates
     it, Grafana's database.
 
+    `compute_regions` pulls Compute Engine quota for each region, such as `us-east1` — the regions
+    the GKE node pools run in: the CPUs and local SSD each machine family uses against its quota,
+    and every request a quota refused. `roles/monitoring.viewer` already reads it.
+
     `importance` is the tier the chart assigns these families, and decides which filtered
     destinations receive them. Null keeps the chart's default, `extended`.
   EOT
   type = object({
     cloud_sql_instances          = optional(list(string), [])
     gcs_buckets                  = optional(list(string), [])
+    compute_regions              = optional(list(string), [])
     include_monitoring_resources = optional(bool, true)
     scrape_interval              = optional(string)
     importance                   = optional(string)
@@ -240,9 +245,16 @@ variable "provider_metrics" {
   validation {
     condition = var.provider_metrics == null ? true : (
       var.provider_metrics.include_monitoring_resources ||
-      length(var.provider_metrics.cloud_sql_instances) + length(var.provider_metrics.gcs_buckets) > 0
+      length(var.provider_metrics.cloud_sql_instances) + length(var.provider_metrics.gcs_buckets) + length(var.provider_metrics.compute_regions) > 0
     )
-    error_message = "provider_metrics names no resources. List cloud_sql_instances or gcs_buckets, or leave include_monitoring_resources on — the chart refuses a pull with nothing to watch."
+    error_message = "provider_metrics names no resources. List cloud_sql_instances, gcs_buckets or compute_regions, or leave include_monitoring_resources on — the chart refuses a pull with nothing to watch."
+  }
+
+  validation {
+    condition = var.provider_metrics == null ? true : alltrue([
+      for r in var.provider_metrics.compute_regions : can(regex("^[a-z]+-[a-z]+[0-9]+$", r))
+    ])
+    error_message = "provider_metrics.compute_regions takes regions such as us-east1, not zones such as us-east1-b. The pull reads each region's zones itself."
   }
 
   validation {

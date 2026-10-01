@@ -87,9 +87,9 @@ variable "enable_observability" {
 
 variable "enable_provider_metrics" {
   description = <<-EOT
-    Pull Cloud Monitoring metrics for the Materialize database and persist bucket, and for the
-    monitoring stack's own buckets and Grafana database, into the monitoring stack. Grants the Alloy
-    gateway's service account `roles/monitoring.viewer`.
+    Pull Cloud Monitoring metrics for the Materialize database and persist bucket, the monitoring
+    stack's own buckets and Grafana database, and the region's Compute Engine quota into the
+    monitoring stack. Grants the Alloy gateway's service account `roles/monitoring.viewer`.
   EOT
   type        = bool
   default     = false
