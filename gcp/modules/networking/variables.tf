@@ -98,3 +98,14 @@ variable "labels" {
   type        = map(string)
   default     = {}
 }
+
+variable "private_ip_address_cidr" {
+  description = "CIDR to reserve for private services access (e.g. Cloud SQL). When null, GCP auto-allocates a free /16. Changing this on an existing deployment does not move existing Cloud SQL instances out of the old range."
+  type        = string
+  default     = null
+
+  validation {
+    condition     = var.private_ip_address_cidr == null || can(cidrhost(var.private_ip_address_cidr, 0))
+    error_message = "private_ip_address_cidr must be a valid IPv4 CIDR, e.g. 10.100.0.0/16"
+  }
+}

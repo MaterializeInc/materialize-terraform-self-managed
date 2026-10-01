@@ -9,6 +9,10 @@ locals {
   router_name = "${var.prefix}-router"
   routes      = concat(var.routes, [local.default_route])
 
+  # Suffix the name with the CIDR so create_before_destroy doesn't collide
+  # when it changes. Unsuffixed when null, for existing deployments.
+  private_ip_address_name = var.private_ip_address_cidr == null ? "${var.prefix}-private-ip" : "${var.prefix}-private-ip-${replace(var.private_ip_address_cidr, "/[./]/", "-")}"
+
 
   # Create secondary ranges map for all subnets
   secondary_ranges = {
@@ -75,15 +79,25 @@ module "cloud-nat" {
 resource "google_compute_global_address" "private_ip_address" {
   provider      = google
   project       = var.project_id
-  name          = "${var.prefix}-private-ip"
+  name          = local.private_ip_address_name
   purpose       = "VPC_PEERING"
   address_type  = "INTERNAL"
-  prefix_length = 16
+  address       = var.private_ip_address_cidr == null ? null : split("/", var.private_ip_address_cidr)[0]
+  prefix_length = var.private_ip_address_cidr == null ? 16 : tonumber(split("/", var.private_ip_address_cidr)[1])
   network       = module.vpc.network_id
   labels        = var.labels
   lifecycle {
     create_before_destroy = true
+
+    precondition {
+      condition     = length(local.private_ip_address_name) <= 63
+      error_message = "Private IP address name \"${local.private_ip_address_name}\" exceeds 63 characters; shorten prefix."
+    }
   }
+
+  # When auto-allocating, GCP only avoids ranges that already exist, so the
+  # subnets and their secondary ranges must be created first.
+  depends_on = [module.vpc]
 }
 
 resource "google_service_networking_connection" "private_vpc_connection" {

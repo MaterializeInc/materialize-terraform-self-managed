@@ -36,6 +36,7 @@
 | <a name="input_mtu"></a> [mtu](#input\_mtu) | MTU for the network | `number` | `1460` | no |
 | <a name="input_nat_ips"></a> [nat\_ips](#input\_nat\_ips) | List of self\_links of external IPs for Cloud NAT. When non-empty, NAT uses MANUAL\_ONLY allocation with these static IPs instead of auto-allocated ephemeral IPs. | `list(string)` | `[]` | no |
 | <a name="input_prefix"></a> [prefix](#input\_prefix) | Prefix to be used for resource names | `string` | n/a | yes |
+| <a name="input_private_ip_address_cidr"></a> [private\_ip\_address\_cidr](#input\_private\_ip\_address\_cidr) | CIDR to reserve for private services access (e.g. Cloud SQL). When null, GCP auto-allocates a free /16. Changing this on an existing deployment does not move existing Cloud SQL instances out of the old range. | `string` | `null` | no |
 | <a name="input_project_id"></a> [project\_id](#input\_project\_id) | The ID of the project where resources will be created | `string` | n/a | yes |
 | <a name="input_region"></a> [region](#input\_region) | The region where resources will be created | `string` | n/a | yes |
 | <a name="input_router_asn"></a> [router\_asn](#input\_router\_asn) | Router ASN | `string` | `"64514"` | no |
