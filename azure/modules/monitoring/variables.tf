@@ -379,7 +379,7 @@ variable "alerting" {
 }
 
 variable "alerting_receiver_secrets" {
-  description = "Receiver credentials keyed by file name, delivered as the `alertmanager-receivers` Secret the monitoring module creates, never through the Helm values. The plan fails when a receiver reads a key this map does not set. Empty creates no Secret, leaving the name to External Secrets Operator or a CSI driver."
+  description = "Receiver credentials keyed by file name, delivered as the `alertmanager-receivers` Secret the monitoring module creates, never through the Helm values. When set, the plan fails if a receiver reads a key this map does not include. Empty creates no Secret and skips that check, leaving the name to External Secrets Operator or a CSI driver."
   type        = map(string)
   default     = {}
   nullable    = false
@@ -387,7 +387,7 @@ variable "alerting_receiver_secrets" {
 }
 
 variable "alertmanager_namespace" {
-  description = "Namespace the Alertmanager pods run in, where `alerting_receiver_secrets` is created. Null uses `namespace`; set it to `alertmanager` under the chart's `split-namespace` profile."
+  description = "Namespace the Alertmanager pods run in, where `alerting_receiver_secrets` is created. Null uses `namespace`; set it to `alertmanager` under the chart's `split-namespace` profile. The namespace has to exist before apply."
   type        = string
   default     = null
 }
