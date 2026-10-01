@@ -459,8 +459,12 @@ module "monitoring" {
   # cannot run without — the metadata database's CPU, memory, disk, connections
   # and transaction-ID use, and the persist bucket's size, split into live,
   # noncurrent and soft-deleted bytes. The module adds its own buckets and
-  # Grafana's database. Resources are named here rather than discovered, so
-  # nothing else in the project is pulled.
+  # Grafana's database. Those are named here rather than discovered, so no
+  # other instance or bucket in the project is pulled.
+  #
+  # Compute Engine quota is the project's, per region: the CPUs and local SSD
+  # each machine family uses against its limit, across every node pool and VM
+  # in the region, since that is what a node pool runs into when it cannot grow.
   provider_metrics = var.enable_provider_metrics ? {
     cloud_sql_instances = [module.database.instance_name]
     gcs_buckets         = [module.storage.bucket_name]

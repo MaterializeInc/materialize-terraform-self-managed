@@ -619,8 +619,13 @@ module "monitoring" {
   # CloudWatch's view of the dependencies Materialize cannot run without: the
   # metadata database's CPU, memory, storage, connections and burst balances,
   # and the persist bucket's size. The module adds its own buckets and Grafana's
-  # database. Resources are named here rather than discovered by tag, so nothing
-  # else in the account is pulled or billed.
+  # database. Those are named here, so no other database or bucket in the
+  # account is pulled or billed.
+  #
+  # The cluster's nodes cannot be named, since they come and go, so they are
+  # found by the cluster's `aws:eks:cluster-name` tag, which keeps the pull to
+  # this cluster's nodes and node groups. The one account-wide series is
+  # On-Demand vCPU usage, which is what the vCPU quota counts.
   provider_metrics = var.enable_provider_metrics ? {
     rds_instance_ids  = [module.database.db_instance_id]
     s3_bucket_names   = [module.storage.bucket_name]
