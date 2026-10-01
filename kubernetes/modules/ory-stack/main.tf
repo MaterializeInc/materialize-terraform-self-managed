@@ -648,10 +648,11 @@ resource "kubernetes_network_policy_v1" "ory_from_materialize_ingress" {
       }
     }
 
-    # The monitoring gateway, to the Kratos and Hydra admin ports only, where
-    # their ServiceMonitors read /admin/metrics/prometheus. The admin API is on
-    # the same listener, so this admits the gateway's pods and nothing else in
-    # the monitoring namespace.
+    # The monitoring gateway, to the Kratos and Hydra admin ports, where their
+    # ServiceMonitors read /admin/metrics/prometheus. Ory serves metrics on no
+    # other listener, so this admits the gateway to the whole admin API, which
+    # has no authentication of its own; see `enable_service_monitors`. It admits
+    # the gateway's pods and nothing else in the monitoring namespace.
     dynamic "ingress" {
       for_each = var.enable_service_monitors ? [1] : []
       content {

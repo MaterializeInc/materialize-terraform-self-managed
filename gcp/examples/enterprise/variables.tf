@@ -301,3 +301,14 @@ variable "direct_oidc" {
     error_message = "direct_oidc.audience must list at least one accepted audience; an empty list disables audience validation."
   }
 }
+
+variable "enable_ory_service_monitors" {
+  description = <<-EOT
+    Scrape Kratos's and Hydra's metrics into the monitoring stack. Ory serves them only on its admin
+    listener, so this admits the monitoring gateway to the whole Kratos and Hydra admin API, which
+    has no authentication of its own and can sign anyone in to Materialize. Off by default; turn it
+    on only where the monitoring namespace is trusted as much as the Ory one.
+  EOT
+  type        = bool
+  default     = false
+}

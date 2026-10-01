@@ -430,7 +430,7 @@ variable "polis_chart_oci_password" {
 }
 
 variable "enable_service_monitors" {
-  description = "Create ServiceMonitors for Kratos and Hydra, and admit the metrics scraper to their admin ports. The prometheus-operator CRDs must be installed before this module, or the charts leave the monitors out."
+  description = "Create ServiceMonitors for Kratos and Hydra, and admit the metrics scraper to their admin ports. Ory serves metrics only on the admin listener, so this admits the scraper to the whole admin API, not just `/admin/metrics/prometheus`: Kratos's identities, sessions and recovery links, and Hydra's OAuth2 clients and login and consent. That API has no authentication of its own, so anything that can run a pod matching `metrics_scraper_pod_labels` in `monitoring_namespace` could sign in to Materialize as anyone. The prometheus-operator CRDs must be installed before this module, or the charts leave the monitors out."
   type        = bool
   default     = false
   nullable    = false
@@ -444,7 +444,7 @@ variable "monitoring_namespace" {
 }
 
 variable "metrics_scraper_pod_labels" {
-  description = "Labels of the pods admitted to the Kratos and Hydra admin ports when `enable_service_monitors` is set. The default matches the materialize-monitoring gateway, which is what scrapes ServiceMonitors."
+  description = "Labels of the pods admitted to the Kratos and Hydra admin ports when `enable_service_monitors` is set. The default matches the materialize-monitoring gateway, which is what scrapes ServiceMonitors. Labels are not an identity: anything that can create pods in `monitoring_namespace` can match them."
   type        = map(string)
   default     = { "app.kubernetes.io/name" = "alloy-gateway" }
   nullable    = false

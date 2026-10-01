@@ -702,7 +702,7 @@ module "load_balancers" {
 module "ory" {
   source = "../../../kubernetes/modules/ory-stack"
 
-  enable_service_monitors = module.monitoring_crds.crds_installed
+  enable_service_monitors = var.enable_ory_service_monitors && module.monitoring_crds.crds_installed
   monitoring_namespace    = module.monitoring_crds.namespace
 
   namespace = local.ory_namespace
