@@ -301,16 +301,23 @@ variable "otlp_auth_bearer_token" {
 
 variable "provider_metrics" {
   description = <<-EOT
-    Pull CloudWatch metrics for the listed RDS instances and S3 buckets into the Alloy gateway,
-    beside everything else it collects. Null disables it.
+    Pull CloudWatch metrics for the listed RDS instances, S3 buckets and EKS clusters into the
+    Alloy gateway, beside everything else it collects. Null disables it.
 
-    Creates an IRSA role, `<name_prefix>-mzmon-gateway`, allowed only
+    Creates an IRSA role, `<name_prefix>-mzmon-gateway`, allowed
     `cloudwatch:GetMetricStatistics` and `iam:ListAccountAliases`, and binds the gateway's
     ServiceAccount to it.
 
-    The Materialize database and persist bucket are siblings of this module, so the caller
-    passes them. `include_monitoring_resources` adds this module's own two buckets and, when
-    this module creates it, Grafana's database.
+    The Materialize database, persist bucket and EKS cluster are siblings of this module, so the
+    caller passes them. `include_monitoring_resources` adds this module's own two buckets and,
+    when this module creates it, Grafana's database.
+
+    `eks_cluster_names` pulls each cluster's nodes and managed node groups: EC2 status checks,
+    node group sizes against their maximum, and the region's On-Demand vCPU usage, which is what
+    the vCPU quota counts. The nodes come and go, so the pull finds them by the
+    `aws:eks:cluster-name` tag, and listing a cluster adds `cloudwatch:GetMetricData`,
+    `cloudwatch:ListMetrics`, `tag:GetResources` and `autoscaling:DescribeAutoScalingGroups` to
+    the role.
 
     `importance` is the tier the chart assigns these families, and decides which filtered
     destinations receive them. Null keeps the chart's default, `extended`.
@@ -318,6 +325,7 @@ variable "provider_metrics" {
   type = object({
     rds_instance_ids             = optional(list(string), [])
     s3_bucket_names              = optional(list(string), [])
+    eks_cluster_names            = optional(list(string), [])
     include_monitoring_resources = optional(bool, true)
     scrape_interval              = optional(string)
     importance                   = optional(string)
@@ -334,9 +342,9 @@ variable "provider_metrics" {
   validation {
     condition = var.provider_metrics == null ? true : (
       var.provider_metrics.include_monitoring_resources ||
-      length(var.provider_metrics.rds_instance_ids) + length(var.provider_metrics.s3_bucket_names) > 0
+      length(var.provider_metrics.rds_instance_ids) + length(var.provider_metrics.s3_bucket_names) + length(var.provider_metrics.eks_cluster_names) > 0
     )
-    error_message = "provider_metrics names no resources. List rds_instance_ids or s3_bucket_names, or leave include_monitoring_resources on — the chart refuses a pull with nothing to watch."
+    error_message = "provider_metrics names no resources. List rds_instance_ids, s3_bucket_names or eks_cluster_names, or leave include_monitoring_resources on — the chart refuses a pull with nothing to watch."
   }
 }
 

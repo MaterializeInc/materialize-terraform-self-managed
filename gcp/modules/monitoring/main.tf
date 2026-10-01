@@ -279,6 +279,7 @@ locals {
               projectId = var.project_id
               cloudSql  = { instances = local.provider_metrics_cloud_sql_instances }
               gcs       = { buckets = local.provider_metrics_gcs_buckets }
+              compute   = { regions = distinct(var.provider_metrics.compute_regions) }
             },
             var.provider_metrics.scrape_interval == null ? {} : { scrapeInterval = var.provider_metrics.scrape_interval },
             var.provider_metrics.importance == null ? {} : { metricImportance = var.provider_metrics.importance },

@@ -622,8 +622,9 @@ module "monitoring" {
   # database. Resources are named here rather than discovered by tag, so nothing
   # else in the account is pulled or billed.
   provider_metrics = var.enable_provider_metrics ? {
-    rds_instance_ids = [module.database.db_instance_id]
-    s3_bucket_names  = [module.storage.bucket_name]
+    rds_instance_ids  = [module.database.db_instance_id]
+    s3_bucket_names   = [module.storage.bucket_name]
+    eks_cluster_names = [module.eks.cluster_name]
   } : null
 
   materialize_instance_namespace = local.materialize_instance_namespace

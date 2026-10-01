@@ -428,6 +428,10 @@ module "monitoring" {
   provider_metrics = var.enable_provider_metrics ? {
     postgres_server_ids = [module.database.server_id]
     storage_account_ids = [module.storage.storage_account_id]
+    aks_clusters = [{
+      id                  = module.aks.cluster_id
+      node_resource_group = module.aks.cluster_node_resource_group
+    }]
   } : null
 
   # A dedicated Flexible Server for Grafana's own state, so dashboards and API

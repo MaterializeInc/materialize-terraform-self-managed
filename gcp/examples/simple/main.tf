@@ -464,6 +464,7 @@ module "monitoring" {
   provider_metrics = var.enable_provider_metrics ? {
     cloud_sql_instances = [module.database.instance_name]
     gcs_buckets         = [module.storage.bucket_name]
+    compute_regions     = [var.region]
   } : null
 
   # Datadog and generic OTLP (Honeycomb, Grafana Cloud, your own collector) fan

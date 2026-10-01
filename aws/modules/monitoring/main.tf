@@ -384,15 +384,21 @@ resource "aws_iam_role_policy" "telemetry" {
 # ==============================================================================
 # Provider metrics: the gateway reads CloudWatch
 # ==============================================================================
-# Only what the chart's CloudWatch pull calls. Its jobs are `static`, which go
-# through GetMetricStatistics; the exporter also lists the account alias to label
-# every series, and logs a warning on each pull without it.
+# Only what the chart's CloudWatch pull calls. The database and bucket jobs are
+# `static`, which go through GetMetricStatistics; the exporter also lists the
+# account alias to label every series, and logs a warning on each pull without it.
 #
-# Both are `Resource: "*"` because neither action supports anything narrower:
-# the IAM service reference lists no resource types and no condition keys for
-# either. `cloudwatch:namespace` exists and applies only to PutMetricData. The
-# scoping to named resources is in the chart values instead, which never
-# discover.
+# An EKS cluster's nodes cannot be named, since they are replaced too often, so
+# its jobs `discover` them instead: the resource tagging API finds each node by
+# the `aws:eks:cluster-name` tag EKS and Karpenter set, and each managed node
+# group's Auto Scaling group by `eks:cluster-name`, whose details the exporter
+# reads from the Auto Scaling API; then ListMetrics and GetMetricData read what
+# CloudWatch holds for them. Those four are granted only when a cluster is listed.
+#
+# Every action is `Resource: "*"` because none supports anything narrower: the
+# IAM service reference lists no resource types and no condition keys for them.
+# `cloudwatch:namespace` exists and applies only to PutMetricData. The scoping is
+# in the chart values instead: named resources, and for EKS, the cluster tag.
 
 resource "aws_iam_role" "gateway" {
   count = local.provider_metrics_enabled ? 1 : 0
@@ -419,6 +425,22 @@ data "aws_iam_policy_document" "provider_metrics_read" {
     effect    = "Allow"
     actions   = ["iam:ListAccountAliases"]
     resources = ["*"]
+  }
+
+  dynamic "statement" {
+    for_each = length(var.provider_metrics.eks_cluster_names) > 0 ? [1] : []
+
+    content {
+      sid    = "EksNodeDiscovery"
+      effect = "Allow"
+      actions = [
+        "autoscaling:DescribeAutoScalingGroups",
+        "cloudwatch:GetMetricData",
+        "cloudwatch:ListMetrics",
+        "tag:GetResources",
+      ]
+      resources = ["*"]
+    }
   }
 }
 
@@ -802,6 +824,7 @@ locals {
               region  = var.region
               rds     = { instances = local.provider_metrics_rds_instances }
               s3      = { buckets = local.provider_metrics_s3_buckets }
+              eks     = { clusters = distinct(var.provider_metrics.eks_cluster_names) }
             },
             var.provider_metrics.scrape_interval == null ? {} : { scrapeInterval = var.provider_metrics.scrape_interval },
             var.provider_metrics.importance == null ? {} : { metricImportance = var.provider_metrics.importance },
