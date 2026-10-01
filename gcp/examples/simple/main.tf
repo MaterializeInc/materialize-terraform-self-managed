@@ -490,6 +490,30 @@ module "monitoring" {
   # }
   # otlp_auth_header_secrets = { "x-honeycomb-team" = var.honeycomb_api_key }
 
+  # Where alerts go. A default install configures no receiver, so every alert
+  # reaches nobody until one is set. Commented out for the same reason as the
+  # destinations above: receivers need credentials. A receiver references each
+  # one by path, and `alerting_receiver_secrets` supplies it as a Secret rather
+  # than as Helm values. Declare those as `sensitive` variables of your own too.
+  #
+  # alerting = {
+  #   preset = "critical-infrastructure"
+  #   receivers = {
+  #     oncall = {
+  #       class  = "page"
+  #       config = { pagerduty_configs = [{ routing_key_file = "/etc/alertmanager/secrets/alertmanager-receivers/pagerduty-key" }] }
+  #     }
+  #     platform = {
+  #       class  = ["high", "normal"]
+  #       config = { slack_configs = [{ channel = "#platform-alerts", api_url_file = "/etc/alertmanager/secrets/alertmanager-receivers/slack-url" }] }
+  #     }
+  #   }
+  # }
+  # alerting_receiver_secrets = {
+  #   "pagerduty-key" = var.pagerduty_routing_key
+  #   "slack-url"     = var.platform_slack_webhook
+  # }
+
   materialize_instance_namespace = local.materialize_instance_namespace
   materialize_operator_namespace = local.materialize_operator_namespace
 

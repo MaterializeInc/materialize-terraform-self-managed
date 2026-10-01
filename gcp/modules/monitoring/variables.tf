@@ -339,6 +339,80 @@ variable "otlp_auth_bearer_token" {
   sensitive   = true
 }
 
+# ==============================================================================
+# Alerting
+# ==============================================================================
+# Passed straight through to the monitoring module, which maps them onto the
+# chart's `rules.*` and `alerting.*` and creates the receiver Secret. As with the
+# destinations above, the type expressions restate upstream's so terraform-docs
+# publishes them, and validation stays upstream only. See
+# https://materializeinc.github.io/materialize-monitoring/alerting/terraform/.
+
+variable "alert_rules" {
+  description = <<-EOT
+    Which bundled alerting rules install, and how they are tuned: `enabled`, `capabilities`,
+    `selected`, `disabled`, per-alert `overrides` (`for_duration` and `labels`),
+    `environment_namespaces`, `excluded_namespaces`, and the `infra_workloads` tiers. Every
+    attribute is optional, and an unset one keeps the chart's default.
+  EOT
+  type = object({
+    enabled                = optional(bool)
+    capabilities           = optional(list(string))
+    selected               = optional(list(string))
+    disabled               = optional(list(string))
+    overrides              = optional(map(object({ for_duration = optional(string), labels = optional(map(string)) })))
+    environment_namespaces = optional(list(string))
+    excluded_namespaces    = optional(list(string))
+    infra_workloads = optional(object({
+      core         = optional(list(string))
+      important    = optional(list(string))
+      nonessential = optional(list(string))
+      daemonset    = optional(list(string))
+    }))
+  })
+  default  = {}
+  nullable = false
+}
+
+variable "alerting" {
+  description = <<-EOT
+    Where the bundled Alertmanager sends alerts: the routing `preset`, `presets`,
+    `unknown_severity`, `receivers`, `routes` (`root` and `extra`), `inhibit_rules`,
+    `time_intervals`, `templates` and `global`. The Alertmanager-native parts pass through as
+    written. A default install configures no receiver, so every alert reaches nobody.
+
+    Credentials are referenced by path, as `/etc/alertmanager/secrets/alertmanager-receivers/<key>`,
+    and supplied through `alerting_receiver_secrets`; an inline credential fails the render.
+  EOT
+  type = object({
+    preset           = optional(string)
+    presets          = optional(map(map(string)))
+    unknown_severity = optional(string)
+    receivers        = optional(any)
+    routes           = optional(object({ root = optional(any), extra = optional(any) }))
+    inhibit_rules    = optional(any)
+    time_intervals   = optional(any)
+    templates        = optional(map(string))
+    global           = optional(any)
+  })
+  default  = {}
+  nullable = false
+}
+
+variable "alerting_receiver_secrets" {
+  description = "Receiver credentials keyed by file name, delivered as the `alertmanager-receivers` Secret the monitoring module creates, never through the Helm values. When set, the plan fails if a receiver reads a key this map does not include. Empty creates no Secret and skips that check, leaving the name to External Secrets Operator or a CSI driver."
+  type        = map(string)
+  default     = {}
+  nullable    = false
+  sensitive   = true
+}
+
+variable "alertmanager_namespace" {
+  description = "Namespace the Alertmanager pods run in, where `alerting_receiver_secrets` is created. Null uses `namespace`; set it to `alertmanager` under the chart's `split-namespace` profile. The namespace has to exist before apply."
+  type        = string
+  default     = null
+}
+
 variable "tolerations" {
   description = "Tolerations for the monitoring workloads, including the Alloy agent DaemonSet."
   type = list(object({

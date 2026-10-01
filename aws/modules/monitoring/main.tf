@@ -954,6 +954,14 @@ module "monitoring" {
   otlp_auth_header_secrets = var.otlp_auth_header_secrets
   otlp_auth_bearer_token   = var.otlp_auth_bearer_token
 
+  # Straight pass-through as well. The monitoring module validates the preset,
+  # durations and template names, maps these onto the chart, and fails the plan
+  # when a receiver reads a key `alerting_receiver_secrets` does not set.
+  alert_rules               = var.alert_rules
+  alerting                  = var.alerting
+  alerting_receiver_secrets = var.alerting_receiver_secrets
+  alertmanager_namespace    = var.alertmanager_namespace
+
   # Computed values ahead of the caller's, so `additional_values` still overrides
   # anything computed here.
   additional_values = concat(
