@@ -59,3 +59,17 @@ variable "iam_permissions_boundary" {
   type        = string
   default     = null
 }
+
+variable "enable_service_monitor" {
+  description = "Create a ServiceMonitor for the Karpenter controller's metrics. The prometheus-operator CRDs must be installed before this module, or the chart leaves the ServiceMonitor out."
+  type        = bool
+  default     = false
+  nullable    = false
+}
+
+variable "service_monitor_instance_types" {
+  description = "Instance types to keep offering-availability metrics for, which drop to 0 when EC2 has no capacity for a type in a zone. Pass the types the node pools allow. The metric is dropped for every other type, and entirely when this is empty, since Karpenter publishes it for every type in the region."
+  type        = list(string)
+  default     = []
+  nullable    = false
+}

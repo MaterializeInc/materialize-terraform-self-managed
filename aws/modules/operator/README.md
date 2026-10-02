@@ -39,7 +39,9 @@ No modules.
 | ---- | ----------- | ---- | ------- | :------: |
 | <a name="input_aws_account_id"></a> [aws\_account\_id](#input\_aws\_account\_id) | AWS account ID for the operator Helm values. | `string` | n/a | yes |
 | <a name="input_aws_region"></a> [aws\_region](#input\_aws\_region) | AWS region for the operator Helm values. | `string` | n/a | yes |
+| <a name="input_create_monitoring_namespace"></a> [create\_monitoring\_namespace](#input\_create\_monitoring\_namespace) | Create the monitoring namespace. Set false when it is created earlier, such as by the monitoring-crds module, which needs it before any component that ships a ServiceMonitor is installed. | `bool` | `true` | no |
 | <a name="input_enable_license_key_checks"></a> [enable\_license\_key\_checks](#input\_enable\_license\_key\_checks) | Enable license key checks. | `bool` | `true` | no |
+| <a name="input_enable_metrics_server_service_monitor"></a> [enable\_metrics\_server\_service\_monitor](#input\_enable\_metrics\_server\_service\_monitor) | Create a ServiceMonitor for metrics-server's own metrics. Needs `metrics_server_values.metrics_enabled`. The prometheus-operator CRDs must be installed before this module; the chart does not check, so the install fails without them. | `bool` | `false` | no |
 | <a name="input_enable_network_policies"></a> [enable\_network\_policies](#input\_enable\_network\_policies) | Enable network policies for the operator namespace | `bool` | `true` | no |
 | <a name="input_helm_chart"></a> [helm\_chart](#input\_helm\_chart) | Chart name from repository or local path to chart. For local charts, set the path to the chart directory. | `string` | `"materialize-operator"` | no |
 | <a name="input_helm_repository"></a> [helm\_repository](#input\_helm\_repository) | Repository URL for the Materialize operator Helm chart. Leave empty if using local chart. | `string` | `"https://materializeinc.github.io/materialize/"` | no |

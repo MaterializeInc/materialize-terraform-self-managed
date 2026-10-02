@@ -57,11 +57,13 @@ No modules.
 | <a name="input_cluster_endpoint"></a> [cluster\_endpoint](#input\_cluster\_endpoint) | Endpoint of the EKS cluster's Kubernetes API server. | `string` | n/a | yes |
 | <a name="input_cluster_name"></a> [cluster\_name](#input\_cluster\_name) | Name of the EKS cluster. | `string` | n/a | yes |
 | <a name="input_cluster_oidc_issuer_url"></a> [cluster\_oidc\_issuer\_url](#input\_cluster\_oidc\_issuer\_url) | URL of the EKS cluster's OIDC issuer. | `string` | n/a | yes |
+| <a name="input_enable_service_monitor"></a> [enable\_service\_monitor](#input\_enable\_service\_monitor) | Create a ServiceMonitor for the Karpenter controller's metrics. The prometheus-operator CRDs must be installed before this module, or the chart leaves the ServiceMonitor out. | `bool` | `false` | no |
 | <a name="input_helm_chart_version"></a> [helm\_chart\_version](#input\_helm\_chart\_version) | Version of the Karpenter helm chart to install. | `string` | `"1.8.1"` | no |
 | <a name="input_iam_permissions_boundary"></a> [iam\_permissions\_boundary](#input\_iam\_permissions\_boundary) | ARN of the IAM permissions boundary to attach to all IAM roles created by this module. Required for BYOC deployments. | `string` | `null` | no |
 | <a name="input_name_prefix"></a> [name\_prefix](#input\_name\_prefix) | Prefix for all resource names. | `string` | n/a | yes |
 | <a name="input_node_selector"></a> [node\_selector](#input\_node\_selector) | Node selector for the Karpenter controller pods. | `map(string)` | n/a | yes |
 | <a name="input_oidc_provider_arn"></a> [oidc\_provider\_arn](#input\_oidc\_provider\_arn) | ARN of the EKS cluster's OIDC provider. | `string` | n/a | yes |
+| <a name="input_service_monitor_instance_types"></a> [service\_monitor\_instance\_types](#input\_service\_monitor\_instance\_types) | Instance types to keep offering-availability metrics for, which drop to 0 when EC2 has no capacity for a type in a zone. Pass the types the node pools allow. The metric is dropped for every other type, and entirely when this is empty, since Karpenter publishes it for every type in the region. | `list(string)` | `[]` | no |
 | <a name="input_tags"></a> [tags](#input\_tags) | Tags to apply to all resources | `map(string)` | `{}` | no |
 | <a name="input_vm_memory_overhead_percent"></a> [vm\_memory\_overhead\_percent](#input\_vm\_memory\_overhead\_percent) | Reduction in memory from advertized, to account for VM overhead. | `number` | `0.05` | no |
 

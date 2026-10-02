@@ -20,9 +20,12 @@
 #   * Workload Identity must be enabled on the cluster (`workload_pool` set on
 #     the GKE cluster). Without it the bindings below exist but the pods still
 #     fall back to the node service account.
-#   * The `monitoring` namespace is created by the operator module in the
-#     supported topology, so `create_namespace` defaults to false. Keep a
-#     `depends_on` for the operator or the release can race the namespace.
+#   * The `monitoring` namespace is created by the `monitoring-crds` module in
+#     the supported topology, so `create_namespace` defaults to false. That
+#     module also installs the CRDs, ahead of every component that ships a
+#     ServiceMonitor, so the examples pass `enable_monitoring_crds = false`
+#     here. Pass its `namespace` output as `namespace`, or keep a `depends_on`
+#     for it, or the release can race the namespace.
 #   * The operator module also installs metrics-server, which the Materialize
 #     Console depends on for cluster metrics. If you disable it there, set
 #     `install_metrics_server = true` here in the same change.

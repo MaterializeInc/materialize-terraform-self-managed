@@ -297,9 +297,10 @@ resource "kubectl_manifest" "ory_certificate" {
 module "ory_kratos" {
   source = "../ory-kratos"
 
-  namespace        = var.namespace
-  create_namespace = false
-  dsn              = var.kratos_dsn
+  namespace              = var.namespace
+  enable_service_monitor = var.enable_service_monitors
+  create_namespace       = false
+  dsn                    = var.kratos_dsn
 
   secrets_default = var.kratos_secrets_default
   secrets_cookie  = var.kratos_secrets_cookie
@@ -367,8 +368,9 @@ module "ory_kratos" {
 module "ory_hydra" {
   source = "../ory-hydra"
 
-  namespace        = var.namespace
-  create_namespace = false
+  namespace              = var.namespace
+  enable_service_monitor = var.enable_service_monitors
+  create_namespace       = false
 
   dsn        = var.hydra_dsn
   issuer_url = local.hydra_external_url
@@ -642,6 +644,35 @@ resource "kubernetes_network_policy_v1" "ory_from_materialize_ingress" {
           match_labels = {
             "kubernetes.io/metadata.name" = var.namespace
           }
+        }
+      }
+    }
+
+    # The monitoring gateway, to the Kratos and Hydra admin ports, where their
+    # ServiceMonitors read /admin/metrics/prometheus. Ory serves metrics on no
+    # other listener, so this admits the gateway to the whole admin API, which
+    # has no authentication of its own; see `enable_service_monitors`. It admits
+    # the gateway's pods and nothing else in the monitoring namespace.
+    dynamic "ingress" {
+      for_each = var.enable_service_monitors ? [1] : []
+      content {
+        from {
+          namespace_selector {
+            match_labels = {
+              "kubernetes.io/metadata.name" = var.monitoring_namespace
+            }
+          }
+          pod_selector {
+            match_labels = var.metrics_scraper_pod_labels
+          }
+        }
+        ports {
+          protocol = "TCP"
+          port     = 4434
+        }
+        ports {
+          protocol = "TCP"
+          port     = 4445
         }
       }
     }

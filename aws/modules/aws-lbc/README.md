@@ -35,6 +35,7 @@ No modules.
 | Name | Description | Type | Default | Required |
 | ---- | ----------- | ---- | ------- | :------: |
 | <a name="input_eks_cluster_name"></a> [eks\_cluster\_name](#input\_eks\_cluster\_name) | Name of the EKS cluster | `string` | n/a | yes |
+| <a name="input_enable_service_monitor"></a> [enable\_service\_monitor](#input\_enable\_service\_monitor) | Create a ServiceMonitor for the controller's metrics. The prometheus-operator CRDs must be installed before this module; the chart does not check, so the install fails without them. | `bool` | `false` | no |
 | <a name="input_iam_name"></a> [iam\_name](#input\_iam\_name) | Name of the AWS IAM role and policy | `string` | `"albc"` | no |
 | <a name="input_iam_permissions_boundary"></a> [iam\_permissions\_boundary](#input\_iam\_permissions\_boundary) | ARN of the IAM permissions boundary to attach to all IAM roles created by this module. Required for BYOC deployments. | `string` | `null` | no |
 | <a name="input_name_prefix"></a> [name\_prefix](#input\_name\_prefix) | Prefix to use for AWS LBC resources | `string` | n/a | yes |

@@ -73,3 +73,10 @@ variable "iam_permissions_boundary" {
   type        = string
   default     = null
 }
+
+variable "enable_service_monitor" {
+  description = "Create a ServiceMonitor for the controller's metrics. The prometheus-operator CRDs must be installed before this module; the chart does not check, so the install fails without them."
+  type        = bool
+  default     = false
+  nullable    = false
+}

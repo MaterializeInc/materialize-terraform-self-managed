@@ -24,6 +24,7 @@ For a complete deployment onto an existing cluster -- no cloud infrastructure, j
 | [`cert-manager`](./modules/cert-manager) | Installs cert-manager for automated TLS certificate management |
 | [`self-signed-cluster-issuer`](./modules/self-signed-cluster-issuer) | Creates a self-signed ClusterIssuer for internal TLS certificates |
 | [`materialize-instance`](./modules/materialize-instance) | Deploys and configures a Materialize instance |
+| [`monitoring-crds`](./modules/monitoring-crds) | Creates the monitoring namespace and installs the monitoring CRDs before the components whose ServiceMonitors need them |
 
 ---
 
@@ -41,6 +42,22 @@ Installs the cert-manager Helm chart for automated certificate lifecycle managem
 **Usage:** Required by Materialize instances for TLS certificate management.
 
 **Documentation:** See [modules/cert-manager/README.md](./modules/cert-manager/README.md)
+
+---
+
+### monitoring-crds
+
+Creates the `monitoring` namespace and installs the `materialize-monitoring-crds` chart, which holds the prometheus-operator and grafana-operator CRDs.
+It runs right after the cluster, so that Karpenter, cert-manager and the other components can ship their own ServiceMonitors in the same apply.
+
+**Key Features:**
+- Keeps the release name and namespace the monitoring module used, so an existing install moves it here with `moved` blocks instead of reinstalling it
+- `crds_installed` output for each component's ServiceMonitor toggle, which also makes the component wait for the CRDs
+- `install_crds = false` for clusters that get these CRDs from elsewhere
+
+**Usage:** Used by the `simple` and `enterprise` examples when `enable_observability` is on. See the v15.0.0 upgrade notes in the root README before adding it to an existing root.
+
+**Documentation:** See [modules/monitoring-crds/README.md](./modules/monitoring-crds/README.md)
 
 ---
 

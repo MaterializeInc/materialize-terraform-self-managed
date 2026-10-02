@@ -271,6 +271,21 @@ resource "helm_release" "ebs_csi_driver" {
     value = "true"
   }
 
+  # Metrics Services, and a ServiceMonitor for each: the controller's AWS API
+  # calls and each of its sidecars, and on every node the per-volume EBS
+  # statistics, including time spent over the volume's provisioned IOPS and
+  # throughput. The chart renders the ServiceMonitors only when the
+  # monitoring.coreos.com API already exists.
+  set {
+    name  = "controller.enableMetrics"
+    value = var.enable_service_monitor
+  }
+
+  set {
+    name  = "node.enableMetrics"
+    value = var.enable_service_monitor
+  }
+
   # Add node selectors for controller pods if provided
   dynamic "set" {
     for_each = var.node_selector

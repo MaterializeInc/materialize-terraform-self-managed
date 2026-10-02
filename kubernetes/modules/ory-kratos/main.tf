@@ -338,6 +338,13 @@ locals {
   default_helm_values = merge({
     replicaCount = var.replica_count
 
+    # Scrapes the admin listener's /admin/metrics/prometheus over plain HTTP.
+    # The chart renders the monitor only when the monitoring.coreos.com API
+    # already exists.
+    serviceMonitor = {
+      enabled = var.enable_service_monitor
+    }
+
     secret = {
       enabled      = false
       nameOverride = kubernetes_secret.kratos.metadata[0].name

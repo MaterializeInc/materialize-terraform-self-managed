@@ -58,6 +58,13 @@ variable "monitoring_namespace" {
   nullable    = false
 }
 
+variable "create_monitoring_namespace" {
+  description = "Create the monitoring namespace. Set false when it is created earlier, such as by the monitoring-crds module, which needs it before any component that ships a ServiceMonitor is installed."
+  type        = bool
+  default     = true
+  nullable    = false
+}
+
 variable "metrics_server_version" {
   description = "Version of metrics-server to install"
   type        = string
@@ -192,5 +199,12 @@ variable "operator_service_account_annotations" {
   description = "Annotations to add to the operator's Kubernetes service account, e.g. iam.gke.io/gcp-service-account to link it to a GCP service account via workload identity (required for enable_node_upgrade_rollout_trigger)."
   type        = map(string)
   default     = {}
+  nullable    = false
+}
+
+variable "enable_metrics_server_service_monitor" {
+  description = "Create a ServiceMonitor for metrics-server's own metrics. Only takes effect with `install_metrics_server = true`, which is off by default because GKE runs a managed metrics-server this does not cover. Needs `metrics_server_values.metrics_enabled`. The prometheus-operator CRDs must be installed before this module; the chart does not check, so the install fails without them."
+  type        = bool
+  default     = false
   nullable    = false
 }

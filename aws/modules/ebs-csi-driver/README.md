@@ -34,6 +34,7 @@ No modules.
 | Name | Description | Type | Default | Required |
 | ---- | ----------- | ---- | ------- | :------: |
 | <a name="input_chart_version"></a> [chart\_version](#input\_chart\_version) | Version of the EBS CSI driver Helm chart | `string` | `"2.54.1"` | no |
+| <a name="input_enable_service_monitor"></a> [enable\_service\_monitor](#input\_enable\_service\_monitor) | Expose the controller's and nodes' metrics, with a ServiceMonitor for each. The prometheus-operator CRDs must be installed before this module, or the chart leaves the ServiceMonitors out. | `bool` | `false` | no |
 | <a name="input_iam_permissions_boundary"></a> [iam\_permissions\_boundary](#input\_iam\_permissions\_boundary) | ARN of the IAM permissions boundary to attach to all IAM roles created by this module. Required for BYOC deployments. | `string` | `null` | no |
 | <a name="input_kms_key_id"></a> [kms\_key\_id](#input\_kms\_key\_id) | The ARN of a KMS key to use for EBS volume encryption. If not specified, volumes will use AWS managed encryption. | `string` | `null` | no |
 | <a name="input_name_prefix"></a> [name\_prefix](#input\_name\_prefix) | Prefix for all resource names | `string` | n/a | yes |

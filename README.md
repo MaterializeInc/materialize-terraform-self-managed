@@ -194,6 +194,18 @@ If you use the `aks` module without setting `default_node_pool_vm_size`, upgradi
 
 The other three rows change only the example files. Your deployment keeps its current sizes unless you copy the new values into it.
 
+##### Monitoring CRDs install first, so components can ship ServiceMonitors
+
+The examples add a `monitoring_crds` module, which creates the `monitoring` namespace and installs the monitoring CRDs right after the cluster.
+They use it to turn on the ServiceMonitors that Karpenter, cert-manager, metrics-server and the other components ship.
+A root that does not adopt it is unaffected.
+
+To adopt it in a root based on an example, copy the `monitoring_crds` module, both of its `moved` blocks, and the new arguments on the other modules.
+Before applying, check that `terraform plan` shows the namespace and the `mzmon-crds` release as moved, and destroys nothing.
+**Without the namespace's `moved` block, Terraform destroys the `monitoring` namespace and the whole monitoring stack with it.**
+
+If the cluster gets these CRDs from elsewhere, such as kube-prometheus-stack, set `install_crds = false`.
+
 #### v14.0.0
 
 ##### Metadata database defaults to PostgreSQL 18

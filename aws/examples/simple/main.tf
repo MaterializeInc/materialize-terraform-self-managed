@@ -106,6 +106,35 @@ module "eks" {
   ]
 }
 
+# 2.0 Install the monitoring namespace and CRDs before anything that ships a
+# ServiceMonitor. A chart that declares one before the CRDs exist either fails
+# its install or quietly leaves the monitor out for good. Each component below
+# turns its monitor on from `crds_installed`, which also makes it wait for the
+# CRDs. Without the monitoring stack this still creates the namespace, as the
+# operator module used to.
+module "monitoring_crds" {
+  source = "../../../kubernetes/modules/monitoring-crds"
+
+  namespace    = local.monitoring_namespace
+  install_crds = var.enable_observability
+
+  depends_on = [module.eks]
+}
+
+# State migration: the operator module used to create the namespace, and the
+# monitoring module used to install the CRDs. Both move here as they are, so
+# neither is recreated. The namespace's block matters most: without it,
+# Terraform destroys the monitoring namespace and everything in it.
+moved {
+  from = module.operator.kubernetes_namespace.monitoring[0]
+  to   = module.monitoring_crds.kubernetes_namespace.monitoring[0]
+}
+
+moved {
+  from = module.monitoring[0].module.monitoring.helm_release.crds[0]
+  to   = module.monitoring_crds.helm_release.crds[0]
+}
+
 # ==============================================================================
 # Multi-AZ Node Distribution
 # ==============================================================================
@@ -195,6 +224,8 @@ module "coredns" {
 module "node_local_dns" {
   source = "../../../kubernetes/modules/node-local-dns"
 
+  enable_service_monitor = module.monitoring_crds.crds_installed
+
   # EKS assigns kube-dns the .10 address of the cluster service CIDR
   dns_server = cidrhost(module.eks.cluster_service_cidr, 10)
 
@@ -208,6 +239,10 @@ module "node_local_dns" {
 # 2.2 Install Karpenter to manage creation of additional nodes
 module "karpenter" {
   source = "../../modules/karpenter"
+
+  enable_service_monitor = module.monitoring_crds.crds_installed
+  # The node pools' instance types, for Karpenter's capacity-availability metric.
+  service_monitor_instance_types = distinct(concat(local.instance_types_generic, local.instance_types_materialize))
 
   name_prefix             = var.name_prefix
   cluster_name            = module.eks.cluster_name
@@ -332,6 +367,8 @@ module "nodepool_materialize" {
 module "aws_lbc" {
   source = "../../modules/aws-lbc"
 
+  enable_service_monitor = module.monitoring_crds.crds_installed
+
   name_prefix       = var.name_prefix
   eks_cluster_name  = module.eks.cluster_name
   oidc_provider_arn = module.eks.oidc_provider_arn
@@ -365,6 +402,8 @@ module "aws_lbc" {
 module "ebs_csi_driver" {
   source = "../../modules/ebs-csi-driver"
 
+  enable_service_monitor = module.monitoring_crds.crds_installed
+
   name_prefix       = var.name_prefix
   oidc_provider_arn = module.eks.oidc_provider_arn
   oidc_issuer_url   = module.eks.cluster_oidc_issuer_url
@@ -382,6 +421,8 @@ module "ebs_csi_driver" {
 # 5. Install Certificate Manager for TLS
 module "cert_manager" {
   source = "../../../kubernetes/modules/cert-manager"
+
+  enable_service_monitor = module.monitoring_crds.crds_installed
 
   node_selector = local.generic_node_labels
 
@@ -408,6 +449,10 @@ module "self_signed_cluster_issuer" {
 module "operator" {
   source = "../../modules/operator"
 
+  # module.monitoring_crds creates the monitoring namespace.
+  create_monitoring_namespace           = false
+  enable_metrics_server_service_monitor = module.monitoring_crds.crds_installed
+
   operator_version = var.materialize_version
 
   name_prefix    = var.name_prefix
@@ -423,7 +468,7 @@ module "operator" {
 
   enable_network_policies = true
   operator_namespace      = local.operator_namespace
-  monitoring_namespace    = local.monitoring_namespace
+  monitoring_namespace    = module.monitoring_crds.namespace
 
   # Enable Prometheus scrape annotations when observability is enabled
   helm_values = var.enable_observability ? {
@@ -587,9 +632,11 @@ module "monitoring" {
   # telemetry buckets. Set to false for anything you cannot afford to lose.
   bucket_force_destroy = true
 
-  namespace = local.monitoring_namespace
-  # The operator module creates the "monitoring" namespace.
-  create_namespace = false
+  namespace = module.monitoring_crds.namespace
+  # module.monitoring_crds creates the namespace and installs the CRDs, ahead of
+  # the components whose ServiceMonitors need them.
+  create_namespace       = false
+  enable_monitoring_crds = false
 
   oidc_provider_arn       = module.eks.oidc_provider_arn
   cluster_oidc_issuer_url = module.eks.cluster_oidc_issuer_url

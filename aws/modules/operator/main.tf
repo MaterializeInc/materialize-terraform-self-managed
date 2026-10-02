@@ -5,9 +5,19 @@ resource "kubernetes_namespace" "materialize" {
 }
 
 resource "kubernetes_namespace" "monitoring" {
+  count = var.create_monitoring_namespace ? 1 : 0
+
   metadata {
     name = var.monitoring_namespace
   }
+}
+
+# The namespace gained `count` so that a caller can create it earlier, with the
+# monitoring CRDs. Existing state holds it without an index; this re-keys it
+# rather than replacing it, which would delete everything in the namespace.
+moved {
+  from = kubernetes_namespace.monitoring
+  to   = kubernetes_namespace.monitoring[0]
 }
 
 locals {
@@ -241,7 +251,7 @@ resource "helm_release" "metrics_server" {
   count = var.install_metrics_server ? 1 : 0
 
   name       = "${var.name_prefix}-metrics-server"
-  namespace  = kubernetes_namespace.monitoring.metadata[0].name
+  namespace  = var.monitoring_namespace
   repository = "https://kubernetes-sigs.github.io/metrics-server/"
   chart      = "metrics-server"
   version    = var.metrics_server_version
@@ -258,6 +268,14 @@ resource "helm_release" "metrics_server" {
   set {
     name  = "metrics.enabled"
     value = var.metrics_server_values.metrics_enabled
+  }
+
+  # Scrapes the HTTPS port that `metrics.enabled` opens to unauthenticated
+  # `/metrics` reads. The chart renders the monitor only with both on, and does
+  # not check for the monitoring.coreos.com API first.
+  set {
+    name  = "serviceMonitor.enabled"
+    value = var.enable_metrics_server_service_monitor
   }
 
   # Add node selectors for metrics-server pods if provided
