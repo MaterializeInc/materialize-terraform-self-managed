@@ -16,6 +16,12 @@ variable "prefix" {
   nullable    = false
 }
 
+variable "server_name" {
+  description = "Name of the Flexible Server. Defaults to `<prefix>-pg`. Set it to adopt a server created outside Terraform, such as the Premium SSD v2 server scripts/azure-migrate-metadata-premium-ssd-v2.sh creates; changing it on an existing server replaces the server."
+  type        = string
+  default     = null
+}
+
 variable "subnet_id" {
   description = "The ID of the subnet for PostgreSQL"
   type        = string
@@ -92,8 +98,8 @@ variable "storage_type" {
     not support storage autogrow or PostgreSQL 13 or older.
 
     Changing this on an existing server replaces it, which destroys the Materialize metadata:
-    Azure has no online migration between the two. Moving an existing server to Premium SSD v2 is
-    not supported; keep Premium_LRS on it.
+    Azure has no online migration between the two. To move an existing server, use
+    scripts/azure-migrate-metadata-premium-ssd-v2.sh (see scripts/azure-migrate-metadata-premium-ssd-v2.md).
   EOT
   type        = string
   default     = "Premium_LRS"
