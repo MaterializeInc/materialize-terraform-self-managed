@@ -89,9 +89,15 @@ locals {
   }
 
   database_config = {
-    sku_name                      = "GP_Standard_D2ds_v5"
-    postgres_version              = "18"
-    storage_mb                    = 32768
+    sku_name         = "GP_Standard_D2ds_v5"
+    postgres_version = "18"
+    storage_mb       = 32768
+    # Premium SSD v2 at its free baseline. Switching an existing server's storage
+    # type replaces it and destroys the metadata; to migrate one, see
+    # scripts/azure-migrate-metadata-premium-ssd-v2.md.
+    storage_type                  = "PremiumV2_LRS"
+    storage_iops                  = 3000
+    storage_throughput            = 125
     backup_retention_days         = 7
     administrator_login           = "materialize"
     administrator_password        = null # Will generate random password
@@ -305,6 +311,9 @@ module "database" {
   sku_name                      = local.database_config.sku_name
   postgres_version              = local.database_config.postgres_version
   storage_mb                    = local.database_config.storage_mb
+  storage_type                  = local.database_config.storage_type
+  storage_iops                  = local.database_config.storage_iops
+  storage_throughput            = local.database_config.storage_throughput
   backup_retention_days         = local.database_config.backup_retention_days
   public_network_access_enabled = local.database_config.public_network_access_enabled
 

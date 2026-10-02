@@ -7,7 +7,7 @@ resource "random_password" "admin_password" {
 }
 
 resource "azurerm_postgresql_flexible_server" "postgres" {
-  name                = "${var.prefix}-pg"
+  name                = coalesce(var.server_name, "${var.prefix}-pg")
   resource_group_name = var.resource_group_name
   location            = var.location
   version             = var.postgres_version
