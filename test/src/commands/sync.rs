@@ -3,7 +3,8 @@ use std::path::Path;
 use anyhow::Result;
 
 use crate::commands::init::{
-    DevOverrides, copy_example_files, inject_dev_overrides, write_dev_variables_tf,
+    DevOverrides, copy_example_files, detect_object_store, inject_dev_overrides,
+    inject_object_store, write_dev_variables_tf,
 };
 use crate::helpers::{
     ci_log_group, example_dir, project_root, read_tfvars, upload_tfvars_to_backend,
@@ -34,6 +35,9 @@ pub async fn phase_sync(dir: &Path) -> Result<()> {
             dir.strip_prefix(&root).unwrap_or(dir).display()
         );
 
+        // Read this before the copy overwrites the file the injector wrote.
+        let persist_backend = detect_object_store(dir).await?;
+
         println!("\nCopying terraform files...");
         copy_example_files(&src, dir, provider).await?;
 
@@ -50,6 +54,11 @@ pub async fn phase_sync(dir: &Path) -> Result<()> {
             println!("\nRe-applying dev overrides...");
             write_dev_variables_tf(dir).await?;
             inject_dev_overrides(dir, &overrides).await?;
+        }
+
+        if persist_backend.module_name().is_some() {
+            println!("\nRe-applying the in-cluster object store...");
+            inject_object_store(dir, persist_backend, provider).await?;
         }
 
         upload_tfvars_to_backend(dir).await?;
