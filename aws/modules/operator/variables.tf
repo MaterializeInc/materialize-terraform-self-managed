@@ -17,6 +17,22 @@ variable "orchestratord_version" {
   default     = null
 }
 
+variable "orchestratord_image_repository" {
+  description = "Image repository for the Materialize orchestrator (orchestratord), without a tag. Override this to pull from a mirror or pull-through cache instead of Docker Hub, for example \"myregistry.example.com/materialize/orchestratord\". Leave null to use the Helm chart's default."
+  type        = string
+  default     = null
+
+  validation {
+    condition = var.orchestratord_image_repository == null ? true : alltrue([
+      length(var.orchestratord_image_repository) > 0,
+      !can(regex("\\s|://", var.orchestratord_image_repository)),
+      length(reverse(split("/", var.orchestratord_image_repository))[0]) > 0,
+      !can(regex("[:@]", reverse(split("/", var.orchestratord_image_repository))[0])),
+    ])
+    error_message = "orchestratord_image_repository must be a repository path with no tag, digest, whitespace, URL scheme, or trailing slash, for example \"myregistry.example.com/materialize/orchestratord\". Leave null to use the Helm chart's default. Use orchestratord_version to set the tag."
+  }
+}
+
 variable "helm_repository" {
   description = "Repository URL for the Materialize operator Helm chart. Leave empty if using local chart."
   type        = string

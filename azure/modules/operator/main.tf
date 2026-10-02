@@ -36,9 +36,14 @@ locals {
         enableLicenseKeyChecks = var.enable_license_key_checks
         installV1CRD           = var.install_v1_crd
       }
-      image = var.orchestratord_version == null ? {} : {
-        tag = var.orchestratord_version
-      },
+      image = merge(
+        var.orchestratord_image_repository == null ? {} : {
+          repository = var.orchestratord_image_repository
+        },
+        var.orchestratord_version == null ? {} : {
+          tag = var.orchestratord_version
+        },
+      ),
       cloudProvider = {
         type   = "azure"
         region = var.location

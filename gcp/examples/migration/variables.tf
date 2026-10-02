@@ -196,9 +196,16 @@ variable "operator_version" {
 }
 
 variable "environmentd_version" {
-  description = "Version tag of environmentd (e.g., 'v0.130.0'). The module prepends 'materialize/environmentd:'. If not set, defaults to the module's built-in version which may not match your current deployment."
+  description = "Version tag of environmentd (e.g., 'v0.130.0'). The module prepends the environmentd image repository, 'materialize/environmentd' by default. If not set, defaults to the module's built-in version which may not match your current deployment."
   type        = string
   default     = null
+}
+
+variable "disk_setup_image" {
+  description = "Docker image for the disk setup daemonset. Old module default: v0.4.0. Set to match your existing daemonset to avoid unnecessary updates, or point at a mirror to avoid pulling from Docker Hub. Run: kubectl get daemonset disk-setup -n disk-setup -o jsonpath='{.spec.template.spec.initContainers[0].image}'"
+  type        = string
+  default     = "materialize/ephemeral-storage-setup-image:v0.4.0"
+  nullable    = false
 }
 
 variable "force_rollout" {
