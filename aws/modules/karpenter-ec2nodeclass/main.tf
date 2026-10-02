@@ -80,6 +80,14 @@ locals {
     hard-limit = 1048576
   EOF
 
+  # `swap_enabled` predates `ephemeral_storage_mode` and still wins when set to
+  # either value, so existing roots keep their behavior untouched.
+  ephemeral_storage_mode = (
+    var.swap_enabled == null
+    ? var.ephemeral_storage_mode
+    : (var.swap_enabled ? "swap" : "none")
+  )
+
   swap_bootstrap_args = <<-EOF
     [settings.bootstrap-containers.diskstrap]
     source = "${var.disk_setup_image}"
@@ -93,7 +101,30 @@ locals {
     "vm.watermark_scale_factor" = "100"
   EOF
 
-  userdata = var.swap_enabled ? "${local.default_userdata}\n${local.swap_bootstrap_args}" : local.default_userdata
+  # Combines the instance store NVMe into one LVM volume group, which a local
+  # CSI driver then carves PersistentVolumes out of. No sysctls here: those are
+  # swap tuning, and nothing about LVM needs them. No `--remove-taint` either,
+  # because a bootstrap container finishes before the node is marked ready, so
+  # there is no window in which a pod could land on an unconfigured disk.
+  lvm_bootstrap_args = <<-EOF
+    [settings.bootstrap-containers.diskstrap]
+    source = "${var.disk_setup_image}"
+    mode = "always"
+    essential = true
+    user-data = "${base64encode(jsonencode(["lvm", "--cloud-provider", "aws", "--vg-name", var.ephemeral_storage_vg_name]))}"
+  EOF
+
+  bootstrap_args = {
+    none = ""
+    swap = local.swap_bootstrap_args
+    lvm  = local.lvm_bootstrap_args
+  }
+
+  userdata = (
+    local.ephemeral_storage_mode == "none"
+    ? local.default_userdata
+    : "${local.default_userdata}\n${local.bootstrap_args[local.ephemeral_storage_mode]}"
+  )
 }
 
 resource "kubectl_manifest" "ec2nodeclass" {
