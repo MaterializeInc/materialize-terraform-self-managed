@@ -22,6 +22,7 @@ No modules.
 | Name | Type |
 | ---- | ---- |
 | [kubectl_manifest.materialize_instance](https://registry.terraform.io/providers/alekc/kubectl/2.4.1/docs/resources/manifest) | resource |
+| [kubernetes_config_map.balancerd_config](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/config_map) | resource |
 | [kubernetes_config_map.system_params](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/config_map) | resource |
 | [kubernetes_namespace.instance](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/namespace) | resource |
 | [kubernetes_network_policy_v1.allow_api_server_egress](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/network_policy_v1) | resource |
@@ -39,6 +40,7 @@ No modules.
 | <a name="input_balancer_cpu_request"></a> [balancer\_cpu\_request](#input\_balancer\_cpu\_request) | CPU request for balancer | `string` | `"100m"` | no |
 | <a name="input_balancer_memory_limit"></a> [balancer\_memory\_limit](#input\_balancer\_memory\_limit) | Memory limit for balancer | `string` | `"256Mi"` | no |
 | <a name="input_balancer_memory_request"></a> [balancer\_memory\_request](#input\_balancer\_memory\_request) | Memory request for balancer | `string` | `"256Mi"` | no |
+| <a name="input_balancerd_config"></a> [balancerd\_config](#input\_balancerd\_config) | Dynamic configuration for balancerd, written as JSON to a ConfigMap that balancerd re-reads at runtime; editing values needs no pod restart, but setting or unsetting this variable restarts balancerd pods. Values are matched against each config's type, so numbers must be JSON numbers (e.g. balancerd\_max\_connections = 5000, not "5000") and durations humantime strings (e.g. "60s"); a mismatched value is logged and ignored. Requires an operator that supports spec.balancerdConfigmapName. Set to null to skip creating the ConfigMap. | `any` | `null` | no |
 | <a name="input_balancerd_extra_dns_names"></a> [balancerd\_extra\_dns\_names](#input\_balancerd\_extra\_dns\_names) | Additional DNS names to include in the balancerd TLS certificate. Useful when balancerd is exposed via an external hostname. | `list(string)` | `[]` | no |
 | <a name="input_console_extra_dns_names"></a> [console\_extra\_dns\_names](#input\_console\_extra\_dns\_names) | Additional DNS names to include in the console TLS certificate. Useful when the console is exposed via an external hostname (e.g., materialize.internal.example.com). | `list(string)` | `[]` | no |
 | <a name="input_cpu_request"></a> [cpu\_request](#input\_cpu\_request) | CPU request for environmentd | `string` | `"1"` | no |
