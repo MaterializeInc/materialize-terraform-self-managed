@@ -41,14 +41,48 @@ variable "tags" {
 }
 
 variable "swap_enabled" {
-  description = "Whether to enable swap on the local NVMe disks."
+  description = <<-EOT
+    Deprecated: use `ephemeral_storage_mode` instead.
+
+    Whether to enable swap on the local NVMe disks. `true` selects the `swap`
+    mode and `false` selects `none`; null defers to `ephemeral_storage_mode`,
+    which is the default.
+  EOT
   type        = bool
-  default     = true
+  default     = null
+}
+
+variable "ephemeral_storage_mode" {
+  description = <<-EOT
+    What to do with the instance store NVMe disks.
+
+    `swap` adds them as swap, which is what Materialize compute nodes want so
+    they can spill. `lvm` combines them into a volume group for a local CSI
+    driver to provision PersistentVolumes from, which is what a storage node
+    pool running an object store wants. `none` leaves them untouched.
+
+    A node cannot do both, so run compute and storage as separate node pools,
+    each with its own node class built from this module.
+  EOT
+  type        = string
+  default     = "swap"
+  nullable    = false
+
+  validation {
+    condition     = contains(["none", "swap", "lvm"], var.ephemeral_storage_mode)
+    error_message = "ephemeral_storage_mode must be one of: none, swap, lvm."
+  }
+}
+
+variable "ephemeral_storage_vg_name" {
+  description = "Name of the LVM volume group created in `lvm` mode. A local CSI driver's StorageClass must name the same group."
+  type        = string
+  default     = "instance-store-vg"
   nullable    = false
 }
 
 variable "disk_setup_image" {
-  description = "Docker image for disk bootstraping when swap is enabled."
+  description = "Docker image that configures the instance store disks, used by the `swap` and `lvm` modes."
   type        = string
   default     = "docker.io/materialize/ephemeral-storage-setup-image:v0.4.1"
   nullable    = false
