@@ -76,6 +76,18 @@ Ensure you configure the Azure, Kubernetes, and Helm providers. Here's a minimal
 ```hcl
 provider "azurerm" {
   subscription_id = var.subscription_id
+
+  # azurerm 5 does not register resource providers on its own. List the ones
+  # these modules use, for subscriptions that have not used them before.
+  resource_providers_to_register = [
+    "Microsoft.Compute",
+    "Microsoft.ContainerService",
+    "Microsoft.DBforPostgreSQL",
+    "Microsoft.ManagedIdentity",
+    "Microsoft.Network",
+    "Microsoft.Storage",
+  ]
+
   features {}
 }
 

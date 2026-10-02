@@ -3,14 +3,14 @@
 | Name | Version |
 | ---- | ------- |
 | <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | >= 1.10 |
-| <a name="requirement_azurerm"></a> [azurerm](#requirement\_azurerm) | >= 4.55.0, < 4.82.0 |
+| <a name="requirement_azurerm"></a> [azurerm](#requirement\_azurerm) | >= 5.4.0, < 6.0.0 |
 | <a name="requirement_random"></a> [random](#requirement\_random) | ~> 3.0, < 3.10.0 |
 
 ## Providers
 
 | Name | Version |
 | ---- | ------- |
-| <a name="provider_azurerm"></a> [azurerm](#provider\_azurerm) | >= 4.55.0, < 4.82.0 |
+| <a name="provider_azurerm"></a> [azurerm](#provider\_azurerm) | >= 5.4.0, < 6.0.0 |
 | <a name="provider_random"></a> [random](#provider\_random) | ~> 3.0, < 3.10.0 |
 
 ## Modules
@@ -40,7 +40,10 @@ No modules.
 | <a name="input_public_network_access_enabled"></a> [public\_network\_access\_enabled](#input\_public\_network\_access\_enabled) | Whether public network access is enabled | `bool` | `false` | no |
 | <a name="input_resource_group_name"></a> [resource\_group\_name](#input\_resource\_group\_name) | The name of the resource group | `string` | n/a | yes |
 | <a name="input_sku_name"></a> [sku\_name](#input\_sku\_name) | The SKU name for the PostgreSQL server, sku denotes the size of postgres server | `string` | n/a | yes |
+| <a name="input_storage_iops"></a> [storage\_iops](#input\_storage\_iops) | Provisioned IOPS, 3000 to 80000. Required for, and only used with, `storage_type = "PremiumV2_LRS"`. Free up to 3000 below 400 GiB of storage, and up to 12000 from 400 GiB. | `number` | `null` | no |
 | <a name="input_storage_mb"></a> [storage\_mb](#input\_storage\_mb) | The storage capacity in MB | `number` | `32768` | no |
+| <a name="input_storage_throughput"></a> [storage\_throughput](#input\_storage\_throughput) | Provisioned throughput in MB/s, 125 to 1200. Required for, and only used with, `storage_type = "PremiumV2_LRS"`. Free up to 125 MB/s below 400 GiB of storage, and up to 500 MB/s from 400 GiB. | `number` | `null` | no |
+| <a name="input_storage_type"></a> [storage\_type](#input\_storage\_type) | The disk type: `Premium_LRS` (Premium SSD) or `PremiumV2_LRS` (Premium SSD v2).<br/><br/>Premium SSD v2 is usually cheaper for the same performance and lets IOPS and throughput be set<br/>independently of size, but it needs a General Purpose or Memory Optimized `sku_name` and does<br/>not support storage autogrow or PostgreSQL 13 or older.<br/><br/>Changing this on an existing server replaces it, which destroys the Materialize metadata:<br/>Azure has no online migration between the two. Moving an existing server to Premium SSD v2 is<br/>not supported; keep Premium\_LRS on it. | `string` | `"Premium_LRS"` | no |
 | <a name="input_subnet_id"></a> [subnet\_id](#input\_subnet\_id) | The ID of the subnet for PostgreSQL | `string` | n/a | yes |
 | <a name="input_tags"></a> [tags](#input\_tags) | Tags to apply to resources | `map(string)` | `{}` | no |
 

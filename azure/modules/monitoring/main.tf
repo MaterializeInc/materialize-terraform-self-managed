@@ -146,7 +146,7 @@ resource "azurerm_user_assigned_identity" "telemetry" {
 resource "azurerm_role_assignment" "telemetry" {
   for_each = local.service_accounts
 
-  scope                = azurerm_storage_container.telemetry[each.key].resource_manager_id
+  scope                = azurerm_storage_container.telemetry[each.key].id
   role_definition_name = "Storage Blob Data Contributor"
   principal_id         = azurerm_user_assigned_identity.telemetry[each.key].principal_id
 }
@@ -157,12 +157,11 @@ resource "azurerm_role_assignment" "telemetry" {
 resource "azurerm_federated_identity_credential" "telemetry" {
   for_each = local.service_accounts
 
-  name                = "${var.prefix}-mzmon-${each.key}"
-  resource_group_name = var.resource_group_name
-  audience            = ["api://AzureADTokenExchange"]
-  issuer              = var.oidc_issuer_url
-  parent_id           = azurerm_user_assigned_identity.telemetry[each.key].id
-  subject             = "system:serviceaccount:${var.namespace}:${each.value}"
+  name                      = "${var.prefix}-mzmon-${each.key}"
+  user_assigned_identity_id = azurerm_user_assigned_identity.telemetry[each.key].id
+  audience                  = ["api://AzureADTokenExchange"]
+  issuer                    = var.oidc_issuer_url
+  subject                   = "system:serviceaccount:${var.namespace}:${each.value}"
 }
 
 # ==============================================================================
@@ -185,12 +184,11 @@ resource "azurerm_user_assigned_identity" "gateway" {
 resource "azurerm_federated_identity_credential" "gateway" {
   count = local.provider_metrics_enabled ? 1 : 0
 
-  name                = "${var.prefix}-mzmon-gateway"
-  resource_group_name = var.resource_group_name
-  audience            = ["api://AzureADTokenExchange"]
-  issuer              = var.oidc_issuer_url
-  parent_id           = azurerm_user_assigned_identity.gateway[0].id
-  subject             = "system:serviceaccount:${var.namespace}:${local.gateway_service_account}"
+  name                      = "${var.prefix}-mzmon-gateway"
+  user_assigned_identity_id = azurerm_user_assigned_identity.gateway[0].id
+  audience                  = ["api://AzureADTokenExchange"]
+  issuer                    = var.oidc_issuer_url
+  subject                   = "system:serviceaccount:${var.namespace}:${local.gateway_service_account}"
 }
 
 # Named, never discovered: the chart pulls exactly these resources. The caller's
