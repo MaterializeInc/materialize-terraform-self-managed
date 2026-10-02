@@ -210,3 +210,7 @@ mobility, consider:
 - Using Azure Files (which is zone-redundant) for shared storage
 
 Reference: [Azure Disk CSI Driver](https://learn.microsoft.com/en-us/azure/aks/azure-disk-csi)
+
+### Moving the metadata database to Premium SSD v2
+
+New deployments of the examples use Premium SSD v2. To move an existing server, follow [the migration runbook](../scripts/azure-migrate-metadata-premium-ssd-v2.md). Don't set `storage_type = "PremiumV2_LRS"` on an existing server by itself: Azure can't convert a server in place, so Terraform would replace it and Materialize would lose its metadata.

@@ -222,6 +222,12 @@ The Azure modules now need `hashicorp/azurerm` 5.4 or later, and the examples pi
 - **If your root declares its own AKS cluster**, as `azure/examples/migration` does, add `node_provisioning_profile { mode = "Manual" }` to it.
 - **azurerm 5 no longer registers Azure resource providers for you.** If your subscription hasn't used AKS or Postgres Flexible Server before, add `resource_providers_to_register` to your provider block, as the examples do.
 
+##### The examples use Premium SSD v2 for the metadata database
+
+New deployments of the Azure `simple` and `enterprise` examples get a Premium SSD v2 metadata database. The `database` module's `storage_type` still defaults to `Premium_LRS`, so existing servers don't change.
+
+**Don't set `storage_type = "PremiumV2_LRS"` on an existing server.** Azure can't change a server's storage type in place, so Terraform would delete it and create an empty one, and Materialize would lose its metadata. To move an existing server, follow [the migration runbook](scripts/azure-migrate-metadata-premium-ssd-v2.md): a script moves it with about 2 minutes of downtime and leaves Terraform tracking the new server.
+
 #### v14.0.0
 
 ##### Metadata database defaults to PostgreSQL 18
