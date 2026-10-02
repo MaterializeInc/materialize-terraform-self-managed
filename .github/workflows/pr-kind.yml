@@ -1,0 +1,72 @@
+name: PR Kind
+
+# Runs the kind lifecycle (test-kind.yml) on pull requests that touch what it
+# exercises. Kept out of pr.yml because that workflow reruns on label changes
+# for its version-label check, and a 16-core kind run per label change is
+# wasted; skipping kind on those reruns instead would let a later ci-success
+# pass over an earlier kind failure.
+
+on:
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: pr-kind-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read # Required to checkout code
+
+jobs:
+  changes:
+    name: Check for kind-relevant changes
+    runs-on: ubuntu-latest
+    outputs:
+      any_modified: ${{ steps.changed.outputs.any_modified }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Check for changed files
+        id: changed
+        uses: tj-actions/changed-files@9426d40962ed5378910ee2e21d5f8c6fcbf2dd96 # v47.0.6
+        with:
+          files: |
+            kubernetes/**
+            test/**
+            .github/workflows/pr-kind.yml
+            .github/workflows/test-kind.yml
+          files_ignore: |
+            **.md
+
+  test-kind:
+    needs: changes
+    # Needs the MATERIALIZE_LICENSE_KEY secret, which pull requests from forks
+    # and from Dependabot do not get.
+    if: >-
+      needs.changes.outputs.any_modified == 'true' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.actor != 'dependabot[bot]'
+    uses: ./.github/workflows/test-kind.yml
+    secrets: inherit
+
+  kind-success:
+    runs-on: ubuntu-latest
+    needs:
+      - changes
+      - test-kind
+    if: always()
+    steps:
+      # Reads the needed jobs' results directly rather than through an action. A
+      # skipped test-kind (no relevant changes, or a fork or Dependabot PR) passes;
+      # a failed or cancelled job fails the gate.
+      - name: Verify the kind checks passed
+        env:
+          RESULTS: ${{ toJSON(needs.*.result) }}
+        run: |
+          echo "Job results: $RESULTS"
+          if echo "$RESULTS" | grep -q -E '"(failure|cancelled)"'; then
+            echo "A kind check failed or was cancelled"
+            exit 1
+          fi
+          echo "All kind checks passed"

@@ -300,6 +300,17 @@ GKE L4 firewall reconciliation is disabled, so GKE no longer creates allow rules
 - **The examples default `ingress_cidr_blocks` to `["0.0.0.0/0"]`**, including `migration`, which used to default to `null`. On an internal load balancer, that admits any source that can route to the VPC. Narrow it if that's too broad.
 - Clients in the node subnet that already work stay unaffected.
 
+##### Kubernetes example allows the operator through its own NetworkPolicy
+
+The operator chart's `egress-to-environmentd` NetworkPolicy selects the operator pods and has only egress rules, so on a CNI that enforces NetworkPolicy it cuts the operator off from the API server and DNS and blocks its conversion webhook and health probes. The operator crash-loops and the Materialize instance never becomes ready. `kubernetes/examples/simple` now adds an `allow-materialize-operator` policy that gives the operator back egress and ingress on 8001 and 3100, and creates the `materialize` namespace itself so the policy exists before the chart is installed.
+
+**Impact on existing roots copied from `kubernetes/examples/simple`:**
+
+- **The `materialize` namespace is now a `kubernetes_namespace` resource**, where the Helm release used to create it. Import it before applying, or the apply fails because the namespace already exists:
+  ```sh
+  terraform import kubernetes_namespace.materialize_operator materialize
+  ```
+
 #### v13.0.0
 
 `aws/modules/monitoring` moves its two telemetry buckets into the S3 account regional namespace, which **replaces both of them**. That namespace is house policy for new buckets: the name is reserved to your account, so no other account can take it and none can ever take it back. This is the whole of the release, and it affects every existing AWS deployment of the monitoring stack. Nothing outside `aws/modules/monitoring` changes, and GCP and Azure are untouched.
