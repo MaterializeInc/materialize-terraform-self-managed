@@ -183,6 +183,19 @@ locals {
 
   ory_namespace = "ory"
 
+  # Sources allowed through the public Ory LoadBalancers. The cluster itself
+  # is included: pods that call the Ory hostnames resolve them to these LBs,
+  # and reach them from the VNet or, when the traffic leaves it, from the NAT
+  # gateway's address.
+  ory_lb_source_ranges = concat(
+    var.ingress_cidr_blocks,
+    ["${module.networking.nat_gateway_public_ip}/32", local.vnet_config.address_space],
+  )
+
+  # Okta's SCIM egress ranges, written by scripts/update-okta-ip-ranges.sh.
+  # Okta pushes SCIM to Polis from its own cloud, so Polis admits them too.
+  okta_scim_source_ranges = fileexists("${path.module}/okta-scim-source-ranges.json") ? jsondecode(file("${path.module}/okta-scim-source-ranges.json")) : []
+
   # cert-manager ClusterIssuer for browser-facing TLS. Defaults to the built-in
   # self-signed issuer; override via var.cert_issuer_ref to plug in a real one.
   cert_issuer = var.cert_issuer_ref != null ? var.cert_issuer_ref : {
@@ -766,6 +779,14 @@ module "ory" {
   # (always HTTP) instead of the TLS-only app port, which otherwise flaps backends
   # unhealthy and causes intermittent timeouts on hydra/kratos/ui.
   lb_external_traffic_policy = "Local"
+
+  # Firewall the public Ory LoadBalancers like the Materialize ones, through
+  # loadBalancerSourceRanges, which Azure enforces in the LB's NSG.
+  lb_overrides = var.internal_load_balancer ? {} : {
+    for role in ["hydra", "kratos", "ui", "polis"] : role => {
+      source_ranges = role == "polis" ? concat(local.ory_lb_source_ranges, local.okta_scim_source_ranges) : local.ory_lb_source_ranges
+    }
+  }
 
   # Azure Load Balancer annotations. Internal LB uses the AKS internal flag.
   lb_annotations = var.internal_load_balancer ? {

@@ -90,7 +90,7 @@ tags = {
 
 **Optional Variables:**
 - `aws_region`: AWS region (defaults to `us-east-1`)
-- `ingress_cidr_blocks`: List of CIDR blocks allowed to reach the NLB (no effect when `internal_load_balancer = true`)
+- `ingress_cidr_blocks`: List of CIDR blocks allowed to reach the NLBs, both Materialize's and Ory's (no effect when `internal_load_balancer = true`). The Ory NLBs also admit the cluster's NAT gateway IPs and VPC CIDR, because pods call the Ory hostnames. Servers that call Hydra themselves need to be in the list too, such as MCP connectors in claude.ai or ChatGPT, which reach Hydra from the provider's own servers; Anthropic's outbound range is `160.79.104.0/21` ([published here](https://platform.claude.com/docs/en/api/ip-addresses)). Polis also admits Okta's SCIM egress ranges when `okta-scim-source-ranges.json` exists; generate it with `./scripts/update-okta-ip-ranges.sh aws/examples/enterprise <your-okta-cell>`.
 - `internal_load_balancer`: Whether to use an internal load balancer (defaults to `true`). Set to `false` for prod-like demos validated against real DNS.
 - `enable_observability`: Enable Prometheus and Grafana monitoring stack (defaults to `true`)
 - `enable_ory_service_monitors`: Scrape Kratos's and Hydra's metrics into the monitoring stack (defaults to `true`). Ory serves them only on its admin listener, so this admits the monitoring gateway to the whole Kratos and Hydra admin API, which has no authentication of its own. Set it to `false` where the monitoring namespace is not trusted as much as the Ory one.
