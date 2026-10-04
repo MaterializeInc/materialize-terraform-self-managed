@@ -116,7 +116,7 @@ const NAT_GATEWAY_DELETE_WAIT: Duration = Duration::from_secs(30 * 60);
 const RDS_DELETE_WAIT: Duration = Duration::from_secs(30 * 60);
 const LB_DELETE_WAIT: Duration = Duration::from_secs(10 * 60);
 
-/// Entry point for the `purge` subcommand. Reads the run's `terraform.tfvars`
+/// Entry point for the `purge` subcommand. Reads the run's `terraform.tfvars.json`
 /// to recover its region, profile, and `TestRun` tag, then sweeps.
 pub async fn purge(test_run: &str) -> Result<()> {
     let dir = test_run_dir(test_run)?;
@@ -562,8 +562,9 @@ impl Ctx {
     // == RDS branch ========================================================
 
     /// Requests deletion of RDS instances tagged for the run and waits for them
-    /// to finish (~5 min), then deletes the now-orphaned DB subnet group. The
-    /// instance sits in the run's subnets, so this gates subnet/VPC teardown.
+    /// to finish (~5 min), then deletes the now-orphaned DB subnet and parameter
+    /// groups. The instance sits in the run's subnets, so this gates subnet/VPC
+    /// teardown.
     async fn rds_branch(&self) -> Result<Vec<String>> {
         let mut errors = Vec::new();
 
@@ -889,7 +890,7 @@ impl Ctx {
         Ok(errors)
     }
 
-    /// Ids of enabled, customer-managed KMS keys tagged for this run. Keys
+    /// Ids of customer-managed KMS keys tagged for this run. Keys
     /// already pending deletion are excluded — they are effectively gone, so
     /// neither the delete nor the [`Self::remaining`] check should act on them.
     /// AWS-managed keys (which we cannot schedule for deletion) are skipped.
@@ -1765,7 +1766,7 @@ impl Ctx {
             for role in out.roles() {
                 let name = role.role_name();
                 // Per-role tag read keyed on a specific role name, so unlike the
-                // filtered `list_roles` above it can 404 if the role was deleted
+                // `list_roles` listing above it can 404 if the role was deleted
                 // mid-enumeration (a prior pass, or a race). A role whose tags we
                 // can't read can't match this run anyway, so skip it rather than
                 // abort the whole listing.
@@ -2221,7 +2222,8 @@ impl Ctx {
         out
     }
 
-    /// Sweeps until nothing remains or no further progress is made.
+    /// Sweeps up to `MAX_PASSES` times, stopping early once nothing remains and
+    /// the pass had no errors.
     async fn run(&self) -> Result<()> {
         println!(
             "Purging AWS resources for run {} in {} (cluster {})",

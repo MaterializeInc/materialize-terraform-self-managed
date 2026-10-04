@@ -396,8 +396,8 @@ resource "google_sql_user" "materialize" {
 # The nodepool module's google_container_node_pool resource has the same
 # structure as the old module, except that it now configures blue-green
 # upgrade settings, which are applied in-place (non-disruptive). The
-# kubernetes resources (disk setup daemonset) will be recreated with shorter
-# names but that's non-disruptive.
+# kubernetes resources (disk setup daemonset) keep their old names (see
+# disk_setup_name below), so they are not recreated.
 # =============================================================================
 
 module "materialize_nodepool" {
@@ -423,8 +423,8 @@ module "materialize_nodepool" {
   disk_setup_image = "materialize/ephemeral-storage-setup-image:v0.4.0"
 
   # MIGRATION: The old module used "${prefix}-disk-setup" for disk setup
-  # resource names. The new module defaults to "disk-setup". We must pass
-  # the old name to avoid replacement of 5 Kubernetes resources.
+  # resource names. The new module defaults to "<prefix>-disk-setup" too. We
+  # pass the old name to avoid replacement of 5 Kubernetes resources.
   disk_setup_name = "${var.prefix}-mz-swap-disk-setup"
 }
 
@@ -470,7 +470,7 @@ module "cert_manager" {
 # Split from old certificates module.
 # Uses kubectl_manifest (old used kubernetes_manifest), so these resources
 # are skipped during state migration and recreated fresh.
-# kubectl_manifest will adopt the existing Kubernetes CRDs.
+# kubectl_manifest will adopt the existing Kubernetes resources.
 # =============================================================================
 
 module "self_signed_cluster_issuer" {
@@ -562,7 +562,7 @@ module "operator" {
 # =============================================================================
 # Instance resources are moved from the old external operator module to this
 # dedicated instance module. kubernetes_manifest → kubectl_manifest type
-# change means the instance CRD is recreated (kubectl_manifest adopts the
+# change means the Materialize resource is recreated (kubectl_manifest adopts the
 # existing K8s resource without disruption).
 # =============================================================================
 

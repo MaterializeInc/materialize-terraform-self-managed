@@ -99,7 +99,7 @@ impl distr::SampleString for Charset {
 /// The ID is used as `name_prefix` in terraform, which AWS constrains to
 /// max 38 chars and lowercase alphanumeric + hyphens only. We use a short
 /// date (YYMMDD, 6 chars) and a 6-char lowercase alphanumeric suffix
-/// (last char always a letter), totalling 15 chars, leaving plenty of room
+/// (last char always a letter), totalling 14 chars, leaving plenty of room
 /// for AWS resource name suffixes.
 pub fn generate_test_run_id() -> String {
     let now = Utc::now();

@@ -333,7 +333,7 @@ class BaseStateMigrator(abc.ABC):
         """
         Validate migrated resources in new state.
 
-        Only inspects resources that we moved — never touches anything else.
+        Inspects every resource in the new state, but never modifies anything.
         Reports issues but does NOT delete anything from state.
         """
         try:
