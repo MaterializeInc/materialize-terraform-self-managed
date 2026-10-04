@@ -19,8 +19,13 @@ resource "azurerm_postgresql_flexible_server" "postgres" {
   administrator_login    = var.administrator_login
   administrator_password = var.administrator_password != null && var.administrator_password != "" ? var.administrator_password : random_password.admin_password[0].result
 
-  storage_mb = var.storage_mb
-  sku_name   = var.sku_name
+  storage_mb   = var.storage_mb
+  storage_type = var.storage_type
+  sku_name     = var.sku_name
+
+  # The provider requires both for Premium SSD v2 and rejects either for Premium SSD.
+  storage_iops       = var.storage_type == "PremiumV2_LRS" ? var.storage_iops : null
+  storage_throughput = var.storage_type == "PremiumV2_LRS" ? var.storage_throughput : null
 
   backup_retention_days = var.backup_retention_days
 

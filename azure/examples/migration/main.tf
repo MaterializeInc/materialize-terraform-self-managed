@@ -35,6 +35,17 @@
 provider "azurerm" {
   subscription_id = var.subscription_id
 
+  # azurerm 5 registers no resource providers by default. Register the ones
+  # these resources need, for subscriptions that have not used them yet.
+  resource_providers_to_register = [
+    "Microsoft.Compute",
+    "Microsoft.ContainerService",
+    "Microsoft.DBforPostgreSQL",
+    "Microsoft.ManagedIdentity",
+    "Microsoft.Network",
+    "Microsoft.Storage",
+  ]
+
   features {
     resource_group {
       prevent_deletion_if_contains_resources = false
@@ -110,7 +121,12 @@ resource "azurerm_subnet" "aks" {
   virtual_network_name = azurerm_virtual_network.vnet.name
   address_prefixes     = [var.aks_subnet_cidr]
 
-  service_endpoints = ["Microsoft.Storage", "Microsoft.Sql"]
+  service_endpoint {
+    service = "Microsoft.Storage"
+  }
+  service_endpoint {
+    service = "Microsoft.Sql"
+  }
 }
 
 resource "azurerm_subnet" "postgres" {
@@ -119,7 +135,9 @@ resource "azurerm_subnet" "postgres" {
   virtual_network_name = azurerm_virtual_network.vnet.name
   address_prefixes     = [var.postgres_subnet_cidr]
 
-  service_endpoints = ["Microsoft.Storage"]
+  service_endpoint {
+    service = "Microsoft.Storage"
+  }
 
   delegation {
     name = "postgres-delegation"
@@ -143,12 +161,11 @@ resource "azurerm_private_dns_zone" "postgres" {
 }
 
 resource "azurerm_private_dns_zone_virtual_network_link" "postgres" {
-  name                  = "${var.name_prefix}-pg-dns-link"
-  private_dns_zone_name = azurerm_private_dns_zone.postgres.name
-  resource_group_name   = data.azurerm_resource_group.materialize.name
-  virtual_network_id    = azurerm_virtual_network.vnet.id
-  registration_enabled  = true
-  tags                  = local.common_labels
+  name                 = "${var.name_prefix}-pg-dns-link"
+  private_dns_zone_id  = azurerm_private_dns_zone.postgres.id
+  virtual_network_id   = azurerm_virtual_network.vnet.id
+  registration_enabled = true
+  tags                 = local.common_labels
 }
 
 # -----------------------------------------------------------------------------
@@ -218,6 +235,11 @@ resource "azurerm_kubernetes_cluster" "aks" {
   oidc_issuer_enabled       = true
   workload_identity_enabled = true
 
+  # Required from azurerm 5. Manual is the API's default.
+  node_provisioning_profile {
+    mode = "Manual"
+  }
+
   # MIGRATION: Matches old module's network configuration exactly.
   # Do NOT change network_plugin, network_policy, or add outbound_type —
   # these changes force AKS cluster recreation.
@@ -229,6 +251,12 @@ resource "azurerm_kubernetes_cluster" "aks" {
   }
 
   tags = local.common_labels
+
+  lifecycle {
+    # default_node_pools has no effect unless mode is Auto, and the provider
+    # defaults it to Auto: ignore it so adoption doesn't update the cluster.
+    ignore_changes = [node_provisioning_profile[0].default_node_pools]
+  }
 
   depends_on = [
     azurerm_role_assignment.aks_network_contributer,

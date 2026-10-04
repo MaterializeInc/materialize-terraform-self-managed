@@ -4,9 +4,10 @@ terraform {
   required_providers {
     azurerm = {
       source = "hashicorp/azurerm"
-      # PostgreSQL 18 needs 4.55.0. Below 4.27.0, changing `version` on the
-      # flexible server replaces it (destroying the metadata).
-      version = ">= 4.55.0, < 4.82.0"
+      # Premium SSD v2 (`storage_type`, `storage_iops`, `storage_throughput`)
+      # needs 5.4.0. Below 4.27.0, changing `version` on the flexible server
+      # replaces it (destroying the metadata).
+      version = ">= 5.4.0, < 6.0.0"
     }
     random = {
       source  = "hashicorp/random"
