@@ -1,9 +1,6 @@
-# Self-managed Materialize on an existing Kubernetes cluster -- any cluster
-# reachable through a kubeconfig, without cloud-provider infrastructure. You
-# bring the two backends (PostgreSQL for metadata, S3-compatible storage for
-# persist) and pass their connection URLs as variables. The operator is
-# installed straight from the Helm chart, whose defaults already target a
-# local/generic deployment.
+# Self-managed Materialize on any existing cluster reachable through a
+# kubeconfig, with no cloud infrastructure. Bring your own PostgreSQL (metadata)
+# and S3-compatible storage (persist) and pass their URLs as variables.
 
 module "cert_manager" {
   source = "../../modules/cert-manager"
@@ -39,10 +36,9 @@ resource "helm_release" "materialize_operator" {
         { args = { installV1CRD = true } },
         var.orchestratord_version == null ? {} : { image = { tag = var.orchestratord_version } },
       )
-      # The materialize-instance module's own policies only allow egress to
-      # kube-system and the API server; on enforcing CNIs these chart-level
-      # allow policies are what let environmentd reach the backends. Mirrors
-      # the cloud operator modules.
+      # The materialize-instance module only allows egress to kube-system and the
+      # API server; on enforcing CNIs these chart policies let environmentd reach
+      # the backends, as in the cloud operator modules.
       networkPolicies = {
         enabled  = true
         internal = { enabled = true }

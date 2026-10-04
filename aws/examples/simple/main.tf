@@ -31,10 +31,8 @@ provider "helm" {
   }
 }
 
-# lazy_load = true lets alekc/kubectl v2.4.0+ defer kubeconfig resolution
-# (which is strict at provider-configure since v2.3.0) until first use. Without
-# it, same-root cluster-plus-manifests applies fail at plan with an empty REST
-# config because module.eks outputs are unknown before the cluster exists. See:
+# lazy_load defers kubeconfig resolution to first use. Without it, plan fails
+# with an empty REST config while module.eks outputs are still unknown. See:
 # https://registry.terraform.io/providers/alekc/kubectl/latest/docs#troubleshooting
 provider "kubectl" {
   host                   = module.eks.cluster_endpoint
@@ -53,23 +51,11 @@ provider "kubectl" {
 # ==============================================================================
 # Multi-AZ Network Topology
 # ==============================================================================
-# This configuration creates a VPC with subnets distributed across 3 availability
-# zones for high availability:
-#
-# - Private subnets (10.0.1.0/24, 10.0.2.0/24, 10.0.3.0/24): One per AZ, used for
-#   EKS nodes, Materialize workloads, and RDS. Traffic egresses via NAT gateway(s).
-#
-# - Public subnets (10.0.101.0/24, 10.0.102.0/24, 10.0.103.0/24): One per AZ, used
-#   for NAT gateways and public-facing load balancers.
-#
-# The availability_zones list determines the number of AZs used. Each element must
-# have a corresponding CIDR block in private_subnet_cidrs and public_subnet_cidrs.
-#
-# NAT Gateway Options (via single_nat_gateway variable in networking module):
-# - single_nat_gateway = true (default): One NAT gateway for all AZs. Lower cost
-#   but creates a single point of failure and cross-AZ traffic charges.
-# - single_nat_gateway = false: One NAT gateway per AZ. Higher availability and
-#   keeps traffic within each AZ, but increases cost.
+# One private subnet (EKS nodes, Materialize, RDS; egress via NAT) and one public
+# subnet (NAT gateways, public load balancers) per AZ. Each AZ needs a CIDR in
+# both subnet lists. The networking module's single_nat_gateway defaults to true:
+# cheaper, but a single point of failure with cross-AZ traffic charges. Set it
+# to false for one NAT gateway per AZ.
 # ==============================================================================
 
 # 1. Create network infrastructure
@@ -107,11 +93,9 @@ module "eks" {
 }
 
 # 2.0 Install the monitoring namespace and CRDs before anything that ships a
-# ServiceMonitor. A chart that declares one before the CRDs exist either fails
-# its install or quietly leaves the monitor out for good. Each component below
-# turns its monitor on from `crds_installed`, which also makes it wait for the
-# CRDs. Without the monitoring stack this still creates the namespace, as the
-# operator module used to.
+# ServiceMonitor, or those charts fail or silently drop it. Components enable
+# their monitors from `crds_installed`, which also orders them after the CRDs.
+# The namespace is created even when observability is off.
 module "monitoring_crds" {
   source = "../../../kubernetes/modules/monitoring-crds"
 
@@ -121,10 +105,8 @@ module "monitoring_crds" {
   depends_on = [module.eks]
 }
 
-# State migration: the operator module used to create the namespace, and the
-# monitoring module used to install the CRDs. Both move here as they are, so
-# neither is recreated. The namespace's block matters most: without it,
-# Terraform destroys the monitoring namespace and everything in it.
+# State migration: these used to live in the operator and monitoring modules.
+# Without the namespace move, Terraform destroys the monitoring namespace.
 moved {
   from = module.operator.kubernetes_namespace.monitoring[0]
   to   = module.monitoring_crds.kubernetes_namespace.monitoring[0]
@@ -138,17 +120,12 @@ moved {
 # ==============================================================================
 # Multi-AZ Node Distribution
 # ==============================================================================
-# The base node group uses subnet_ids from all private subnets, enabling EKS to
-# distribute nodes across all configured availability zones. This ensures:
-# - Karpenter controller pods can survive an AZ failure
-# - CoreDNS replicas are spread for DNS high availability
-# - System workloads remain available during zone outages
+# The base node group spans all private subnets, so Karpenter, CoreDNS and other
+# system pods are spread across AZs and survive a zone outage.
 # ==============================================================================
 
-# 2.1 Install VPC CNI with Network Policy support.
-# Must be installed before any node group: clusters created with EKS module
-# v21+ no longer bootstrap a default CNI, and nodes cannot become Ready
-# without one.
+# 2.1 Install VPC CNI with Network Policy support. Must come before any node
+# group: EKS module v21+ clusters have no default CNI, so nodes cannot go Ready.
 module "vpc_cni" {
   source = "../../modules/vpc-cni"
 
@@ -185,9 +162,8 @@ module "base_node_group" {
   cluster_primary_security_group_id = module.eks.node_security_group_id
   aws_region                        = var.aws_region
   aws_profile                       = var.aws_profile
-  # Resolved at the root so they are known at plan time; a module-level
-  # depends_on defers data sources inside the module (see the eks-node-group
-  # partition variable description).
+  # Resolved at the root so they are known at plan time; the module-level
+  # depends_on would defer the module's own lookups to apply time.
   partition  = data.aws_partition.current.partition
   account_id = data.aws_caller_identity.current.account_id
   tags       = var.tags
@@ -195,16 +171,16 @@ module "base_node_group" {
   depends_on = [module.vpc_cni]
 }
 
+# 2.1.2 Install CoreDNS
 module "coredns" {
   source = "../../../kubernetes/modules/coredns"
 
   node_selector = local.base_node_labels
-  # in aws coredns autoscaler deployment doesn't exist
+  # EKS has no CoreDNS autoscaler deployment to disable
   disable_default_coredns_autoscaler = false
-  # Clusters created with EKS module v21+ no longer bootstrap the default
-  # CoreDNS, so the service account and kube-dns Service must be managed
-  # here. Clusters created with v20 and earlier already have a bootstrapped
-  # kube-dns Service, which must be imported into state before applying:
+  # EKS module v21+ clusters have no default CoreDNS, so the service account and
+  # kube-dns Service are managed here. On clusters created with v20 or earlier,
+  # import the existing kube-dns Service first:
   #   terraform import 'module.coredns.kubernetes_service.kube_dns[0]' kube-system/kube-dns
   create_coredns_service_account = true
   create_kube_dns_service        = true
@@ -262,14 +238,8 @@ module "karpenter" {
 # ==============================================================================
 # Karpenter Multi-AZ Provisioning
 # ==============================================================================
-# EC2NodeClasses define where Karpenter can launch nodes. By passing all private
-# subnet IDs, Karpenter can provision nodes in any availability zone based on:
-# - Pod topology spread constraints
-# - Instance type availability per zone
-# - Zone-specific capacity
-#
-# Karpenter automatically selects the optimal zone for each node based on the
-# pending pod's requirements and available capacity.
+# The EC2NodeClasses get all private subnets, so Karpenter can launch nodes in
+# any AZ, picking the zone from pod topology constraints and zone capacity.
 # ==============================================================================
 
 # Create a generic nodeclass and nodepool for all workloads except Materialize.
@@ -338,21 +308,16 @@ module "nodepool_materialize" {
   instance_types = local.instance_types_materialize
   node_labels    = local.materialize_node_labels
   node_taints    = local.materialize_node_taints
-  # WARNING: setting this to any value other than Never may cause
-  # downtime. Karpenter will remove nodes regardless of whether they
-  # have pods with do-not-disrupt labels. If you set this to any duration
-  # you should ensure that you always gracefully roll nodes during a
-  # materialize rollout. To do this cordon the node, perform an upgrade or 
-  # forced rollout of all materialize instances that may be using the node pool.
-  # the node should have all pods removed from it and be consolidated. You may
-  # also delete the node after all clusterd and environmentd pods have been moved off.
+  # WARNING: any value other than "Never" can cause downtime, since Karpenter
+  # removes expired nodes even with do-not-disrupt pods. If you set one, roll
+  # nodes gracefully: cordon the node, then upgrade or force a rollout of every
+  # Materialize instance using it. Once clusterd and environmentd pods have
+  # moved off, the node is consolidated, or you can delete it.
   expire_after = "Never"
 
-  # WARNING: leave termination_grace_period unset here. If set, Karpenter
-  # will replace drifted nodes (e.g. after an instance type change) even
-  # though Materialize pods carry the karpenter.sh/do-not-disrupt
-  # annotation, force-evicting them once the deadline passes. Unset, those
-  # pods block disruption until a Materialize rollout moves them.
+  # WARNING: leave termination_grace_period unset. If set, Karpenter replaces
+  # drifted nodes (e.g. after an instance type change) and force-evicts
+  # do-not-disrupt Materialize pods once it expires.
 
   kubeconfig_data = local.kubeconfig_data
 
@@ -389,13 +354,8 @@ module "aws_lbc" {
 # ==============================================================================
 # EBS CSI Driver - Zone-Aware Storage
 # ==============================================================================
-# The EBS CSI driver creates a gp3 StorageClass with WaitForFirstConsumer binding
-# mode. This ensures EBS volumes are provisioned in the same availability zone as
-# the pod that will use them, avoiding cross-AZ volume attachment failures.
-#
-# When a PVC is created, the volume is not provisioned until a pod references it.
-# At that point, the scheduler picks a node (and thus an AZ), and the EBS volume
-# is created in that same AZ.
+# The driver's gp3 StorageClass uses WaitForFirstConsumer, so each volume is
+# created in the AZ of the node its pod lands on, avoiding cross-AZ attach failures.
 # ==============================================================================
 
 # 4. Install EBS CSI Driver for dynamic EBS volume provisioning
@@ -459,7 +419,7 @@ module "operator" {
   aws_region     = var.aws_region
   aws_account_id = data.aws_caller_identity.current.account_id
 
-  # tolerations and node selector for all mz instance workloads on AWS
+  # Tolerations and node selector for Materialize instance pods
   instance_pod_tolerations = local.materialize_tolerations
   instance_node_selector   = local.materialize_node_labels
 
@@ -507,14 +467,9 @@ resource "random_password" "external_login_password_mz_system" {
 # ==============================================================================
 # RDS Database - Multi-AZ Considerations
 # ==============================================================================
-# The database uses multi_az = false by default for cost savings in development/
-# test environments. For production deployments, set multi_az = true to enable:
-# - Synchronous standby replica in a different AZ
-# - Automatic failover during AZ outages or maintenance
-# - Enhanced durability with synchronous replication
-#
-# The database_subnet_ids span all AZs, allowing RDS to place the primary and
-# standby (if multi_az = true) in different availability zones.
+# multi_az = false keeps dev/test costs down. For production, set it to true for
+# a synchronous standby in another AZ with automatic failover. The subnets span
+# all AZs so RDS can place the primary and standby apart.
 # ==============================================================================
 
 # 7. Setup dedicated database instance for Materialize
@@ -544,8 +499,7 @@ module "storage" {
   name_prefix          = var.name_prefix
   bucket_force_destroy = true
 
-  # For testing purposes, we are disabling versioning to allow for easier cleanup.
-  # SSE-S3 encryption remains enabled by default for this example.
+  # Versioning is off for easier cleanup in testing; SSE-S3 encryption stays on.
   enable_bucket_versioning = false
   enable_bucket_encryption = true
 
@@ -620,21 +574,17 @@ module "monitoring" {
 
   name_prefix = var.name_prefix
   region      = var.aws_region
-  # Part of the telemetry bucket names, which live in this account's regional
-  # namespace. Resolved here rather than inside the module because the
-  # `depends_on` below would otherwise defer the lookup to apply time and leave
-  # the bucket name unknown at plan — which plans a bucket replacement.
+  # Part of the telemetry bucket names. Resolved here because the `depends_on`
+  # below would defer a lookup inside the module to apply time, leaving the
+  # bucket names unknown at plan and planning a bucket replacement.
   account_id = data.aws_caller_identity.current.account_id
 
-  # Matches what these examples already pass to `module.storage`. Loki and
-  # Thanos start writing immediately, and neither S3 nor GCS will delete a
-  # non-empty bucket, so without this `terraform destroy` wedges on the
-  # telemetry buckets. Set to false for anything you cannot afford to lose.
+  # Loki and Thanos write immediately and a non-empty bucket cannot be deleted,
+  # so without this `terraform destroy` gets stuck. Set to false for real data.
   bucket_force_destroy = true
 
   namespace = module.monitoring_crds.namespace
-  # module.monitoring_crds creates the namespace and installs the CRDs, ahead of
-  # the components whose ServiceMonitors need them.
+  # module.monitoring_crds already creates the namespace and installs the CRDs.
   create_namespace       = false
   enable_monitoring_crds = false
 
@@ -644,15 +594,10 @@ module "monitoring" {
   node_selector = local.generic_node_labels
   storage_class = module.ebs_csi_driver.storage_class_name
 
-  # Datadog and generic OTLP (Honeycomb, Grafana Cloud, your own collector) fan
-  # out the same way, and need no cloud resources — so they are set here rather
-  # than behind an `enable_*` toggle. Commented out because both need a
-  # credential; the module puts it in a Secret rather than the Helm values, and
-  # rolls the gateway when it changes.
-  #
-  # Declare the two credentials as `sensitive` variables of your own before
-  # uncommenting — this example does not, and they belong in `terraform.tfvars`
-  # or `TF_VAR_*` rather than as literals in a file you commit.
+  # Optional Datadog and generic OTLP (Honeycomb, Grafana Cloud, your own
+  # collector) destinations. Each needs a credential: declare it as a `sensitive`
+  # variable set from terraform.tfvars or TF_VAR_*, never a committed literal.
+  # The module keeps it in a Secret and rolls the gateway when it changes.
   #
   # datadog_metrics = { site = "datadoghq.com" }
   # datadog_api_key = var.datadog_api_key
@@ -663,11 +608,9 @@ module "monitoring" {
   # }
   # otlp_auth_header_secrets = { "x-honeycomb-team" = var.honeycomb_api_key }
 
-  # Where alerts go. A default install configures no receiver, so every alert
-  # reaches nobody until one is set. Commented out for the same reason as the
-  # destinations above: receivers need credentials. A receiver references each
-  # one by path, and `alerting_receiver_secrets` supplies it as a Secret rather
-  # than as Helm values. Declare those as `sensitive` variables of your own too.
+  # Where alerts go. No receiver is configured by default, so alerts reach nobody
+  # until one is set. Receivers read credentials by file path from the Secret
+  # built from `alerting_receiver_secrets`; declare those as `sensitive` too.
   #
   # alerting = {
   #   preset = "critical-infrastructure"
@@ -687,16 +630,10 @@ module "monitoring" {
   #   "slack-url"     = var.platform_slack_webhook
   # }
 
-  # CloudWatch's view of the dependencies Materialize cannot run without: the
-  # metadata database's CPU, memory, storage, connections and burst balances,
-  # and the persist bucket's size. The module adds its own buckets and Grafana's
-  # database. Those are named here, so no other database or bucket in the
-  # account is pulled or billed.
-  #
-  # The cluster's nodes cannot be named, since they come and go, so they are
-  # found by the cluster's `aws:eks:cluster-name` tag, which keeps the pull to
-  # this cluster's nodes and node groups. The one account-wide series is
-  # On-Demand vCPU usage, which is what the vCPU quota counts.
+  # CloudWatch metrics for the metadata database and persist bucket, named here
+  # so nothing else in the account is pulled or billed (the module adds its own
+  # buckets and Grafana's database). Nodes are found by the `aws:eks:cluster-name`
+  # tag. The only account-wide series is On-Demand vCPU usage, for the vCPU quota.
   provider_metrics = var.enable_provider_metrics ? {
     rds_instance_ids  = [module.database.db_instance_id]
     s3_bucket_names   = [module.storage.bucket_name]
@@ -706,14 +643,10 @@ module "monitoring" {
   materialize_instance_namespace = local.materialize_instance_namespace
   materialize_operator_namespace = local.operator_namespace
 
-  # A dedicated RDS instance for Grafana's own state, so dashboards and API
-  # tokens created in the UI survive a pod restart. RDS has no API for adding a
-  # database to an existing instance, so this is separate from `module.database`
-  # rather than a second database inside it.
-  #
-  # `skip_final_snapshot` stays at the module default (true) here, matching this
-  # example's throwaway posture — the same reason `bucket_force_destroy` is on
-  # and bucket versioning is off.
+  # Dedicated RDS instance so Grafana dashboards and API tokens survive a pod
+  # restart. Separate from `module.database` because RDS has no API to add a
+  # database to an existing instance. `skip_final_snapshot` keeps the module
+  # default (true), as this example is meant to be thrown away.
   grafana_database = {
     vpc_id                    = module.networking.vpc_id
     subnet_ids                = module.networking.private_subnet_ids
@@ -722,16 +655,14 @@ module "monitoring" {
     node_security_group_id    = module.eks.node_security_group_id
   }
 
-  # Off by default: the monitoring module refuses a public Grafana with an
-  # unrestricted allowlist, and this is the acknowledgement that lifts it.
-  # See `grafana_allow_public_access`.
+  # The monitoring module refuses a public Grafana with an unrestricted allowlist;
+  # this opt-in lifts that. See `grafana_allow_public_access`.
   additional_values = var.grafana_allow_public_access ? [
     yamlencode({ connections = { grafana = { allowPublicAccess = true } } })
   ] : []
 
-  # An NLB this module creates and owns — see `grafana_load_balancer`. The Service
-  # stays ClusterIP; a TargetGroupBinding attaches the target group to it, and the
-  # allowlist is security-group rules on the NLB rather than the Service.
+  # The module creates its own NLB. The Service stays ClusterIP and is attached
+  # with a TargetGroupBinding; the allowlist is security group rules on the NLB.
   grafana_load_balancer = {
     vpc_id                 = module.networking.vpc_id
     subnet_ids             = var.internal_load_balancer ? module.networking.private_subnet_ids : module.networking.public_subnet_ids
@@ -744,27 +675,15 @@ module "monitoring" {
 
   tags = var.tags
 
-  # Certificates are on by default and no issuer is named here, so the chart
-  # bootstraps a self-signed root scoped to the monitoring release. That is
-  # deliberate, and the reason this differs from `module.materialize_instance`
-  # above: none of the components behind Grafana implements per-client
-  # authorization, so "signed by the CA we trust" is the whole authorization
-  # decision, and handing them the cluster's general-purpose issuer would reduce
-  # that to "has any certificate". Set `internal_issuer_ref` to share one
-  # knowingly.
-  #
-  # `issuer_ref` stays unset for a second reason: it is the *browser-facing*
-  # issuer and only issues anything alongside `grafana_external_dns_names`,
-  # which is empty because `grafana_host` is unset by default. The load balancer
-  # answers on its own DNS name either way; set `grafana_host` and you have a
-  # name worth certifying, but browser-facing TLS also needs Grafana itself to
-  # serve HTTPS, which these examples do not yet do.
+  # No issuer is set, so the chart bootstraps a self-signed CA scoped to the
+  # monitoring release. Deliberate: its components have no per-client
+  # authorization, so the cluster issuer would let in any certificate it signs.
+  # Set `internal_issuer_ref` to share one knowingly. The browser-facing
+  # `issuer_ref` needs `grafana_host`, and Grafana does not serve HTTPS here yet.
 
   depends_on = [
-    # cert-manager, because the monitoring stack issues Certificates by default
-    # and its CRDs have to exist before the Helm release renders them. Without
-    # this the two race, and the loser fails the apply on an unknown
-    # `cert-manager.io/v1` kind rather than waiting.
+    # The stack issues Certificates by default; without this the apply can race
+    # cert-manager and fail on an unknown `cert-manager.io/v1` kind.
     module.cert_manager,
     module.operator,
     module.nodepool_generic,
@@ -776,16 +695,9 @@ module "monitoring" {
 # ==============================================================================
 # Network Load Balancer - Cross-Zone Load Balancing
 # ==============================================================================
-# The NLB is deployed across all subnets (private or public depending on
-# internal_load_balancer setting). Cross-zone load balancing is enabled by
-# default, which:
-# - Distributes traffic evenly across all healthy targets in all AZs
-# - Improves availability when target capacity is uneven across zones
-# - Note: Cross-zone traffic incurs inter-AZ data transfer charges
-#
-# For cost optimization with balanced target distribution, you can disable
-# cross-zone load balancing, but this may cause uneven load if AZ capacity
-# differs.
+# The NLB spans all private or public subnets, per internal_load_balancer.
+# Cross-zone load balancing spreads traffic evenly across AZs but adds inter-AZ
+# transfer charges; disabling it saves cost but can unbalance load.
 # ==============================================================================
 
 # 11. Setup dedicated NLB for Materialize instance

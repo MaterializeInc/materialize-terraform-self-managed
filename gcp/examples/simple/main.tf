@@ -29,10 +29,8 @@ provider "helm" {
   }
 }
 
-# lazy_load = true lets alekc/kubectl v2.4.0+ defer kubeconfig resolution
-# (which is strict at provider-configure since v2.3.0) until first use. Without
-# it, same-root cluster-plus-manifests applies fail at plan with an empty REST
-# config because module.gke outputs are unknown before the cluster exists. See:
+# lazy_load defers kubeconfig resolution to first use. Without it, plan fails
+# with an empty REST config while module.gke outputs are still unknown. See:
 # https://registry.terraform.io/providers/alekc/kubectl/latest/docs#troubleshooting
 provider "kubectl" {
   host                   = "https://${module.gke.cluster_endpoint}"
@@ -167,21 +165,15 @@ locals {
       }
     }]
   })
-  # Not `standard-rwo`: the node pools are C4/C4A, which take only Hyperdisk —
-  # same constraint as their boot disks above. Every default GKE class is
-  # Persistent Disk, so a PVC on those pools never attaches.
+  # Not `standard-rwo`: C4/C4A node pools take only Hyperdisk, and every default
+  # GKE class is Persistent Disk, so a PVC on those pools would never attach.
   storage_class = kubernetes_storage_class.hyperdisk_balanced.metadata[0].name
 
 }
 
-# GKE ships no Hyperdisk class, so create one. Not marked default — taking that
-# from `standard-rwo` would change provisioning for every other workload.
-#
-# Deliberately not gated on `enable_observability`, even though monitoring is
-# the only module that reads it today. On C4/C4A node pools any workload
-# needing a PVC hits the same Persistent Disk wall, so the class is generally
-# useful; tying it to the observability flag would mean turning monitoring off
-# silently removes a class other workloads may already be bound to.
+# GKE ships no Hyperdisk class, so create one. Not the default, so other
+# workloads keep `standard-rwo`. Not gated on `enable_observability`: any PVC on
+# C4/C4A pools needs it, and other workloads may already be bound to it.
 resource "kubernetes_storage_class" "hyperdisk_balanced" {
   metadata {
     name = "hyperdisk-balanced"
@@ -221,8 +213,7 @@ module "gke" {
   region       = var.region
   prefix       = var.name_prefix
   network_name = module.networking.network_name
-  # we only have one subnet, so we can use the first one
-  # if multiple subnets are created, we need to use the specific subnet name here
+  # Only one subnet here; with several, pick the right one by name.
   subnet_name                       = module.networking.subnets_names[0]
   namespace                         = local.materialize_operator_namespace
   k8s_apiserver_authorized_networks = var.k8s_apiserver_authorized_networks
@@ -237,18 +228,15 @@ module "gke" {
   # trigger (see the operator module below).
   enable_upgrade_notifications = var.enable_node_upgrade_rollout_trigger
 
-  # Pinned to STABLE: REGULAR's 1.35.x line regressed cleanup of the per-cluster
-  # k8s-<cluster-uid>-node-http-hc firewall on cluster destroy, leaving the VPC
-  # un-deletable. STABLE is still on 1.34.x which doesn't have the regression.
+  # STABLE (1.34.x): REGULAR's 1.35.x leaks the k8s-<cluster-uid>-node-http-hc
+  # firewall on cluster destroy, leaving the VPC undeletable.
   release_channel = "STABLE"
 }
 
 # Install the monitoring namespace and CRDs before anything that ships a
-# ServiceMonitor. A chart that declares one before the CRDs exist either fails
-# its install or quietly leaves the monitor out for good. Each component below
-# turns its monitor on from `crds_installed`, which also makes it wait for the
-# CRDs. Without the monitoring stack this still creates the namespace, as the
-# operator module used to.
+# ServiceMonitor, or those charts fail or silently drop it. Components enable
+# their monitors from `crds_installed`, which also orders them after the CRDs.
+# The namespace is created even when observability is off.
 module "monitoring_crds" {
   source = "../../../kubernetes/modules/monitoring-crds"
 
@@ -258,10 +246,8 @@ module "monitoring_crds" {
   depends_on = [module.gke]
 }
 
-# State migration: the operator module used to create the namespace, and the
-# monitoring module used to install the CRDs. Both move here as they are, so
-# neither is recreated. The namespace's block matters most: without it,
-# Terraform destroys the monitoring namespace and everything in it.
+# State migration: these used to live in the operator and monitoring modules.
+# Without the namespace move, Terraform destroys the monitoring namespace.
 moved {
   from = module.operator.kubernetes_namespace.monitoring[0]
   to   = module.monitoring_crds.kubernetes_namespace.monitoring[0]
@@ -352,9 +338,8 @@ module "database" {
   prefix     = var.name_prefix
   network_id = module.networking.network_id
 
-  # Append a random suffix to the instance name so a partially-created
-  # instance from a previous apply attempt (whose state was lost) does not
-  # block the next attempt with a 409 "instance already exists" error.
+  # Random name suffix, so a half-created instance from a failed apply with lost
+  # state does not block the next apply with a 409 "instance already exists".
   random_instance_name = true
 
   tier      = local.database_config.tier
@@ -419,25 +404,22 @@ module "operator" {
   # binding targets the operator's service account in that namespace.
   operator_namespace = local.materialize_operator_namespace
 
-  # ARM tolerations and node selector for all operator workloads on GCP
+  # Tolerations and node selector for Materialize instance pods
   instance_pod_tolerations = local.materialize_tolerations
   instance_node_selector   = local.materialize_node_labels
 
   # node selector for operator and metrics-server workloads
   operator_node_selector = local.generic_node_labels
 
-  # Trigger rollouts of Materialize instances when GKE upgrades the node
-  # pools they run on, so that their pods move to the replacement nodes
-  # gracefully instead of being evicted.
+  # Roll out Materialize instances when GKE upgrades their node pools, so pods
+  # move to the new nodes gracefully instead of being evicted.
   enable_node_upgrade_rollout_trigger    = var.enable_node_upgrade_rollout_trigger
   node_upgrade_notification_subscription = module.gke.upgrade_notification_subscription
   cluster_name                           = module.gke.cluster_name
   cluster_location                       = module.gke.cluster_location
   node_upgrade_watched_node_pools        = [module.materialize_nodepool.node_pool_name]
-  # Grant the operator workload identity access for its Pub/Sub subscription
-  # and GKE API reads. The gke module's workload identity binding targets the
-  # chart's service account (its orchestratord_service_account_name variable,
-  # default "orchestratord") in the operator namespace.
+  # Workload identity for the operator's Pub/Sub and GKE API access. The gke
+  # module binds the chart's service account ("orchestratord") in its namespace.
   operator_service_account_annotations = var.enable_node_upgrade_rollout_trigger ? {
     "iam.gke.io/gcp-service-account" = module.gke.workload_identity_sa_email
   } : {}
@@ -472,15 +454,12 @@ module "monitoring" {
   project_id = var.project_id
   region     = var.region
 
-  # Matches what these examples already pass to `module.storage`. Loki and
-  # Thanos start writing immediately, and neither S3 nor GCS will delete a
-  # non-empty bucket, so without this `terraform destroy` wedges on the
-  # telemetry buckets. Set to false for anything you cannot afford to lose.
+  # Loki and Thanos write immediately and a non-empty bucket cannot be deleted,
+  # so without this `terraform destroy` gets stuck. Set to false for real data.
   bucket_force_destroy = true
 
   namespace = module.monitoring_crds.namespace
-  # module.monitoring_crds creates the namespace and installs the CRDs, ahead of
-  # the components whose ServiceMonitors need them.
+  # module.monitoring_crds already creates the namespace and installs the CRDs.
   create_namespace       = false
   enable_monitoring_crds = false
 
@@ -492,31 +471,20 @@ module "monitoring" {
   enable_google_cloud_metrics         = false
   google_cloud_metrics_min_importance = "recommended"
 
-  # The other direction: Cloud Monitoring's view of the dependencies Materialize
-  # cannot run without — the metadata database's CPU, memory, disk, connections
-  # and transaction-ID use, and the persist bucket's size, split into live,
-  # noncurrent and soft-deleted bytes. The module adds its own buckets and
-  # Grafana's database. Those are named here rather than discovered, so no
-  # other instance or bucket in the project is pulled.
-  #
-  # Compute Engine quota is the project's, per region: the CPUs and local SSD
-  # each machine family uses against its limit, across every node pool and VM
-  # in the region, since that is what a node pool runs into when it cannot grow.
+  # Cloud Monitoring metrics for the metadata database and persist bucket, named
+  # here so nothing else in the project is pulled (the module adds its own
+  # buckets and Grafana's database). Compute Engine quota usage covers every VM
+  # in the region, since that is what stops a node pool from growing.
   provider_metrics = var.enable_provider_metrics ? {
     cloud_sql_instances = [module.database.instance_name]
     gcs_buckets         = [module.storage.bucket_name]
     compute_regions     = [var.region]
   } : null
 
-  # Datadog and generic OTLP (Honeycomb, Grafana Cloud, your own collector) fan
-  # out the same way, and need no cloud resources — so they are set here rather
-  # than behind an `enable_*` toggle. Commented out because both need a
-  # credential; the module puts it in a Secret rather than the Helm values, and
-  # rolls the gateway when it changes.
-  #
-  # Declare the two credentials as `sensitive` variables of your own before
-  # uncommenting — this example does not, and they belong in `terraform.tfvars`
-  # or `TF_VAR_*` rather than as literals in a file you commit.
+  # Optional Datadog and generic OTLP (Honeycomb, Grafana Cloud, your own
+  # collector) destinations. Each needs a credential: declare it as a `sensitive`
+  # variable set from terraform.tfvars or TF_VAR_*, never a committed literal.
+  # The module keeps it in a Secret and rolls the gateway when it changes.
   #
   # datadog_metrics = { site = "datadoghq.com" }
   # datadog_api_key = var.datadog_api_key
@@ -527,11 +495,9 @@ module "monitoring" {
   # }
   # otlp_auth_header_secrets = { "x-honeycomb-team" = var.honeycomb_api_key }
 
-  # Where alerts go. A default install configures no receiver, so every alert
-  # reaches nobody until one is set. Commented out for the same reason as the
-  # destinations above: receivers need credentials. A receiver references each
-  # one by path, and `alerting_receiver_secrets` supplies it as a Secret rather
-  # than as Helm values. Declare those as `sensitive` variables of your own too.
+  # Where alerts go. No receiver is configured by default, so alerts reach nobody
+  # until one is set. Receivers read credentials by file path from the Secret
+  # built from `alerting_receiver_secrets`; declare those as `sensitive` too.
   #
   # alerting = {
   #   preset = "critical-infrastructure"
@@ -554,50 +520,35 @@ module "monitoring" {
   materialize_instance_namespace = local.materialize_instance_namespace
   materialize_operator_namespace = local.materialize_operator_namespace
 
-  # A dedicated Cloud SQL instance for Grafana's own state, so dashboards and API
-  # tokens created in the UI survive a pod restart.
+  # Dedicated Cloud SQL instance so Grafana dashboards and API tokens survive a
+  # pod restart.
   grafana_database = {
     network_id = module.networking.network_id
   }
 
-  # Off by default: the monitoring module refuses a public Grafana with an
-  # unrestricted allowlist, and this is the acknowledgement that lifts it.
-  # See `grafana_allow_public_access`.
+  # The monitoring module refuses a public Grafana with an unrestricted allowlist;
+  # this opt-in lifts that. See `grafana_allow_public_access`.
   additional_values = var.grafana_allow_public_access ? [
     yamlencode({ connections = { grafana = { allowPublicAccess = true } } })
   ] : []
 
-  # Always passed, following the same two root variables the Materialize console
-  # and balancerd load balancers already use. Internal by default; `host` is
-  # optional because an Azure/GCP load balancer answers on an IP, and setting it
-  # is what lets `root_url` be correct.
+  # Same internal/allowlist variables as the Materialize load balancers. The load
+  # balancer answers on an IP; set `host` so Grafana's `root_url` is correct.
   grafana_load_balancer = {
     internal            = var.internal_load_balancer
     ingress_cidr_blocks = var.ingress_cidr_blocks
     host                = var.grafana_host
   }
 
-  # Certificates are on by default and no issuer is named here, so the chart
-  # bootstraps a self-signed root scoped to the monitoring release. That is
-  # deliberate, and the reason this differs from `module.materialize_instance`
-  # above: none of the components behind Grafana implements per-client
-  # authorization, so "signed by the CA we trust" is the whole authorization
-  # decision, and handing them the cluster's general-purpose issuer would reduce
-  # that to "has any certificate". Set `internal_issuer_ref` to share one
-  # knowingly.
-  #
-  # `issuer_ref` stays unset for a second reason: it is the *browser-facing*
-  # issuer and only issues anything alongside `grafana_external_dns_names`,
-  # which is empty because `grafana_host` is unset by default. The load balancer
-  # answers on its own DNS name either way; set `grafana_host` and you have a
-  # name worth certifying, but browser-facing TLS also needs Grafana itself to
-  # serve HTTPS, which these examples do not yet do.
+  # No issuer is set, so the chart bootstraps a self-signed CA scoped to the
+  # monitoring release. Deliberate: its components have no per-client
+  # authorization, so the cluster issuer would let in any certificate it signs.
+  # Set `internal_issuer_ref` to share one knowingly. The browser-facing
+  # `issuer_ref` needs `grafana_host`, and Grafana does not serve HTTPS here yet.
 
   depends_on = [
-    # cert-manager, because the monitoring stack issues Certificates by default
-    # and its CRDs have to exist before the Helm release renders them. Without
-    # this the two race, and the loser fails the apply on an unknown
-    # `cert-manager.io/v1` kind rather than waiting.
+    # The stack issues Certificates by default; without this the apply can race
+    # cert-manager and fail on an unknown `cert-manager.io/v1` kind.
     module.cert_manager,
     module.operator,
     module.gke,

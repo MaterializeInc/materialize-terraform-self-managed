@@ -2,10 +2,9 @@ provider "azurerm" {
   # Set the Azure subscription ID here or use the AZURE_SUBSCRIPTION_ID environment variable
   subscription_id = var.subscription_id
 
-  # The monitoring storage account disables shared keys, so the provider must use
-  # Azure AD for storage data-plane operations. The identity running Terraform
-  # needs a data-plane role (Storage Blob Data Contributor) on it, not just a
-  # control-plane role like Owner.
+  # The monitoring storage account disables shared keys, so use Azure AD for
+  # storage data-plane calls. The Terraform identity needs a data-plane role
+  # (Storage Blob Data Contributor) on it, not just Owner.
   storage_use_azuread = true
 
   features {
@@ -35,10 +34,8 @@ provider "helm" {
   }
 }
 
-# lazy_load = true lets alekc/kubectl v2.4.0+ defer kubeconfig resolution
-# (which is strict at provider-configure since v2.3.0) until first use. Without
-# it, same-root cluster-plus-manifests applies fail at plan with an empty REST
-# config because module.aks outputs are unknown before the cluster exists. See:
+# lazy_load defers kubeconfig resolution to first use. Without it, plan fails
+# with an empty REST config while module.aks outputs are still unknown. See:
 # https://registry.terraform.io/providers/alekc/kubectl/latest/docs#troubleshooting
 provider "kubectl" {
   host                   = module.aks.cluster_endpoint
@@ -57,7 +54,7 @@ locals {
     aks_subnet_cidr                    = "10.0.0.0/20"
     postgres_subnet_cidr               = "10.0.16.0/24"
     enable_api_server_vnet_integration = true
-    api_server_subnet_cidr             = "10.0.32.0/27" # keeping atleast 32 IPs reserved for API server and related services used in delegation might reduce it later.
+    api_server_subnet_cidr             = "10.0.32.0/27" # 32 IPs reserved for the delegated API server subnet
   }
 
   aks_config = {
@@ -108,10 +105,8 @@ locals {
   )
 
   materialize_instance_namespace = "materialize-environment"
-  # Named here rather than left to each module's default, and passed to both
-  # the operator and monitoring modules, so the two cannot drift apart: the
-  # operator creates these namespaces and monitoring scopes its scrape targets
-  # to them.
+  # Set here and passed to the operator, monitoring-crds and monitoring modules
+  # so they cannot drift apart; monitoring scopes its scrape targets to them.
   materialize_operator_namespace = "materialize"
   monitoring_namespace           = "monitoring"
   materialize_instance_name      = "main"
@@ -205,11 +200,9 @@ module "aks" {
 }
 
 # Install the monitoring namespace and CRDs before anything that ships a
-# ServiceMonitor. A chart that declares one before the CRDs exist either fails
-# its install or quietly leaves the monitor out for good. Each component below
-# turns its monitor on from `crds_installed`, which also makes it wait for the
-# CRDs. Without the monitoring stack this still creates the namespace, as the
-# operator module used to.
+# ServiceMonitor, or those charts fail or silently drop it. Components enable
+# their monitors from `crds_installed`, which also orders them after the CRDs.
+# The namespace is created even when observability is off.
 module "monitoring_crds" {
   source = "../../../kubernetes/modules/monitoring-crds"
 
@@ -219,10 +212,8 @@ module "monitoring_crds" {
   depends_on = [module.aks]
 }
 
-# State migration: the operator module used to create the namespace, and the
-# monitoring module used to install the CRDs. Both move here as they are, so
-# neither is recreated. The namespace's block matters most: without it,
-# Terraform destroys the monitoring namespace and everything in it.
+# State migration: these used to live in the operator and monitoring modules.
+# Without the namespace move, Terraform destroys the monitoring namespace.
 moved {
   from = module.operator.kubernetes_namespace.monitoring[0]
   to   = module.monitoring_crds.kubernetes_namespace.monitoring[0]
@@ -233,7 +224,7 @@ moved {
   to   = module.monitoring_crds.helm_release.crds[0]
 }
 
-# Materialize-dedicated node pool with taints (via labels on Azure)
+# Materialize-dedicated node pool with taints
 module "materialize_nodepool" {
   source = "../../modules/nodepool"
 
@@ -255,9 +246,8 @@ module "materialize_nodepool" {
 
   labels = local.materialize_node_labels
 
-  # Materialize-specific taint to isolate workloads
-  # https://github.com/Azure/AKS/issues/2934
-  # Note: Once applied, these cannot be manually removed due to AKS webhook restrictions
+  # Taint to isolate Materialize workloads. AKS webhooks block removing it once
+  # applied: https://github.com/Azure/AKS/issues/2934
   node_taints = local.materialize_node_taints
 
   tags = var.tags
@@ -271,7 +261,6 @@ module "database" {
 
   depends_on = [module.networking]
 
-  # Database configuration using new structure
   databases = [
     {
       name      = local.database_config.database_name
@@ -375,13 +364,13 @@ module "operator" {
   name_prefix = var.name_prefix
   location    = var.location
 
+  # Tolerations and node selector for Materialize instance pods
   instance_pod_tolerations = local.materialize_tolerations
   instance_node_selector   = local.materialize_node_labels
 
   # node selector for operator and metrics-server workloads
   operator_node_selector = local.generic_node_labels
 
-  # The operator creates both namespaces; monitoring is a consumer of them.
   operator_namespace   = local.materialize_operator_namespace
   monitoring_namespace = module.monitoring_crds.namespace
 
@@ -415,8 +404,7 @@ module "monitoring" {
   location            = var.location
 
   namespace = module.monitoring_crds.namespace
-  # module.monitoring_crds creates the namespace and installs the CRDs, ahead of
-  # the components whose ServiceMonitors need them.
+  # module.monitoring_crds already creates the namespace and installs the CRDs.
   create_namespace       = false
   enable_monitoring_crds = false
 
@@ -425,23 +413,15 @@ module "monitoring" {
   node_selector = local.generic_node_labels
   storage_class = local.storage_class
 
-  # The AKS node pools here are non-zonal — `availability_zones` is left at its
-  # null default — so the chart's hard zone spread on Thanos Receive and Loki's
-  # ingesters has a single domain to place into. Below its floor of two zones
-  # those pods stay Pending forever rather than merely unbalanced, so relax
-  # `minDomains` to 1. Raise this to the real count, and it becomes real
-  # protection, if you give the node pools zones.
+  # No zones are set on the node pools, so the chart's hard two-zone spread on
+  # Thanos Receive and Loki ingesters would leave them Pending forever. Raise
+  # this to the real zone count if you give the node pools zones.
   min_zones = 1
 
-  # Datadog and generic OTLP (Honeycomb, Grafana Cloud, your own collector) fan
-  # out the same way, and need no cloud resources — so they are set here rather
-  # than behind an `enable_*` toggle. Commented out because both need a
-  # credential; the module puts it in a Secret rather than the Helm values, and
-  # rolls the gateway when it changes.
-  #
-  # Declare the two credentials as `sensitive` variables of your own before
-  # uncommenting — this example does not, and they belong in `terraform.tfvars`
-  # or `TF_VAR_*` rather than as literals in a file you commit.
+  # Optional Datadog and generic OTLP (Honeycomb, Grafana Cloud, your own
+  # collector) destinations. Each needs a credential: declare it as a `sensitive`
+  # variable set from terraform.tfvars or TF_VAR_*, never a committed literal.
+  # The module keeps it in a Secret and rolls the gateway when it changes.
   #
   # datadog_metrics = { site = "datadoghq.com" }
   # datadog_api_key = var.datadog_api_key
@@ -452,11 +432,9 @@ module "monitoring" {
   # }
   # otlp_auth_header_secrets = { "x-honeycomb-team" = var.honeycomb_api_key }
 
-  # Where alerts go. A default install configures no receiver, so every alert
-  # reaches nobody until one is set. Commented out for the same reason as the
-  # destinations above: receivers need credentials. A receiver references each
-  # one by path, and `alerting_receiver_secrets` supplies it as a Secret rather
-  # than as Helm values. Declare those as `sensitive` variables of your own too.
+  # Where alerts go. No receiver is configured by default, so alerts reach nobody
+  # until one is set. Receivers read credentials by file path from the Secret
+  # built from `alerting_receiver_secrets`; declare those as `sensitive` too.
   #
   # alerting = {
   #   preset = "critical-infrastructure"
@@ -479,16 +457,10 @@ module "monitoring" {
   materialize_instance_namespace = local.materialize_instance_namespace
   materialize_operator_namespace = local.materialize_operator_namespace
 
-  # Azure Monitor's view of the dependencies Materialize cannot run without —
-  # the metadata database's CPU, memory, storage, connections, disk throttling
-  # and transaction-ID use, and the persist account's size, availability and
-  # latency. The module adds its own storage account and Grafana's database.
-  # Those are named here rather than discovered.
-  #
-  # The cluster's autoscaler is read from the cluster, and its node VMs from the
-  # scale sets in its node resource group, which AKS creates and replaces, so
-  # the pull finds them there. The gateway's identity can read only these
-  # resources and that group, so nothing else in the subscription is pulled.
+  # Azure Monitor metrics for the metadata database and persist storage account
+  # (the module adds its own storage account and Grafana's database). Node VMs
+  # are found in the cluster's node resource group. The gateway's identity can
+  # read only these, so nothing else in the subscription is pulled.
   provider_metrics = var.enable_provider_metrics ? {
     postgres_server_ids = [module.database.server_id]
     storage_account_ids = [module.storage.storage_account_id]
@@ -498,26 +470,22 @@ module "monitoring" {
     }]
   } : null
 
-  # A dedicated Flexible Server for Grafana's own state, so dashboards and API
-  # tokens created in the UI survive a pod restart. Separate from
-  # `module.database` because a Flexible Server has one administrator login and no
-  # ARM resource for additional roles.
+  # Dedicated Flexible Server so Grafana dashboards and API tokens survive a pod
+  # restart. Separate from `module.database` because a Flexible Server has one
+  # admin login and no ARM resource for additional roles.
   grafana_database = {
     subnet_id           = module.networking.postgres_subnet_id
     private_dns_zone_id = module.networking.private_dns_zone_id
   }
 
-  # Off by default: the monitoring module refuses a public Grafana with an
-  # unrestricted allowlist, and this is the acknowledgement that lifts it.
-  # See `grafana_allow_public_access`.
+  # The monitoring module refuses a public Grafana with an unrestricted allowlist;
+  # this opt-in lifts that. See `grafana_allow_public_access`.
   additional_values = var.grafana_allow_public_access ? [
     yamlencode({ connections = { grafana = { allowPublicAccess = true } } })
   ] : []
 
-  # Always passed, following the same two root variables the Materialize console
-  # and balancerd load balancers already use. Internal by default; `host` is
-  # optional because an Azure/GCP load balancer answers on an IP, and setting it
-  # is what lets `root_url` be correct.
+  # Same internal/allowlist variables as the Materialize load balancers. The load
+  # balancer answers on an IP; set `host` so Grafana's `root_url` is correct.
   grafana_load_balancer = {
     internal            = var.internal_load_balancer
     ingress_cidr_blocks = var.ingress_cidr_blocks
@@ -526,27 +494,15 @@ module "monitoring" {
 
   tags = var.tags
 
-  # Certificates are on by default and no issuer is named here, so the chart
-  # bootstraps a self-signed root scoped to the monitoring release. That is
-  # deliberate, and the reason this differs from `module.materialize_instance`
-  # above: none of the components behind Grafana implements per-client
-  # authorization, so "signed by the CA we trust" is the whole authorization
-  # decision, and handing them the cluster's general-purpose issuer would reduce
-  # that to "has any certificate". Set `internal_issuer_ref` to share one
-  # knowingly.
-  #
-  # `issuer_ref` stays unset for a second reason: it is the *browser-facing*
-  # issuer and only issues anything alongside `grafana_external_dns_names`,
-  # which is empty because `grafana_host` is unset by default. The load balancer
-  # answers on its own DNS name either way; set `grafana_host` and you have a
-  # name worth certifying, but browser-facing TLS also needs Grafana itself to
-  # serve HTTPS, which these examples do not yet do.
+  # No issuer is set, so the chart bootstraps a self-signed CA scoped to the
+  # monitoring release. Deliberate: its components have no per-client
+  # authorization, so the cluster issuer would let in any certificate it signs.
+  # Set `internal_issuer_ref` to share one knowingly. The browser-facing
+  # `issuer_ref` needs `grafana_host`, and Grafana does not serve HTTPS here yet.
 
   depends_on = [
-    # cert-manager, because the monitoring stack issues Certificates by default
-    # and its CRDs have to exist before the Helm release renders them. Without
-    # this the two race, and the loser fails the apply on an unknown
-    # `cert-manager.io/v1` kind rather than waiting.
+    # The stack issues Certificates by default; without this the apply can race
+    # cert-manager and fail on an unknown `cert-manager.io/v1` kind.
     module.cert_manager,
     module.operator,
     module.aks,
