@@ -160,9 +160,8 @@ locals {
       }
     }]
   })
-  # Not `standard-rwo`: the node pools default to C4/C4A, which take only
-  # Hyperdisk — same constraint as their boot disks. Every default GKE class is
-  # Persistent Disk, so a PVC on those pools never attaches.
+  # Not `standard-rwo`: the default C4/C4A node pools take only Hyperdisk, and
+  # every default GKE class is Persistent Disk, so a PVC there would never attach.
   storage_class = kubernetes_storage_class.hyperdisk_balanced.metadata[0].name
 
   # Ory database DSNs
@@ -223,14 +222,9 @@ data "google_compute_zones" "available" {
   status  = "UP"
 }
 
-# GKE ships no Hyperdisk class, so create one. Not marked default — taking that
-# from `standard-rwo` would change provisioning for every other workload.
-#
-# Deliberately not gated on `enable_observability`, even though monitoring is
-# the only module that reads it today. On C4/C4A node pools any workload
-# needing a PVC hits the same Persistent Disk wall, so the class is generally
-# useful; tying it to the observability flag would mean turning monitoring off
-# silently removes a class other workloads may already be bound to.
+# GKE ships no Hyperdisk class, so create one. Not the default, which would change
+# provisioning for other workloads. Not gated on `enable_observability`: any PVC on
+# C4/C4A pools needs it, and turning monitoring off should not remove it.
 resource "kubernetes_storage_class" "hyperdisk_balanced" {
   metadata {
     name = "hyperdisk-balanced"
@@ -268,8 +262,7 @@ module "gke" {
   region       = var.region
   prefix       = var.name_prefix
   network_name = module.networking.network_name
-  # we only have one subnet, so we can use the first one
-  # if multiple subnets are created, we need to use the specific subnet name here
+  # Single subnet; select the right one by name if you add more.
   subnet_name                       = module.networking.subnets_names[0]
   namespace                         = local.materialize_operator_namespace
   k8s_apiserver_authorized_networks = var.k8s_apiserver_authorized_networks
@@ -289,11 +282,9 @@ module "gke" {
 }
 
 # Install the monitoring namespace and CRDs before anything that ships a
-# ServiceMonitor. A chart that declares one before the CRDs exist either fails
-# its install or quietly leaves the monitor out for good. Each component below
-# turns its monitor on from `crds_installed`, which also makes it wait for the
-# CRDs. Without the monitoring stack this still creates the namespace, as the
-# operator module used to.
+# ServiceMonitor, or that install fails or silently drops the monitor.
+# Components gate their monitor on `crds_installed`, which also orders them
+# after the CRDs. The namespace is created even without observability.
 module "monitoring_crds" {
   source = "../../../kubernetes/modules/monitoring-crds"
 
@@ -303,10 +294,9 @@ module "monitoring_crds" {
   depends_on = [module.gke]
 }
 
-# State migration: the operator module used to create the namespace, and the
-# monitoring module used to install the CRDs. Both move here as they are, so
-# neither is recreated. The namespace's block matters most: without it,
-# Terraform destroys the monitoring namespace and everything in it.
+# Upgrade path: these resources used to live in the operator and monitoring
+# modules. Without the namespace move, Terraform would destroy the monitoring
+# namespace and everything in it.
 moved {
   from = module.operator.kubernetes_namespace.monitoring[0]
   to   = module.monitoring_crds.kubernetes_namespace.monitoring[0]
@@ -370,7 +360,7 @@ module "coredns" {
   coredns_deployment_to_scale_down            = "kube-dns"
   coredns_autoscaler_deployment_to_scale_down = "kube-dns-autoscaler"
   # Resolve the Polis FQDN to its internal service in-cluster (hairpin fix).
-  # Built here, not from module.ory, to avoid a cycle: ory depends_on coredns.
+  # Built here, not from module.ory, to avoid a cycle: ory depends on coredns.
   extra_rewrites = var.enable_polis ? [{
     from = var.ory_polis_fqdn
     to   = "polis-internal.${local.ory_namespace}.svc.cluster.local"
@@ -389,7 +379,7 @@ module "database" {
   source = "../../modules/database"
 
   databases = [local.database_config.database]
-  # We don't provide password, so random password is generated
+  # No password given, so the module generates one.
   users = [{ name = local.database_config.user_name }]
 
   project_id = var.project_id
@@ -409,7 +399,7 @@ module "database" {
   depends_on = [module.networking]
 }
 
-# Separate Cloud SQL instance for Ory (Kratos + Hydra)
+# Separate Cloud SQL instance for Ory (Kratos, Hydra, and Polis when enabled)
 module "ory_database" {
   source = "../../modules/database"
 
@@ -453,7 +443,7 @@ module "storage" {
   labels = var.labels
 }
 
-# Install cert-manager for SSL certificate management and create cluster issuer
+# Install cert-manager for TLS certificates
 module "cert_manager" {
   source = "../../../kubernetes/modules/cert-manager"
 
@@ -496,7 +486,7 @@ module "operator" {
   # binding targets the operator's service account in that namespace.
   operator_namespace = local.materialize_operator_namespace
 
-  # ARM tolerations and node selector for all operator workloads on GCP
+  # Tolerations and node selector for Materialize instance workloads
   instance_pod_tolerations = local.materialize_tolerations
   instance_node_selector   = local.materialize_node_labels
 
@@ -514,10 +504,8 @@ module "operator" {
   cluster_name                           = module.gke.cluster_name
   cluster_location                       = module.gke.cluster_location
   node_upgrade_watched_node_pools        = [module.materialize_nodepool.node_pool_name]
-  # Grant the operator workload identity access for its Pub/Sub subscription
-  # and GKE API reads. The gke module's workload identity binding targets the
-  # chart's service account (its orchestratord_service_account_name variable,
-  # default "orchestratord") in the operator namespace.
+  # Workload identity for the operator's Pub/Sub subscription and GKE API reads.
+  # The gke module binds it to the chart's "orchestratord" service account.
   operator_service_account_annotations = var.enable_node_upgrade_rollout_trigger ? {
     "iam.gke.io/gcp-service-account" = module.gke.workload_identity_sa_email
   } : {}
@@ -550,15 +538,12 @@ module "monitoring" {
   project_id = var.project_id
   region     = var.region
 
-  # Matches what these examples already pass to `module.storage`. Loki and
-  # Thanos start writing immediately, and neither S3 nor GCS will delete a
-  # non-empty bucket, so without this `terraform destroy` wedges on the
-  # telemetry buckets. Set to false for anything you cannot afford to lose.
+  # Loki and Thanos write right away and GCS will not delete a non-empty bucket,
+  # so without this `terraform destroy` hangs. Set to false for data you need to keep.
   bucket_force_destroy = true
 
   namespace = module.monitoring_crds.namespace
-  # module.monitoring_crds creates the namespace and installs the CRDs, ahead of
-  # the components whose ServiceMonitors need them.
+  # module.monitoring_crds already creates the namespace and CRDs.
   create_namespace       = false
   enable_monitoring_crds = false
 
@@ -570,15 +555,10 @@ module "monitoring" {
   enable_google_cloud_metrics         = false
   google_cloud_metrics_min_importance = "recommended"
 
-  # Datadog and generic OTLP (Honeycomb, Grafana Cloud, your own collector) fan
-  # out the same way, and need no cloud resources — so they are set here rather
-  # than behind an `enable_*` toggle. Commented out because both need a
-  # credential; the module puts it in a Secret rather than the Helm values, and
-  # rolls the gateway when it changes.
-  #
-  # Declare the two credentials as `sensitive` variables of your own before
-  # uncommenting — this example does not, and they belong in `terraform.tfvars`
-  # or `TF_VAR_*` rather than as literals in a file you commit.
+  # Optional Datadog or OTLP (Honeycomb, Grafana Cloud, your own collector) export.
+  # Each needs a credential: declare it as a `sensitive` variable of your own and
+  # set it via terraform.tfvars or TF_VAR_*, never as a literal. The module keeps
+  # it in a Secret and rolls the gateway when it changes.
   #
   # datadog_metrics = { site = "datadoghq.com" }
   # datadog_api_key = var.datadog_api_key
@@ -589,11 +569,9 @@ module "monitoring" {
   # }
   # otlp_auth_header_secrets = { "x-honeycomb-team" = var.honeycomb_api_key }
 
-  # Where alerts go. A default install configures no receiver, so every alert
-  # reaches nobody until one is set. Commented out for the same reason as the
-  # destinations above: receivers need credentials. A receiver references each
-  # one by path, and `alerting_receiver_secrets` supplies it as a Secret rather
-  # than as Helm values. Declare those as `sensitive` variables of your own too.
+  # Alert receivers. None is configured by default, so alerts reach nobody until
+  # you set one. Receivers read credentials from files that
+  # `alerting_receiver_secrets` supplies as a Secret; declare them `sensitive` too.
   #
   # alerting = {
   #   preset = "critical-infrastructure"
@@ -616,51 +594,34 @@ module "monitoring" {
   materialize_instance_namespace = local.materialize_instance_namespace
   materialize_operator_namespace = local.materialize_operator_namespace
 
-  # A dedicated Cloud SQL instance for Grafana's own state, separate from
-  # `module.database` so Grafana's blast radius stays away from Materialize's
-  # metadata.
+  # Grafana gets its own Cloud SQL instance, away from Materialize's metadata.
   grafana_database = {
     network_id = module.networking.network_id
   }
 
-  # Off by default: the monitoring module refuses a public Grafana with an
-  # unrestricted allowlist, and this is the acknowledgement that lifts it.
-  # See `grafana_allow_public_access`.
+  # The monitoring module refuses a public Grafana with an unrestricted allowlist;
+  # `grafana_allow_public_access` is the opt-in that lifts it.
   additional_values = var.grafana_allow_public_access ? [
     yamlencode({ connections = { grafana = { allowPublicAccess = true } } })
   ] : []
 
-  # Always passed, following the same two root variables the Materialize console
-  # and balancerd load balancers already use. Internal by default; `host` is
-  # optional because an Azure/GCP load balancer answers on an IP, and setting it
-  # is what lets `root_url` be correct.
+  # Same internal/allowlist settings as the Materialize load balancers. `host` is
+  # optional since the LB answers on an IP; set it so Grafana's `root_url` is right.
   grafana_load_balancer = {
     internal            = var.internal_load_balancer
     ingress_cidr_blocks = var.ingress_cidr_blocks
     host                = var.grafana_host
   }
 
-  # Certificates are on by default and no issuer is named here, so the chart
-  # bootstraps a self-signed root scoped to the monitoring release. That is
-  # deliberate, and the reason this differs from `module.materialize_instance`
-  # above: none of the components behind Grafana implements per-client
-  # authorization, so "signed by the CA we trust" is the whole authorization
-  # decision, and handing them the cluster's general-purpose issuer would reduce
-  # that to "has any certificate". Set `internal_issuer_ref` to share one
-  # knowingly.
-  #
-  # `issuer_ref` stays unset for a second reason: it is the *browser-facing*
-  # issuer and only issues anything alongside `grafana_external_dns_names`,
-  # which is empty because `grafana_host` is unset by default. The load balancer
-  # answers on its own DNS name either way; set `grafana_host` and you have a
-  # name worth certifying, but browser-facing TLS also needs Grafana itself to
-  # serve HTTPS, which these examples do not yet do.
+  # No issuer is set on purpose, so the chart bootstraps a self-signed CA scoped to
+  # the monitoring release. Its components have no per-client authorization, so a
+  # shared cluster issuer would trust any certificate holder; set
+  # `internal_issuer_ref` only knowingly. `issuer_ref` (browser-facing) needs
+  # `grafana_external_dns_names` and Grafana serving HTTPS, which these examples
+  # do not do yet.
 
   depends_on = [
-    # cert-manager, because the monitoring stack issues Certificates by default
-    # and its CRDs have to exist before the Helm release renders them. Without
-    # this the two race, and the loser fails the apply on an unknown
-    # `cert-manager.io/v1` kind rather than waiting.
+    # The chart renders Certificates, so the cert-manager CRDs must exist first.
     module.cert_manager,
     module.operator,
     module.gke,
@@ -671,9 +632,8 @@ module "monitoring" {
 
 # Deploy Materialize instance with configured backend connections
 locals {
-  # Which provider Materialize trusts. var.direct_oidc wins when set, so an
-  # existing provider stays authoritative while Ory runs beside it; clearing it
-  # is the cutover.
+  # The OIDC provider Materialize trusts. var.direct_oidc, when set, keeps an
+  # existing provider authoritative while Ory runs beside it; clearing it cuts over.
   materialize_oidc_parameters = var.direct_oidc != null ? {
     oidc_issuer               = var.direct_oidc.issuer
     oidc_audience             = jsonencode(var.direct_oidc.audience)
@@ -699,17 +659,16 @@ module "materialize_instance" {
   persist_backend_url     = local.persist_backend_url
   enable_network_policies = true
 
-  # Rollout configuration
   force_rollout   = var.force_rollout
   request_rollout = var.request_rollout
 
-  # Use OIDC authentication via Ory Hydra. The external_login_password is still required
-  # as a fallback for the mz_system admin user.
+  # OIDC login (Ory, or var.direct_oidc when set). mz_system keeps a password
+  # login as the admin fallback.
   external_login_password_mz_system = random_password.external_login_password_mz_system.result
   authenticator_kind                = "Oidc"
 
-  # GCP workload identity annotation for service account
-  # TODO: this needs a fix in Environmentd Client. KSA based access to storage doesn't work end to end
+  # TODO: KSA-based storage access does not work end to end yet (needs an
+  # environmentd client fix), so persist uses HMAC keys.
   service_account_annotations = {
     "iam.gke.io/gcp-service-account" = module.gke.workload_identity_sa_email
   }
@@ -729,9 +688,8 @@ module "materialize_instance" {
   console_extra_dns_names   = [var.materialize_console_fqdn]
   balancerd_extra_dns_names = [var.materialize_balancerd_fqdn]
 
-  # OIDC config; client_id is the Hydra Maester-generated UUID read from
-  # the OAuth2 client Secret. system_parameters can also set any of the
-  # parameters listed at https://materialize.com/docs/sql/alter-system-set/#key-configuration-parameters
+  # With Ory, the client ID is the UUID Hydra Maester generates. Other settable parameters:
+  # https://materialize.com/docs/sql/alter-system-set/#key-configuration-parameters
   system_parameters = local.materialize_oidc_parameters
 
   # Wire the materialize -> ory NetworkPolicy.
@@ -758,15 +716,13 @@ module "load_balancers" {
   namespace                  = local.materialize_instance_namespace
   resource_id                = module.materialize_instance.instance_resource_id
 
-  # Serve the console on 443 (the canonical HTTPS port) so browser OIDC
-  # redirects to https://<materialize_console_fqdn>/auth/callback resolve without
-  # a :8080 suffix, and CORS origins match Hydra's cors_allowed_origins.
+  # Console on 443 so OIDC redirects to https://<materialize_console_fqdn>/auth/callback
+  # need no :8080 suffix and match Hydra's CORS origins.
   materialize_console_port = 443
 }
 
-# Ory stack (Kratos + Hydra + selfservice UI + Materialize bridge).
-# Example feeds cloud-specific inputs (DSNs, LB annotations, cert issuer)
-# and reads back the OIDC issuer URL + OAuth2 client id from its outputs.
+# Ory stack (Kratos, Hydra, selfservice UI, Materialize bridge). This example
+# passes the cloud-specific inputs and reads back the OIDC issuer and client ID.
 module "ory" {
   source = "../../../kubernetes/modules/ory-stack"
 
@@ -786,7 +742,8 @@ module "ory" {
   kratos_dsn = local.ory_kratos_dsn
   hydra_dsn  = local.ory_hydra_dsn
 
-  # Polis (SAML-to-OIDC bridge). Off by default.
+  # Polis (SAML-to-OIDC bridge). Off by default. Its chart and image come through
+  # the OEL registry proxy using the license key, so no extra credential is needed.
   enable_polis = var.enable_polis
   polis_fqdn   = var.enable_polis ? var.ory_polis_fqdn : null
   polis_dsn    = var.enable_polis ? local.ory_polis_dsn : null
@@ -800,7 +757,7 @@ module "ory" {
   cert_issuer_ref                 = local.cert_issuer
   cert_issuer_signs_cluster_local = var.cert_issuer_ref == null
 
-  # Materialize integration: OAuth2 client CRD + ory-side ingress NetworkPolicy.
+  # Materialize integration: OAuth2 client CRD and ory-side ingress NetworkPolicy.
   materialize_namespace    = local.materialize_instance_namespace
   materialize_console_fqdn = var.materialize_console_fqdn
 
@@ -810,10 +767,9 @@ module "ory" {
     "networking.gke.io/load-balancer-type" = "Internal"
   } : {}
 
-  # Firewall the public Ory LBs to ory_lb_source_ranges. Polis keeps its own
-  # allowlist when ory_polis_source_ranges is set or okta-scim-source-ranges.json
-  # exists (Okta's SCIM egress plus your ranges), so a default
-  # ingress_cidr_blocks of 0.0.0.0/0 never reopens a Polis locked to Okta.
+  # Firewall the public Ory LBs to ory_lb_source_ranges. Polis gets its own
+  # allowlist when ory_polis_source_ranges or okta-scim-source-ranges.json is set,
+  # so a default 0.0.0.0/0 ingress_cidr_blocks never reopens a Polis locked to Okta.
   lb_overrides = merge(
     var.internal_load_balancer ? {} : {
       for role in ["hydra", "kratos", "ui", "polis"] : role => { source_ranges = local.ory_lb_source_ranges }
@@ -839,11 +795,9 @@ module "ory" {
   ]
 }
 
-# State migration: the ory -> materialize egress NetworkPolicy moved from
-# ory-stack to materialize-instance. The console HTTPS LoadBalancer that used
-# to live in ory-stack is destroyed on apply; the existing per-cloud console
-# LB (module.load_balancers) is retargeted from 8080 to 443 in place. Update
-# the console DNS record after apply to point at the retargeted LB IP.
+# Upgrade path: this NetworkPolicy moved from ory-stack to materialize-instance.
+# The old ory-stack console LoadBalancer is destroyed on apply and
+# module.load_balancers moves the console to 443; repoint the console DNS record.
 moved {
   from = module.ory.kubernetes_network_policy_v1.materialize_to_ory_egress[0]
   to   = module.materialize_instance.kubernetes_network_policy_v1.allow_ory_egress[0]

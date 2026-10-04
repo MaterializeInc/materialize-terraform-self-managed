@@ -26,10 +26,8 @@ terraform {
       source  = "alekc/kubectl"
       version = "2.4.1"
     }
-    # Declared so users can drop in a local okta.tf (gitignored) to automate
-    # the Okta SAML app + assignments for the Polis SCIM/SAML e2e test. Not
-    # used unless that file is present, in which case provider "okta" is
-    # configured there.
+    # Only used by an optional local okta.tf (gitignored) that automates the Okta
+    # SAML app for Polis testing and configures this provider.
     okta = {
       source  = "okta/okta"
       version = "~> 4.0"
