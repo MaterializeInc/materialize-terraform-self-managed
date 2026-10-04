@@ -1,31 +1,18 @@
-# NodeLocal DNSCache deployed via the deliveryhero helm chart.
+# NodeLocal DNSCache (deliveryhero chart). A DaemonSet on every node, tainted
+# Materialize pools included, answers pod DNS on-node by binding the kube-dns
+# ClusterIP locally with NOTRACK iptables rules.
 #
-# Runs a node-cache DaemonSet on every node (the chart's built-in tolerations
-# tolerate all NoSchedule/NoExecute taints plus CriticalAddonsOnly, so it also
-# lands on the tainted Materialize node pools). Each pod binds the kube-dns
-# ClusterIP on a local dummy interface and installs NOTRACK iptables rules, so
-# pod DNS queries are answered on-node without conntrack or a network hop.
-#
-# This only works where services are resolved by kube-proxy in iptables mode
-# (e.g. EKS). On eBPF dataplanes (GKE Dataplane V2, AKS with Cilium) the
-# kube-dns ClusterIP is rewritten in eBPF before iptables sees it, so this
-# module cannot intercept DNS there. For GKE use the built-in NodeLocal
-# DNSCache addon (dns_cache_config) instead.
+# Needs kube-proxy in iptables mode (e.g. EKS). eBPF dataplanes (GKE Dataplane
+# V2, AKS with Cilium) rewrite the ClusterIP before iptables sees it; on GKE use
+# the NodeLocal DNSCache addon (dns_cache_config) instead.
 locals {
-  # Corefile for node-local-dns. Mirrors the chart's generated config except
-  # for the cluster-zone cache TTLs: the custom CoreDNS deployment (see
-  # ../coredns) serves records with TTL 0 so Materialize sees fresh pod IPs
-  # during rollouts, and the chart's default 30s node-local cache would
-  # reintroduce that staleness. __PILLAR__CLUSTER__DNS__ and
-  # __PILLAR__UPSTREAM__SERVERS__ are substituted by the node-cache binary at
-  # startup.
+  # The chart's Corefile, but with cluster-zone cache TTLs that keep ../coredns's
+  # TTL 0 (fresh pod IPs during rollouts) instead of caching for 30s. node-cache
+  # fills in the __PILLAR__ placeholders at startup.
   #
-  # The DaemonSet runs on the host network, so binding the wildcard address
-  # collides with anything else listening on port 53 on the node (Bottlerocket
-  # hosts already have a listener there, crashing the pod; see
-  # https://github.com/bottlerocket-os/bottlerocket/issues/3711). Bind only the
-  # link-local IP and the kube-dns ClusterIP, both of which node-cache sets up
-  # on a local dummy interface.
+  # Host network: binding the wildcard collides with other port 53 listeners
+  # (Bottlerocket has one: https://github.com/bottlerocket-os/bottlerocket/issues/3711),
+  # so bind only the link-local IP and the kube-dns ClusterIP.
   bind_ips = "${var.local_dns_ip} ${var.dns_server}"
 
   corefile = <<-EOF
@@ -79,8 +66,7 @@ locals {
 }
 
 resource "helm_release" "node_local_dns" {
-  # node-local-dns is a singleton resource for the cluster,
-  # so not using name prefixes here.
+  # Singleton per cluster, so no name prefix.
   name       = "node-local-dns"
   namespace  = var.namespace
   repository = "https://charts.deliveryhero.io"
@@ -109,9 +95,8 @@ resource "helm_release" "node_local_dns" {
           memory = var.memory_request
         }
       }
-      # The `prometheus :9253` plugin in the Corefile above, scraped per node.
-      # The chart does not check for the monitoring.coreos.com API first, and
-      # always puts the ServiceMonitor in kube-system.
+      # Scrapes `prometheus :9253` per node. The chart does not check for the
+      # monitoring.coreos.com API and always puts the monitor in kube-system.
       serviceMonitor = {
         enabled = var.enable_service_monitor
       }

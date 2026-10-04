@@ -18,10 +18,9 @@ resource "random_password" "secrets_cookie" {
   special = false
 }
 
-# DSN and secrets live here instead of in the Helm values, which the helm
-# provider echoes in plain text in helm_release.metadata on every plan.
-# The chart's old Secret (named after the release, e.g. `hydra`) is a Helm hook
-# with resource-policy keep, so upgrading leaves it behind; delete it by hand.
+# Not in the Helm values, which the helm provider shows in plain text on every
+# plan. The chart's own Secret (named after the release) is a keep-policy hook,
+# so upgrading leaves it behind; delete it by hand.
 resource "kubernetes_secret" "hydra" {
   metadata {
     name      = "${var.release_name}-secrets"
@@ -72,10 +71,8 @@ locals {
     hydra = { config = { serve = { tls = { allow_termination_from = null } } } }
   } : {}
 
-  # Configure TLS on the public listener so Hydra serves HTTPS there.
-  # The admin listener stays HTTP (internal-only, probes work, selfservice UI and
-  # Maester access it within the cluster). `enabled: true` is required — without
-  # it Hydra ignores cert/key paths and serves plain HTTP.
+  # Public listener only; admin stays plain HTTP for probes, the UI and Maester.
+  # Without `enabled: true` Hydra ignores the cert/key paths.
   tls_hydra_config = local.tls_enabled ? {
     hydra = {
       config = {
@@ -145,9 +142,8 @@ locals {
   default_helm_values = merge({
     replicaCount = var.replica_count
 
-    # Scrapes the admin listener's /admin/metrics/prometheus over plain HTTP.
-    # The chart renders the monitor only when the monitoring.coreos.com API
-    # already exists.
+    # Scrapes the admin listener over plain HTTP. The chart renders it only if
+    # the monitoring.coreos.com API already exists.
     serviceMonitor = {
       enabled = var.enable_service_monitor
     }
@@ -161,9 +157,8 @@ locals {
       enabled = var.maester_enabled
     }
 
-    # Janitor cleans stale rows the DB has no TTL for. cleanupRequests is the
-    # important one: login and consent flow-state tables only get cleared here,
-    # so without it they grow unbounded on every engine, Cockroach included.
+    # cleanupRequests matters most: only the janitor clears the login and
+    # consent flow tables, which otherwise grow unbounded.
     janitor = {
       enabled         = var.janitor_enabled
       cleanupGrants   = true
@@ -246,7 +241,6 @@ locals {
     }
   }, local.image_config, local.image_pull_secrets_config)
 
-  # Deep-merge TLS and CORS config so they merge into the existing hydra.config and deployment blocks.
   default_helm_values_with_tls = provider::deepmerge::mergo(
     provider::deepmerge::mergo(
       provider::deepmerge::mergo(local.default_helm_values, local.tls_hydra_config),

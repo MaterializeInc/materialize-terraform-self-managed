@@ -48,10 +48,8 @@ variable "kube_dns_service_cluster_ip" {
   type        = string
   default     = null
 
-  # Left null while this module owns the Service, the API server assigns a
-  # random ClusterIP and the apply succeeds, but kubelets keep resolving at
-  # the address they were configured with, so cluster DNS breaks with nothing
-  # in the plan to show it. Make the caller name the address instead.
+  # Null would get a random ClusterIP that kubelets never query, silently
+  # breaking cluster DNS with nothing in the plan to show it.
   validation {
     condition     = !var.create_kube_dns_service || var.kube_dns_service_cluster_ip != null
     error_message = "kube_dns_service_cluster_ip is required when create_kube_dns_service is true, and must be the cluster DNS IP kubelets are configured with (conventionally cidrhost(<service CIDR>, 10))."

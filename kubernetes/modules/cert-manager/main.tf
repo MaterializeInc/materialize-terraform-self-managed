@@ -5,8 +5,7 @@ resource "kubernetes_namespace" "cert_manager" {
 }
 
 resource "helm_release" "cert_manager" {
-  # cert-manager is a singleton resource for the cluster,
-  # so not using name prefixes here.
+  # Singleton per cluster, so no name prefix.
   name       = "cert-manager"
   namespace  = kubernetes_namespace.cert_manager.metadata[0].name
   repository = "https://charts.jetstack.io"
@@ -19,15 +18,13 @@ resource "helm_release" "cert_manager" {
     value = "true"
   }
 
-  # One ServiceMonitor across the controller, webhook and cainjector. The
-  # chart's metrics Services exist regardless; it does not check for the
-  # monitoring.coreos.com API before rendering the monitor.
+  # One ServiceMonitor for the controller, webhook and cainjector. The chart
+  # does not check for the monitoring.coreos.com API first.
   set {
     name  = "prometheus.servicemonitor.enabled"
     value = var.enable_service_monitor
   }
 
-  # Add node selectors for cert-manager pods if provided
   dynamic "set" {
     for_each = var.node_selector
     content {
@@ -50,7 +47,6 @@ resource "helm_release" "cert_manager" {
     }
   }
 
-  # Add tolerations for cert-manager pods if provided
   dynamic "set" {
     for_each = length(var.tolerations) > 0 ? range(length(var.tolerations)) : []
     content {

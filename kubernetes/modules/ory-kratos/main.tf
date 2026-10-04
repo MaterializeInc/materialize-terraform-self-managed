@@ -24,9 +24,8 @@ resource "random_password" "secrets_cipher" {
   special = false
 }
 
-# The entire provider list — including client secrets — lives in this Secret
-# and reaches Kratos as a single JSON-valued environment variable, so the
-# Helm-rendered ConfigMap never carries a credential.
+# Provider list (with client secrets) reaches Kratos as a JSON env var from this
+# Secret, so the Helm-rendered ConfigMap never carries a credential.
 resource "kubernetes_secret" "upstream_oidc_providers_env" {
   count = length(var.upstream_identity_providers) > 0 ? 1 : 0
 
@@ -42,9 +41,7 @@ resource "kubernetes_secret" "upstream_oidc_providers_env" {
   type = "Opaque"
 }
 
-# The SAML (jackson/Polis) provider list — including client secrets and the raw
-# IdP metadata — reaches Kratos as a single JSON-valued environment variable, so
-# the Helm-rendered ConfigMap never carries a credential.
+# Same for the SAML (jackson/Polis) providers, including the raw IdP metadata.
 resource "kubernetes_secret" "saml_providers_env" {
   count = length(var.saml_providers) > 0 ? 1 : 0
 
@@ -60,10 +57,9 @@ resource "kubernetes_secret" "saml_providers_env" {
   type = "Opaque"
 }
 
-# DSN, secrets and the SMTP URI live here instead of in the Helm values, which
-# the helm provider echoes in plain text in helm_release.metadata on every plan.
-# The chart's old Secret (named after the release, e.g. `kratos`) is a Helm hook
-# with resource-policy keep, so upgrading leaves it behind; delete it by hand.
+# Not in the Helm values, which the helm provider shows in plain text on every
+# plan. The chart's own Secret (named after the release) is a keep-policy hook,
+# so upgrading leaves it behind; delete it by hand.
 resource "kubernetes_secret" "kratos" {
   metadata {
     name      = "${var.release_name}-secrets"
@@ -130,8 +126,7 @@ locals {
   tls_enabled   = var.tls_cert_secret_name != null
   tls_mount_dir = "/etc/kratos/tls"
 
-  # Configure TLS on the public listener so Kratos serves HTTPS. Kratos enables
-  # TLS whenever cert/key paths are set — unlike Hydra, there's no `enabled` field.
+  # Kratos enables TLS whenever cert/key paths are set (no `enabled` field).
   tls_kratos_config = local.tls_enabled ? {
     kratos = {
       config = {
@@ -173,9 +168,8 @@ locals {
     }
   } : {}
 
-  # Standard OIDC claim mapper. Maps the upstream IdP's email claim onto the
-  # Kratos identity's email trait. Encoded as a base64:// data URI so Kratos
-  # can read it inline, no ConfigMap needed.
+  # Maps the upstream email and groups claims onto identity traits. Shared by
+  # the OIDC and SAML methods; passed inline as a base64:// data URI.
   upstream_oidc_mapper_jsonnet = <<-EOT
     local claims = std.extVar('claims');
     local raw = if std.objectHas(claims, 'raw_claims') then claims.raw_claims else {};
@@ -195,8 +189,6 @@ locals {
 
   upstream_oidc_mapper_data_uri = "base64://${base64encode(local.upstream_oidc_mapper_jsonnet)}"
 
-  # The provider objects as Kratos expects them. They only ever land in a
-  # Kubernetes Secret, never in the Helm-rendered ConfigMap.
   upstream_oidc_provider_objects = [
     for p in var.upstream_identity_providers : merge(
       {
@@ -214,11 +206,9 @@ locals {
     )
   ]
 
-  # The provider list reaches Kratos as one JSON-valued environment variable;
-  # configx decodes JSON env values into arrays and the variable takes
-  # precedence over the (provider-less) file configuration. This is the
-  # delivery mechanism Ory recommends for keeping provider secrets out of the
-  # chart's ConfigMap: https://github.com/ory/k8s/issues/423
+  # configx decodes the JSON env value into an array that overrides the
+  # provider-less file config. Ory's recommended way to keep provider secrets
+  # out of the ConfigMap: https://github.com/ory/k8s/issues/423
   upstream_oidc_extra_env = length(var.upstream_identity_providers) > 0 ? [
     {
       name = "SELFSERVICE_METHODS_OIDC_CONFIG_PROVIDERS"
@@ -231,10 +221,8 @@ locals {
     },
   ] : []
 
-  # Roll the pods when the provider list changes: the chart's checksum
-  # annotation only covers the ConfigMap, and environment variables are
-  # immutable for running pods. The annotation lands on the pod template, so a
-  # changed hash triggers a rolling restart.
+  # The chart's checksum only covers the ConfigMap, so roll the pods ourselves
+  # when the provider list changes.
   upstream_oidc_env_annotations = length(var.upstream_identity_providers) > 0 ? {
     "checksum/upstream-oidc-providers" = sha256(jsonencode(local.upstream_oidc_provider_objects))
   } : {}
@@ -243,10 +231,8 @@ locals {
 
   deployment_config = {
     deployment = merge(
-      # One attribute per conditional: a multi-attribute object and {} cannot
-      # unify as a map when the attribute types differ, so a two-attribute
-      # branch fails with "Inconsistent conditional result types" as soon as
-      # TLS is enabled.
+      # One attribute per conditional: a two-attribute object and {} fail with
+      # "Inconsistent conditional result types" once TLS is enabled.
       length(local.tls_volumes) > 0 ? { extraVolumes = local.tls_volumes } : {},
       length(local.tls_volumes) > 0 ? { extraVolumeMounts = local.tls_volume_mounts } : {},
       length(local.extra_env) > 0 ? { extraEnv = local.extra_env } : {},
@@ -254,9 +240,8 @@ locals {
     )
   }
 
-  # The providers themselves are delivered exclusively via the environment
-  # variable; enabled-with-no-providers is valid configuration for workloads
-  # that never receive it (migration job, courier).
+  # Providers come only from the env var; enabled with no providers is valid
+  # for workloads that never get it (migration job, courier).
   upstream_oidc_config = length(var.upstream_identity_providers) > 0 ? {
     kratos = {
       config = {
@@ -271,10 +256,6 @@ locals {
     }
   } : {}
 
-  # The SAML provider objects as Kratos's jackson (Polis) method expects them.
-  # They only ever land in a Kubernetes Secret, never in the Helm-rendered
-  # ConfigMap. The IdP metadata is delivered inline as a base64:// data URI and
-  # the mapper is shared with the OIDC method (it already maps email + groups).
   saml_provider_objects = [
     for p in var.saml_providers : merge(
       {
@@ -295,9 +276,6 @@ locals {
     )
   ]
 
-  # Delivered the same way as the OIDC providers: one JSON-valued environment
-  # variable that configx decodes into an array and that takes precedence over
-  # the provider-less file configuration.
   saml_extra_env = length(var.saml_providers) > 0 ? [
     {
       name = "SELFSERVICE_METHODS_SAML_CONFIG_PROVIDERS"
@@ -310,14 +288,11 @@ locals {
     },
   ] : []
 
-  # Roll the pods when the SAML provider list changes, for the same reason as
-  # the OIDC checksum: env vars are immutable for running pods.
   saml_env_annotations = length(var.saml_providers) > 0 ? {
     "checksum/saml-providers" = sha256(jsonencode(local.saml_provider_objects))
   } : {}
 
-  # base_redirect_uri is the only file-level SAML config; the providers
-  # themselves arrive exclusively via the environment variable.
+  # Providers come only from the env var.
   saml_config = length(var.saml_providers) > 0 ? {
     kratos = {
       config = {
@@ -338,9 +313,8 @@ locals {
   default_helm_values = merge({
     replicaCount = var.replica_count
 
-    # Scrapes the admin listener's /admin/metrics/prometheus over plain HTTP.
-    # The chart renders the monitor only when the monitoring.coreos.com API
-    # already exists.
+    # Scrapes the admin listener over plain HTTP. The chart renders it only if
+    # the monitoring.coreos.com API already exists.
     serviceMonitor = {
       enabled = var.enable_service_monitor
     }
@@ -422,8 +396,6 @@ locals {
     }
   }, local.image_config, local.image_pull_secrets_config)
 
-  # Deep-merge optional features (TLS, upstream OIDC, SAML) into the default
-  # values.
   default_helm_values_with_extras = provider::deepmerge::mergo(
     provider::deepmerge::mergo(
       provider::deepmerge::mergo(

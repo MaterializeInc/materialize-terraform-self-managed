@@ -24,9 +24,8 @@ resource "random_password" "db_encryption_key" {
   special = false
 }
 
-# RSA keypair used by Polis to sign OIDC tokens returned to upstream consumers
-# (Kratos). Without these env vars Polis errors with "OAuth server not
-# configured correctly for openid flow, check if JWT signing keys are loaded".
+# Signs the OIDC tokens Polis returns to Kratos. Without it Polis errors with
+# "OAuth server not configured correctly for openid flow".
 resource "tls_private_key" "openid_rsa" {
   algorithm = "RSA"
   rsa_bits  = 2048
@@ -41,10 +40,9 @@ locals {
 
   secret_name = "${var.release_name}-config"
 
-  # Everything secret reaches the container through the chart's envFrom, never
-  # through the Helm values, which the helm provider echoes in plan output.
-  # OPENID_RSA_* are the OIDC token signing keys, base64 of the PEM so the env
-  # var stays one line. The private key must be PKCS#8 (Polis rejects PKCS#1).
+  # Secrets go through envFrom, not Helm values (echoed in plan output).
+  # OPENID_RSA_* are base64 PEM so the env var is one line; the private key
+  # must be PKCS#8 (Polis rejects PKCS#1).
   secret_data = {
     DB_URL                  = var.dsn
     API_KEYS                = local.admin_api_keys
@@ -54,8 +52,7 @@ locals {
     OPENID_RSA_PUBLIC_KEY   = base64encode(tls_private_key.openid_rsa.public_key_pem)
   }
 
-  # Hash of the secret data surfaced as a pod annotation so updating any value
-  # forces a rollout, since Kubernetes does not re-roll on Secret changes.
+  # Pod annotation so a Secret change rolls the pods.
   secret_checksum = nonsensitive(sha256(jsonencode(local.secret_data)))
 
   image_config = {
@@ -71,16 +68,14 @@ locals {
     imagePullSecrets = [for name in var.image_pull_secrets : { name = name }]
   } : {}
 
-  # Polis only honors SAML_AUDIENCE when set as an env var; the chart does not
-  # plumb it through values, so route it through deployment.extraEnvs.
+  # The chart has no value for SAML_AUDIENCE, so set it as an env var.
   saml_audience_env = var.saml_audience != null ? [{
     name  = "SAML_AUDIENCE"
     value = var.saml_audience
   }] : []
 
-  # EXTERNAL_URL controls the host Polis advertises in SCIM endpoint URLs,
-  # OAuth callbacks, and similar. Without it Polis falls back to its internal
-  # listen address (http://localhost:5225) which IdPs can't reach.
+  # Host Polis advertises in callbacks and SCIM URLs. Without it Polis uses
+  # http://localhost:5225, which IdPs can't reach.
   external_url_env = [{
     name  = "EXTERNAL_URL"
     value = var.external_url
@@ -100,9 +95,8 @@ locals {
     [for k, v in var.extra_env : { name = k, value = v }],
   )
 
-  # The chart's default OTLP endpoints assume a kube-prometheus-stack install
-  # in an 'observability' namespace. Most clusters don't have it, and the
-  # OTel SDK keeps logging connection errors. Blank them when disabled.
+  # The chart's default OTLP endpoints assume kube-prometheus-stack in an
+  # 'observability' namespace; without it the OTel SDK keeps logging errors.
   monitoring_config = var.monitoring_enabled ? {} : {
     monitoring = {
       enableDebug = "false"
@@ -118,9 +112,8 @@ locals {
     }
   }
 
-  # Chart-provided nginx sidecar that terminates TLS in front of the plain-HTTP
-  # Polis listener. When enabled the chart's Service routes to the sidecar on
-  # tls_sidecar_port over HTTPS instead of hitting Polis directly.
+  # The chart's nginx sidecar terminates TLS for the plain-HTTP Polis listener;
+  # the chart's Service then targets the sidecar on tls_sidecar_port.
   tls_sidecar_config = var.tls_secret_name != null ? {
     tlsSidecar = {
       enabled = true
@@ -190,9 +183,6 @@ locals {
   merged_helm_values = provider::deepmerge::mergo(local.default_helm_values, var.helm_values)
 }
 
-# Secret feeding the chart's envFrom. The chart's built-in secret template
-# hardcodes a CockroachDB DSN, so we always disable it and provide our own
-# with the Postgres DB_URL plus every other secret the container expects.
 resource "kubernetes_secret" "polis" {
   metadata {
     name      = local.secret_name
@@ -217,12 +207,9 @@ resource "helm_release" "polis" {
   depends_on = [kubernetes_secret.polis]
 }
 
-# Internal-only ClusterIP fronting the TLS sidecar, so in-cluster clients (e.g.
-# Kratos's Polis back-channel) can reach Polis at its public FQDN via a CoreDNS
-# rewrite instead of hairpinning out to Polis's external LoadBalancer, which GKE
-# pods cannot reach. Only created when the TLS sidecar is enabled. Pair it with a
-# CoreDNS rewrite of the public FQDN to this service (see the ory-stack
-# coredns_rewrites output).
+# Lets in-cluster clients (e.g. Kratos) reach Polis at its public FQDN without
+# hairpinning to its LoadBalancer, which GKE pods cannot reach. Pair it with a
+# CoreDNS rewrite of that FQDN to this service (coredns module extra_rewrites).
 resource "kubernetes_service_v1" "internal_tls" {
   count = var.tls_secret_name != null ? 1 : 0
 

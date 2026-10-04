@@ -1,4 +1,3 @@
-# Create a namespace for this Materialize instance
 resource "kubernetes_namespace" "instance" {
   count = var.create_namespace ? 1 : 0
 
@@ -7,7 +6,6 @@ resource "kubernetes_namespace" "instance" {
   }
 }
 
-# Create a ConfigMap for system parameters
 resource "kubernetes_config_map" "system_params" {
   count = var.system_parameters != null ? 1 : 0
 
@@ -44,7 +42,6 @@ resource "kubernetes_config_map" "balancerd_params" {
   ]
 }
 
-# Create the Materialize instance using the kubernetes_manifest resource
 resource "kubectl_manifest" "materialize_instance" {
   field_manager   = "terraform"
   force_conflicts = true
@@ -99,10 +96,9 @@ resource "kubectl_manifest" "materialize_instance" {
           }
         }
 
-        # internal_issuer_ref split: public ACME issuers can't sign single-label
-        # cluster service names, so strip "balancerd"/"console" from the SAN list
-        # and rely on the extras. Drop the spec when there are no extras, since
-        # cert-manager rejects Certificates with no SANs.
+        # With internal_issuer_ref set, issuer_ref may be public ACME, which can't
+        # sign "balancerd"/"console", so use only the extras. No extras means no
+        # spec, since cert-manager rejects Certificates with no SANs.
         balancerdExternalCertificateSpec = (
           var.issuer_ref == null ||
           (var.internal_issuer_ref != null && length(var.balancerd_extra_dns_names) == 0)
@@ -117,9 +113,8 @@ resource "kubectl_manifest" "materialize_instance" {
           dnsNames  = var.internal_issuer_ref != null ? var.console_extra_dns_names : concat(["console"], var.console_extra_dns_names)
           issuerRef = var.issuer_ref
         }
-        # Internal certs use cluster.local SANs which public ACME issuers reject,
-        # so a separate internal_issuer_ref can be passed (typically a self-signed
-        # cluster issuer). Falls back to issuer_ref when not set.
+        # Internal certs carry cluster.local SANs that public ACME issuers reject,
+        # hence internal_issuer_ref (typically self-signed).
         internalCertificateSpec = var.issuer_ref == null ? null : {
           issuerRef = var.internal_issuer_ref != null ? var.internal_issuer_ref : var.issuer_ref
         }
@@ -152,7 +147,6 @@ resource "kubectl_manifest" "materialize_instance" {
   ]
 }
 
-# Create a secret with connection information for the Materialize instance
 resource "kubernetes_secret" "materialize_backend" {
   metadata {
     name      = "${var.instance_name}-materialize-backend"
@@ -243,11 +237,8 @@ resource "kubernetes_network_policy_v1" "allow_monitoring_ingress" {
   depends_on = [kubernetes_namespace.instance]
 }
 
-# Allow egress to Kubernetes API server
-# The API server is outside the cluster, so we need
-# to allow HTTPS egress to the control plane IP. Using 0.0.0.0/0 on port 443
-# allows the operator to reach the API server regardless of its IP since API 
-# Server IP might change dynamically, hence 0.0.0.0/0 is used
+# Egress to the Kubernetes API server, which is outside the cluster. Its IP can
+# change, so allow 0.0.0.0/0 on 443.
 resource "kubernetes_network_policy_v1" "allow_api_server_egress" {
   count = var.enable_network_policies ? 1 : 0
 

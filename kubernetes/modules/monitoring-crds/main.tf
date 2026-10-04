@@ -1,22 +1,11 @@
-# The monitoring stack's namespace and CRDs, installed before anything else in
-# the cluster.
+# The monitoring namespace and the prometheus/grafana-operator CRDs, installed
+# before everything else so other charts can ship ServiceMonitors in the same
+# apply. A chart rendered before the CRD exists fails, or silently drops the
+# monitor and never renders it until its values change.
 #
-# The CRDs are the prometheus-operator and grafana-operator definitions that the
-# materialize-monitoring chart's custom resources need. Installing them here,
-# ahead of Karpenter, cert-manager and the rest, is what lets those charts ship
-# their own ServiceMonitors in the same apply: a chart that declares a
-# ServiceMonitor before the CRD exists either fails its install or, where it
-# checks for the API first, silently leaves the monitor out and never renders it
-# again, since Terraform only upgrades a release when its values change.
-#
-# The release keeps the name and namespace the monitoring module used to give it,
-# `mzmon-crds` in the monitoring namespace, so an existing install moves it here
-# with a `moved` block rather than reinstalling it. The CRDs carry
-# `helm.sh/resource-policy: keep`, so a reinstall would leave them in place, but
-# it would uninstall first and could fail its install on the name still in use.
-#
-# The namespace lives here because the release metadata has to sit in it, and
-# the operator module, which used to create it, is installed far later.
+# Keep the release name and namespace (`mzmon-crds` in the monitoring namespace)
+# so existing installs move here with a `moved` block; a reinstall uninstalls
+# first and can fail on the name still in use.
 
 resource "kubernetes_namespace" "monitoring" {
   count = var.create_namespace ? 1 : 0

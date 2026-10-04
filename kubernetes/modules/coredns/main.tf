@@ -1,5 +1,5 @@
-# Custom CoreDNS deployment for all cloud providers, because in some cloud providers, the default CoreDNS doesn't support overriding the default configuration including cache.
-# Azure reference: https://github.com/Azure/AKS/issues/3661
+# Custom CoreDNS, since some providers' default CoreDNS can't override its
+# config, including cache. Azure: https://github.com/Azure/AKS/issues/3661
 locals {
   namespace = "kube-system"
   labels = {
@@ -7,10 +7,8 @@ locals {
     "provisioned-by" = "materialize"
   }
 
-  # One "rewrite name <from> <to>" directive per split-horizon rule, appended
-  # after `ready` inside the .:53 block. Empty (no leading newline) when none,
-  # so the rendered Corefile is byte-identical to before for callers that pass
-  # no rewrites.
+  # Split-horizon rewrites, appended after `ready`. Empty (no leading newline)
+  # when none, so the Corefile does not change for callers without rewrites.
   coredns_rewrites = join("", [
     for r in var.extra_rewrites : "\n    rewrite name ${r.from} ${r.to}"
   ])
@@ -44,11 +42,8 @@ locals {
 }
 
 
-# ServiceAccount for CoreDNS.
-# Named coredns-custom (like the deployment) rather than coredns so it never
-# collides with a platform-bootstrapped CoreDNS service account, which may
-# exist outside Terraform on clusters created before these resources were
-# managed here (e.g. EKS clusters built with EKS module v20 and earlier).
+# Named coredns-custom so it never collides with a platform-bootstrapped coredns
+# SA that may exist outside Terraform (e.g. EKS module v20 and earlier).
 resource "kubernetes_service_account" "coredns" {
   count = var.create_coredns_service_account ? 1 : 0
   metadata {
@@ -64,7 +59,6 @@ resource "terraform_data" "coredns_service_account" {
   input = kubernetes_service_account.coredns[*].metadata[0].uid
 }
 
-# ClusterRole for CoreDNS
 resource "kubernetes_cluster_role" "coredns" {
   count = var.create_coredns_service_account ? 1 : 0
   metadata {
@@ -84,7 +78,6 @@ resource "kubernetes_cluster_role" "coredns" {
   }
 }
 
-# ClusterRoleBinding for CoreDNS
 resource "kubernetes_cluster_role_binding" "coredns" {
   count = var.create_coredns_service_account ? 1 : 0
   metadata {
@@ -104,7 +97,6 @@ resource "kubernetes_cluster_role_binding" "coredns" {
   }
 }
 
-# ConfigMap with Corefile
 resource "kubernetes_config_map" "coredns" {
   metadata {
     name      = "coredns-user-managed"
@@ -116,13 +108,9 @@ resource "kubernetes_config_map" "coredns" {
   }
 }
 
-# kube-dns Service exposing CoreDNS on the cluster DNS IP.
-#
-# Platforms normally bootstrap this Service, but EKS clusters created with
-# EKS module v21+ do not bootstrap CoreDNS at all. Without a Service owning
-# the cluster DNS IP, kubelet's configured DNS address routes nowhere, and
-# network policy engines that allowlist service ClusterIPs (such as the AWS
-# VPC CNI network policy agent) deny pod DNS egress entirely.
+# EKS module v21+ clusters bootstrap no CoreDNS. Without a Service on the
+# cluster DNS IP, kubelet DNS routes nowhere, and policy engines that allowlist
+# service ClusterIPs (e.g. the AWS VPC CNI agent) deny all pod DNS egress.
 resource "kubernetes_service" "kube_dns" {
   count = var.create_kube_dns_service ? 1 : 0
 
@@ -156,7 +144,6 @@ resource "kubernetes_service" "kube_dns" {
   }
 }
 
-# Custom CoreDNS Deployment
 resource "kubernetes_deployment" "coredns" {
   metadata {
     name      = "coredns-custom"
@@ -309,11 +296,8 @@ resource "kubernetes_deployment" "coredns" {
     terraform_data.scale_down_kube_dns_autoscaler
   ]
 
-  # Replace the Deployment (create-new) rather than update it in place whenever
-  # the ServiceAccount changes. GKE Warden forbids changing a kube-system
-  # workload's service account in place ("no-update-kube-system-service-account"),
-  # so an in-place update of service_account_name fails hard and, once the old SA
-  # is already gone, leaves coredns pointing at a deleted SA and cluster DNS down.
+  # GKE Warden forbids changing a kube-system workload's SA in place
+  # ("no-update-kube-system-service-account"), which can leave cluster DNS down.
   # A replace is a create, which Warden allows.
   lifecycle {
     replace_triggered_by = [terraform_data.coredns_service_account]
@@ -321,30 +305,17 @@ resource "kubernetes_deployment" "coredns" {
 }
 
 
-# Scale down the default kube-dns deployment (and its autoscaler) so only
-# the custom CoreDNS serves DNS.
+# Scale down the default kube-dns (and its autoscaler) so only this CoreDNS
+# serves DNS. The kubeconfig goes in `environment`, not `input`, which
+# terraform_data echoes in cleartext in plan diffs.
 #
-# The kubeconfig is passed to the provisioner via `environment` and is never
-# stored in the resource: terraform_data mirrors `input` into its
-# non-sensitive `output` attribute, which would print the kubeconfig in
-# cleartext in plan and destroy diffs.
-#
-# There is deliberately no destroy-time counterpart that scales kube-dns back
-# up. Destroy-time provisioners can only reference `self`, so the kubeconfig
-# would have to live in state, and the credentials captured there are
-# almost always expired by the time a destroy runs. An operator removing only
-# the CoreDNS module (without destroying the cluster) must scale kube-dns
-# back up manually:
+# No destroy-time scale-up: that would need the kubeconfig in state, and its
+# credentials are usually expired by then. Removing only this module (not the
+# cluster) means scaling kube-dns back up by hand:
 #   kubectl scale deployment <kube-dns deployment> -n kube-system --replicas=2
 #   kubectl scale deployment <kube-dns autoscaler deployment> -n kube-system --replicas=1
-#
-# Terraform 1.16 adds a `store` block to terraform_data whose value can be
-# marked sensitive (masked `sensitive_output` attribute, see
-# https://github.com/hashicorp/terraform/pull/38298). Once 1.16 is an
-# acceptable required_version floor, a destroy-time scale-up could be
-# reintroduced by storing the kubeconfig there and reading
-# `self.store.sensitive_output` — though the stored credentials would still
-# usually be expired by destroy time.
+# Terraform 1.16's sensitive terraform_data `store` could hold it once that is
+# an acceptable floor: https://github.com/hashicorp/terraform/pull/38298
 resource "terraform_data" "scale_down_kube_dns_autoscaler" {
   count            = var.disable_default_coredns_autoscaler ? 1 : 0
   triggers_replace = [var.cluster_identifier, var.coredns_autoscaler_deployment_to_scale_down, local.namespace]

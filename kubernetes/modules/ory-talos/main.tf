@@ -1,18 +1,9 @@
-# First-cut Ory Talos module. Talos is currently in early access and has no
-# published Helm chart in the preview docs, so this module deploys it as a
-# raw Deployment + Service + Secret. Once Ory publishes a chart (or we
-# confirm one already exists at an OCI registry we have access to), swap
-# this to a helm_release in the same shape as the ory-polis module.
+# TODO: Talos (early access) has no published Helm chart, so this deploys raw
+# resources. Switch to a helm_release, like ory-polis, once one exists.
 #
-# Coexistence with Hydra: Talos and Hydra are independent issuers by default.
-# A downstream OIDC consumer (Materialize, etc.) that trusts a single issuer
-# URL can only validate one of them at a time. Per Ory guidance, the
-# recommended pattern is to set var.credentials_issuer to the same URL Hydra
-# publishes as its issuer and have Talos sign with the same JWK set via
-# var.signing_keys_urls; both services then mint JWTs that the same
-# downstream accepts. The alternative is fronting both with Oathkeeper at
-# the edge and re-issuing a common token; that's heavier and out of scope
-# for this module.
+# Talos and Hydra are separate issuers by default. Per Ory, to have one
+# downstream (e.g. Materialize) accept both, set credentials_issuer to Hydra's
+# issuer and signing_keys_urls to Hydra's JWK set.
 
 resource "kubernetes_namespace" "talos" {
   count = var.create_namespace ? 1 : 0
@@ -56,8 +47,7 @@ locals {
     "app.kubernetes.io/part-of"    = "ory"
   }
 
-  # Secret data Talos reads from env at startup. Kept in a Kubernetes Secret
-  # so the raw values do not appear on the Deployment manifest.
+  # Kept in a Secret so the values do not appear on the Deployment.
   secret_data = merge(
     {
       TALOS_DB_DSN                     = var.dsn
@@ -75,9 +65,7 @@ locals {
     } : {},
   )
 
-  # Hash of the secret data so the pod template rolls when any value changes.
-  # Kubernetes does not automatically restart pods when an envFrom-referenced
-  # secret changes.
+  # Pod annotation so a Secret change rolls the pods.
   secret_checksum = sha256(jsonencode(local.secret_data))
 }
 

@@ -1,75 +1,49 @@
 locals {
-  # When set, the module creates the OAuth2 client CRD and the ory-side ingress
-  # policy from the materialize namespace. Null skips Materialize integration.
+  # Null materialize_namespace skips the OAuth2 client and the ingress policy.
   wire_materialize = var.materialize_namespace != null
 
-  # Every browser origin the console is served on: the primary FQDN plus any
-  # extras (e.g. a VPN or tailnet hostname fronting the same pods). Feeds the
-  # OAuth2 redirect URIs, post-logout URIs, and Hydra CORS, so sign-in works
-  # from each origin.
+  # Every browser origin of the console (e.g. also a tailnet hostname). Feeds
+  # the OAuth2 redirect and post-logout URIs and Hydra CORS.
   materialize_console_fqdns = concat(
     var.materialize_console_fqdn != null ? [var.materialize_console_fqdn] : [],
     var.materialize_console_extra_fqdns,
   )
 
-  # Polis is optional and gated by var.enable_polis.
   wire_polis = var.enable_polis
 
-  # Hostname portion of var.oel_registry (everything before the first '/').
-  # Used as the dockerconfigjson auths key on the imagePullSecret, and as the
-  # image.registry / chart_registry for Polis (whose chart takes registry and
-  # repository as separate fields).
+  # Host part of oel_registry: the dockerconfigjson auths key, and the Polis
+  # registry (its chart takes registry and repository separately).
   oel_registry_host = split("/", var.oel_registry)[0]
 
-  # Full image and chart repository paths for Polis, derived from oel_registry.
-  # The Polis chart takes image.registry and image.repository separately, so we
-  # split the host off before passing them through.
   polis_image_full       = "${var.oel_registry}/ory-enterprise-polis/polis-oel"
   polis_image_repository = trimprefix(local.polis_image_full, "${local.oel_registry_host}/")
   polis_chart_full       = "${var.oel_registry}/helm-oel-polis/polis-oel"
   polis_chart_repository = trimprefix(local.polis_chart_full, "${local.oel_registry_host}/")
 
-  # When set, Hydra and Kratos sit behind one hostname under path prefixes, served
-  # by the reverse proxy defined below (it terminates TLS, so the services run
-  # plain HTTP in-cluster). The selfservice UI keeps its own hostname even in this
-  # mode (its static assets are root-mounted and cannot be served under a path
-  # prefix), and Polis always keeps its own hostname for the IdP SAML POST.
-  #
-  # Example, single_domain_fqdn = "ory.example.com":
-  #   hydra_external_url  = https://ory.example.com/hydra
-  #   kratos_external_url = https://ory.example.com/kratos
-  #   ui_external_url     = https://<ui_fqdn>  (own hostname, or the console URL)
-  # Unset (the default, per-service hostnames):
-  #   hydra_external_url  = https://<hydra_fqdn>
-  #   kratos_external_url = https://<kratos_fqdn>
-  #   ui_external_url     = https://<ui_fqdn>  (or the console URL)
+  # Single-domain mode: Hydra and Kratos sit under /hydra and /kratos on one host,
+  # behind the TLS-terminating proxy below. The UI (root-mounted assets) and Polis
+  # (IdP SAML POST) keep their own hostnames in both modes.
   single_domain_enabled = var.single_domain_fqdn != null
 
-  # In single-domain mode the reverse proxy terminates TLS for Hydra and Kratos,
-  # so they serve plain HTTP in-cluster (no per-service TLS cert). Single-domain
-  # is the only mode where a TLS-terminating proxy fronts them, so this is derived
-  # from the toggle rather than exposed as a separate input.
+  # Only the single-domain proxy terminates TLS for Hydra and Kratos; then they
+  # serve plain HTTP in-cluster.
   tls_terminated_by_proxy = local.single_domain_enabled
 
   # External URLs the browser (and Materialize, for OIDC issuer matching) sees.
   # No trailing slash: OIDC issuer comparison downstream is exact-match.
   hydra_external_url  = local.single_domain_enabled ? "https://${var.single_domain_fqdn}/hydra" : "https://${var.hydra_fqdn}"
   kratos_external_url = local.single_domain_enabled ? "https://${var.single_domain_fqdn}/kratos" : "https://${var.kratos_fqdn}"
-  # The standalone UI on its own FQDN when deployed (in both modes: its static
-  # assets are root-mounted and can't sit under a path prefix), else whatever app
-  # hosts the flow pages (e.g. the console). Kratos/Hydra redirect the browser here.
+  # Where Kratos/Hydra send the browser for flow pages: the standalone UI, else
+  # whatever app hosts them (e.g. the console).
   ui_external_url = (
     var.deploy_selfservice_ui ? "https://${var.ui_fqdn}" :
     var.selfservice_ui_url
   )
   polis_external_url = local.wire_polis ? "https://${var.polis_fqdn}" : null
 
-  # Cookie domain for Kratos session/CSRF cookies. Even in single-domain mode the
-  # selfservice UI keeps its own hostname (a sibling of the Hydra/Kratos host), so
-  # the cookie must be scoped to their shared parent domain to be sent to both,
-  # otherwise the login flow loops. Defaults to the parent domain of the primary
-  # FQDN (single-domain host, else kratos_fqdn); single-label hosts fall back to
-  # the value itself. var.cookie_parent_domain overrides it.
+  # Kratos cookies must also reach the UI's sibling hostname, or the login flow
+  # loops. Defaults to the parent domain of the single-domain host (else
+  # kratos_fqdn); a single-label host is used as is.
   cookie_primary_fqdn = local.single_domain_enabled ? var.single_domain_fqdn : var.kratos_fqdn
   cookie_fqdn_parts   = split(".", local.cookie_primary_fqdn)
   cookie_parent_domain = (
@@ -82,15 +56,11 @@ locals {
     )
   )
 
-  # In-cluster admin URL for Hydra. Used by Kratos (oauth2_provider.url) and the
-  # selfservice UI (HYDRA_ADMIN_URL). Hardcoded service hostname because the
-  # Hydra Helm chart deploys with this canonical service name.
+  # Service name as rendered by the Hydra chart. Used by Kratos and the UI.
   hydra_admin_internal_url = "http://hydra-admin.${var.namespace}.svc.cluster.local:4445"
 
-  # Public LoadBalancer Service map (Kratos public, Hydra public, selfservice UI,
-  # and Polis when enabled). Selectors target the app.kubernetes.io/* labels
-  # emitted by the upstream charts. role is the key callers use in lb_overrides,
-  # matching the lb_addresses output keys.
+  # Selectors match the upstream charts' app.kubernetes.io/* labels. role is the
+  # key used in lb_overrides and the lb_addresses output.
   ory_lb_services = merge(
     local.single_domain_enabled ? {} : {
       kratos-public-lb = {
@@ -123,9 +93,8 @@ locals {
       }
   } : {})
 
-  # cert-manager Certificate map for the browser-facing services. Polis is added
-  # when enabled and its cert is mounted into the chart's TLS-terminating nginx
-  # sidecar.
+  # Certificates for the browser-facing services. The Polis cert is mounted into
+  # its chart's TLS-terminating nginx sidecar.
   ory_certs = merge(
     local.single_domain_enabled ? {
       single-domain-tls = { fqdn = var.single_domain_fqdn, cluster_svc = null }
@@ -140,8 +109,7 @@ locals {
       polis-tls = { fqdn = var.polis_fqdn, cluster_svc = null, extra_dns = var.polis_extra_dns_names }
   } : {})
 
-  # Baked-in Kratos config that the enterprise setup requires. Callers can
-  # override individual keys via var.kratos_helm_values (deep-merged on top).
+  # Required Kratos config; var.kratos_helm_values is deep-merged on top.
   kratos_helm_values_baseline = {
     kratos = {
       config = {
@@ -174,10 +142,9 @@ locals {
           }
           flows = {
             login = { ui_url = "${local.ui_external_url}/login" }
-            # session hook logs the user in on first registration; without it
-            # Hydra consent gets no identity and the JWT has no email claim.
-            # Needed per method, so both the OIDC and SAML (Polis) methods carry
-            # it, otherwise SAML sign-ins hit the missing-claim login loop.
+            # The session hook logs the user in on first registration; without
+            # it consent gets no identity and the JWT has no email claim. It is
+            # per method, so OIDC and SAML both need it.
             registration = {
               ui_url = "${local.ui_external_url}/registration"
               after = {
@@ -212,9 +179,8 @@ locals {
         strategies = {
           access_token = "jwt"
         }
-        # Promote email/groups from Hydra's nested `ext` to the access token's
-        # top level, where Materialize reads the auth and group claims. Without
-        # this, MCP access tokens are rejected (claims stay under ext).
+        # Materialize reads email/groups at the access token's top level, not
+        # under `ext`. Without this, MCP access tokens are rejected.
         oauth2 = {
           allowed_top_level_claims = ["email", "groups"]
         }
@@ -235,12 +201,9 @@ resource "kubernetes_namespace" "ory" {
 
 # Image pull secret for the Ory registry proxy --------------------------------
 
-# The proxy validates the license-key JWT, checks the ory entitlement, and
-# forwards to Ory's Artifact Registry using Materialize's service account.
-# Username is arbitrary; the proxy ignores it. Convention: "jwt".
-# Pods need egress to the proxy host AND storage.googleapis.com (the proxy
-# returns 307 redirects to signed GCS URLs for blob GETs, which the kubelet
-# follows directly).
+# The proxy checks the license-key JWT for the ory entitlement and ignores the
+# username ("jwt" by convention). Nodes need egress to the proxy host AND
+# storage.googleapis.com: blob GETs are 307 redirects to signed GCS URLs.
 resource "kubernetes_secret" "ory_oel_registry" {
   metadata {
     name      = var.oel_registry_secret_name
@@ -264,10 +227,8 @@ resource "kubernetes_secret" "ory_oel_registry" {
 
 # Browser-facing TLS certificates --------------------------------------------
 
-# The optional *.cluster.local SAN is dropped when the customer brings their own
-# (potentially public ACME) issuer that can't sign single-label cluster names;
-# in that case in-cluster callers route via the public hostname (hairpin NAT
-# through the LB; TLS still validates).
+# The cluster.local SAN is skipped for issuers that can't sign it (e.g. public
+# ACME); in-cluster callers then hairpin through the LB's public hostname.
 resource "kubectl_manifest" "ory_certificate" {
   for_each = local.ory_certs
 
@@ -405,18 +366,15 @@ module "ory_hydra" {
 
 # Ory selfservice UI ---------------------------------------------------------
 
-# Sits between Hydra and Kratos. Hydra has no built-in way to authenticate
-# users or collect consent; the UI fills both roles.
+# Hydra cannot authenticate users or collect consent itself; the UI does both.
 module "ory_selfservice_ui" {
   source = "../ory-selfservice-ui"
   count  = var.deploy_selfservice_ui ? 1 : 0
 
   namespace = var.namespace
 
-  # Server-side calls from the UI pod to Kratos's public API. When the issuer
-  # signs cluster.local hostnames (self-signed default) we can use the in-cluster
-  # service URL directly. Otherwise the cert only covers the external hostname,
-  # so we hairpin out through the LB.
+  # In-cluster URL when there is no TLS (single-domain) or the cert covers
+  # cluster.local; otherwise hairpin through the LB's external hostname.
   kratos_public_url  = (local.single_domain_enabled || var.cert_issuer_signs_cluster_local) ? module.ory_kratos.public_url : local.kratos_external_url
   kratos_admin_url   = module.ory_kratos.admin_url
   kratos_browser_url = local.kratos_external_url
@@ -424,14 +382,11 @@ module "ory_selfservice_ui" {
 
   default_access_token_audience = var.dcr_default_audience
 
-  # The UI keeps its own hostname (off the single-domain proxy, since its assets
-  # are root-mounted), so it terminates its own TLS in both modes.
+  # The UI is never behind the single-domain proxy, so it always terminates TLS.
   tls_cert_secret_name = "ory-selfservice-ui-tls"
 
-  # Trust the in-cluster self-signed CA only when the UI's server-side calls to
-  # Kratos go over HTTPS: the cluster.local-signing case in per-service mode. In
-  # single-domain mode those calls are plain HTTP (see kratos_public_url), so no
-  # CA is needed.
+  # Only needed when the UI calls Kratos in-cluster over HTTPS (per-service mode
+  # with a cluster.local-signing issuer).
   trust_mounted_ca_cert = !local.single_domain_enabled && var.cert_issuer_signs_cluster_local
 
   node_selector = var.node_selector
@@ -444,14 +399,9 @@ module "ory_selfservice_ui" {
 
 # Ory Polis (optional) -------------------------------------------------------
 
-# Polis is a SAML-to-OIDC bridge: it accepts a customer's SAML IdP on one side
-# and exposes an OIDC provider on the other. Kratos can consume it as an
-# upstream OIDC provider for social sign-in.
-#
-# Image and chart are both pulled through the Materialize OEL registry proxy
-# with the license-key JWT (same auth flow as Kratos/Hydra images). Callers
-# can override polis_chart_{registry,repository,oci_*} to pull the chart from
-# a different OCI registry if they want to bypass the proxy.
+# Polis bridges a customer's SAML IdP to OIDC; Kratos uses it through its SAML
+# (jackson) method, see saml_providers. Image and chart come through the OEL
+# registry proxy; polis_chart_* can point the chart at another registry.
 module "ory_polis" {
   count = local.wire_polis ? 1 : 0
 
@@ -478,8 +428,7 @@ module "ory_polis" {
   nextauth_secret   = var.polis_nextauth_secret
   db_encryption_key = var.polis_db_encryption_key
 
-  # cert-manager Secret consumed by the chart's TLS-terminating nginx sidecar.
-  # Matches the Certificate created for the polis-tls entry in ory_certs above.
+  # From the polis-tls entry in ory_certs.
   tls_secret_name = "polis-tls"
 
   node_selector = var.node_selector
@@ -508,11 +457,10 @@ resource "kubernetes_service_v1" "ory_lb" {
     type                    = "LoadBalancer"
     load_balancer_class     = var.lb_load_balancer_class
     external_traffic_policy = var.lb_external_traffic_policy
-    # Enforced by the cloud controller in the provider firewall, so it applies
-    # even when the cluster datapath ignores NetworkPolicy (see lb_source_cidrs).
+    # Enforced in the cloud firewall, so it holds even when the datapath ignores
+    # NetworkPolicy (see lb_source_cidrs).
     load_balancer_source_ranges = try(var.lb_overrides[each.value.role].source_ranges, null)
-    # Pin a reserved static IP, e.g. so a firewalled public LB (Polis) has a
-    # stable address to allowlist. Null lets the cloud assign an ephemeral one.
+    # Reserved static IP, e.g. a stable address to allowlist for Polis.
     load_balancer_ip = try(var.lb_overrides[each.value.role].load_balancer_ip, null)
 
     selector = {
@@ -548,9 +496,8 @@ resource "kubernetes_service_v1" "ory_lb" {
 # Materialize integration (gated by var.materialize_namespace)
 # -----------------------------------------------------------------------------
 
-# OAuth2Client CRD: Hydra Maester watches for these and creates/manages the
-# OAuth2 client via Hydra's admin API. The Secret named here is populated by
-# Hydra Maester with the generated client_id and client_secret.
+# Hydra Maester creates the client via Hydra's admin API and writes its
+# credentials to the secretName Secret.
 resource "kubectl_manifest" "materialize_oauth2_client" {
   count = local.wire_materialize ? 1 : 0
 
@@ -576,9 +523,8 @@ resource "kubectl_manifest" "materialize_oauth2_client" {
       postLogoutRedirectUris = var.oauth2_client_post_logout_redirect_uris != null ? var.oauth2_client_post_logout_redirect_uris : flatten([
         for fqdn in local.materialize_console_fqdns : ["https://${fqdn}/", "https://${fqdn}/account/login"]
       ])
-      # Run the consent flow: Hydra has no user store, so the consent handler
-      # is what injects the identity's email/groups into the token. skip_consent
-      # would mint an empty-claims token that Materialize rejects.
+      # The consent handler injects email/groups into the token; skipping it
+      # mints an empty-claims token that Materialize rejects.
       skipConsent = false
       # Public SPA client. No secret; PKCE on the console side.
       secretName              = var.oauth2_client_name
@@ -586,10 +532,9 @@ resource "kubectl_manifest" "materialize_oauth2_client" {
     }
   })
 
-  # Maester adds finalizer.ory.hydra.sh and is the only thing that clears it, so
-  # wait = true blocks this delete (foreground) until it does, and depends_on
-  # keeps Maester alive until then, otherwise the ory namespace hangs in
-  # Terminating. If Maester is already dead, clear it by hand and re-destroy:
+  # Only Maester clears finalizer.ory.hydra.sh, so wait for it on delete (and
+  # keep Maester alive via depends_on), or the namespace hangs in Terminating.
+  # If Maester is already gone, clear it by hand and re-destroy:
   #   kubectl -n <ns> patch oauth2client <name> --type=merge -p '{"metadata":{"finalizers":[]}}'
   wait = true
 
@@ -600,8 +545,7 @@ resource "kubectl_manifest" "materialize_oauth2_client" {
   depends_on = [module.ory_hydra]
 }
 
-# Read back the Hydra-Maester-populated client credentials so the caller can
-# wire client_id into Materialize's system_parameters.
+# Exposes client_id for Materialize's system_parameters.
 data "kubernetes_secret_v1" "oauth2_client" {
   count = local.wire_materialize ? 1 : 0
 
@@ -613,11 +557,8 @@ data "kubernetes_secret_v1" "oauth2_client" {
   depends_on = [kubectl_manifest.materialize_oauth2_client]
 }
 
-# Network policies. The materialize -> ory egress policy is owned by the
-# materialize-instance module (it lives in the materialize namespace).
-
-# Allow Ory pods to receive traffic from Materialize, from within the ory
-# namespace, and from external sources on the three public ports.
+# Admits the materialize and ory namespaces, plus the LB CIDRs on the public
+# ports. The materialize-side egress policy lives in materialize-instance.
 resource "kubernetes_network_policy_v1" "ory_from_materialize_ingress" {
   count = local.wire_materialize ? 1 : 0
 
@@ -648,11 +589,9 @@ resource "kubernetes_network_policy_v1" "ory_from_materialize_ingress" {
       }
     }
 
-    # The monitoring gateway, to the Kratos and Hydra admin ports, where their
-    # ServiceMonitors read /admin/metrics/prometheus. Ory serves metrics on no
-    # other listener, so this admits the gateway to the whole admin API, which
-    # has no authentication of its own; see `enable_service_monitors`. It admits
-    # the gateway's pods and nothing else in the monitoring namespace.
+    # The metrics scraper, to the Kratos and Hydra admin ports. Ory serves
+    # metrics only there, so this opens the whole unauthenticated admin API to
+    # those pods; see `enable_service_monitors`.
     dynamic "ingress" {
       for_each = var.enable_service_monitors ? [1] : []
       content {
@@ -687,9 +626,8 @@ resource "kubernetes_network_policy_v1" "ory_from_materialize_ingress" {
           }
         }
       }
-      # Hydra public (4444) and Kratos public (4433): reachable from the LB CIDRs
-      # only in per-service mode. In single-domain mode the proxy fronts them and
-      # reaches them via the in-namespace rule above, so they need no external port.
+      # Hydra (4444) and Kratos (4433) public: in single-domain mode only the
+      # proxy reaches them, via the in-namespace rule above.
       dynamic "ports" {
         for_each = local.single_domain_enabled ? [] : [4444, 4433]
         content {
@@ -697,8 +635,7 @@ resource "kubernetes_network_policy_v1" "ory_from_materialize_ingress" {
           port     = ports.value
         }
       }
-      # Selfservice UI (3000): keeps its own LB in both modes, so it is external
-      # whenever the UI is deployed.
+      # Selfservice UI (3000) has its own LB in both modes.
       dynamic "ports" {
         for_each = var.deploy_selfservice_ui ? [1] : []
         content {
@@ -722,19 +659,14 @@ resource "kubernetes_network_policy_v1" "ory_from_materialize_ingress" {
 
 # Single-domain reverse proxy (optional) -------------------------------------
 #
-# When var.single_domain_fqdn is set, this pingap proxy fronts Hydra and Kratos
-# on one hostname under path prefixes (/hydra, /kratos), terminating TLS with one
-# cert. The selfservice UI keeps its own hostname (its assets are root-mounted, so
-# it can't run under a path prefix). Gated by local.single_domain_enabled (see
-# main.tf). Pingap (a Rust reverse proxy) over nginx because it re-resolves
-# upstream DNS instead of caching the pod IP at startup.
+# Pingap rather than nginx because it re-resolves upstream DNS instead of
+# caching the pod IP at startup.
 
 locals {
   single_domain_proxy_name = "ory-single-domain-proxy"
 
-  # Each location strips its prefix (rewrite) so the upstream sees root paths.
-  # Hydra/Kratos emit prefixed absolute URLs (issuer/base_url carry the path),
-  # so the browser round-trips through the same prefix.
+  # Locations strip their prefix for the upstream. Hydra/Kratos emit prefixed
+  # absolute URLs (issuer/base_url carry the path), so the browser keeps it.
   single_domain_pingap_conf = <<-EOT
     [certificates.ory]
     tls_cert = "/opt/pingap/certs/tls.crt"
@@ -824,18 +756,14 @@ resource "kubernetes_deployment_v1" "single_domain_proxy" {
       spec {
         node_selector = var.node_selector
 
-        # Same OEL registry pull secret as the Ory pods, so a hardened image
-        # published under the OEL proxy authenticates with the license key. The
-        # default public image ignores it.
+        # Lets a hardened image under the OEL proxy pull with the license key.
         image_pull_secrets {
           name = kubernetes_secret.ory_oel_registry.metadata[0].name
         }
 
         container {
           name = "pingap"
-          # Defaults to the public pingap image. Override with a hardened build
-          # (e.g. the cloud team's distroless pingap) pulled through the OEL
-          # registry proxy; see single_domain_proxy_image.
+          # Public pingap by default; see single_domain_proxy_image.
           image             = var.single_domain_proxy_image
           image_pull_policy = "IfNotPresent"
           args              = ["-c", "/opt/pingap/conf"]
@@ -846,9 +774,8 @@ resource "kubernetes_deployment_v1" "single_domain_proxy" {
             protocol       = "TCP"
           }
 
-          # subPath so the dir holds only pingap.toml. A plain ConfigMap dir mount
-          # also exposes the ..data/..timestamp symlink copies, which pingap reads
-          # as duplicate config and fails to parse.
+          # subPath: a ConfigMap dir mount also exposes the ..data symlink
+          # copies, which pingap reads as duplicate config and fails on.
           volume_mount {
             name       = "config"
             mount_path = "/opt/pingap/conf/pingap.toml"
@@ -884,9 +811,8 @@ resource "kubernetes_deployment_v1" "single_domain_proxy" {
             }
           }
 
-          # Minimal hardening for the spike image. Fuller hardening (non-root,
-          # read-only root filesystem) comes with the hardened pingap build pulled
-          # through the OEL registry proxy.
+          # Minimal hardening; non-root and a read-only root filesystem need the
+          # hardened pingap image.
           security_context {
             allow_privilege_escalation = false
             capabilities {

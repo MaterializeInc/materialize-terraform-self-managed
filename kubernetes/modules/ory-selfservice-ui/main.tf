@@ -36,25 +36,18 @@ locals {
     "app.kubernetes.io/part-of"    = "ory"
   }
 
-  # Hash of the secret values so the pod template rolls when any of them
-  # change. Kubernetes does not automatically restart pods when a referenced
-  # Secret's contents change. The upstream Hydra and Kratos Helm charts emit
-  # an equivalent annotation themselves; this module is raw resources so we
-  # have to do it by hand.
+  # Pod annotation so a Secret change rolls the pods.
   secret_checksum = sha256(jsonencode({
     COOKIE_SECRET      = local.cookie_secret
     CSRF_COOKIE_SECRET = local.csrf_cookie_secret
   }))
 
-  # Patch the consent handler so groups + email land on the access token (not
-  # just the id_token) and the audience is granted from the client's config.
-  # Clients with no audience (e.g. from dynamic client registration) get
-  # default_access_token_audience written onto the client before the grant, so
-  # refreshes, which Hydra checks against the client's audience, keep working.
-  # This is what makes MCP OAuth work; pair with ory-stack's
-  # allowed_top_level_claims so the claims sit top-level, not under Hydra's ext.
-  # initContainer because the main container is non-root; patched file is mounted
-  # over the original.
+  # Patches the consent handler so email/groups land on the access token and the
+  # audience comes from the client. Clients with no audience (e.g. via DCR) get
+  # default_access_token_audience written onto them first, so refreshes, which
+  # Hydra checks against the client's audience, keep working. Needed for MCP
+  # OAuth, with ory-stack's allowed_top_level_claims. Runs in an initContainer
+  # (the main one is non-root); the patched file is mounted over the original.
   consent_claims_patch_script = <<-EOT
     set -eu
     node -e '
@@ -283,7 +276,6 @@ resource "kubernetes_deployment" "ui" {
           }
 
           # Trust the mounted ca.crt for outbound HTTPS to Kratos/Hydra.
-          # See var.trust_mounted_ca_cert.
           dynamic "env" {
             for_each = local.tls_enabled && var.trust_mounted_ca_cert ? [1] : []
             content {
