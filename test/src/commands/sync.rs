@@ -10,9 +10,8 @@ use crate::helpers::{
 };
 use crate::types::CloudProvider;
 
-/// Re-copies example .tf files into an existing test run directory,
-/// overwriting the current versions. Useful for picking up local
-/// changes to the terraform modules without re-initializing.
+/// Re-copies example .tf files into an existing test run directory, picking
+/// up local terraform changes without re-initializing.
 pub async fn phase_sync(dir: &Path) -> Result<()> {
     ci_log_group("Sync", || async {
         let tfvars = read_tfvars(dir)?;
@@ -43,9 +42,8 @@ pub async fn phase_sync(dir: &Path) -> Result<()> {
             orchestratord_version: common.orchestratord_version.is_some(),
             environmentd_version: common.environmentd_version.is_some(),
         };
-        // The kubernetes example (used by kind) declares the dev-override
-        // variables natively, so no injection is needed (or possible: its
-        // operator is a helm_release, not a module).
+        // The kubernetes example (used by kind) declares these variables
+        // itself, and its operator is a helm_release, not a module.
         if overrides.any() && provider != CloudProvider::Kind {
             println!("\nRe-applying dev overrides...");
             write_dev_variables_tf(dir).await?;

@@ -10,10 +10,8 @@ use crate::helpers::{ci_log_group, run_cmd, write_lifecycle};
 const MAX_APPLY_ATTEMPTS: u32 = 3;
 const RETRY_DELAY: Duration = Duration::from_secs(30);
 
-/// Runs `terraform apply -auto-approve` in the test run directory.
-///
-/// Retries on failure to handle transient provider errors (e.g. GCP
-/// Cloud SQL instance creation timeouts).
+/// Runs `terraform apply -auto-approve` in the test run directory, retrying
+/// transient provider errors (e.g. GCP Cloud SQL creation timeouts).
 pub async fn phase_apply(dir: &Path) -> Result<()> {
     ci_log_group("Apply", || async {
         write_lifecycle(dir, "apply", "started").await?;

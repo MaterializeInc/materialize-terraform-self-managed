@@ -1,22 +1,14 @@
 //! Tag-scoped deletion of leaked AWS resources for a test run.
 //!
-//! When the AWS infrastructure test's `terraform destroy` fails, resources are
-//! leaked, costing money and risking name/quota collisions on future runs. AWS
-//! has no single-container delete (no resource-group/project equivalent), so
-//! cleanup is tag-driven.
-//!
-//! Every taggable resource the tests create is stamped with a unique per-run
-//! tag: the terraform provider sets `default_tags { tags = var.tags }` and the
-//! harness populates `var.tags` with `TestRun=<test_run_id>` (see
-//! [`crate::commands::init`]). The same `<test_run_id>` is the terraform
-//! `name_prefix`, so the EKS cluster is named `<test_run_id>-eks`. This module
-//! uses that id to find and delete everything belonging to a run, independent
-//! of terraform state.
+//! Cleans up after a failed `terraform destroy`, independent of terraform
+//! state. AWS has no resource-group style delete, so this is tag-driven: the
+//! provider's `default_tags` carry `TestRun=<test_run_id>` (see
+//! [`crate::commands::init`]), and the id is also the `name_prefix`, so the
+//! EKS cluster is `<test_run_id>-eks`.
 //!
 //! ## Deletion order: a dependency DAG
 //!
-//! Resources are deleted respecting their teardown dependencies, running
-//! independent subsystems concurrently and blocking only where a deletion must
+//! Independent subsystems run concurrently, blocking only where a deletion must
 //! finish before downstream cleanup can proceed:
 //!
 //! ```text
@@ -31,54 +23,37 @@
 //!         ENIs ─▶ security groups ─▶ subnets ─▶ route tables ─▶ IGW ─▶ VPC   (+ IAM)
 //! ```
 //!
-//! The cluster log group is deleted at the tail of the compute branch rather
-//! than in a parallel branch: the EKS control plane recreates it while the
-//! cluster drains, so it must be deleted only after the cluster-deletion wait.
+//! The cluster log group is deleted at the end of the compute branch because
+//! the EKS control plane recreates it until the cluster deletion finishes.
 //!
-//! The blocking waits matter because each gates the network teardown: a managed
-//! node group's ASG would relaunch terminated instances; the EKS cluster's
-//! control-plane ENIs and the RDS instance both sit in the subnets; NAT gateways
-//! hold the subnets and their EIPs. Built-in SDK deletion waiters are used for
-//! these. The whole sweep is repeated a few times to mop up resources (e.g. ENIs
-//! the load balancer controller releases lazily) that only become deletable once
-//! their dependents are gone; once the big blockers are deleted, later passes
-//! return from the waiters immediately.
+//! The blocking waits gate the network teardown: a node group's ASG would
+//! relaunch terminated instances; EKS control-plane ENIs and RDS sit in the
+//! subnets; NAT gateways hold the subnets and EIPs. The sweep repeats a few
+//! times to catch resources (e.g. lazily released ENIs) that only become
+//! deletable once their dependents are gone.
 //!
 //! ## Error handling
 //!
-//! Each branch is best-effort and distinguishes two kinds of failure:
+//! Each branch returns `Result<Vec<String>>`:
 //!
-//! * A **deletion** failure (one resource of many) must not stop the branch from
-//!   deleting the rest, so [`handle`]/[`handle_wait`] record it in a per-branch
-//!   error list and carry on. "Already gone" is treated as success.
-//! * An **enumeration** failure (a `describe`/`list` that tells us what to
-//!   delete) leaves the branch with nothing reliable to do, so it aborts the
-//!   branch with `?`. [`Context`] attaches a human-readable label.
+//! * A per-resource **deletion** failure is recorded by [`handle`]/[`handle_wait`]
+//!   and the branch carries on. "Already gone" counts as success.
+//! * An **enumeration** failure (`describe`/`list`) aborts the branch with `?`.
 //!
-//! A branch therefore returns `Result<Vec<String>>`: `Ok(errors)` carries the
-//! soft per-resource failures, `Err(_)` is the hard enumeration failure. The
-//! orchestration layer folds both into one list via [`collect`], so a single
-//! branch blowing up never aborts the others.
+//! [`collect`] folds both into one list, so one failing branch never stops the
+//! others.
 //!
-//! ## Resource types NOT covered by this sweep
+//! ## Not covered
 //!
-//! * Anything created outside terraform that carries neither `TestRun` nor a
-//!   `*/<cluster>` cluster tag. In practice the in-cluster controllers do tag
-//!   their resources with the cluster name (which embeds the run id), so they
-//!   are covered: Karpenter EC2 instances (`TestRun`, via the EC2NodeClass),
-//!   EBS CSI volumes (`kubernetes.io/cluster/<cluster>`), and AWS Load Balancer
-//!   Controller load balancers / target groups (`elbv2.k8s.aws/cluster`). A
-//!   future controller creating resources with neither tag would be missed.
-//! * IAM resources are global and matched by `TestRun` tag (roles, customer-
-//!   managed policies, OIDC providers) or run-id name prefix (instance profiles,
-//!   policies); an IAM resource with neither would be missed.
-//! * ACM certificates and Route53 zones: the example stack creates no per-run
-//!   instances of these, so they are intentionally not swept. (The EKS cluster
-//!   encryption KMS key *is* swept — see [`Ctx::kms_branch`].)
+//! * Resources created outside terraform with neither `TestRun` nor a cluster
+//!   tag. Today's controllers do tag theirs: Karpenter instances (`TestRun` via
+//!   the EC2NodeClass), EBS CSI volumes (`kubernetes.io/cluster/<cluster>`),
+//!   and LB Controller load balancers/target groups (`elbv2.k8s.aws/cluster`).
+//! * IAM resources with neither a `TestRun` tag nor the run-id name prefix.
+//! * ACM certificates and Route53 zones: the example creates none per run.
 //!
-//! This is destructive. It only ever deletes resources whose `TestRun` tag (or
-//! a cluster tag embedding the run id) exactly matches a long, unique run id, so
-//! an accidental match against an unrelated resource is effectively impossible.
+//! Only resources whose `TestRun` tag (or a cluster tag embedding the run id)
+//! exactly matches the long, unique run id are deleted.
 
 use std::path::Path;
 use std::time::Duration;
@@ -95,20 +70,15 @@ use aws_sdk_rds::client::Waiters as _;
 use crate::helpers::{aws_sdk_config, ci_log_group, read_tfvars, test_run_dir};
 use crate::types::TfVars;
 
-/// How many times to repeat the full ordered sweep. Each pass deletes resources
-/// that became deletable when their dependents were removed in the prior pass.
+/// How many times to repeat the full sweep.
 const MAX_PASSES: u32 = 5;
 
-/// Pause between passes, letting eventually-consistent deletes settle before the
-/// next sweep re-enumerates (e.g. the ~60s SQS delete-propagation window, or
-/// ENIs a controller releases lazily) so a still-draining resource isn't
-/// re-reported as remaining.
+/// Pause between passes so eventually consistent deletes settle (e.g. the ~60s
+/// SQS delete propagation, lazily released ENIs) before re-enumerating.
 const INTER_PASS_DELAY: Duration = Duration::from_secs(15);
 
-/// Maximum time to wait for each blocking deletion to finish. Generous (at least
-/// twice the typical observed duration) because these gate downstream cleanup
-/// and an EKS cluster or RDS instance can take a long time to delete; the CI job
-/// has a multi-hour budget.
+/// Per-deletion wait limits, at least twice the typical duration. They gate
+/// downstream cleanup, and the CI job has a multi-hour budget.
 const NODEGROUP_DELETE_WAIT: Duration = Duration::from_secs(30 * 60);
 const CLUSTER_DELETE_WAIT: Duration = Duration::from_secs(30 * 60);
 const INSTANCE_TERMINATE_WAIT: Duration = Duration::from_secs(10 * 60);
@@ -116,8 +86,8 @@ const NAT_GATEWAY_DELETE_WAIT: Duration = Duration::from_secs(30 * 60);
 const RDS_DELETE_WAIT: Duration = Duration::from_secs(30 * 60);
 const LB_DELETE_WAIT: Duration = Duration::from_secs(10 * 60);
 
-/// Entry point for the `purge` subcommand. Reads the run's `terraform.tfvars`
-/// to recover its region, profile, and `TestRun` tag, then sweeps.
+/// Entry point for the `purge` subcommand. Reads the run's
+/// `terraform.tfvars.json` for its region, profile, and `TestRun` tag, then sweeps.
 pub async fn purge(test_run: &str) -> Result<()> {
     let dir = test_run_dir(test_run)?;
     let tfvars = read_tfvars(&dir)?;
@@ -168,8 +138,8 @@ pub async fn delete_detached_enis(dir: &Path) -> Result<()> {
     let errors = Ctx::new(&config, run_id, aws_region)
         .delete_network_interfaces()
         .await?;
-    // `handle` has already printed each failure. They are not fatal here: the
-    // retried destroy reports whatever they leave behind.
+    // Not fatal: `handle` printed each failure, and the retried destroy will
+    // report whatever is left.
     if !errors.is_empty() {
         println!("  {} ENI(s) could not be deleted", errors.len());
     }
@@ -193,9 +163,8 @@ fn is_gone(code: &str) -> bool {
         )
 }
 
-/// Runs a single delete call, logging the outcome. Swallows "already gone"
-/// errors; records the rest in `errors`. Returns `true` on success (including
-/// already-gone).
+/// Logs a delete call's outcome and records failures in `errors`. Returns
+/// `true` on success, including "already gone".
 fn handle<T, E, R>(errors: &mut Vec<String>, what: &str, res: Result<T, SdkError<E, R>>) -> bool
 where
     E: ProvideErrorMetadata,
@@ -220,9 +189,8 @@ where
     }
 }
 
-/// Records the outcome of a deletion waiter. A waiter for a "*Deleted" state
-/// completes successfully when the resource is not found, so any error means it
-/// did not finish draining in time (or a terminal failure occurred).
+/// Records a deletion waiter's outcome. These waiters succeed on "not found",
+/// so an error means a timeout or a terminal failure.
 fn handle_wait<T, E: std::fmt::Debug>(errors: &mut Vec<String>, what: &str, res: Result<T, E>) {
     match res {
         Ok(_) => println!("  Confirmed deleted: {what}"),
@@ -234,11 +202,8 @@ fn handle_wait<T, E: std::fmt::Debug>(errors: &mut Vec<String>, what: &str, res:
     }
 }
 
-/// Folds a branch's outcome into the running error list: the soft per-resource
-/// failures it collected are appended as-is, while a hard enumeration failure
-/// (propagated out of the branch with `?`) is recorded as a single entry. This
-/// is what keeps the sweep best-effort — one branch aborting never stops the
-/// others.
+/// Folds a branch's outcome into `errors`: soft per-resource failures as-is, a
+/// hard enumeration failure as one entry.
 fn collect(errors: &mut Vec<String>, branch: Result<Vec<String>>) {
     match branch {
         Ok(soft) => errors.extend(soft),
@@ -249,16 +214,14 @@ fn collect(errors: &mut Vec<String>, branch: Result<Vec<String>>) {
     }
 }
 
-/// Clients and identifiers for sweeping one test run in one region. Cheap to
-/// clone (the SDK clients are `Arc`-backed), so it is shared by `&` across the
-/// concurrent branches of the sweep.
+/// Clients and identifiers for sweeping one test run in one region, shared by
+/// `&` across the concurrent branches.
 #[derive(Clone)]
 struct Ctx {
     run_id: String,
     region: String,
-    /// EKS cluster name (`<run_id>-eks`); also the value of the
-    /// `kubernetes.io/cluster/<cluster>` and `elbv2.k8s.aws/cluster` tags that
-    /// controller-created resources carry.
+    /// EKS cluster name (`<run_id>-eks`), as used in the controller-set
+    /// `kubernetes.io/cluster/<cluster>` and `elbv2.k8s.aws/cluster` tags.
     cluster: String,
     ec2: aws_sdk_ec2::Client,
     eks: aws_sdk_eks::Client,
@@ -300,8 +263,7 @@ impl Ctx {
             .build()
     }
 
-    /// Instance ids tagged for the run that are not already terminating/gone,
-    /// following the EC2 pagination token across pages.
+    /// Instance ids tagged for the run that are not already terminating/gone.
     async fn live_instance_ids(&self) -> Result<Vec<String>> {
         let mut ids = Vec::new();
         let mut token: Option<String> = None;
@@ -354,10 +316,9 @@ impl Ctx {
 
     // == compute branch ====================================================
 
-    /// Deletes the run's EKS managed node groups and waits for them to finish.
-    /// Must run *before* terminating instances: a managed node group's
-    /// autoscaling group would otherwise relaunch the very instances we just
-    /// terminated. Deleting the node group terminates its instances itself.
+    /// Deletes the run's EKS managed node groups (and so their instances) and
+    /// waits. Must run before terminating instances, or the node group's ASG
+    /// relaunches them.
     async fn delete_node_groups(&self) -> Result<Vec<String>> {
         let mut errors = Vec::new();
         let nodegroups = match self
@@ -399,10 +360,8 @@ impl Ctx {
         Ok(errors)
     }
 
-    /// Terminates EC2 instances tagged for the run (chiefly the Karpenter-managed
-    /// nodes; the managed base node group's instances are torn down by
-    /// [`Self::delete_node_groups`], which must run first) and waits for them to
-    /// terminate so dependent subnet/SG/ENI deletes can succeed.
+    /// Terminates EC2 instances tagged for the run (mainly Karpenter nodes) and
+    /// waits, so subnet/SG/ENI deletes can succeed.
     async fn terminate_instances(&self) -> Result<Vec<String>> {
         let mut errors = Vec::new();
         let ids = self.live_instance_ids().await?;
@@ -430,9 +389,8 @@ impl Ctx {
         Ok(errors)
     }
 
-    /// Deletes the EKS cluster and waits for it to finish (~10 min), which frees
-    /// the control-plane ENIs that block subnet/VPC deletion. Run after node
-    /// groups (a prerequisite) and instance termination.
+    /// Deletes the EKS cluster and waits (~10 min), freeing the control-plane
+    /// ENIs that block subnet/VPC deletion. Node groups must be gone first.
     async fn delete_cluster(&self) -> Result<Vec<String>> {
         let mut errors = Vec::new();
         handle(
@@ -537,9 +495,8 @@ impl Ctx {
         Ok(errors)
     }
 
-    /// The full compute branch: node groups (wait) → instances (wait) → then the
-    /// slow cluster delete overlapped with the now-unblocked volume and launch
-    /// template deletes.
+    /// Node groups, then instances, then the cluster delete alongside volume
+    /// and launch template deletes, then log groups.
     async fn compute_branch(&self) -> Result<Vec<String>> {
         let mut errors = Vec::new();
         collect(&mut errors, self.delete_node_groups().await);
@@ -552,18 +509,15 @@ impl Ctx {
         collect(&mut errors, cluster);
         collect(&mut errors, volumes);
         collect(&mut errors, templates);
-        // The EKS control plane recreates its cluster log group while draining,
-        // so delete it only now that delete_cluster has waited for the cluster to
-        // be fully gone — otherwise the deleted group reappears behind us.
+        // Only after the cluster is gone, or the control plane recreates it.
         collect(&mut errors, self.delete_log_groups().await);
         Ok(errors)
     }
 
     // == RDS branch ========================================================
 
-    /// Requests deletion of RDS instances tagged for the run and waits for them
-    /// to finish (~5 min), then deletes the now-orphaned DB subnet group. The
-    /// instance sits in the run's subnets, so this gates subnet/VPC teardown.
+    /// Deletes RDS instances tagged for the run and waits (~5 min), then their
+    /// DB subnet and parameter groups. Gates subnet/VPC teardown.
     async fn rds_branch(&self) -> Result<Vec<String>> {
         let mut errors = Vec::new();
 
@@ -631,8 +585,7 @@ impl Ctx {
                     Some(a) => a,
                     None => continue,
                 };
-                // Per-group tag read: on failure, skip this group rather than
-                // abort the whole branch.
+                // On a tag read failure, skip this group rather than abort.
                 let tags = match self
                     .rds
                     .list_tags_for_resource()
@@ -668,8 +621,7 @@ impl Ctx {
             }
         }
 
-        // DB parameter groups, like subnet groups, can only be deleted once the
-        // instance referencing them is gone.
+        // Parameter groups too can only go once their instance is gone.
         for name in self.tagged_db_parameter_group_names().await? {
             handle(
                 &mut errors,
@@ -684,10 +636,8 @@ impl Ctx {
         Ok(errors)
     }
 
-    /// Names of DB parameter groups tagged for this run. RDS exposes no
-    /// server-side tag filter, so this lists every group and reads each one's
-    /// tags. Shared by the delete in [`Self::rds_branch`] and the completion
-    /// check in [`Self::remaining`].
+    /// Names of DB parameter groups tagged for this run. RDS has no server-side
+    /// tag filter, so this reads every group's tags.
     async fn tagged_db_parameter_group_names(&self) -> Result<Vec<String>> {
         let mut names = Vec::new();
         let mut marker: Option<String> = None;
@@ -704,7 +654,7 @@ impl Ctx {
                     Some(a) => a,
                     None => continue,
                 };
-                // Per-group tag read: on failure, skip rather than abort.
+                // On a tag read failure, skip rather than abort.
                 let tags = match self
                     .rds
                     .list_tags_for_resource()
@@ -733,12 +683,9 @@ impl Ctx {
 
     // == Karpenter interruption (SQS + EventBridge; independent) ============
 
-    /// Deletes the Karpenter spot-interruption plumbing: the SQS queue
-    /// (`<run>-interruption`) and the EventBridge rules (`<run>-*-interruption`)
-    /// that feed it. Both are created by the Karpenter terraform module and
-    /// carry the run id as a name prefix, so they are matched by name — the same
-    /// convention used for instance profiles. Fully independent of the network
-    /// spine, so it runs in the first concurrent stage.
+    /// Deletes the Karpenter interruption SQS queue (`<run>-interruption`) and
+    /// the EventBridge rules feeding it (`<run>-*-interruption`), matched by
+    /// run-id name prefix.
     async fn karpenter_branch(&self) -> Result<Vec<String>> {
         let mut errors = Vec::new();
         collect(&mut errors, self.delete_interruption_queues().await);
@@ -746,8 +693,7 @@ impl Ctx {
         Ok(errors)
     }
 
-    /// Queue URLs whose name begins with the run id. `list_queues` matches on a
-    /// literal name prefix, so this is a single (paginated) call.
+    /// URLs of queues whose name starts with the run id.
     async fn interruption_queue_urls(&self) -> Result<Vec<String>> {
         let mut urls = Vec::new();
         let mut token: Option<String> = None;
@@ -781,8 +727,7 @@ impl Ctx {
         Ok(errors)
     }
 
-    /// EventBridge rule names whose name begins with the run id. `list_rules`
-    /// matches on a literal name prefix.
+    /// Names of EventBridge rules that start with the run id.
     async fn interruption_rule_names(&self) -> Result<Vec<String>> {
         let mut names = Vec::new();
         let mut token: Option<String> = None;
@@ -811,8 +756,7 @@ impl Ctx {
     async fn delete_interruption_rules(&self) -> Result<Vec<String>> {
         let mut errors = Vec::new();
         for name in self.interruption_rule_names().await? {
-            // A rule cannot be deleted while it still has targets, so drain them
-            // first.
+            // A rule with targets cannot be deleted.
             match self.events.list_targets_by_rule().rule(&name).send().await {
                 Ok(out) => {
                     let ids: Vec<String> =
@@ -846,18 +790,14 @@ impl Ctx {
 
     // == KMS (independent) =================================================
 
-    /// Schedules deletion of the run's customer-managed KMS keys (the EKS
-    /// cluster encryption key) and removes their aliases. KMS has no immediate
-    /// delete: [`schedule_key_deletion`] sets a pending window (we request the
-    /// 7-day minimum), after which AWS deletes the key. A key already pending
-    /// deletion is treated as done. Matched by `TestRun` tag, like the IAM
-    /// resources.
+    /// Deletes the aliases of the run's customer-managed KMS keys (the EKS
+    /// encryption key) and schedules the keys for deletion with the 7-day
+    /// minimum window, since KMS has no immediate delete.
     async fn kms_branch(&self) -> Result<Vec<String>> {
         let mut errors = Vec::new();
         for key_id in self.tagged_kms_key_ids().await? {
-            // Delete the key's aliases first — they are released immediately and
-            // would otherwise linger (and collide on a future run) for the whole
-            // pending-deletion window.
+            // Aliases are freed at once; left alone they would linger through
+            // the pending window and could collide with a future run.
             match self.kms.list_aliases().key_id(&key_id).send().await {
                 Ok(out) => {
                     for a in out.aliases() {
@@ -889,10 +829,8 @@ impl Ctx {
         Ok(errors)
     }
 
-    /// Ids of enabled, customer-managed KMS keys tagged for this run. Keys
-    /// already pending deletion are excluded — they are effectively gone, so
-    /// neither the delete nor the [`Self::remaining`] check should act on them.
-    /// AWS-managed keys (which we cannot schedule for deletion) are skipped.
+    /// Ids of customer-managed KMS keys tagged for this run, excluding keys
+    /// already pending deletion (effectively gone).
     async fn tagged_kms_key_ids(&self) -> Result<Vec<String>> {
         let mut ids = Vec::new();
         let mut marker: Option<String> = None;
@@ -909,9 +847,8 @@ impl Ctx {
                     Some(id) => id,
                     None => continue,
                 };
-                // describe_key tells us manager + state; list_resource_tags can
-                // fail on keys we do not control. On any error, skip the key
-                // rather than abort the whole listing.
+                // Calls can fail on keys we do not control; skip those keys
+                // rather than abort the listing.
                 let Ok(desc) = self.kms.describe_key().key_id(key_id).send().await else {
                     continue;
                 };
@@ -1008,9 +945,8 @@ impl Ctx {
         Ok(errors)
     }
 
-    /// Releases Elastic IPs tagged for the run. `describe_addresses` is not a
-    /// paginated API (it returns every matching address in one response), so no
-    /// continuation loop is needed here.
+    /// Releases Elastic IPs tagged for the run. `describe_addresses` is not
+    /// paginated.
     async fn release_eips(&self) -> Result<Vec<String>> {
         let mut errors = Vec::new();
         let out = self
@@ -1072,9 +1008,8 @@ impl Ctx {
                     .await,
             );
         }
-        // Wait for the LBs to actually go away: their ENIs sit in the run's
-        // subnets and block the network spine, and their target groups cannot
-        // be deleted while the LB still references them.
+        // LB ENIs block the network spine, and target groups cannot be
+        // deleted while an LB references them.
         if !matched_lbs.is_empty() {
             handle_wait(
                 &mut errors,
@@ -1121,9 +1056,8 @@ impl Ctx {
         Ok(errors)
     }
 
-    /// Of the given ELBv2 ARNs, returns those whose tags match this run. A
-    /// failure to read one chunk's tags is recorded and the chunk skipped, so
-    /// partial progress is preserved.
+    /// Of the given ELBv2 ARNs, returns those whose tags match this run. A chunk
+    /// whose tags cannot be read is recorded and skipped.
     async fn filter_by_lb_tags(&self, arns: &[String], errors: &mut Vec<String>) -> Vec<String> {
         let mut matched = Vec::new();
         for chunk in arns.chunks(20) {
@@ -1194,7 +1128,7 @@ impl Ctx {
         Ok(errors)
     }
 
-    /// Lists every S3 bucket, following the continuation token across pages.
+    /// Lists every S3 bucket.
     async fn list_all_buckets(&self) -> Result<Vec<String>> {
         let mut names = Vec::new();
         let mut token: Option<String> = None;
@@ -1226,9 +1160,8 @@ impl Ctx {
             let tagging = match self.s3.get_bucket_tagging().bucket(&name).send().await {
                 Ok(t) => t,
                 Err(e) => {
-                    // No tag set, gone, or in another region: not ours, skip
-                    // quietly. Anything else is an unexpected failure to read a
-                    // bucket we might own, so record it.
+                    // No tags, gone, or another region: not ours. Record any
+                    // other failure, as the bucket might be ours.
                     let code = e.code().unwrap_or_default();
                     if !is_gone(code)
                         && code != "PermanentRedirect"
@@ -1329,10 +1262,8 @@ impl Ctx {
         );
     }
 
-    /// Deletes the EKS cluster log group (`/aws/eks/<cluster>/...`). Called from
-    /// the compute branch *after* the cluster-deletion wait: the control plane
-    /// recreates the group while it drains, so deleting it earlier (or in a
-    /// parallel branch) would leave a recreated group behind.
+    /// Deletes the EKS cluster log group (`/aws/eks/<cluster>/...`). Must run
+    /// after the cluster-deletion wait, or the control plane recreates it.
     async fn delete_log_groups(&self) -> Result<Vec<String>> {
         let mut errors = Vec::new();
         let prefix = format!("/aws/eks/{}/", self.cluster);
@@ -1369,8 +1300,8 @@ impl Ctx {
 
     // == network spine (serial; runs after the barrier) ====================
 
-    /// Deletes leftover available ENIs in the run's VPC (left by the VPC CNI or
-    /// load balancer controller after their owners are gone).
+    /// Deletes available (detached) ENIs in the run's VPC, typically left by
+    /// the VPC CNI or the load balancer controller.
     async fn delete_network_interfaces(&self) -> Result<Vec<String>> {
         let mut errors = Vec::new();
         for vpc_id in self.vpc_ids().await? {
@@ -1412,8 +1343,8 @@ impl Ctx {
     }
 
     /// Deletes the non-default security groups in the run's VPC. Revokes all
-    /// rules first so cross-references between groups do not block deletion,
-    /// then loops because deletion order still matters.
+    /// rules first so cross-references do not block deletion, then retries
+    /// until no more progress is made.
     async fn delete_security_groups(&self) -> Result<Vec<String>> {
         let mut errors = Vec::new();
         for vpc_id in self.vpc_ids().await? {
@@ -1670,8 +1601,7 @@ impl Ctx {
         let mut errors = Vec::new();
         collect(&mut errors, self.delete_iam_instance_profiles().await);
         collect(&mut errors, self.delete_iam_roles().await);
-        // After roles: deleting a role only detaches its policies, so the
-        // customer-managed policy objects themselves must be deleted separately.
+        // Deleting a role only detaches its policies; delete the policies too.
         collect(&mut errors, self.delete_iam_policies().await);
         collect(&mut errors, self.delete_iam_oidc_providers().await);
         Ok(errors)
@@ -1690,9 +1620,7 @@ impl Ctx {
                 .context("list instance profiles")?;
             for ip in out.instance_profiles() {
                 let name = ip.instance_profile_name();
-                // On a tag-read failure, fall through to the name-prefix check
-                // below rather than abort: Karpenter profiles are matchable by
-                // name even when their tags can't be read.
+                // On a tag read failure, fall through to the name-prefix check.
                 let tag_match = match self
                     .iam
                     .list_instance_profile_tags()
@@ -1709,8 +1637,8 @@ impl Ctx {
                         false
                     }
                 };
-                // Karpenter-created instance profiles may carry the cluster tag
-                // rather than TestRun; the run id is also embedded in the name.
+                // Karpenter-created profiles may lack TestRun but embed the run
+                // id in their name.
                 if !tag_match && !name.starts_with(&self.run_id) {
                     continue;
                 }
@@ -1747,10 +1675,8 @@ impl Ctx {
         Ok(errors)
     }
 
-    /// Names of IAM roles tagged for this run. IAM exposes no server-side tag
-    /// filter, so this lists every role and reads each one's tags (an N+1 fan-out
-    /// over the account's roles). Shared by the role delete and the completion
-    /// check in [`Self::remaining`].
+    /// Names of IAM roles tagged for this run. IAM has no server-side tag
+    /// filter, so this reads every role's tags.
     async fn tagged_role_names(&self) -> Result<Vec<String>> {
         let mut names = Vec::new();
         let mut marker: Option<String> = None;
@@ -1764,11 +1690,8 @@ impl Ctx {
                 .context("list roles")?;
             for role in out.roles() {
                 let name = role.role_name();
-                // Per-role tag read keyed on a specific role name, so unlike the
-                // filtered `list_roles` above it can 404 if the role was deleted
-                // mid-enumeration (a prior pass, or a race). A role whose tags we
-                // can't read can't match this run anyway, so skip it rather than
-                // abort the whole listing.
+                // Can 404 if the role was deleted mid-enumeration. Skip it
+                // rather than abort the listing.
                 let Ok(tags) = self.iam.list_role_tags().role_name(name).send().await else {
                     continue;
                 };
@@ -1883,11 +1806,8 @@ impl Ctx {
         );
     }
 
-    /// ARNs of customer-managed (`Scope=Local`) IAM policies belonging to this
-    /// run. Matched by `TestRun` tag, falling back to the run-id name prefix (the
-    /// policies are named `<run>-albc`, `<run>-karpenter-controller`, etc.) when
-    /// tags cannot be read. Shared by the delete and the completion check in
-    /// [`Self::remaining`].
+    /// ARNs of customer-managed (`Scope=Local`) IAM policies for this run,
+    /// matched by `TestRun` tag or run-id name prefix (e.g. `<run>-albc`).
     async fn tagged_local_policy_arns(&self) -> Result<Vec<String>> {
         let mut arns = Vec::new();
         let mut marker: Option<String> = None;
@@ -1935,9 +1855,8 @@ impl Ctx {
         Ok(errors)
     }
 
-    /// Detaches a customer-managed policy from every entity, deletes its
-    /// non-default versions, then deletes the policy. A policy cannot be deleted
-    /// while still attached or while non-default versions exist.
+    /// Detaches a customer-managed policy everywhere and deletes its non-default
+    /// versions, both of which block deletion, then deletes the policy.
     async fn purge_policy(&self, arn: &str, errors: &mut Vec<String>) {
         match self
             .iam
@@ -2040,7 +1959,7 @@ impl Ctx {
                 Some(a) => a,
                 None => continue,
             };
-            // Per-provider tag read: on failure, skip this one rather than abort.
+            // On a tag read failure, skip this provider rather than abort.
             let tag_match = match self
                 .iam
                 .list_open_id_connect_provider_tags()
@@ -2075,12 +1994,11 @@ impl Ctx {
 
     // == orchestration =====================================================
 
-    /// Runs one ordered deletion pass as the dependency DAG (see the module
-    /// docs). Returns the errors collected across all branches.
+    /// Runs one pass of the dependency DAG (see the module docs) and returns
+    /// the errors from all branches.
     async fn sweep_once(&self) -> Vec<String> {
-        // Stage 1: all branches that gate the network teardown, plus the fully
-        // independent ones, run concurrently. The blocking waits inside the
-        // compute/RDS/NAT branches form the barrier.
+        // Stage 1: everything that gates the network teardown, plus the
+        // independent branches. The waits inside them form the barrier.
         let (compute, rds, nat, lbs, vpce, s3, karpenter, kms) = tokio::join!(
             self.compute_branch(),
             self.rds_branch(),
@@ -2096,17 +2014,17 @@ impl Ctx {
             collect(&mut errors, branch);
         }
 
-        // Stage 2: the serial network spine, concurrent with IAM (which is
-        // global and only needed the cluster/instances — gone above — removed).
+        // Stage 2: the serial network spine, alongside IAM, which only needed
+        // the cluster and instances gone.
         let (network, iam) = tokio::join!(self.network_branch(), self.delete_iam());
         collect(&mut errors, network);
         collect(&mut errors, iam);
         errors
     }
 
-    /// Re-queries the main resource types and returns identifiers of anything
-    /// still present. Uses strongly-consistent service describes (no eventually
-    /// consistent tagging API), so a clean result is trustworthy.
+    /// Returns identifiers of the main resource types still present. Uses the
+    /// services' own describe calls rather than the eventually consistent
+    /// tagging API, so a clean result can be trusted.
     async fn remaining(&self) -> Vec<String> {
         let mut out = Vec::new();
 
@@ -2122,11 +2040,8 @@ impl Ctx {
             out.push(format!("eks cluster {}", self.cluster));
         }
 
-        // The VPC stands in for everything that lives inside it: a surviving RDS
-        // instance, NAT gateway, load balancer, subnet, route table, or security
-        // group blocks its dependents and ultimately the VPC delete, so a leak of
-        // any of those keeps the VPC present and is reported here. We therefore do
-        // not re-query those types individually.
+        // The VPC stands in for everything inside it (RDS, NAT, LBs, subnets,
+        // route tables, SGs): any leak there keeps the VPC from being deleted.
         if let Ok(ids) = self.vpc_ids().await {
             for id in ids {
                 out.push(format!("vpc {id}"));
@@ -2145,9 +2060,8 @@ impl Ctx {
                         }
                     }
                     Err(e) => {
-                        // Untagged/gone/other-region buckets are not ours. Any
-                        // other error means we cannot prove the bucket is clean,
-                        // so report it rather than risk a silent leak.
+                        // Untagged/gone/other-region buckets are not ours. Report
+                        // any other error rather than risk a silent leak.
                         let code = e.code().unwrap_or_default();
                         if !is_gone(code)
                             && code != "PermanentRedirect"
@@ -2160,10 +2074,8 @@ impl Ctx {
             }
         }
 
-        // IAM is global, so leaked roles sit in no VPC and are not caught by the
-        // VPC proxy above; check them directly. (Instance profiles and OIDC
-        // providers are not re-checked here — they share the run-id name prefix,
-        // so a leak collides loudly rather than silently.)
+        // IAM is outside the VPC, so check it directly. Instance profiles and
+        // OIDC providers are not re-checked: a leak collides loudly on reuse.
         if let Ok(names) = self.tagged_role_names().await {
             for name in names {
                 out.push(format!("iam role {name}"));
@@ -2175,10 +2087,8 @@ impl Ctx {
             }
         }
 
-        // The compute branch deletes the cluster log group after waiting for the
-        // cluster to drain (the control plane recreates it mid-drain). This is a
-        // backstop: if a group is somehow still present, surface it so the sweep
-        // doesn't declare success and a later pass can reclaim it.
+        // Backstop in case the control plane recreated the log group, so a
+        // later pass can reclaim it.
         let prefix = format!("/aws/eks/{}/", self.cluster);
         if let Ok(o) = self
             .logs
@@ -2194,9 +2104,8 @@ impl Ctx {
             }
         }
 
-        // Karpenter interruption plumbing, the RDS parameter group, and the EKS
-        // encryption key live outside the VPC, so they need explicit checks. A
-        // KMS key already pending deletion is excluded by tagged_kms_key_ids.
+        // These also live outside the VPC. tagged_kms_key_ids already excludes
+        // keys pending deletion.
         if let Ok(urls) = self.interruption_queue_urls().await {
             for url in urls {
                 out.push(format!("sqs queue {url}"));
@@ -2221,7 +2130,8 @@ impl Ctx {
         out
     }
 
-    /// Sweeps until nothing remains or no further progress is made.
+    /// Sweeps up to `MAX_PASSES` times, stopping early once nothing remains and
+    /// the pass had no errors.
     async fn run(&self) -> Result<()> {
         println!(
             "Purging AWS resources for run {} in {} (cluster {})",
@@ -2240,8 +2150,6 @@ impl Ctx {
                 remaining.len(),
                 errors.len()
             );
-            // Let eventually-consistent deletes settle before re-sweeping. Skip
-            // after the final pass — nothing sweeps again.
             if pass < MAX_PASSES {
                 tokio::time::sleep(INTER_PASS_DELAY).await;
             }
@@ -2252,9 +2160,7 @@ impl Ctx {
             println!("All resources for {} deleted.", self.run_id);
             return Ok(());
         }
-        // GitHub Actions error annotation, matching the non-zero exit from the
-        // `bail!` below. Slow deletes may still be draining; a follow-up purge
-        // should finish the job.
+        // GitHub Actions error annotation to go with the `bail!` below.
         println!(
             "::error::Run {} ({}) still has {} resource(s) after {MAX_PASSES} passes. \
              A follow-up purge should reclaim them once slow deletes finish draining. \

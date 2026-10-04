@@ -51,12 +51,10 @@ pub async fn phase_destroy(dir: &Path, rm: bool) -> Result<()> {
     .await
 }
 
-/// Runs `terraform destroy -auto-approve` with retries on transient failures,
-/// clearing the run's detached ENIs before each retry. The EKS module's
-/// destroy-time ENI cleanup runs once, as soon as the managed node group is
-/// gone, and only sees the ENIs detached by then. Any that detach later are
-/// left behind for good, and hold the node security group against every
-/// subsequent attempt with `DependencyViolation`.
+/// Runs `terraform destroy -auto-approve` with retries, deleting the run's
+/// detached ENIs before each retry. The EKS module's ENI cleanup runs once when
+/// the node group is gone, so ENIs detached later block the node security group
+/// with `DependencyViolation` on every attempt.
 async fn destroy_terraform(dir: &Path) -> Result<()> {
     for attempt in 1..=MAX_DESTROY_ATTEMPTS {
         let result = run_cmd(

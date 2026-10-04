@@ -3,13 +3,10 @@
 #
 #     scripts/enable-gcp-apis.sh my-project-id
 #
-# Safe to re-run: enabling an API that is already enabled is a no-op. Enabling
-# an API can take a minute or two to propagate, so if a terraform apply run
-# immediately afterwards reports a service as disabled, wait and re-run it.
+# Safe to re-run. Enabling can take a minute or two to propagate, so if
+# terraform apply then reports a service as disabled, wait and re-run it.
 #
-# This list is the companion to the "Required Permissions" section in
-# gcp/README.md: the APIs decide what exists in the project, the roles decide
-# whether you are allowed to create it.
+# Companion to the "Required Permissions" section in gcp/README.md.
 
 set -euo pipefail
 
@@ -19,9 +16,7 @@ if [[ -z "$project" ]]; then
   exit 1
 fi
 
-# Keep in sync with the resources under gcp/modules/, and with the same list
-# spelled out in gcp/examples/simple/README.md. Each entry notes what needs it,
-# so an unused one is easy to spot if a module ever drops a resource.
+# Keep in sync with gcp/modules/ and the list in gcp/examples/simple/README.md.
 apis=(
   cloudresourcemanager.googleapis.com # Project metadata and IAM bindings
   compute.googleapis.com              # VPC, subnets, Cloud NAT, firewalls, GKE nodes

@@ -80,8 +80,7 @@ async fn setup_kubeconfig(
     outputs: &TerraformOutputs,
 ) -> Result<PathBuf> {
     let kubeconfig = dir.join("kubeconfig");
-    // The kind cluster is named after the test run rather than a terraform
-    // output, since terraform does not create it.
+    // terraform does not create the kind cluster; it is named after the run.
     let cluster_name = match provider {
         CloudProvider::Kind => dir.file_name().unwrap().to_string_lossy().into_owned(),
         _ => outputs.cluster_name(provider)?.to_string(),
@@ -181,9 +180,8 @@ async fn verify_materialize_instance(kubeconfig: &Path, namespace: &str, name: &
     Ok(())
 }
 
-/// Best-effort diagnostic dump when verify_materialize_instance times out.
-/// Each command's failure is logged but ignored so we always get the rest of
-/// the output even if one section errors.
+/// Best-effort diagnostic dump when the instance or its pods fail to come up.
+/// A failing section is logged and skipped so the rest still print.
 async fn dump_materialize_diagnostics(kubeconfig: &Path, namespace: &str, name: &str) {
     println!("\n--- diagnostics: Materialize CR did not become UpToDate ---");
 
@@ -302,9 +300,8 @@ async fn check_expected_pods(kubeconfig: &Path, namespace: &str) -> Result<()> {
     }
 
     for (name, phase) in &pods {
-        // Pods outside EXPECTED_PODS, and surplus pods of an expected type
-        // (e.g. the incoming ReplicaSet during a rollout), are listed but do
-        // not gate the check -- so only mark the Running ones ok.
+        // Extra pods (e.g. a new ReplicaSet mid-rollout) are listed but do not
+        // gate the check.
         let mark = if *phase == "Running" { "ok" } else { "--" };
         println!("  [{mark}] {name}: {phase}");
     }
@@ -312,11 +309,8 @@ async fn check_expected_pods(kubeconfig: &Path, namespace: &str) -> Result<()> {
 }
 
 /// Asserts that the running environmentd pods use the image tag requested via
-/// `--environmentd-version`.
-///
-/// Without this, an override that fails to reach the terraform module leaves
-/// the run on the module's default version and every other check still passes,
-/// so a test of a specific build silently becomes a test of a different one.
+/// `--environmentd-version`. Otherwise an override that never reaches the
+/// module would silently test the module's default version instead.
 async fn verify_environmentd_image(
     kubeconfig: &Path,
     namespace: &str,
@@ -403,12 +397,8 @@ async fn verify_node_local_dns(kubeconfig: &Path, provider: CloudProvider) -> Re
 }
 
 /// The kube-system deployments that kubernetes/modules/coredns scales to zero,
-/// so that only its custom CoreDNS serves DNS. Names differ per provider and
-/// match what {provider}/examples/simple passes to the module.
-///
-/// AWS lists no autoscaler on purpose: EKS ships no CoreDNS autoscaler
-/// deployment, so aws/examples/simple sets
-/// `disable_default_coredns_autoscaler = false` and nothing scales it.
+/// matching what {provider}/examples/simple passes to the module. AWS has no
+/// autoscaler: EKS ships none, so aws/examples/simple disables that scale-down.
 fn scaled_down_dns_deployments(provider: CloudProvider) -> &'static [&'static str] {
     match provider {
         CloudProvider::Aws => &["coredns"],
@@ -419,17 +409,10 @@ fn scaled_down_dns_deployments(provider: CloudProvider) -> &'static [&'static st
     }
 }
 
-/// Checks that the provider's default DNS deployments really are at zero
-/// replicas.
-///
-/// The scale-down runs in a local-exec provisioner, and it treats a missing
-/// deployment as success, so a wrong deployment name leaves the default DNS
-/// running and still reports a clean apply. Nothing else here would notice:
-/// Materialize comes up fine with two DNS stacks. Reading the replica count
-/// back is what turns that silent no-op into a failure.
-///
-/// A deployment that does not exist at all is accepted, matching the
-/// provisioner's own contract — the provider may never have created it.
+/// Checks that the provider's default DNS deployments are at zero replicas.
+/// The module's scale-down treats a missing deployment as success, so a wrong
+/// name leaves two DNS stacks running behind a clean apply. A deployment that
+/// does not exist is accepted, as the provider may never have created it.
 async fn verify_default_dns_scaled_down(kubeconfig: &Path, provider: CloudProvider) -> Result<()> {
     let deployments = scaled_down_dns_deployments(provider);
     if deployments.is_empty() {
@@ -468,13 +451,9 @@ async fn verify_default_dns_scaled_down(kubeconfig: &Path, provider: CloudProvid
     Ok(())
 }
 
-/// SQL connectivity check for kind, where there is no load balancer: forwards
-/// a local port to the balancerd service and connects through it.
-///
-/// The whole tunnel is set up fresh on every attempt: balancerd can be Running
-/// but not yet Ready (no service endpoints, so port-forward fails
-/// immediately), and an established tunnel dies if kubectl loses the pod
-/// connection.
+/// SQL connectivity check for kind, which has no load balancer, through a
+/// port-forward to balancerd. Each attempt opens a fresh tunnel: port-forward
+/// fails while balancerd is not Ready, and a tunnel dies if kubectl loses the pod.
 async fn verify_sql_connection_via_port_forward(
     kubeconfig: &Path,
     namespace: &str,
@@ -536,9 +515,8 @@ async fn spawn_port_forward(
         .spawn()
         .context("Failed to spawn kubectl port-forward")?;
 
-    // First line looks like: "Forwarding from 127.0.0.1:52341 -> 6875".
-    // Borrow stdout rather than take it: dropping the pipe would kill
-    // kubectl with EPIPE as soon as it writes its next line.
+    // First line: "Forwarding from 127.0.0.1:52341 -> 6875". Borrow stdout
+    // rather than take it: dropping the pipe kills kubectl with EPIPE.
     let stdout = child
         .stdout
         .as_mut()

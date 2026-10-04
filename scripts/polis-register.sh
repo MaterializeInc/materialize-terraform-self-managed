@@ -3,16 +3,13 @@
 # Registers (or re-reads) the Polis SAML connection and SCIM directory for an
 # enterprise example deployment.
 #
-# Polis owns these two objects and their credentials only exist once it is
-# running, so they cannot be Terraform resources. This script covers the Polis
-# side; the remaining Okta admin-console steps are printed at the end (they are
-# genuinely not scriptable).
+# These live in Polis and their credentials only exist once it is running, so
+# they cannot be Terraform resources. The remaining (manual) Okta admin-console
+# steps are printed at the end.
 #
-# IDEMPOTENT: a connection or directory with the same name is re-read rather
-# than duplicated, so this is also how you recover values you have lost. That
-# matters -- Polis dedupes a repeated SAML connection POST but does NOT dedupe
-# directories, so a second directory would get a different id and SCIM token and
-# leave Okta pushing into whichever one happens to be configured.
+# IDEMPOTENT: an existing connection or directory with the same name is re-read,
+# so this also recovers lost values. Polis does not dedupe directories itself; a
+# duplicate would get a new id and SCIM token.
 #
 # Requires: kubectl (pointed at the cluster), terraform, curl, python3, and on
 # first registration the Okta SAML app's metadata XML:
@@ -138,9 +135,8 @@ print(json.dumps(doc))
 # ---------------------------------------------------------------------------
 # SAML connection
 # ---------------------------------------------------------------------------
-# The redirectUrl is the Kratos SAML method callback (not oidc): Polis is wired
-# as a Kratos SAML method, so Kratos completes the handshake at
-# .../self-service/methods/saml/callback/<id>. defaultRedirectUrl is the console.
+# Polis is a Kratos SAML method, so redirectUrl is the SAML (not oidc) callback.
+# defaultRedirectUrl is the console.
 WANT_REDIRECT="$KRATOS/self-service/methods/saml/callback/$OIDC_ID"
 WANT_DEFAULT="https://$CONSOLE_FQDN"
 
@@ -159,10 +155,8 @@ for connection in data:
 ' "$SSO_NAME")
 
 if [ -n "$sso" ]; then
-    # Reconcile rather than blindly re-read: a connection registered against an
-    # older hostname or the pre-SAML oidc/callback path keeps that stale
-    # redirectUrl forever otherwise, and Polis then rejects the login with
-    # "Redirect URL is not allowed". Compare, and PATCH when it has drifted.
+    # PATCH drifted redirect URLs (an old hostname or the old oidc/callback
+    # path), which Polis otherwise rejects with "Redirect URL is not allowed".
     drift=$(printf '%s' "$sso" | python3 -c '
 import json, sys
 c = json.load(sys.stdin)
@@ -228,9 +222,8 @@ else
         printf "%bmetadata file is missing or empty: %s%b\n" "$RED" "$OKTA_SAML_METADATA" "$NC"
         exit 1
     fi
-    # encodedRawMetadata rather than metadataUrl: Okta gates the metadata URL
-    # behind API auth on some org types, so Polis cannot fetch it itself. The
-    # redirectUrl is the SAML method callback (Polis is a Kratos SAML method).
+    # encodedRawMetadata rather than metadataUrl: some Okta org types put the
+    # metadata URL behind API auth, so Polis cannot fetch it.
     sso=$(polis_post clientSecret "$POLIS/api/v1/sso" \
         --data-urlencode "tenant=$TENANT" \
         --data-urlencode "product=$PRODUCT" \

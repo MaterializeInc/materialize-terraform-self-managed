@@ -19,17 +19,15 @@ skip = [
     # Do not add to this list without good reason! Duplicate dependencies slow
     # down compilation and bloat the binary.
 
-    # AWS SDK smithy crates internally support both http 0.2 and 1.x APIs
-    # during their transition period. Cannot be eliminated from the consumer side.
+    # AWS SDK smithy crates support both http 0.2 and 1.x during their
+    # transition. Cannot be eliminated from the consumer side.
     { name = "getrandom", version = "0.2.17" },
     { name = "http", version = "0.2.12" },
     { name = "http-body", version = "0.4.6" },
     { name = "rand_core", version = "0.6.4" },
 
-    # AWS SDK crates are mid-transition between the RustCrypto 0.10 and 0.11
-    # stacks: aws-smithy-checksums and p256 still use the 0.10 series while
-    # aws-sigv4 and aws-sdk-s3 use 0.11. Cannot be eliminated from the
-    # consumer side.
+    # aws-smithy-checksums and p256 still use RustCrypto 0.10 while aws-sigv4
+    # and aws-sdk-s3 use 0.11. Cannot be eliminated from the consumer side.
     { name = "block-buffer", version = "0.10.4" },
     { name = "const-oid", version = "0.9.6" },
     { name = "cpufeatures", version = "0.2.17" },
@@ -42,9 +40,8 @@ skip = [
     # Serde now uses v3.0, and the rest of the ecosystem will eventually catch up.
     { name = "syn", version = "2.0.117" },
 
-    # indexmap (via h2) still uses hashbrown 0.16 while lru (via aws-sdk-s3)
-    # has moved to 0.17. Both are transitive AWS SDK deps, so this cannot be
-    # unified from the consumer side.
+    # indexmap (via h2) uses hashbrown 0.16, lru (via aws-sdk-s3) uses 0.17.
+    # Both are transitive AWS SDK deps.
     { name = "hashbrown", version = "0.16.1" },
 ]
 
@@ -56,8 +53,7 @@ name = "env_logger"
 [[bans.deny]]
 name = "protobuf"
 
-# Use `sha1` instead, which the RustCrypto ecosystem recently took control of.
-# `sha-1` is the older and now deprecated name.
+# Use `sha1` instead; `sha-1` is the old, deprecated name.
 [[bans.deny]]
 name = "sha-1"
 
@@ -73,9 +69,8 @@ name = "strum-macros"
 [[bans.deny]]
 name = "unicase"
 
-# we don't want to pull in workspace-hack from the materialize repo, because
-# it contains a ton of dependencies that we don't want, making our builds
-# slower and flakier, and making our version bump process more complicated
+# Do not pull in the materialize repo's workspace-hack: its many dependencies
+# make builds slower and flakier and version bumps harder.
 [[bans.deny]]
 name = "workspace-hack"
 
@@ -101,10 +96,7 @@ license-files = [
 [sources]
 unknown-git = "deny"
 unknown-registry = "deny"
-# Do not allow non-MaterializeInc Git repositories here! Git repositories must
-# be owned by the MaterializeInc organization so that maintainership is shared
-# amongst Materialize employees and so that historical versions of Materialize
-# remain buildable even if upstream Git repositories disappear. If you don't
-# have permissions to create a fork in the MaterializeInc organization, ask in
-# #eng-infra on Slack.
+# Only MaterializeInc-owned Git repositories, so maintainership is shared and
+# old versions stay buildable if upstream repos disappear. Ask in #eng-infra if
+# you cannot create a fork in the MaterializeInc organization.
 #allow-org = { github = ["MaterializeInc"] }

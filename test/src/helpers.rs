@@ -94,13 +94,9 @@ impl distr::SampleString for Charset {
     }
 }
 
-/// Generates a test run ID like `t260319-a4bc2f`.
-///
-/// The ID is used as `name_prefix` in terraform, which AWS constrains to
-/// max 38 chars and lowercase alphanumeric + hyphens only. We use a short
-/// date (YYMMDD, 6 chars) and a 6-char lowercase alphanumeric suffix
-/// (last char always a letter), totalling 15 chars, leaving plenty of room
-/// for AWS resource name suffixes.
+/// Generates a 14-char test run ID like `t260319-a4bc2f` (suffix always ends
+/// in a letter). It becomes the terraform `name_prefix`, which AWS limits to
+/// 38 lowercase alphanumeric or hyphen chars, leaving room for name suffixes.
 pub fn generate_test_run_id() -> String {
     let now = Utc::now();
     let date = now.format("%y%m%d");
@@ -111,10 +107,6 @@ pub fn generate_test_run_id() -> String {
 }
 
 // ---------------------------------------------------------------------------
-// Command execution
-// ---------------------------------------------------------------------------
-
-// ---------------------------------------------------------------------------
 // GitHub Actions log grouping
 // ---------------------------------------------------------------------------
 
@@ -122,8 +114,7 @@ fn is_ci() -> bool {
     std::env::var_os("CI").is_some()
 }
 
-/// Wraps an async block in GitHub Actions log grouping.
-/// Outside CI this is a no-op passthrough.
+/// Wraps an async block in GitHub Actions log grouping (no-op outside CI).
 pub async fn ci_log_group<F, Fut, T>(name: &str, f: F) -> Result<T>
 where
     F: FnOnce() -> Fut,
@@ -168,9 +159,8 @@ pub async fn run_cmd_output(cmd: &mut Command) -> Result<String> {
     Ok(String::from_utf8(output.stdout)?.trim().to_string())
 }
 
-/// Retries an async operation until it succeeds or the maximum number of
-/// attempts is exhausted. Delays `interval` between attempts. On each
-/// failure the error is passed to `on_retry` for logging.
+/// Retries `f` up to `max_attempts` times, sleeping `interval` between
+/// attempts and passing each retried error to `on_retry`.
 pub async fn retry<F, Fut, T>(
     max_attempts: u32,
     interval: std::time::Duration,
@@ -279,9 +269,8 @@ pub fn read_s3_backend(dir: &Path) -> Result<Option<S3Backend>> {
     }))
 }
 
-/// Uploads `terraform.tfvars.json` to the S3 backend alongside the state
-/// file, so that other commands or CI jobs can discover the tfvars for a
-/// given test run.
+/// Uploads `terraform.tfvars.json` next to the S3 state file so other
+/// commands or CI jobs can find a run's tfvars. No-op without an S3 backend.
 pub async fn upload_tfvars_to_backend(dir: &Path) -> Result<()> {
     let backend = match read_s3_backend(dir)? {
         Some(b) => b,

@@ -4,14 +4,12 @@
 # <example-dir>/okta-scim-source-ranges.json, so Terraform can apply them as
 # loadBalancerSourceRanges on the Polis LoadBalancer.
 #
-# Why: Okta pushes SCIM provisioning server-to-server from its cloud (no browser
-# in the loop), so the Polis LB can stay public but firewalled to Okta's egress
-# ranges plus your own internal ranges. See ory_polis_source_ranges in the
+# Okta pushes SCIM server-to-server, so the Polis LB can stay public but limited
+# to Okta's egress ranges plus your own. See ory_polis_source_ranges in the
 # example and the README "Locking down the Polis endpoint" section.
 #
-# Okta publishes ranges per cell; find yours in the Okta admin console
-# (Settings). Pass it explicitly: there is no default, so you never silently
-# allowlist a different tenant's cell.
+# Ranges are per Okta cell (admin console, Settings). There is no default, so
+# you never allowlist another tenant's cell by accident.
 #
 #   ./scripts/update-okta-ip-ranges.sh gcp/examples/enterprise <your-okta-cell>
 #
@@ -39,12 +37,9 @@ command -v jq >/dev/null 2>&1 || { echo "jq is required" >&2; exit 1; }
 
 OUT="$DIR/okta-scim-source-ranges.json"
 
-# Stage through a temp file so a failed fetch or an unknown cell never clobbers
-# the existing allowlist. #!/bin/sh has no pipefail, so a `curl | jq > "$OUT"`
-# pipeline would truncate $OUT up front and still exit 0 when the fetch fails
-# (S3 blip, proxy, 403), leaving a 0-byte file that breaks the next
-# `terraform plan` on jsondecode(""). Writing $OUT only after both steps
-# succeed avoids that; set -e aborts on the curl or jq failure first.
+# Stage through a temp file so a failed fetch or unknown cell never clobbers
+# the allowlist. sh has no pipefail, so `curl | jq > "$OUT"` could leave an
+# empty file that breaks `terraform plan` on jsondecode("").
 TMP="$(mktemp)"
 trap 'rm -f "$TMP" "$TMP.out"' EXIT
 curl -sSf "$OKTA_RANGES_URL" > "$TMP"

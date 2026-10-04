@@ -73,11 +73,10 @@ class BaseStateMigrator(abc.ABC):
             'failed': 0,
         }
 
-        # Define transformation rules
         self.rules = self._build_rules()
 
     # =====================================================================
-    # Abstract methods — must be implemented by subclasses
+    # Abstract methods: must be implemented by subclasses
     # =====================================================================
 
     @abc.abstractmethod
@@ -110,7 +109,7 @@ class BaseStateMigrator(abc.ABC):
         ...
 
     # =====================================================================
-    # Hook methods — override in subclasses for extra steps
+    # Hook methods: override in subclasses for extra steps
     # =====================================================================
 
     def _post_transform(self):
@@ -135,7 +134,7 @@ class BaseStateMigrator(abc.ABC):
         pass
 
     # =====================================================================
-    # Shared methods — identical across all providers
+    # Shared methods
     # =====================================================================
 
     def log(self, message: str, level: str = 'INFO'):
@@ -204,7 +203,7 @@ class BaseStateMigrator(abc.ABC):
     def get_resources(self, state_file: Path) -> List[str]:
         """Get list of resources from state file by parsing JSON directly.
 
-        Raises on parse errors — callers that need tolerance should catch exceptions.
+        Raises on parse errors; callers that need tolerance should catch them.
         """
         if not state_file.exists() or state_file.stat().st_size == 0:
             return []
@@ -281,14 +280,10 @@ class BaseStateMigrator(abc.ABC):
         """
         Remove skipped managed resources from old state.
 
-        After state moves, skipped resources (e.g., kubernetes_manifest instances
-        that can't be state-moved due to type changes) remain in old state.
-        If someone runs 'terraform destroy' on the old config, these resources
-        would be destroyed — including your running Materialize instance.
-
-        This method strips all remaining managed resources from the old state,
-        keeping only data sources (which are harmless). The actual Kubernetes/cloud
-        resources continue running — only Terraform's ownership is removed.
+        Skipped resources (e.g. kubernetes_manifest instances that can't be
+        state-moved across type changes) would otherwise be destroyed, along with
+        the running Materialize instance, by a 'terraform destroy' on the old
+        config. Only Terraform's ownership is removed; data sources are kept.
         """
         if self.dry_run:
             return
@@ -307,7 +302,6 @@ class BaseStateMigrator(abc.ABC):
                 self.log("No orphaned managed resources in old state")
                 return
 
-            # Keep only data sources
             state['resources'] = [
                 r for r in original_resources
                 if r.get('mode') == 'data'
@@ -331,10 +325,9 @@ class BaseStateMigrator(abc.ABC):
 
     def validate_migrated_state(self):
         """
-        Validate migrated resources in new state.
+        Check resources in the new state for null attributes after state mv.
 
-        Only inspects resources that we moved — never touches anything else.
-        Reports issues but does NOT delete anything from state.
+        Reports issues but does NOT modify state.
         """
         try:
             state = json.loads((self.work_dir / 'new.tfstate').read_text())
@@ -392,7 +385,7 @@ class BaseStateMigrator(abc.ABC):
             sys.exit(1)
 
     # =====================================================================
-    # Main migration flow — template method
+    # Main migration flow
     # =====================================================================
 
     def migrate(self):
@@ -405,13 +398,11 @@ class BaseStateMigrator(abc.ABC):
         if self.dry_run:
             self.log("DRY RUN MODE — No changes will be made", 'WARN')
 
-        # Create working directory
         self.work_dir = self.new_dir / '.migration-work'
         self.work_dir.mkdir(exist_ok=True)
         self.log(f"Working directory: {self.work_dir}")
 
         try:
-            # Step 1: Pull states
             self.log_section("Step 1: Pulling States")
 
             self.log("Pulling old state...")
@@ -426,13 +417,12 @@ class BaseStateMigrator(abc.ABC):
             self.run_terraform(['init', '-input=false'], cwd=self.new_dir, capture=True)
             self.pull_state(self.new_dir, self.work_dir / 'new.tfstate')
 
-            # Step 2: Analyze
             self.log_section("Step 2: Analyzing Old State")
 
             resources = self.get_resources(self.work_dir / 'old.tfstate')
             self.stats['total'] = len(resources)
 
-            # Validate that old state has actual infrastructure
+            # Too few resources usually means the old state was not pulled.
             if len(resources) < 10:
                 self.log(f"", 'ERROR')
                 self.log(f"⚠️  VALIDATION FAILED: Old state only has {len(resources)} resources", 'ERROR')
@@ -461,7 +451,6 @@ class BaseStateMigrator(abc.ABC):
             else:
                 self.log("No module prefix detected (using root module)")
 
-            # Step 3: Transform and move
             self.log_section("Step 3: Processing Resources")
 
             for resource in resources:
@@ -477,21 +466,18 @@ class BaseStateMigrator(abc.ABC):
                     self.stats['skipped'] += 1
                     continue
 
-                # Check if already exists in new state
                 if self.resource_exists_in_new(new_path):
                     self.log(f"⊘ {resource}")
                     self.log(f"    Already exists: {new_path}")
                     self.stats['skipped'] += 1
                     continue
 
-                # Show transformation
                 if new_path == self.strip_prefix(resource):
                     self.log(f"→ {resource}")
                 else:
                     self.log(f"→ {resource}")
                     self.log(f"  ↳ {new_path}")
 
-                # Move resource
                 if self.move_resource(resource, new_path):
                     self.stats['moved'] += 1
                 else:
@@ -501,12 +487,10 @@ class BaseStateMigrator(abc.ABC):
             # Post-transform hook (e.g., AWS normalizes for_each keys)
             self._post_transform()
 
-            # Validate migrated state
             self.log_section("Validating Migrated State")
             self.log("Checking migrated resources for potential issues...")
             self.validate_migrated_state()
 
-            # Clean up old state
             self.log_section("Cleaning Up Old State")
             self.log("Removing skipped resources from old state to prevent accidental destruction...")
             self.cleanup_old_state()
@@ -514,7 +498,6 @@ class BaseStateMigrator(abc.ABC):
             # Pre-push hook (e.g., AWS prepares imports)
             self._pre_push()
 
-            # Step 4: Push states
             if not self.dry_run:
                 self.log_section("Updating States")
 
@@ -537,7 +520,6 @@ class BaseStateMigrator(abc.ABC):
                 # Post-push hook (e.g., AWS runs imports)
                 self._post_push()
 
-            # Summary
             self.log_section("Summary")
 
             print(f"  Total resources: {self.stats['total']}")
@@ -643,7 +625,6 @@ def run_main(migrator_class: Type[BaseStateMigrator]):
 
     args = parser.parse_args()
 
-    # Handle generate-tfvars mode
     if args.generate_tfvars:
         if not args.new_dir:
             print("Error: new_dir is required with --generate-tfvars")
@@ -652,7 +633,6 @@ def run_main(migrator_class: Type[BaseStateMigrator]):
         migrator_class.generate_tfvars(args.old_dir, args.new_dir)
         return
 
-    # Validate directories
     if not args.old_dir.exists():
         print(f"Error: Old directory not found: {args.old_dir}")
         sys.exit(1)
@@ -667,6 +647,5 @@ def run_main(migrator_class: Type[BaseStateMigrator]):
         print(f"Error: New directory not found: {args.new_dir}")
         sys.exit(1)
 
-    # Run migration
     migrator = migrator_class(args.old_dir, args.new_dir, args.dry_run)
     migrator.migrate()

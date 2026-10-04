@@ -30,7 +30,7 @@ impl CloudProvider {
 }
 
 // ---------------------------------------------------------------------------
-// terraform.tfvars.json – written during init, read back during verify
+// terraform.tfvars.json: written during init, read back by later commands
 // ---------------------------------------------------------------------------
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -40,11 +40,9 @@ pub struct CommonTfVars {
     /// Cloud-only; `None` (omitted) for kind, which has no load balancers.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub internal_load_balancer: Option<bool>,
-    /// The test clusters are ephemeral and the runner needs a public address to
-    /// reach Materialize, which means `0.0.0.0/0` on a public load balancer. The
-    /// monitoring module refuses that for Grafana specifically, so the test roots
-    /// acknowledge it here. The examples leave it `false`. Cloud-only; `None`
-    /// (omitted) for kind.
+    /// The runner reaches the test clusters over a public `0.0.0.0/0` load
+    /// balancer, which the monitoring module rejects for Grafana unless this is
+    /// set. Cloud-only; `None` (omitted) for kind.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub grafana_allow_public_access: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]

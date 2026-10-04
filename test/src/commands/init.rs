@@ -37,10 +37,6 @@ pub async fn phase_init(provider_args: &InitProvider) -> Result<PathBuf> {
         println!("\nCopying terraform files...");
         copy_example_files(&src, &dest, provider).await?;
 
-        // When any dev overrides are provided (--local-chart-path,
-        // --orchestratord-version, --environmentd-version), create
-        // dev_variables.tf and inject the corresponding variables into
-        // the relevant module blocks in main.tf.
         let common = provider_args.common();
         let overrides = DevOverrides {
             local_chart: common.local_chart_path.is_some(),
@@ -48,8 +44,7 @@ pub async fn phase_init(provider_args: &InitProvider) -> Result<PathBuf> {
             environmentd_version: common.environmentd_version.is_some(),
         };
         // The kubernetes example (used by kind) declares these variables
-        // natively -- its operator is a helm_release, not a module -- so
-        // injection is neither needed nor possible there.
+        // itself, and its operator is a helm_release, not a module.
         if overrides.any() && provider != CloudProvider::Kind {
             println!("\nApplying dev overrides...");
             write_dev_variables_tf(&dest).await?;
@@ -76,10 +71,8 @@ pub async fn phase_init(provider_args: &InitProvider) -> Result<PathBuf> {
 
         upload_tfvars_to_backend(&dest).await?;
 
-        // The cloud providers get their cluster from `terraform apply`; for
-        // kind the cluster is local infrastructure that terraform runs
-        // against, so it is created during init. After the tfvars are
-        // written, so a failed creation can still be cleaned up by `destroy`.
+        // Clouds get their cluster from `terraform apply`; the kind cluster is
+        // created here, after the tfvars exist so `destroy` can clean it up.
         if provider == CloudProvider::Kind {
             println!("\nCreating kind cluster {test_run_id}...");
             if let Err(e) = create_kind_cluster(&test_run_id, &dest).await {
@@ -93,9 +86,8 @@ pub async fn phase_init(provider_args: &InitProvider) -> Result<PathBuf> {
             .await
             .context("terraform init failed");
         if let Err(e) = init_result {
-            // A failed init returns before `run --destroy-on-failure` gets a
-            // test run to destroy, so the just-created kind cluster would
-            // leak. The clouds have nothing to clean up.
+            // A failed init returns before `run --destroy-on-failure` has a
+            // run to destroy, so the kind cluster would leak otherwise.
             if provider == CloudProvider::Kind {
                 delete_kind_cluster_best_effort(&test_run_id).await;
             }
@@ -125,7 +117,6 @@ pub(crate) async fn copy_example_files(
         let name = entry.file_name();
         let name_str = name.to_string_lossy();
 
-        // Skip files we don't want to copy
         if !name_str.ends_with(".tf")
             || name_str == "dev_variables.tf"
             || name_str.starts_with("terraform.tfstate")
@@ -235,12 +226,9 @@ fn build_tfvars(provider_args: &InitProvider, test_run_id: &str) -> Result<TfVar
             tags: HashMap::from([
                 ("Purpose".into(), common.purpose.clone()),
                 ("TestRun".into(), test_run_id.into()),
-                // The scratch account's RequireTagsScratch SCP
-                // (MaterializeInc/i2) denies resource creation unless these
-                // four tags are present. Lowercase `owner` replaces the
-                // previous `Owner` tag outright: IAM tag keys are
-                // case-insensitive, so carrying both fails CreateRole with
-                // "Duplicate tag keys found".
+                // The scratch account's RequireTagsScratch SCP (MaterializeInc/i2)
+                // requires these four tags. No `Owner` alongside `owner`: IAM tag
+                // keys are case-insensitive, so CreateRole fails on duplicates.
                 ("owner".into(), common.owner.clone()),
                 ("reason".into(), common.reason.clone()),
                 ("team".into(), common.team.clone()),
@@ -333,9 +321,8 @@ impl DevOverrides {
     }
 }
 
-/// Injects dev-override variable references into the appropriate module
-/// blocks in `main.tf`. Each injection is skipped if the variable reference
-/// is already present in the file.
+/// Points the operator and materialize_instance module attributes in
+/// `main.tf` at the dev-override variables (see [`set_module_var`]).
 pub(crate) async fn inject_dev_overrides(dest: &Path, overrides: &DevOverrides) -> Result<()> {
     let main_tf_path = dest.join("main.tf");
     let content = tokio::fs::read_to_string(&main_tf_path)
@@ -377,16 +364,10 @@ pub(crate) async fn inject_dev_overrides(dest: &Path, overrides: &DevOverrides) 
     Ok(())
 }
 
-/// Points `<key>` at `var.<key>` in the given module block, replacing whatever
-/// value is already there.
-///
-/// The examples wire some of these attributes to a different variable of their
-/// own -- every simple example has `environmentd_version = var.materialize_version`
-/// -- so an injection that skipped when the attribute was already present left
-/// the dev override silently unused: the variable was declared in
-/// `dev_variables.tf` and set in `terraform.tfvars.json`, but nothing read it,
-/// and terraform does not warn about a declared-but-unreferenced variable. The
-/// run then came up on the module's default version.
+/// Points `<key>` at `var.<key>` in the given module block, replacing any
+/// existing value. Replacing matters: the examples set e.g.
+/// `environmentd_version = var.materialize_version`, and terraform does not
+/// warn when the dev variable is then left unreferenced.
 ///
 /// Returns whether the module block was modified.
 fn set_module_var(module: &mut hcl_edit::structure::Block, module_name: &str, key: &str) -> bool {
@@ -442,9 +423,8 @@ fn var_ref(name: &str) -> hcl_edit::expr::Expression {
     .into()
 }
 
-/// The two load-balancer acknowledgements only exist as variables in the
-/// cloud roots; kind has no load balancers, so they are omitted from its
-/// tfvars entirely (terraform warns about unused tfvars values).
+/// The load-balancer variables exist only in the cloud roots, so kind omits
+/// them (terraform warns about unused tfvars values).
 fn internal_load_balancer(provider_args: &InitProvider) -> Option<bool> {
     match provider_args {
         InitProvider::Kind { .. } => None,
