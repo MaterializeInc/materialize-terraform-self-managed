@@ -1,62 +1,37 @@
-# Deploys the `materialize-monitoring` observability stack on AKS: Grafana
-# dashboards, Prometheus-compatible metrics via Thanos, logs via Loki, and the
-# Alloy collection pipeline.
-#
-# This module owns the Azure side — one storage account with a container per
-# backend, a user-assigned identity per backend, and the federated credentials
-# that let the in-cluster service accounts exchange their projected tokens — and
-# delegates everything inside the cluster to the cloud-agnostic module that ships
-# alongside the chart in the `materialize-monitoring` repository. Nothing here
-# names a Helm value path; that knowledge lives next to the chart.
-#
-# Replaces the previous `kubernetes/modules/prometheus` and
-# `kubernetes/modules/grafana`, which vendored a point-in-time dashboard copy and
-# a legacy scrape config, collected metrics only, and ran a single Prometheus on
-# a ReadWriteOnce volume with 15 days of retention.
+# Deploys the `materialize-monitoring` stack on AKS: Grafana, metrics via Thanos,
+# logs via Loki, and the Alloy pipeline. This module owns the Azure side (one
+# storage account with a container, user-assigned identity, and federated
+# credential per backend) and delegates everything in the cluster to the
+# cloud-agnostic module shipped with the chart, so no Helm value paths live here.
 #
 # Operational notes:
 #
-#   * Workload identity and the OIDC issuer must both be enabled on the cluster
-#     (`workload_identity_enabled`, `oidc_issuer_enabled`). The `aks` module sets
-#     both.
-#   * One identity per backend rather than the cluster's shared identity: Loki and
-#     Thanos each get a container and a role assignment scoped to it, so neither
-#     can read the other's data. That mirrors the AWS and GCP wrappers.
-#   * The webhook only mutates pods labelled `azure.workload.identity/use`, and
-#     the monitoring module applies that label — via `loki.podLabels` for Loki and
-#     `thanos.global.commonLabels` for Thanos, which has no `podLabels` of its
-#     own. The federated credentials below are what the projected tokens exchange
-#     against.
-#   * `provider_metrics` gives the Alloy gateway an identity of its own, which it
-#     uses only to read Azure Monitor. The monitoring module labels the gateway's
-#     pods for the webhook whenever its ServiceAccount carries a client ID.
-#   * The `monitoring` namespace is created by the `monitoring-crds` module in
-#     the supported topology, so `create_namespace` defaults to false. That
-#     module also installs the CRDs, ahead of every component that ships a
-#     ServiceMonitor, so the examples pass `enable_monitoring_crds = false`
-#     here. Pass its `namespace` output as `namespace`, or keep a `depends_on`
-#     for it, or the release can race the namespace.
-#   * There are no container lifecycle rules, and no variables to configure
-#     them — unlike AWS and GCP, which take `logs_retention_days`,
-#     `metrics_retention_days`, and `enable_bucket_versioning`. Loki and Thanos
-#     each enforce their own retention, so nothing is unbounded, but Azure has
-#     neither the retention backstop the other two clouds offer nor blob
-#     versioning for recovery. Adding an `azurerm_storage_management_policy`
-#     here is tracked separately; if it lands, note that Thanos keeps blocks per
-#     downsampling resolution (raw / 5m / 1h), so a policy deleting sooner than
-#     it expects removes blocks the compactor still references.
+#   * The cluster needs workload identity and the OIDC issuer enabled
+#     (`workload_identity_enabled`, `oidc_issuer_enabled`); the `aks` module sets both.
+#   * One identity per backend, each scoped to its own container, so neither can
+#     read the other's data. Same as AWS and GCP.
+#   * The webhook only mutates pods labelled `azure.workload.identity/use`. The
+#     monitoring module adds it via `loki.podLabels` and, since Thanos has no
+#     `podLabels`, `thanos.global.commonLabels`.
+#   * `provider_metrics` gives the Alloy gateway its own identity, used only to
+#     read Azure Monitor. The monitoring module labels the gateway pods for the
+#     webhook whenever its ServiceAccount carries a client ID.
+#   * The `monitoring-crds` module creates the `monitoring` namespace and the
+#     CRDs, so `create_namespace` defaults to false and the examples pass
+#     `enable_monitoring_crds = false`. Pass its `namespace` output as
+#     `namespace` (or keep a `depends_on`) or the release can race the namespace.
+#   * Unlike AWS and GCP there are no container lifecycle rules, retention
+#     backstop, or blob versioning; Loki and Thanos enforce their own retention.
+#     A future `azurerm_storage_management_policy` must not delete sooner than
+#     Thanos expects: it keeps blocks per downsampling resolution (raw / 5m / 1h).
 #
-# One storage account with a container per backend rather than an account per
-# backend: role assignments scope to a container, so isolation is preserved
-# without paying for two accounts, and Azure's account-name constraints (globally
-# unique, 3-24 chars, alphanumeric) are awkward enough to want only one.
+# One storage account with a container per backend: role assignments scope to a
+# container, so isolation holds without a second account, and account names
+# (globally unique, 3-24 alphanumeric characters) are awkward enough to want one.
 
 locals {
-  # The chart renders deterministic ServiceAccount names, and the federated
-  # credential subjects below have to match them exactly. The monitoring module
-  # emits the resolved subjects as an output; these are the same names, needed
-  # here before that module exists — passing them the other way would close a
-  # dependency cycle.
+  # Must match the chart's ServiceAccount names for the federated credentials.
+  # The monitoring module outputs them too, but reading that would be a dependency cycle.
   service_accounts = {
     loki   = "loki"
     thanos = "thanos-thanos"
@@ -82,28 +57,23 @@ resource "random_string" "unique" {
   upper   = false
 }
 
-# Account names are globally unique, lowercase alphanumeric, and capped at 24
-# characters — hence the suffix and the `replace`.
-#
-# Not truncated to 24 here: `var.prefix` is validated so that the whole name
-# fits, because a `substr` would trim from the right and eat the very suffix
-# that makes the name unique.
+# Account names are globally unique, lowercase alphanumeric, and at most 24
+# characters, hence the suffix and the `replace`. Not truncated: `var.prefix` is
+# validated so the name fits, since `substr` would cut the uniqueness suffix.
 resource "azurerm_storage_account" "telemetry" {
   name                = replace("${var.prefix}mzmon${random_string.unique.result}", "-", "")
   resource_group_name = var.resource_group_name
   location            = var.location
 
-  # Standard/StorageV2 rather than the Premium BlockBlobStorage the Materialize
-  # persist account uses: telemetry is written in large sequential blocks and read
-  # by range, so throughput matters more than per-operation latency, and Premium
-  # costs several times more for capacity we will hold for months.
+  # Standard, not Premium like the Materialize persist account: telemetry is large
+  # sequential writes and range reads, so throughput beats latency, and Premium
+  # costs several times more for data held for months.
   account_tier             = "Standard"
   account_replication_type = var.account_replication_type
   account_kind             = "StorageV2"
   min_tls_version          = "TLS1_2"
 
-  # Both backends authenticate as an identity; there is no reason to leave the
-  # shared keys usable.
+  # Both backends authenticate as an identity, so shared keys stay off.
   shared_access_key_enabled = false
 
   dynamic "network_rules" {
@@ -140,9 +110,8 @@ resource "azurerm_user_assigned_identity" "telemetry" {
   tags = var.tags
 }
 
-# Scoped to the one container that backend owns, not the account. Blob Data
-# Contributor rather than Owner: both backends read, write, and delete blobs, but
-# neither needs to manage the container itself or its ACLs.
+# Scoped to the backend's own container, not the account. Contributor, not
+# Owner: neither backend manages the container or its ACLs.
 resource "azurerm_role_assignment" "telemetry" {
   for_each = local.service_accounts
 
@@ -151,9 +120,8 @@ resource "azurerm_role_assignment" "telemetry" {
   principal_id         = azurerm_user_assigned_identity.telemetry[each.key].principal_id
 }
 
-# Establishes trust between the in-cluster ServiceAccount and the identity. The
-# audience is fixed by Entra's token-exchange endpoint and must match the one the
-# projected token is minted for.
+# Trusts the in-cluster ServiceAccount's projected token. The audience is fixed by
+# Entra's token-exchange endpoint.
 resource "azurerm_federated_identity_credential" "telemetry" {
   for_each = local.service_accounts
 
@@ -168,8 +136,7 @@ resource "azurerm_federated_identity_credential" "telemetry" {
 # ==============================================================================
 # Provider metrics: what the gateway pulls
 # ==============================================================================
-# The gateway's own identity, separate from the backends' for the reason theirs
-# are separate from each other: it reads Azure Monitor and no container, and
+# The gateway gets its own identity: it reads Azure Monitor and no container, and
 # neither backend reads Azure Monitor.
 
 resource "azurerm_user_assigned_identity" "gateway" {
@@ -193,13 +160,11 @@ resource "azurerm_federated_identity_credential" "gateway" {
   subject             = "system:serviceaccount:${var.namespace}:${local.gateway_service_account}"
 }
 
-# Named, never discovered: the chart pulls exactly these resources. The caller's
-# lists come first, and this module's own resources join them unless asked not
-# to — they are the monitoring stack's dependencies, and nothing else here knows
-# them.
+# Named, never discovered: the chart pulls exactly these resources. This module's
+# own resources join the caller's unless `include_monitoring_resources` is false.
 #
-# Keyed by position rather than by ID, so the keys are known at plan even when
-# the IDs belong to resources created in the same apply.
+# Keyed by position, not ID, so keys are plan-known even for resources created in
+# the same apply.
 
 locals {
   provider_metrics_postgres = local.provider_metrics_enabled ? merge(
@@ -212,9 +177,9 @@ locals {
     var.provider_metrics.include_monitoring_resources ? { telemetry = azurerm_storage_account.telemetry.id } : {},
   ) : {}
 
-  # Each cluster, and its node resource group: the pull finds the node pools'
-  # scale sets through it with a Resource Graph join, and reads their metrics
-  # there. AKS creates that group in the cluster's subscription.
+  # Each cluster plus its node resource group, where the pull finds the node pool
+  # scale sets via a Resource Graph join. AKS creates that group in the cluster's
+  # subscription.
   provider_metrics_aks = local.provider_metrics_enabled ? merge(
     { for i, c in var.provider_metrics.aks_clusters : "aks-${i}" => c.id },
     { for i, c in var.provider_metrics.aks_clusters : "aks-${i}-nodes" => "/subscriptions/${split("/", c.id)[2]}/resourceGroups/${c.node_resource_group}" },
@@ -247,16 +212,10 @@ locals {
   })] : []
 }
 
-# Monitoring Reader is `*/read` at the scope it is granted on, so on one server or
-# one storage account it reads that resource's configuration and metrics and
-# nothing else: not its keys, which are an action, and not its blobs, which are
-# data actions. Unlike CloudWatch and Cloud Monitoring reads, Azure Monitor reads
-# scope to a resource, so nothing wider is granted.
-#
-# The one exception is an AKS cluster's node resource group, which the grant
-# covers whole: the node scale sets are created and replaced by AKS, so there is
-# nothing narrower to name. The group holds only what AKS manages for the
-# cluster, and the same limits apply: configuration and metrics, no keys.
+# Monitoring Reader is `*/read` at its scope: configuration and metrics, but not
+# keys (actions) or blobs (data actions). Azure Monitor reads scope to a resource,
+# so nothing wider is granted, except an AKS node resource group, granted whole
+# because AKS creates and replaces the scale sets in it.
 resource "azurerm_role_assignment" "gateway_monitoring_reader" {
   for_each = merge(local.provider_metrics_postgres, local.provider_metrics_storage, local.provider_metrics_aks)
 
@@ -277,23 +236,14 @@ resource "azurerm_role_assignment" "gateway_monitoring_reader" {
 # ==============================================================================
 
 module "monitoring" {
-  # Pinned to a released tag. The module and the chart it installs are one
-  # release, and the module reads its chart version out of the chart beside it —
-  # so this ref alone names the chart version, with nothing to keep in sync.
+  # Pinned to a released tag. The module reads its chart version from the chart
+  # beside it, so this ref alone sets the chart version.
   #
-  # Developing against an unreleased module: point this at a local checkout
-  # (`../../../../materialize-monitoring/terraform/modules/materialize-monitoring`)
-  # for the duration. It must stay a *relative* path — an absolute one makes
-  # Terraform copy the module without the chart directory beside it, and the
-  # sizing profiles stop resolving.
+  # To develop against an unreleased module, use a *relative* path to a local
+  # checkout (`../../../../materialize-monitoring/terraform/modules/materialize-monitoring`).
+  # An absolute path copies the module without the chart, and sizing profiles break.
   #
-  # The `/` in the tag name is why this module floors at Terraform 1.10. Before
-  # that fix, Terraform truncated the ref at the first slash and treated the rest
-  # as a subdirectory, failing the clone with `pathspec 'materialize-monitoring'
-  # did not match` (hashicorp/terraform#35552). See versions.tf.
-  #
-  # v0.13.0 is where `grafana_database_*` and the chart's `grafana.ingress` /
-  # `grafana.service` values land. This branch does not plan against v0.12.0.
+  # The `/` in the tag needs Terraform >= 1.10 (hashicorp/terraform#35552).
   source = "github.com/MaterializeInc/materialize-monitoring//terraform/modules/materialize-monitoring?ref=materialize-monitoring/v0.30.0"
 
   namespace        = var.namespace
@@ -301,11 +251,8 @@ module "monitoring" {
 
   chart_version = var.chart_version
 
-  # Null on any of these means "use the monitoring module's own default": each
-  # is declared `nullable = false` with a default there, and Terraform
-  # substitutes the default when a caller passes null. None of the three is
-  # reachable through `additional_values`, so without forwarding them a mirrored
-  # registry or a cluster that already owns the CRDs has no way through.
+  # Null uses the monitoring module's default (they are `nullable = false` there).
+  # None can be set through `additional_values`, so they must be forwarded.
   chart_registry         = var.chart_registry
   enable_monitoring_crds = var.enable_monitoring_crds
   install_timeout        = var.install_timeout
@@ -322,10 +269,8 @@ module "monitoring" {
 
   grafana_admin_password = var.grafana_admin_password
 
-  # In-cluster TLS. `certificates_enabled` issues the material and
-  # `internal_tls` decides how far the hops move off plaintext; both default to
-  # secure here rather than on the monitoring module, because this repository's
-  # examples all install cert-manager and that module's other consumers may not.
+  # In-cluster TLS defaults to on here rather than in the monitoring module: every
+  # example in this repo installs cert-manager, other consumers may not.
   certificates_enabled       = var.certificates_enabled
   internal_tls               = coalesce(var.internal_tls, var.certificates_enabled ? "authenticate" : "off")
   issuer_ref                 = var.issuer_ref
@@ -334,21 +279,14 @@ module "monitoring" {
   certificate_duration       = var.certificate_duration
   certificate_renew_before   = var.certificate_renew_before
 
-  # Explicit rather than inferred from host/password: both are computed here — an
-  # instance endpoint and a generated password — so the module cannot decide
-  # whether they exist at plan time. These two conditions are plan-known.
+  # Explicit, not inferred from host/password: those can be unknown at plan time
+  # (server FQDN, generated password), but these conditions are plan-known.
   grafana_database_enabled                = local.create_grafana_database || var.grafana_database_host != null
   grafana_database_manage_password_secret = local.create_grafana_database || var.grafana_database_password != null
 
-  # TODO: pass the Grafana Service port through, once the monitoring module takes
-  # one. Today the chart decides it (`grafana.service.port`, 80) and nothing here
-  # states it, so the two agree only by coincidence.
-  #
-  # This becomes load-bearing with in-cluster TLS: Grafana stops serving plain
-  # HTTP, the Service port moves with it, and anything still assuming 80 points at
-  # a port that is no longer there. Deliberately not wired yet — it needs a
-  # variable on the monitoring module and a matching chart value, which is a
-  # change of its own.
+  # TODO: pass the Grafana Service port once the monitoring module accepts one.
+  # The chart sets it (`grafana.service.port`, 80) and nothing here sets it on the
+  # chart, so they agree by coincidence. In-cluster TLS will move that port.
   #
   # grafana_service_port = 80
 
@@ -366,9 +304,8 @@ module "monitoring" {
 
     azure_storage_account = azurerm_storage_account.telemetry.name
 
-    # Each backend's own identity. The Entra webhook reads the client ID from the
-    # annotation and resolves the tenant and authority host itself, so nothing
-    # else needs threading through.
+    # The Entra webhook reads the client ID from this annotation and resolves the
+    # tenant and authority host itself.
     loki_service_account_annotations = {
       "azure.workload.identity/client-id" = azurerm_user_assigned_identity.telemetry["loki"].client_id
     }
@@ -381,10 +318,8 @@ module "monitoring" {
     } : {}
   }
 
-  # Straight pass-through; the monitoring module validates the tiers, the OTLP
-  # protocol, and the url-has-no-scheme rule, and rejects a bearer token combined
-  # with headers. Credentials never enter the Helm values — that module puts them
-  # in the gateway Secret and rolls the gateway when one changes.
+  # Passed through; the monitoring module validates them and keeps credentials
+  # out of the Helm values (they go in the gateway Secret).
   datadog_metrics = var.datadog_metrics
   datadog_api_key = var.datadog_api_key
 
@@ -392,16 +327,14 @@ module "monitoring" {
   otlp_auth_header_secrets = var.otlp_auth_header_secrets
   otlp_auth_bearer_token   = var.otlp_auth_bearer_token
 
-  # Straight pass-through as well. The monitoring module validates the preset,
-  # durations and template names, maps these onto the chart, and fails the plan
-  # when a receiver reads a key `alerting_receiver_secrets` does not set.
+  # Passed through; the monitoring module validates them and fails the plan when
+  # a receiver reads a key `alerting_receiver_secrets` does not set.
   alert_rules               = var.alert_rules
   alerting                  = var.alerting
   alerting_receiver_secrets = var.alerting_receiver_secrets
   alertmanager_namespace    = var.alertmanager_namespace
 
-  # Load-balancer and provider values ahead of the caller's, so
-  # `additional_values` still overrides anything computed here.
+  # Computed values first, so `additional_values` overrides them.
   additional_values = concat(local.grafana_load_balancer_values, local.provider_metrics_values, var.additional_values)
 
   depends_on = [
@@ -415,14 +348,11 @@ module "monitoring" {
 # ==============================================================================
 # Grafana state database
 # ==============================================================================
-# Reuses this repo's own `database` module rather than an inline
-# `azurerm_postgresql_flexible_server`, so Grafana's server gets the same
-# backup, storage, and private-networking opinions the Materialize database has.
-#
-# Grafana connects as the server's administrator. On a Flexible Server that is
-# not a shortcut but the only option: there is no ARM resource for creating a
-# PostgreSQL role, and Grafana needs DDL on its own database to migrate at
-# startup. A dedicated server is what keeps that from meaning anything wider.
+# Uses this repo's `database` module so Grafana's server gets the same backup,
+# storage, and private-networking settings as the Materialize database.
+# Grafana connects as the administrator: there is no ARM resource for creating a
+# PostgreSQL role, and Grafana needs DDL for its startup migrations. A dedicated
+# server keeps that from granting anything wider.
 
 module "grafana_database" {
   count  = var.grafana_database == null ? 0 : 1
@@ -452,9 +382,8 @@ module "grafana_database" {
 locals {
   create_grafana_database = var.grafana_database != null
 
-  # A caller-supplied password wins; otherwise, when this module creates the
-  # instance, read back the password the database module generated. Null means
-  # "no database and no password", the default install, which the gates handle.
+  # A caller-supplied password wins; otherwise use the one the database module
+  # generated. Null means no database and no password (the default install).
   grafana_database_password = (
     var.grafana_database_password != null
     ? var.grafana_database_password
@@ -482,14 +411,10 @@ locals {
 # ==============================================================================
 
 locals {
-  # Plain http, always. A Azure load balancer from a Service is L4 — it passes
-  # bytes through and terminates nothing — so claiming https here would only
-  # advertise a scheme that does not answer. Setting `security.cookie_secure`
-  # alongside it is worse than useless: the cookie is marked Secure, the browser
-  # stops sending it over the connection that does work, and nobody can log in.
-  #
-  # Put a terminator in front, or give Grafana its own certificate (DEP-195),
-  # and set `root_url` plus `security.cookie_secure` through `additional_values`.
+  # Always http: an Azure Service load balancer is L4 and terminates no TLS. Setting
+  # `security.cookie_secure` without TLS stops the browser sending the session
+  # cookie, so nobody can log in. Once something terminates TLS (DEP-195), set
+  # `root_url` and `security.cookie_secure` through `additional_values`.
   grafana_scheme = "http"
 
   grafana_service_annotations = var.grafana_load_balancer == null ? {} : merge(
@@ -508,8 +433,8 @@ locals {
             annotations              = local.grafana_service_annotations
             loadBalancerSourceRanges = var.grafana_load_balancer.ingress_cidr_blocks
           },
-          # Pre-allocated, so the address is known at plan time and the module
-          # never has to read the Service back to find out where Grafana answers.
+          # Pre-allocated, so the address is known at plan time without reading
+          # the Service back.
           var.grafana_load_balancer.ip == null ? {} : {
             loadBalancerIP = var.grafana_load_balancer.ip
           },
@@ -517,9 +442,8 @@ locals {
       },
       var.grafana_load_balancer.host == null ? {} : {
         "grafana.ini" = {
-          # Grafana builds share links, alert notification links, and OAuth
-          # redirect URIs from this. All three break silently when it disagrees
-          # with the host users actually reach.
+          # Share links, alert links, and OAuth redirect URIs are built from this
+          # and break silently if it differs from the host users reach.
           server = { root_url = "${local.grafana_scheme}://${var.grafana_load_balancer.host}" }
         }
       },
@@ -527,19 +451,12 @@ locals {
   })]
 }
 
-# The load balancer's own address, so `grafana_url` can name where Grafana
-# actually answers rather than falling back to the in-cluster Service whenever no
-# hostname was supplied.
-#
-# A data source rather than a resource attribute: the Service is created by Helm
-# inside the monitoring module, so Terraform has no handle on it. Read after that
-# module, and tolerant of an address that is not assigned yet — the cloud
-# provisions the load balancer asynchronously, so the first apply can complete
-# before an IP exists. `grafana_url` degrades to the in-cluster name in that
-# window, and the next plan picks the address up.
+# Reads the load balancer address so `grafana_url` can use it when no hostname is
+# set. A data source because Helm creates the Service. The address is assigned
+# asynchronously, so after the first apply `grafana_url` may still show the
+# in-cluster name; the next plan picks the address up.
 data "kubernetes_service" "grafana" {
-  # Not read at all when the address was pre-allocated — that is the whole point
-  # of supplying one. Both conditions are plan-known, so this can gate a `count`.
+  # Skipped when the address was pre-allocated. Both conditions are plan-known.
   count = var.grafana_load_balancer == null || var.grafana_load_balancer.ip != null ? 0 : 1
 
   metadata {

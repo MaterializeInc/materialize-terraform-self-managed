@@ -1,86 +1,46 @@
-# Deploys the `materialize-monitoring` observability stack on EKS: Grafana
-# dashboards, Prometheus-compatible metrics via Thanos, logs via Loki, and the
-# Alloy collection pipeline.
+# Deploys the `materialize-monitoring` stack on EKS: Grafana, metrics via Thanos,
+# logs via Loki, and the Alloy pipeline. This module owns the AWS side (an S3
+# bucket and IRSA role per backend) and delegates everything in the cluster to
+# the cloud-agnostic module shipped with the chart, so no Helm value paths live here.
 #
-# This module owns the AWS side — one S3 bucket per backend and an IRSA role per
-# backend — and delegates everything inside the cluster to the cloud-agnostic
-# module that ships alongside the chart in the `materialize-monitoring`
-# repository. Nothing here names a Helm value path; that knowledge lives next to
-# the chart, so a chart change and its Terraform consequence land together.
-#
-# Replaces the previous `kubernetes/modules/prometheus` and
-# `kubernetes/modules/grafana`, which vendored a point-in-time dashboard copy and
-# a legacy scrape config, collected metrics only, and ran a single Prometheus on
-# a ReadWriteOnce volume with 15 days of retention.
-#
-# UPGRADE NOTE — v13.0.0 moves the telemetry buckets into the account regional
-# namespace, which REPLACES both of them: the name changes shape, `bucket` forces
-# a new resource, and S3 offers no in-place migration between namespaces. Copy
-# anything you need to keep before applying, and read the plan.
-#
-# What the apply does from there depends on `bucket_force_destroy`, which defaults
-# to false. On the default it FAILS with BucketNotEmpty and the buckets and their
-# contents survive, since S3 will not delete a non-empty bucket — the module
-# declines to discard telemetry nobody said could go. It fails partway, though:
-# a replaced bucket's dependents are destroyed ahead of the bucket, so the
-# surviving buckets can be left without their public-access block, encryption,
-# versioning, and lifecycle configuration until the replacement is resolved one
-# way or the other. Setting it true carries the replacement through and loses all
-# Loki and Thanos history. Deployments in a region without account regional
-# namespace support are unaffected — see the Buckets section below.
+# Moving the buckets into the account regional namespace (v13.0.0) replaces both
+# of them; see the v13.0.0 upgrade notes in the root README before applying.
 #
 # Operational notes:
 #
-#   * The `monitoring` namespace is created by the `monitoring-crds` module in
-#     the supported topology, so `create_namespace` defaults to false. That
-#     module also installs the CRDs, ahead of every component that ships a
-#     ServiceMonitor, so the examples pass `enable_monitoring_crds = false`
-#     here. Pass its `namespace` output as `namespace`, or keep a `depends_on`
-#     for it, or the release can race the namespace.
-#   * The operator module also installs metrics-server, which the Materialize
-#     Console depends on for cluster metrics. If you disable it there, set
-#     `install_metrics_server = true` here in the same change.
-#   * Bucket *retention* is off by default, but housekeeping always runs.
-#     Aborting incomplete multipart uploads and expiring noncurrent versions are
-#     unconditional, because nothing else ever reclaims either and both grow
-#     without bound. Only `logs_retention_days` / `metrics_retention_days` are
-#     opt-in: Loki and Thanos both enforce their own retention, and Thanos keeps
-#     blocks per downsampling resolution (raw / 5m / 1h), so a bucket rule
-#     expiring sooner deletes blocks the compactor still references. Use those
-#     two only as a backstop above what the compactors already do.
-#   * Grafana is ClusterIP until `grafana_load_balancer` is set, so `grafana_url`
-#     is in-cluster by default: reach it with
+#   * The `monitoring-crds` module creates the `monitoring` namespace and the
+#     CRDs, so `create_namespace` defaults to false and the examples pass
+#     `enable_monitoring_crds = false`. Pass its `namespace` output as
+#     `namespace` (or keep a `depends_on`) or the release can race the namespace.
+#   * The operator module installs metrics-server, which the Console needs. If
+#     you disable it there, set `install_metrics_server = true` here.
+#   * Bucket housekeeping (aborting incomplete multipart uploads, expiring
+#     noncurrent versions) always runs. `logs_retention_days` and
+#     `metrics_retention_days` are opt-in backstops only: Loki and Thanos enforce
+#     their own retention, and Thanos keeps blocks per downsampling resolution
+#     (raw / 5m / 1h), so expiring sooner deletes blocks the compactor still needs.
+#   * Grafana is ClusterIP unless `grafana_load_balancer` is set. Reach it with
 #     `kubectl -n monitoring port-forward svc/grafana 3000:80` and
-#     `terraform output -raw grafana_admin_password`. With a load balancer,
-#     `grafana_url` names its address, and DNS for any hostname is yours.
-#   * That load balancer is an L4 NLB, matching GCP, Azure, and the Materialize
-#     console. It terminates no TLS — see `grafana_load_balancer`.
-#   * `grafana_load_balancer` and `grafana_database` belong together. Exposing Grafana
-#     without a durable backend turns a bundled extra nobody depended on into the
-#     primary interface to the stack — one that discards every dashboard,
-#     annotation, and API token its users create on the next restart.
-#   * `node_selector` reaches every centralized workload but deliberately not
-#     the Alloy agent DaemonSet, which must run on every node to collect from
-#     it. `tolerations` do reach the agent, since they widen rather than narrow
-#     where a pod may run.
+#     `terraform output -raw grafana_admin_password`. DNS for a hostname is yours.
+#   * The load balancer is an L4 NLB and terminates no TLS.
+#   * Set `grafana_database` along with `grafana_load_balancer`: without it Grafana
+#     loses every dashboard, annotation, and API token on restart.
+#   * `node_selector` skips the Alloy agent DaemonSet, which must run on every
+#     node. `tolerations` do reach it.
 #
-# One bucket per backend rather than one shared with prefixes: Loki and Thanos
-# want different lifecycle rules, IAM scoping is tighter, and Loki's
-# `bucketNames` are bucket names rather than prefixes.
+# One bucket per backend rather than shared with prefixes: lifecycle rules differ,
+# IAM scoping is tighter, and Loki's `bucketNames` are not prefixes.
 
 locals {
-  # The chart renders deterministic ServiceAccount names, and the trust policies
-  # below have to match them exactly. The monitoring module emits the resolved
-  # subjects as an output; these are the same names, needed here before that
-  # module exists — passing them the other way would close a dependency cycle.
+  # Must match the chart's ServiceAccount names for the trust policies below. The
+  # monitoring module outputs them too, but reading that would be a dependency cycle.
   service_accounts = {
     loki   = "loki"
     thanos = "thanos-thanos"
   }
 
-  # Not in the map above: the gateway reads CloudWatch, not a bucket, so it gets
-  # its own role and policy. It shares the trust-policy document with the other
-  # two, which is keyed by this merged map.
+  # The gateway reads CloudWatch, not a bucket, so it gets its own role and policy
+  # but shares the trust-policy document, which is keyed by this merged map.
   gateway_service_account  = "alloy-gateway"
   provider_metrics_enabled = var.provider_metrics != null
   irsa_service_accounts = merge(
@@ -101,35 +61,23 @@ locals {
 # ==============================================================================
 # Buckets
 # ==============================================================================
-# Created in the account regional namespace rather than the shared global one,
-# which is house policy for new buckets: the name is reserved to this account, so
-# no other account can take it and none can ever take it back. Everything else is
-# unchanged — regional endpoints, virtual-hosted-style addressing, ARNs, and IAM
-# resource patterns are the same as any general purpose bucket, and neither Loki
-# nor Thanos needs a configuration change beyond the new name.
-#
-# The provider appends nothing for you, so the `-{account}-{region}-an` suffix is
-# built here. Only CloudFormation's `BucketNamePrefix` does the appending; setting
-# `bucket_namespace` while leaving the name unsuffixed fails at CreateBucket.
+# Buckets live in the account regional namespace (house policy), which reserves
+# the name to this account. The provider does not append the
+# `-{account}-{region}-an` suffix, so it is built here; CreateBucket fails without it.
 
 locals {
-  # Account regional namespaces are unavailable in these regions, which fall back
-  # to the global namespace and the random suffix that predates this. Removing a
-  # region from the list once AWS supports it moves those deployments onto the
-  # account regional namespace and replaces their buckets, so treat it as the
-  # breaking change it is rather than a routine list update.
+  # No account regional namespace here yet, so these keep the global namespace
+  # and a random suffix. Removing a region replaces its buckets: a breaking change.
   regions_without_account_regional_namespace = ["me-south-1", "me-central-1"]
 
   use_account_regional_bucket_namespace = !contains(
     local.regions_without_account_regional_namespace, var.region
   )
 
-  # 31 characters at its longest — 12 for the account, up to 14 for the region
-  # code — against the 8-character random suffix it replaces. That is what makes
-  # `name_prefix` tighter here than it was, and what the precondition below
-  # checks. `account_id` is a variable rather than a data source for the same
-  # reason `region` is: a caller's `depends_on` defers a data source inside this
-  # module to apply time, and an unknown bucket name is a bucket replacement.
+  # Up to 31 characters (12 for the account, up to 14 for the region), hence the
+  # tight `name_prefix` limit and the precondition below. `account_id` is a
+  # variable, not a data source: a caller's `depends_on` would defer a data source
+  # to apply time, and an unknown bucket name forces a replacement.
   bucket_name_suffix = (
     local.use_account_regional_bucket_namespace
     ? "-${var.account_id}-${var.region}-an"
@@ -148,10 +96,8 @@ locals {
   }
 }
 
-# Only for the global namespace, where the name competes with every other AWS
-# account's. The account regional namespace reserves the name to this account, so
-# there is nothing left to disambiguate — and no room to do it in, since the
-# namespace suffix already takes 31 of the 63 characters S3 allows.
+# Global namespace only, where names compete across all AWS accounts. The
+# regional namespace needs no disambiguation and has no room left for it.
 resource "random_id" "bucket_suffix" {
   count = local.use_account_regional_bucket_namespace ? 0 : 1
 
@@ -162,17 +108,15 @@ resource "aws_s3_bucket" "telemetry" {
   for_each = local.buckets
 
   bucket = each.value.name
-  # Null rather than an explicit "global" on the fallback path. The argument is
-  # optional-and-computed and forces a new resource, so letting the API supply it
-  # keeps buckets that predate it out of the diff.
+  # Null, not "global", on the fallback path: the argument is computed and forces
+  # replacement, so letting the API fill it keeps older buckets out of the diff.
   bucket_namespace = local.use_account_regional_bucket_namespace ? "account-regional" : null
   force_destroy    = var.bucket_force_destroy
 
   tags = merge(local.common_tags, { Backend = each.key })
 
-  # Checked here rather than left to CreateBucket, which would fail mid-apply
-  # with the IAM roles already created. Against the name actually built, so it
-  # covers both namespaces without restating which regions get which.
+  # Fail at plan rather than mid-apply at CreateBucket. Checks the built name, so
+  # it covers both namespaces.
   lifecycle {
     precondition {
       condition     = length(each.value.name) <= 63
@@ -210,10 +154,8 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "telemetry" {
       kms_master_key_id = local.bucket_encryption_uses_kms ? var.bucket_kms_key_arn : null
     }
 
-    # S3 Bucket Keys cut KMS request volume, and therefore KMS billing, by
-    # reusing one data key across many objects instead of calling KMS per
-    # object. Both backends write a very large number of small objects, so this
-    # is the difference between a rounding error and a line item.
+    # Bucket Keys reuse one data key across objects instead of calling KMS per
+    # object. Both backends write many small objects, so this cuts KMS cost a lot.
     bucket_key_enabled = local.bucket_encryption_uses_kms
   }
 }
@@ -228,21 +170,13 @@ resource "aws_s3_bucket_versioning" "telemetry" {
   }
 }
 
-# Retention here is a backstop, not the primary control: Loki's compactor and
-# Thanos's compactor both enforce their own. A bucket rule that expires sooner
-# than they expect deletes blocks they still reference.
 resource "aws_s3_bucket_lifecycle_configuration" "telemetry" {
   for_each = local.buckets
 
   bucket = aws_s3_bucket.telemetry[each.key].id
 
-  # Housekeeping is unconditional. It used to live inside the retention rule,
-  # which meant the whole configuration was skipped whenever `retention_days` was
-  # null — the default — so the two cleanups below silently never ran.
-
-  # An interrupted multipart upload leaves parts that are billed and do not show
-  # up in a normal object listing, so nothing else ever reclaims them. Both
-  # backends use multipart uploads for large blocks and chunks.
+  # Interrupted multipart uploads leave billed parts that do not show in object
+  # listings, so nothing else reclaims them.
   rule {
     id     = "abort-incomplete-multipart-upload"
     status = "Enabled"
@@ -254,17 +188,10 @@ resource "aws_s3_bucket_lifecycle_configuration" "telemetry" {
     }
   }
 
-  # Versioning keeps a copy of every object the compactors delete, and both of
-  # them delete constantly. Without this the bucket grows without bound even
-  # though retention appears to be working.
-  #
-  # Unconditional rather than gated on `enable_bucket_versioning`, because S3
-  # versioning cannot be turned back off — destroying the versioning resource
-  # *suspends* it, which stops new versions but keeps every one already written.
-  # Gating this rule on the same variable would remove the only thing that
-  # expires them in the very apply that suspends versioning, stranding them
-  # permanently. On a bucket that was never versioned the rule simply never
-  # matches.
+  # Versioning keeps a copy of everything the compactors delete; without this the
+  # bucket grows without bound. Not gated on `enable_bucket_versioning`: turning
+  # it off only suspends versioning and keeps old versions, which gating would
+  # strand. On a never-versioned bucket the rule never matches.
   rule {
     id     = "expire-noncurrent-versions"
     status = "Enabled"
@@ -276,9 +203,7 @@ resource "aws_s3_bucket_lifecycle_configuration" "telemetry" {
     }
   }
 
-  # Retention itself is a backstop, not the primary control — see the header.
-  # Off by default, which is why it has to be the conditional part rather than
-  # the gate on everything else.
+  # Opt-in retention backstop; see the notes at the top of this file.
   dynamic "rule" {
     for_each = each.value.retention_days == null ? [] : [each.value.retention_days]
 
@@ -360,11 +285,9 @@ data "aws_iam_policy_document" "bucket_access" {
     resources = [aws_s3_bucket.telemetry[each.key].arn, "${aws_s3_bucket.telemetry[each.key].arn}/*"]
   }
 
-  # Bucket permissions alone are not enough under SSE-KMS: S3 evaluates the key
-  # policy separately, so without this every PutObject fails with AccessDenied
-  # and every GetObject fails to decrypt — while the bucket policy above looks
-  # entirely correct. GenerateDataKey covers writes, Decrypt covers reads, and
-  # both are needed for multipart.
+  # Under SSE-KMS the key is authorized separately: without this, writes fail with
+  # AccessDenied and reads cannot decrypt. GenerateDataKey covers writes, Decrypt
+  # covers reads, and multipart needs both.
   dynamic "statement" {
     for_each = local.bucket_encryption_uses_kms ? [var.bucket_kms_key_arn] : []
 
@@ -387,21 +310,15 @@ resource "aws_iam_role_policy" "telemetry" {
 # ==============================================================================
 # Provider metrics: the gateway reads CloudWatch
 # ==============================================================================
-# Only what the chart's CloudWatch pull calls. The database and bucket jobs are
-# `static`, which go through GetMetricStatistics; the exporter also lists the
-# account alias to label every series, and logs a warning on each pull without it.
+# Only what the chart's CloudWatch pull calls. RDS and S3 jobs are `static`
+# (GetMetricStatistics); the exporter also reads the account alias for labels.
+# EKS nodes are replaced too often to name, so EKS jobs discover them by tag
+# (`aws:eks:cluster-name` on nodes, `eks:cluster-name` on node group ASGs) and
+# read them with ListMetrics and GetMetricData. Those four actions are granted
+# only when a cluster is listed.
 #
-# An EKS cluster's nodes cannot be named, since they are replaced too often, so
-# its jobs `discover` them instead: the resource tagging API finds each node by
-# the `aws:eks:cluster-name` tag EKS and Karpenter set, and each managed node
-# group's Auto Scaling group by `eks:cluster-name`, whose details the exporter
-# reads from the Auto Scaling API; then ListMetrics and GetMetricData read what
-# CloudWatch holds for them. Those four are granted only when a cluster is listed.
-#
-# Every action is `Resource: "*"` because none supports anything narrower: the
-# IAM service reference lists no resource types and no condition keys for them.
-# `cloudwatch:namespace` exists and applies only to PutMetricData. The scoping is
-# in the chart values instead: named resources, and for EKS, the cluster tag.
+# Every action is `Resource: "*"`: none supports resource types or condition
+# keys. The chart values do the scoping instead.
 
 resource "aws_iam_role" "gateway" {
   count = local.provider_metrics_enabled ? 1 : 0
@@ -458,21 +375,17 @@ resource "aws_iam_role_policy" "gateway" {
 # ==============================================================================
 # Grafana state database
 # ==============================================================================
-# Reuses this repo's own `database` module rather than an inline `aws_db_instance`,
-# so Grafana's instance gets the same KMS, security-group, subnet-group, and
-# backup opinions the Materialize database already has.
-#
-# Grafana connects as the instance's master user, which on a dedicated instance
-# is the simplest thing that satisfies the requirement that it *own* its
-# database — schema migrations run at every startup.
+# Uses this repo's `database` module so Grafana's instance gets the same KMS,
+# security-group, subnet-group, and backup settings as the Materialize database.
+# Grafana connects as the master user because it must own its database to run
+# schema migrations at startup.
 
 resource "random_password" "grafana_database" {
   count = var.grafana_database != null && var.grafana_database_password == null ? 1 : 0
 
   length = 32
-  # RDS rejects several punctuation characters in a master password, and Grafana
-  # reads this out of a mounted file that operators also paste into psql.
-  # Alphanumeric avoids both problems.
+  # RDS rejects some punctuation in master passwords, and Grafana reads this
+  # from a mounted file that operators paste into psql. Alphanumeric avoids both.
   special = false
 }
 
@@ -509,21 +422,17 @@ module "grafana_database" {
 locals {
   create_grafana_database = var.grafana_database != null
 
-  # A caller-supplied password wins in both modes; the random one only fills the
-  # gap when this module creates the instance and was given none.
-  #
-  # Not `coalesce`: it errors when every argument is null, which is the default
-  # install — no database and no password — so it failed the plan on the one path
-  # that has nothing to decide. Null here means "no password", which is what the
-  # module's own gates are for.
+  # A caller-supplied password wins; the random one is used only when this module
+  # creates the instance. Not `coalesce`, which errors when every argument is
+  # null, as in the default install with no database.
   grafana_database_password = (
     var.grafana_database_password != null
     ? var.grafana_database_password
     : one(random_password.grafana_database[*].result)
   )
 
-  # `db_instance_endpoint` is already `host:port`, so it is split rather than
-  # re-joined — the module's own port is authoritative over any default here.
+  # `db_instance_endpoint` is `host:port`; keep the host and take the port from
+  # the module's own output.
   grafana_database_host = local.create_grafana_database ? (
     split(":", module.grafana_database[0].db_instance_endpoint)[0]
   ) : var.grafana_database_host
@@ -532,9 +441,8 @@ locals {
     module.grafana_database[0].db_instance_port
   ) : var.grafana_database_port
 
-  # Null means "no password", which is a legitimate shape for an external host
-  # behind peer authentication or a proxy. Never null for an instance this
-  # module creates.
+  # Null is valid for an external host behind peer auth or a proxy. Never null
+  # for an instance this module creates.
   grafana_database_effective_password = (
     local.create_grafana_database ? local.grafana_database_password : var.grafana_database_password
   )
@@ -543,45 +451,28 @@ locals {
 # ==============================================================================
 # Grafana load balancer
 # ==============================================================================
-# The NLB, its listener, its target group, and the TargetGroupBinding that links
-# them to the Grafana Service, all as Terraform resources. Copied from
-# `aws/modules/nlb` rather than imported: that module is keyed on a Materialize
-# instance's `resource_id`, so depending on it would make monitoring wait for
-# Materialize to be fully stood up.
-#
-# Not `service.type: LoadBalancer` with AWS annotations: letting the
-# load-balancer controller build the NLB leaves its address discoverable only by
-# reading the Service back after apply, which races the controller, and pushes
-# every setting through an annotation string with no type checking.
+# Copied from `aws/modules/nlb` rather than calling it: that module is keyed on a
+# Materialize instance's `resource_id`, so monitoring would wait for Materialize.
+# Not `service.type: LoadBalancer` with annotations: reading the address back
+# from the Service races the controller, and annotations are untyped strings.
 
 locals {
   grafana_lb = var.grafana_load_balancer
-  # `aws_lb` and `aws_lb_target_group` both cap `name_prefix` at 6 characters and
-  # `name` at 32, and AWS appends a unique suffix to a generated name.
-  #
-  # A derived full `name` was tried and does not work: `-mzmon-grafana` is 14 of
-  # the 32, leaving 18 for the deployment prefix, and load-balancer names are
-  # unique per account per region. Two deployments sharing an 18-character prefix
-  # collide — `materialize-staging-blue` and `materialize-staging-green` both
-  # truncate to `materialize-stagin-mzmon-grafana` — and the second apply fails.
-  # `aws/modules/nlb` already answers this the same way: a short generated prefix,
-  # with `grafana_nlb_name` to override when a predictable name is wanted.
-  #
-  # It also unblocks `create_before_destroy`, which a fixed `name` cannot have:
-  # the replacement would collide with the load balancer still being destroyed.
-  # Identity in the console comes from the tags rather than the name.
-  #
-  # 6 characters exactly. Nothing may be appended: the cap is on the whole prefix.
+  # `aws_lb` and `aws_lb_target_group` cap `name_prefix` at 6 characters (the whole
+  # prefix) and `name` at 32. A generated name avoids collisions between
+  # deployments whose truncated prefixes match, since LB names are unique per
+  # account and region, and allows `create_before_destroy`. `grafana_nlb_name`
+  # overrides it.
   grafana_lb_name_prefix = substr(var.name_prefix, 0, min(6, length(var.name_prefix)))
 
-  # Grafana's container port. The chart's Service is 80 -> 3000; the target group
-  # registers pod IPs, so it is the container port that matters here.
+  # Grafana's container port. The target group registers pod IPs, so this, not
+  # the Service port, is what matters.
   grafana_pod_port = 3000
 
   grafana_lb_listener_port = try(local.grafana_lb.listener_port, 80)
 
   # Pre-allocated addresses become `subnet_mapping` blocks, which are mutually
-  # exclusive with `subnets` — hence the null when none were supplied.
+  # exclusive with `subnets`.
   grafana_lb_addresses = local.grafana_lb == null ? null : coalesce(
     local.grafana_lb.private_ipv4_addresses,
     local.grafana_lb.eip_allocation_ids,
@@ -601,14 +492,13 @@ locals {
 
   grafana_load_balancer_address = one(aws_lb.grafana[*].dns_name)
 
-  # The Service stays ClusterIP — the target group registers pods directly — so
-  # the only chart value the load balancer implies is the external URL.
+  # The Service stays ClusterIP (the target group registers pods directly), so
+  # the only chart value needed is the external URL.
   grafana_load_balancer_values = local.grafana_lb == null || local.grafana_lb.host == null ? [] : [yamlencode({
     grafana = {
       "grafana.ini" = {
-        # Grafana builds share links, alert notification links, and OAuth redirect
-        # URIs from this. All three break silently when it disagrees with the host
-        # users actually reach.
+        # Share links, alert links, and OAuth redirect URIs are built from this
+        # and break silently if it differs from the host users reach.
         server = { root_url = "${local.grafana_scheme}://${local.grafana_lb.host}" }
       }
     }
@@ -624,9 +514,8 @@ resource "aws_security_group" "grafana_nlb" {
 
   tags = merge(local.common_tags, { Backend = "grafana" })
 
-  # The load balancer holds this group, so a destroy-then-create replacement has
-  # to detach from the NLB first and fails instead. Matches the security group in
-  # `aws/modules/database`.
+  # The NLB holds this group, so destroy-then-create fails. Same as the security
+  # group in `aws/modules/database`.
   lifecycle {
     create_before_destroy = true
   }
@@ -643,14 +532,12 @@ resource "aws_vpc_security_group_egress_rule" "grafana_nlb" {
   tags = merge(local.common_tags, { Backend = "grafana" })
 }
 
-# One rule per CIDR rather than one rule with a list: a single rule with a
-# changing list is destroyed and recreated on every edit, which the provider
-# reports as a duplicate-rule error mid-upgrade.
+# One rule per CIDR: a single rule with a list is recreated on every edit, which
+# fails mid-upgrade as a duplicate rule.
 # https://github.com/hashicorp/terraform-provider-aws/issues/38526
 #
-# This is the allowlist. The Service is ClusterIP, so there is no
-# `loadBalancerSourceRanges` for the chart to check — the guard is the validation
-# on `grafana_load_balancer`.
+# This is the allowlist. The chart cannot check it (the Service is ClusterIP), so
+# the guard is the validation on `grafana_load_balancer`.
 resource "aws_vpc_security_group_ingress_rule" "grafana_nlb" {
   for_each = local.grafana_lb == null ? toset([]) : toset(local.grafana_lb.ingress_cidr_blocks)
 
@@ -687,9 +574,8 @@ resource "aws_lb" "grafana" {
 
   tags = merge(local.common_tags, { Backend = "grafana" })
 
-  # Possible only because the name is generated; see the locals above. With an
-  # explicit `grafana_nlb_name` the replacement would collide with the load
-  # balancer still being destroyed, but that is the caller's choice to make.
+  # Works because the name is generated. With `grafana_nlb_name` set, the
+  # replacement collides with the old load balancer; that is the caller's choice.
   lifecycle {
     create_before_destroy = true
   }
@@ -708,8 +594,7 @@ resource "aws_lb_target_group" "grafana" {
   health_check {
     enabled  = true
     protocol = "HTTP"
-    # Follows whatever port a target is registered on, rather than hardcoding one
-    # that only happens to match today.
+    # Follows the registered target port instead of hardcoding one.
     port                = "traffic-port"
     path                = "/api/health"
     matcher             = "200"
@@ -721,9 +606,8 @@ resource "aws_lb_target_group" "grafana" {
 
   tags = merge(local.common_tags, { Backend = "grafana" })
 
-  # The listener forwards to this group, so a destroy-then-create replacement
-  # fails with ResourceInUse. Create the replacement first, let the listener and
-  # the TargetGroupBinding repoint, then drop the old group.
+  # The listener forwards to this group, so destroy-then-create fails with
+  # ResourceInUse.
   lifecycle {
     create_before_destroy = true
   }
@@ -744,9 +628,9 @@ resource "aws_lb_listener" "grafana" {
   tags = merge(local.common_tags, { Backend = "grafana" })
 }
 
-# With `preserve_client_ip`, data traffic reaches the pod with the client's own
-# address, so this rule is what lets the NLB's health checks through. Client
-# access itself is governed by the NLB security group above.
+# With `preserve_client_ip`, data traffic keeps the client's address, so this
+# rule is what lets the NLB health checks through. The NLB security group above
+# governs client access.
 resource "aws_security_group_rule" "grafana_nlb_to_nodes" {
   count = local.grafana_lb == null ? 0 : 1
 
@@ -759,11 +643,9 @@ resource "aws_security_group_rule" "grafana_nlb_to_nodes" {
   description              = "Allow Grafana traffic and health checks from the Grafana NLB"
 }
 
-# `kubectl_manifest` rather than `kubernetes_manifest`: the CRD is installed by
-# the load-balancer controller, and `kubernetes_manifest` looks a schema up at
-# plan time, so it fails before the CRD exists.
-#
-# Applied after the chart, because the Service it references has to exist first.
+# `kubectl_manifest`, not `kubernetes_manifest`, which needs the CRD schema at
+# plan time, before the load-balancer controller installs it. Applied after the
+# chart, which creates the referenced Service.
 resource "kubectl_manifest" "grafana_target_group_binding" {
   count = local.grafana_lb == null ? 0 : 1
 
@@ -776,8 +658,7 @@ resource "kubectl_manifest" "grafana_target_group_binding" {
     }
     spec = {
       # The chart pins `grafana.fullnameOverride`, so the name is static. The port
-      # is the Service's own, not the container's — the controller resolves the
-      # Service's endpoints from it and registers pods on their target port.
+      # is the Service's; the controller registers pods on their target port.
       serviceRef = {
         name = "grafana"
         port = var.grafana_service_port
@@ -799,10 +680,8 @@ resource "kubectl_manifest" "grafana_target_group_binding" {
 # ==============================================================================
 # Provider metrics: what the gateway pulls
 # ==============================================================================
-# Named, never discovered: the chart pulls exactly these resources. The caller's
-# lists come first, and this module's own resources join them unless asked not
-# to — they are the monitoring stack's dependencies, and nothing else here knows
-# their names.
+# Named, never discovered: the chart pulls exactly these resources. This module's
+# own resources join the caller's unless `include_monitoring_resources` is false.
 
 locals {
   provider_metrics_rds_instances = local.provider_metrics_enabled ? distinct(concat(
@@ -843,37 +722,23 @@ locals {
 # ==============================================================================
 
 module "monitoring" {
-  # Pinned to a released tag. The module and the chart it installs are one
-  # release, and the module reads its chart version out of the chart beside it —
-  # so this ref alone names the chart version, with nothing to keep in sync.
+  # Pinned to a released tag. The module reads its chart version from the chart
+  # beside it, so this ref alone sets the chart version.
   #
-  # Developing against an unreleased module: point this at a local checkout
-  # (`../../../../materialize-monitoring/terraform/modules/materialize-monitoring`)
-  # for the duration. It must stay a *relative* path — an absolute one makes
-  # Terraform copy the module without the chart directory beside it, and the
-  # sizing profiles stop resolving.
+  # To develop against an unreleased module, use a *relative* path to a local
+  # checkout (`../../../../materialize-monitoring/terraform/modules/materialize-monitoring`).
+  # An absolute path copies the module without the chart, and sizing profiles break.
   #
-  # The `/` in the tag name is why this module floors at Terraform 1.10. Before
-  # that fix, Terraform truncated the ref at the first slash and treated the rest
-  # as a subdirectory, failing the clone with `pathspec 'materialize-monitoring'
-  # did not match` (hashicorp/terraform#35552). See versions.tf.
-  #
-  # v0.13.0 is where `grafana_database_*` and the chart's `grafana.ingress` /
-  # `grafana.service` values land. This branch does not plan against v0.12.0.
+  # The `/` in the tag needs Terraform >= 1.10 (hashicorp/terraform#35552).
   source = "github.com/MaterializeInc/materialize-monitoring//terraform/modules/materialize-monitoring?ref=materialize-monitoring/v0.30.0"
 
   namespace        = var.namespace
   create_namespace = var.create_namespace
 
-  # Null means "use whatever the pinned module ships with", which is the
-  # supported path — the module and the chart are one release.
   chart_version = var.chart_version
 
-  # Null on any of these means "use the monitoring module's own default": each
-  # is declared `nullable = false` with a default there, and Terraform
-  # substitutes the default when a caller passes null. None of the three is
-  # reachable through `additional_values`, so without forwarding them a mirrored
-  # registry or a cluster that already owns the CRDs has no way through.
+  # Null uses the monitoring module's default (they are `nullable = false` there).
+  # None can be set through `additional_values`, so they must be forwarded.
   chart_registry         = var.chart_registry
   enable_monitoring_crds = var.enable_monitoring_crds
   install_timeout        = var.install_timeout
@@ -890,10 +755,8 @@ module "monitoring" {
 
   grafana_admin_password = var.grafana_admin_password
 
-  # In-cluster TLS. `certificates_enabled` issues the material and
-  # `internal_tls` decides how far the hops move off plaintext; both default to
-  # secure here rather than on the monitoring module, because this repository's
-  # examples all install cert-manager and that module's other consumers may not.
+  # In-cluster TLS defaults to on here rather than in the monitoring module: every
+  # example in this repo installs cert-manager, other consumers may not.
   certificates_enabled       = var.certificates_enabled
   internal_tls               = coalesce(var.internal_tls, var.certificates_enabled ? "authenticate" : "off")
   issuer_ref                 = var.issuer_ref
@@ -902,21 +765,14 @@ module "monitoring" {
   certificate_duration       = var.certificate_duration
   certificate_renew_before   = var.certificate_renew_before
 
-  # Explicit rather than inferred from host/password: both are computed here — an
-  # instance endpoint and a generated password — so the module cannot decide
-  # whether they exist at plan time. These two conditions are plan-known.
+  # Explicit, not inferred from host/password: those can be unknown at plan time
+  # (instance endpoint, generated password), but these conditions are plan-known.
   grafana_database_enabled                = local.create_grafana_database || var.grafana_database_host != null
   grafana_database_manage_password_secret = local.create_grafana_database || var.grafana_database_password != null
 
-  # TODO: pass the Grafana Service port through, once the monitoring module takes
-  # one. Today the chart decides it (`grafana.service.port`, 80) and nothing here
-  # states it, so the two agree only by coincidence.
-  #
-  # This becomes load-bearing with in-cluster TLS: Grafana stops serving plain
-  # HTTP, the Service port moves with it, and anything still assuming 80 points at
-  # a port that is no longer there. Deliberately not wired yet — it needs a
-  # variable on the monitoring module and a matching chart value, which is a
-  # change of its own.
+  # TODO: pass the Grafana Service port once the monitoring module accepts one.
+  # The chart sets it (`grafana.service.port`, 80) and nothing here sets it on the
+  # chart, so they agree by coincidence. In-cluster TLS will move that port.
   #
   # grafana_service_port = 80
 
@@ -946,10 +802,8 @@ module "monitoring" {
     } : {}
   }
 
-  # Straight pass-through; the monitoring module validates the tiers, the OTLP
-  # protocol, and the url-has-no-scheme rule, and rejects a bearer token combined
-  # with headers. Credentials never enter the Helm values — that module puts them
-  # in the gateway Secret and rolls the gateway when one changes.
+  # Passed through; the monitoring module validates them and keeps credentials
+  # out of the Helm values (they go in the gateway Secret).
   datadog_metrics = var.datadog_metrics
   datadog_api_key = var.datadog_api_key
 
@@ -957,16 +811,14 @@ module "monitoring" {
   otlp_auth_header_secrets = var.otlp_auth_header_secrets
   otlp_auth_bearer_token   = var.otlp_auth_bearer_token
 
-  # Straight pass-through as well. The monitoring module validates the preset,
-  # durations and template names, maps these onto the chart, and fails the plan
-  # when a receiver reads a key `alerting_receiver_secrets` does not set.
+  # Passed through; the monitoring module validates them and fails the plan when
+  # a receiver reads a key `alerting_receiver_secrets` does not set.
   alert_rules               = var.alert_rules
   alerting                  = var.alerting
   alerting_receiver_secrets = var.alerting_receiver_secrets
   alertmanager_namespace    = var.alertmanager_namespace
 
-  # Computed values ahead of the caller's, so `additional_values` still overrides
-  # anything computed here.
+  # Computed values first, so `additional_values` overrides them.
   additional_values = concat(
     local.grafana_load_balancer_values,
     local.provider_metrics_values,

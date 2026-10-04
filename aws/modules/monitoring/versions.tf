@@ -1,13 +1,11 @@
 terraform {
-  # The repo-wide floor, but this module cannot follow it back down: the module
-  # source in main.tf pins a tag whose name contains a `/`, and Terraform
-  # truncated the ref there until 1.10 (hashicorp/terraform#35552).
+  # Cannot go lower even if the repo floor does: main.tf pins a module tag
+  # containing `/`, which Terraform truncated before 1.10 (hashicorp/terraform#35552).
   required_version = ">= 1.10"
 
   required_providers {
-    # Floored higher than the repo-wide `~> 6.0`: `bucket_namespace` on
-    # `aws_s3_bucket` shipped in 6.37.0, and the telemetry buckets are created in
-    # the account regional namespace by default.
+    # Above the repo-wide `~> 6.0`: `bucket_namespace` on `aws_s3_bucket` shipped
+    # in 6.37.0.
     aws = {
       source  = "hashicorp/aws"
       version = "~> 6.37"
@@ -20,10 +18,8 @@ terraform {
       source  = "hashicorp/kubernetes"
       version = ">= 2.10.0, < 2.39.0"
     }
-    # The TargetGroupBinding is a CRD the AWS Load Balancer Controller installs, so
-    # it cannot be applied with `kubernetes_manifest` — that provider looks the
-    # schema up at plan time and fails before the CRD exists. Same provider and
-    # version the `nlb` module uses.
+    # For the TargetGroupBinding CRD, which `kubernetes_manifest` cannot plan
+    # before the CRD exists. Same version as the `nlb` module.
     kubectl = {
       source  = "alekc/kubectl"
       version = "2.4.1"

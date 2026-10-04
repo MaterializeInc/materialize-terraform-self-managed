@@ -3,11 +3,8 @@ variable "prefix" {
   type        = string
   nullable    = false
 
-  # The suffix is the only thing making this name globally unique, so it is the
-  # one part that must never be truncated. Past 13 stripped characters a
-  # `substr` to 24 starts eating it, and past 19 none of it survives — at which
-  # point two deployments sharing a prefix collide on a name that has to be
-  # unique across all of Azure.
+  # Fail rather than truncate: a `substr` to 24 would cut the uniqueness suffix,
+  # and deployments sharing a prefix would collide on a globally unique name.
   validation {
     condition     = length(replace(var.prefix, "-", "")) <= 13
     error_message = "prefix must be at most 13 characters once hyphens are removed; the storage account name is capped at 24 and `mzmon` plus the uniqueness suffix uses 11."
@@ -271,18 +268,12 @@ variable "provider_metrics" {
 # ==============================================================================
 # Extra metrics destinations
 # ==============================================================================
-# Passed straight through to the monitoring module rather than flattened like the
-# GCP wrapper's `enable_google_cloud_metrics`. GCP uses a flat toggle because it
-# provisions a service account and Workload Identity binding and therefore needs
-# a plan-known value to gate those resources. Datadog and OTLP provision nothing,
-# so there is no toggle to gate and a flat mirror would only add surface.
+# Passed through as objects. GCP's `enable_google_cloud_metrics` is a flat toggle
+# only because it gates resources; Datadog and OTLP create none.
 #
-# The object shapes below do restate upstream's attribute defaults. That is a
-# deliberate duplication: the type expression is what terraform-docs publishes,
-# so restating them is how a reader sees the default without opening the
-# monitoring module. The cost is that they are resolved *here* — an upstream
-# default change is masked until these are updated to match, so check them on a
-# module bump. Validation is not duplicated; that stays upstream only.
+# The types restate upstream's defaults so terraform-docs shows them. They take
+# effect here and mask upstream changes, so recheck them on a module bump.
+# Validation stays upstream.
 
 variable "datadog_metrics" {
   description = <<-EOT
@@ -345,10 +336,8 @@ variable "otlp_auth_bearer_token" {
 # ==============================================================================
 # Alerting
 # ==============================================================================
-# Passed straight through to the monitoring module, which maps them onto the
-# chart's `rules.*` and `alerting.*` and creates the receiver Secret. As with the
-# destinations above, the type expressions restate upstream's so terraform-docs
-# publishes them, and validation stays upstream only. See
+# Passed through to the monitoring module, which maps them onto the chart and
+# creates the receiver Secret. Types restate upstream's, as above. See
 # https://materializeinc.github.io/materialize-monitoring/alerting/terraform/.
 
 variable "alert_rules" {
@@ -498,11 +487,8 @@ variable "issuer_ref" {
   type = object({
     name = string
     kind = string
-    # Optional because every in-tree issuer is `cert-manager.io`. It has to be
-    # reachable, though: an external issuer — AWS Private CA
-    # (`awspca.cert-manager.io`), Google CAS (`cas-issuer.jetstack.io`) — lives
-    # in its own API group, and cert-manager resolves `issuerRef` by group as
-    # well as by kind.
+    # External issuers such as AWS Private CA (`awspca.cert-manager.io`) or Google
+    # CAS (`cas-issuer.jetstack.io`) live in their own API group.
     group = optional(string, "cert-manager.io")
   })
   default = null
@@ -525,11 +511,8 @@ variable "internal_issuer_ref" {
   type = object({
     name = string
     kind = string
-    # Optional because every in-tree issuer is `cert-manager.io`. It has to be
-    # reachable, though: an external issuer — AWS Private CA
-    # (`awspca.cert-manager.io`), Google CAS (`cas-issuer.jetstack.io`) — lives
-    # in its own API group, and cert-manager resolves `issuerRef` by group as
-    # well as by kind.
+    # External issuers such as AWS Private CA (`awspca.cert-manager.io`) or Google
+    # CAS (`cas-issuer.jetstack.io`) live in their own API group.
     group = optional(string, "cert-manager.io")
   })
   default = null
@@ -626,9 +609,8 @@ variable "grafana_database" {
   }
 }
 
-# The five below point Grafana at a database this module does not create. They
-# are forwarded to the monitoring module untouched, and are mutually exclusive
-# with `grafana_database`.
+# Grafana's database connection. `grafana_database_host` and `_port` point at a
+# database this module does not create; the rest also apply to `grafana_database`.
 
 variable "grafana_database_host" {
   description = "FQDN of an existing PostgreSQL server for Grafana's state. Mutually exclusive with `grafana_database`. Host only — the port is `grafana_database_port`."
@@ -732,10 +714,8 @@ variable "grafana_load_balancer" {
         for cidr in coalesce(var.grafana_load_balancer.ingress_cidr_blocks, []) :
         contains(["0.0.0.0/0", "::/0"], trimspace(cidr))
       ])
-      # The acknowledgement is the chart's own `connections.grafana.allowPublicAccess`,
-      # set through `additional_values` like any other chart value. Deliberately not
-      # a variable of its own: there should be exactly one way to say this, and
-      # saying it should take a moment's thought.
+      # Acknowledged via the chart's own `connections.grafana.allowPublicAccess` in
+      # `additional_values`, deliberately not a variable, so there is one way to say it.
       || anytrue([
         for doc in var.additional_values :
         try(yamldecode(doc).connections.grafana.allowPublicAccess, false)

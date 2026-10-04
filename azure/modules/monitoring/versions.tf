@@ -1,7 +1,6 @@
 terraform {
-  # The repo-wide floor, but this module cannot follow it back down: the module
-  # source in main.tf pins a tag whose name contains a `/`, and Terraform
-  # truncated the ref there until 1.10 (hashicorp/terraform#35552).
+  # Cannot go lower even if the repo floor does: main.tf pins a module tag
+  # containing `/`, which Terraform truncated before 1.10 (hashicorp/terraform#35552).
   required_version = ">= 1.10"
 
   required_providers {

@@ -1,66 +1,38 @@
-# Deploys the `materialize-monitoring` observability stack on GKE: Grafana
-# dashboards, Prometheus-compatible metrics via Thanos, logs via Loki, and the
-# Alloy collection pipeline.
-#
-# This module owns the GCP side — one GCS bucket per backend, a Google service
-# account per backend, and the Workload Identity bindings that let the in-cluster
-# service accounts impersonate them — and delegates everything inside the cluster
-# to the cloud-agnostic module that ships alongside the chart in the
-# `materialize-monitoring` repository. Nothing here names a Helm value path; that
-# knowledge lives next to the chart, so a chart change and its Terraform
-# consequence land together.
-#
-# Replaces the previous `kubernetes/modules/prometheus` and
-# `kubernetes/modules/grafana`, which vendored a point-in-time dashboard copy and
-# a legacy scrape config, collected metrics only, and ran a single Prometheus on
-# a ReadWriteOnce volume with 15 days of retention.
+# Deploys the `materialize-monitoring` stack on GKE: Grafana, metrics via Thanos,
+# logs via Loki, and the Alloy pipeline. This module owns the GCP side (a GCS
+# bucket, Google service account, and Workload Identity binding per backend) and
+# delegates everything in the cluster to the cloud-agnostic module shipped with
+# the chart, so no Helm value paths live here.
 #
 # Operational notes:
 #
-#   * Workload Identity must be enabled on the cluster (`workload_pool` set on
-#     the GKE cluster). Without it the bindings below exist but the pods still
-#     fall back to the node service account.
-#   * The `monitoring` namespace is created by the `monitoring-crds` module in
-#     the supported topology, so `create_namespace` defaults to false. That
-#     module also installs the CRDs, ahead of every component that ships a
-#     ServiceMonitor, so the examples pass `enable_monitoring_crds = false`
-#     here. Pass its `namespace` output as `namespace`, or keep a `depends_on`
-#     for it, or the release can race the namespace.
-#   * The operator module also installs metrics-server, which the Materialize
-#     Console depends on for cluster metrics. If you disable it there, set
-#     `install_metrics_server = true` here in the same change.
-#   * Bucket *retention* is off by default, but housekeeping always runs.
-#     Deleting noncurrent versions is unconditional, because nothing else ever
-#     reclaims them. Soft delete is explicitly disabled for the same reason it
-#     exists — it bills as stored bytes and duplicates the versioning we
-#     already configure. The multipart-abort rule is a safety net for the
-#     S3-compatible path only; see the comment on the rule itself. Only
-#     `logs_retention_days` / `metrics_retention_days` are opt-in: Loki and
-#     Thanos both enforce their own retention, and Thanos keeps blocks per
-#     downsampling resolution (raw / 5m / 1h), so a bucket rule deleting sooner
-#     removes blocks the compactor still references.
-#   * Grafana is ClusterIP today (the chart exposes no ingress values yet), so
-#     `grafana_url` is in-cluster: reach it with
+#   * Workload Identity must be enabled on the cluster (`workload_pool`), or the
+#     pods fall back to the node service account despite the bindings below.
+#   * The `monitoring-crds` module creates the `monitoring` namespace and the
+#     CRDs, so `create_namespace` defaults to false and the examples pass
+#     `enable_monitoring_crds = false`. Pass its `namespace` output as
+#     `namespace` (or keep a `depends_on`) or the release can race the namespace.
+#   * The operator module installs metrics-server, which the Console needs. If
+#     you disable it there, set `install_metrics_server = true` here.
+#   * Bucket housekeeping (deleting noncurrent versions, soft delete off) always
+#     runs. `logs_retention_days` and `metrics_retention_days` are opt-in
+#     backstops only: Loki and Thanos enforce their own retention, and Thanos
+#     keeps blocks per downsampling resolution (raw / 5m / 1h), so deleting
+#     sooner removes blocks the compactor still needs.
+#   * Grafana is ClusterIP unless `grafana_load_balancer` is set. Reach it with
 #     `kubectl -n monitoring port-forward svc/grafana 3000:80` and
 #     `terraform output -raw grafana_admin_password`.
-#   * `node_selector` reaches every centralized workload but deliberately not
-#     the Alloy agent DaemonSet, which must run on every node to collect from
-#     it. `tolerations` do reach the agent, since they widen rather than narrow
-#     where a pod may run.
+#   * `node_selector` skips the Alloy agent DaemonSet, which must run on every
+#     node. `tolerations` do reach it.
 #   * GKE does not expose the full cAdvisor and kube-state-metrics surface, so a
-#     few percentage-based dashboard panels stay empty. That is a platform
-#     limitation, not a misconfiguration.
+#     few percentage-based dashboard panels stay empty. That is expected.
 #
-# One bucket per backend rather than one shared with prefixes: Loki and Thanos
-# want different lifecycle rules, IAM scoping is tighter, and Loki's
-# `bucketNames` are bucket names rather than prefixes.
+# One bucket per backend rather than shared with prefixes: lifecycle rules differ,
+# IAM scoping is tighter, and Loki's `bucketNames` are not prefixes.
 
 locals {
-  # The chart renders deterministic ServiceAccount names, and the Workload
-  # Identity members below have to match them exactly. The monitoring module
-  # emits the resolved subjects as an output; these are the same names, needed
-  # here before that module exists — passing them the other way would close a
-  # dependency cycle.
+  # Must match the chart's ServiceAccount names for the Workload Identity members.
+  # The monitoring module outputs them too, but reading that would be a dependency cycle.
   service_accounts = {
     loki   = "loki"
     thanos = "thanos-thanos"
@@ -69,9 +41,8 @@ locals {
   # Not in the map above: the gateway binds to Cloud Monitoring, not a bucket.
   gateway_service_account = "alloy-gateway"
 
-  # One Google service account serves both of the gateway's Cloud Monitoring
-  # roles: writing (the export) and reading (the provider pull). It exists when
-  # either is on, and each role is granted only for its own feature.
+  # One Google service account covers both gateway roles, writing (export) and
+  # reading (provider pull). Each role is granted only when its feature is on.
   provider_metrics_enabled = var.provider_metrics != null
   gateway_identity_enabled = var.enable_google_cloud_metrics || local.provider_metrics_enabled
 
@@ -99,24 +70,20 @@ resource "google_storage_bucket" "telemetry" {
   project       = var.project_id
   force_destroy = var.bucket_force_destroy
 
-  # Required for IAM-only access; both backends authenticate as a service
-  # account, never with per-object ACLs.
+  # Both backends authenticate as a service account, never with object ACLs.
   uniform_bucket_level_access = true
 
   versioning {
     enabled = var.enable_bucket_versioning
   }
 
-  # Off, not defaulted. New buckets get a 7-day soft-delete retention that is
-  # billed as stored bytes, so with versioning and the noncurrent rule below we
-  # would pay twice for everything the compactors delete — once as a noncurrent
-  # version and again as a soft-deleted object. Versioning is the recovery
-  # mechanism we actually configure; this one is invisible and duplicates it.
+  # Off: the default 7-day soft delete bills deleted objects as stored bytes, so
+  # with versioning we would pay twice for everything the compactors delete.
   soft_delete_policy {
     retention_duration_seconds = 0
   }
 
-  # Retention here is a backstop, not the primary control — see the header.
+  # Opt-in retention backstop; see the notes at the top of this file.
   dynamic "lifecycle_rule" {
     for_each = each.value.retention_days == null ? [] : [each.value.retention_days]
     content {
@@ -129,13 +96,10 @@ resource "google_storage_bucket" "telemetry" {
     }
   }
 
-  # Versioning keeps a copy of every deleted object; without this the bucket
-  # grows even as the compactor deletes.
-  #
-  # Unconditional rather than gated on `enable_bucket_versioning`: turning
-  # versioning off does not remove the versions already written, so gating this
-  # would strand them in the same apply that stops new ones. On a bucket that
-  # was never versioned the condition simply never matches.
+  # Versioning keeps a copy of everything the compactors delete; without this the
+  # bucket grows without bound. Not gated on `enable_bucket_versioning`: turning
+  # it off keeps old versions, which gating would strand. On a never-versioned
+  # bucket the rule never matches.
   lifecycle_rule {
     action {
       type = "Delete"
@@ -145,17 +109,9 @@ resource "google_storage_bucket" "telemetry" {
     }
   }
 
-  # This covers XML API multipart uploads, which is *not* the same thing as
-  # resumable uploads — only the former strands billable parts that nothing
-  # reclaims. Loki and Thanos talking to GCS natively use the Go client, which
-  # does resumable uploads, and those session URIs expire on their own after a
-  # week.
-  #
-  # So this rule does nothing on the default configuration, and is kept as a
-  # safety net for the case where something is pointed at these buckets through
-  # the S3-compatible XML API instead. `AbortIncompleteMultipartUpload` is one
-  # of the three GCS lifecycle actions, alongside `Delete` and
-  # `SetStorageClass`, and `age` is one of the three conditions it accepts.
+  # Safety net for access through the S3-compatible XML API, whose multipart
+  # uploads strand billable parts. Loki and Thanos use the native Go client's
+  # resumable uploads, which expire on their own, so this is a no-op by default.
   lifecycle_rule {
     action {
       type = "AbortIncompleteMultipartUpload"
@@ -175,17 +131,15 @@ resource "google_storage_bucket" "telemetry" {
 resource "google_service_account" "telemetry" {
   for_each = local.service_accounts
 
-  # No truncation here on purpose: `var.prefix` is validated at 17 characters,
-  # which is exactly what keeps the longest of these (`-mzmon-thanos`) inside
-  # the 30-character account_id limit.
+  # Not truncated: `var.prefix` is capped at 17 so `-mzmon-thanos` fits the
+  # 30-character account_id limit.
   account_id   = "${var.prefix}-mzmon-${each.key}"
   display_name = "materialize-monitoring ${each.key}"
   project      = var.project_id
 }
 
-# Scoped to the one bucket that backend owns. objectAdmin rather than admin:
-# both backends read, write, and delete objects, but neither needs to
-# administer the bucket itself.
+# Scoped to the backend's own bucket. objectAdmin, not admin: neither backend
+# administers the bucket itself.
 resource "google_storage_bucket_iam_member" "telemetry" {
   for_each = local.service_accounts
 
@@ -227,14 +181,9 @@ resource "google_project_iam_member" "gateway_metric_writer" {
   member  = "serviceAccount:${google_service_account.gateway[0].email}"
 }
 
-# The provider pull lists metric descriptors and time series, and nothing
-# narrower than the project exists for either: Cloud Monitoring IAM has no
-# per-resource scoping for reads. The chart values are what confine the pull
-# to named instances and buckets.
-#
-# Predefined rather than a custom role holding just those two permissions. A
-# deleted custom role keeps its ID reserved for days, which breaks the destroy
-# and re-create cycle the examples are built around.
+# Project-wide because Cloud Monitoring IAM has no per-resource read scoping; the
+# chart values confine the pull. Predefined, not a custom role: a deleted custom
+# role's ID stays reserved for days, which breaks destroy and re-create.
 resource "google_project_iam_member" "gateway_monitoring_viewer" {
   count = local.provider_metrics_enabled ? 1 : 0
 
@@ -254,10 +203,8 @@ resource "google_service_account_iam_member" "gateway_workload_identity" {
 # ==============================================================================
 # Provider metrics: what the gateway pulls
 # ==============================================================================
-# Named, never discovered: the chart pulls exactly these resources. The caller's
-# lists come first, and this module's own resources join them unless asked not
-# to — they are the monitoring stack's dependencies, and nothing else here knows
-# their names.
+# Named, never discovered: the chart pulls exactly these resources. This module's
+# own resources join the caller's unless `include_monitoring_resources` is false.
 
 locals {
   provider_metrics_cloud_sql_instances = local.provider_metrics_enabled ? distinct(concat(
@@ -298,23 +245,14 @@ locals {
 # ==============================================================================
 
 module "monitoring" {
-  # Pinned to a released tag. The module and the chart it installs are one
-  # release, and the module reads its chart version out of the chart beside it —
-  # so this ref alone names the chart version, with nothing to keep in sync.
+  # Pinned to a released tag. The module reads its chart version from the chart
+  # beside it, so this ref alone sets the chart version.
   #
-  # Developing against an unreleased module: point this at a local checkout
-  # (`../../../../materialize-monitoring/terraform/modules/materialize-monitoring`)
-  # for the duration. It must stay a *relative* path — an absolute one makes
-  # Terraform copy the module without the chart directory beside it, and the
-  # sizing profiles stop resolving.
+  # To develop against an unreleased module, use a *relative* path to a local
+  # checkout (`../../../../materialize-monitoring/terraform/modules/materialize-monitoring`).
+  # An absolute path copies the module without the chart, and sizing profiles break.
   #
-  # The `/` in the tag name is why this module floors at Terraform 1.10. Before
-  # that fix, Terraform truncated the ref at the first slash and treated the rest
-  # as a subdirectory, failing the clone with `pathspec 'materialize-monitoring'
-  # did not match` (hashicorp/terraform#35552). See versions.tf.
-  #
-  # v0.13.0 is where `grafana_database_*` and the chart's `grafana.ingress` /
-  # `grafana.service` values land. This branch does not plan against v0.12.0.
+  # The `/` in the tag needs Terraform >= 1.10 (hashicorp/terraform#35552).
   source = "github.com/MaterializeInc/materialize-monitoring//terraform/modules/materialize-monitoring?ref=materialize-monitoring/v0.30.0"
 
   namespace        = var.namespace
@@ -322,11 +260,8 @@ module "monitoring" {
 
   chart_version = var.chart_version
 
-  # Null on any of these means "use the monitoring module's own default": each
-  # is declared `nullable = false` with a default there, and Terraform
-  # substitutes the default when a caller passes null. None of the three is
-  # reachable through `additional_values`, so without forwarding them a mirrored
-  # registry or a cluster that already owns the CRDs has no way through.
+  # Null uses the monitoring module's default (they are `nullable = false` there).
+  # None can be set through `additional_values`, so they must be forwarded.
   chart_registry         = var.chart_registry
   enable_monitoring_crds = var.enable_monitoring_crds
   install_timeout        = var.install_timeout
@@ -343,10 +278,8 @@ module "monitoring" {
 
   grafana_admin_password = var.grafana_admin_password
 
-  # In-cluster TLS. `certificates_enabled` issues the material and
-  # `internal_tls` decides how far the hops move off plaintext; both default to
-  # secure here rather than on the monitoring module, because this repository's
-  # examples all install cert-manager and that module's other consumers may not.
+  # In-cluster TLS defaults to on here rather than in the monitoring module: every
+  # example in this repo installs cert-manager, other consumers may not.
   certificates_enabled       = var.certificates_enabled
   internal_tls               = coalesce(var.internal_tls, var.certificates_enabled ? "authenticate" : "off")
   issuer_ref                 = var.issuer_ref
@@ -355,21 +288,14 @@ module "monitoring" {
   certificate_duration       = var.certificate_duration
   certificate_renew_before   = var.certificate_renew_before
 
-  # Explicit rather than inferred from host/password: both are computed here — an
-  # instance endpoint and a generated password — so the module cannot decide
-  # whether they exist at plan time. These two conditions are plan-known.
+  # Explicit, not inferred from host/password: those can be unknown at plan time
+  # (instance endpoint, generated password), but these conditions are plan-known.
   grafana_database_enabled                = local.create_grafana_database || var.grafana_database_host != null
   grafana_database_manage_password_secret = local.create_grafana_database || var.grafana_database_password != null
 
-  # TODO: pass the Grafana Service port through, once the monitoring module takes
-  # one. Today the chart decides it (`grafana.service.port`, 80) and nothing here
-  # states it, so the two agree only by coincidence.
-  #
-  # This becomes load-bearing with in-cluster TLS: Grafana stops serving plain
-  # HTTP, the Service port moves with it, and anything still assuming 80 points at
-  # a port that is no longer there. Deliberately not wired yet — it needs a
-  # variable on the monitoring module and a matching chart value, which is a
-  # change of its own.
+  # TODO: pass the Grafana Service port once the monitoring module accepts one.
+  # The chart sets it (`grafana.service.port`, 80) and nothing here sets it on the
+  # chart, so they agree by coincidence. In-cluster TLS will move that port.
   #
   # grafana_service_port = 80
 
@@ -391,8 +317,7 @@ module "monitoring" {
     thanos_service_account_annotations = {
       "iam.gke.io/gcp-service-account" = google_service_account.telemetry["thanos"].email
     }
-    # Only set when the gateway talks to Cloud Monitoring; it needs no bucket
-    # access.
+    # Only set when the gateway uses Cloud Monitoring; it needs no bucket access.
     gateway_service_account_annotations = local.gateway_identity_enabled ? {
       "iam.gke.io/gcp-service-account" = google_service_account.gateway[0].email
     } : {}
@@ -403,10 +328,8 @@ module "monitoring" {
     prefix         = var.google_cloud_metrics_prefix
   } : null
 
-  # Straight pass-through; the monitoring module validates the tiers, the OTLP
-  # protocol, and the url-has-no-scheme rule, and rejects a bearer token combined
-  # with headers. Credentials never enter the Helm values — that module puts them
-  # in the gateway Secret and rolls the gateway when one changes.
+  # Passed through; the monitoring module validates them and keeps credentials
+  # out of the Helm values (they go in the gateway Secret).
   datadog_metrics = var.datadog_metrics
   datadog_api_key = var.datadog_api_key
 
@@ -414,16 +337,14 @@ module "monitoring" {
   otlp_auth_header_secrets = var.otlp_auth_header_secrets
   otlp_auth_bearer_token   = var.otlp_auth_bearer_token
 
-  # Straight pass-through as well. The monitoring module validates the preset,
-  # durations and template names, maps these onto the chart, and fails the plan
-  # when a receiver reads a key `alerting_receiver_secrets` does not set.
+  # Passed through; the monitoring module validates them and fails the plan when
+  # a receiver reads a key `alerting_receiver_secrets` does not set.
   alert_rules               = var.alert_rules
   alerting                  = var.alerting
   alerting_receiver_secrets = var.alerting_receiver_secrets
   alertmanager_namespace    = var.alertmanager_namespace
 
-  # Computed values ahead of the caller's, so `additional_values` still
-  # overrides anything computed here.
+  # Computed values first, so `additional_values` overrides them.
   additional_values = concat(
     local.grafana_load_balancer_values,
     local.provider_metrics_values,
@@ -442,16 +363,15 @@ module "monitoring" {
 # ==============================================================================
 # Grafana state database
 # ==============================================================================
-# Reuses this repo's own `database` module rather than an inline
-# `google_sql_database_instance`, so Grafana's instance gets the same backup,
-# maintenance, and private-networking opinions the Materialize database has.
+# Uses this repo's `database` module so Grafana's instance gets the same backup,
+# maintenance, and private-networking settings as the Materialize database.
 
 resource "random_password" "grafana_database" {
   count = var.grafana_database != null && var.grafana_database_password == null ? 1 : 0
 
   length = 32
-  # Cloud SQL accepts more, but Grafana reads this out of a mounted file and
-  # operators paste it into psql. Alphanumeric avoids both quoting questions.
+  # Grafana reads this from a mounted file and operators paste it into psql;
+  # alphanumeric avoids quoting problems.
   special = false
 }
 
@@ -481,13 +401,9 @@ module "grafana_database" {
 locals {
   create_grafana_database = var.grafana_database != null
 
-  # A caller-supplied password wins in both modes; the random one only fills the
-  # gap when this module creates the instance and was given none.
-  #
-  # Not `coalesce`: it errors when every argument is null, which is the default
-  # install — no database and no password — so it failed the plan on the one path
-  # that has nothing to decide. Null here means "no password", which is what the
-  # module's own gates are for.
+  # A caller-supplied password wins; the random one is used only when this module
+  # creates the instance. Not `coalesce`, which errors when every argument is
+  # null, as in the default install with no database.
   grafana_database_password = (
     var.grafana_database_password != null
     ? var.grafana_database_password
@@ -511,14 +427,10 @@ locals {
 # ==============================================================================
 
 locals {
-  # Plain http, always. A GCP load balancer from a Service is L4 — it passes
-  # bytes through and terminates nothing — so claiming https here would only
-  # advertise a scheme that does not answer. Setting `security.cookie_secure`
-  # alongside it is worse than useless: the cookie is marked Secure, the browser
-  # stops sending it over the connection that does work, and nobody can log in.
-  #
-  # Put a terminator in front, or give Grafana its own certificate (DEP-195),
-  # and set `root_url` plus `security.cookie_secure` through `additional_values`.
+  # Always http: a GCP Service load balancer is L4 and terminates no TLS. Setting
+  # `security.cookie_secure` without TLS stops the browser sending the session
+  # cookie, so nobody can log in. Once something terminates TLS (DEP-195), set
+  # `root_url` and `security.cookie_secure` through `additional_values`.
   grafana_scheme = "http"
 
   grafana_service_annotations = var.grafana_load_balancer == null ? {} : merge(
@@ -538,8 +450,8 @@ locals {
             annotations              = local.grafana_service_annotations
             loadBalancerSourceRanges = var.grafana_load_balancer.ingress_cidr_blocks
           },
-          # Pre-allocated, so the address is known at plan time and the module
-          # never has to read the Service back to find out where Grafana answers.
+          # Pre-allocated, so the address is known at plan time without reading
+          # the Service back.
           var.grafana_load_balancer.ip == null ? {} : {
             loadBalancerIP = var.grafana_load_balancer.ip
           },
@@ -547,9 +459,8 @@ locals {
       },
       var.grafana_load_balancer.host == null ? {} : {
         "grafana.ini" = {
-          # Grafana builds share links, alert notification links, and OAuth
-          # redirect URIs from this. All three break silently when it disagrees
-          # with the host users actually reach.
+          # Share links, alert links, and OAuth redirect URIs are built from this
+          # and break silently if it differs from the host users reach.
           server = { root_url = "${local.grafana_scheme}://${var.grafana_load_balancer.host}" }
         }
       },
@@ -557,19 +468,12 @@ locals {
   })]
 }
 
-# The load balancer's own address, so `grafana_url` can name where Grafana
-# actually answers rather than falling back to the in-cluster Service whenever no
-# hostname was supplied.
-#
-# A data source rather than a resource attribute: the Service is created by Helm
-# inside the monitoring module, so Terraform has no handle on it. Read after that
-# module, and tolerant of an address that is not assigned yet — the cloud
-# provisions the load balancer asynchronously, so the first apply can complete
-# before an IP exists. `grafana_url` degrades to the in-cluster name in that
-# window, and the next plan picks the address up.
+# Reads the load balancer address so `grafana_url` can use it when no hostname is
+# set. A data source because Helm creates the Service. The address is assigned
+# asynchronously, so after the first apply `grafana_url` may still show the
+# in-cluster name; the next plan picks the address up.
 data "kubernetes_service" "grafana" {
-  # Not read at all when the address was pre-allocated — that is the whole point
-  # of supplying one. Both conditions are plan-known, so this can gate a `count`.
+  # Skipped when the address was pre-allocated. Both conditions are plan-known.
   count = var.grafana_load_balancer == null || var.grafana_load_balancer.ip != null ? 0 : 1
 
   metadata {
