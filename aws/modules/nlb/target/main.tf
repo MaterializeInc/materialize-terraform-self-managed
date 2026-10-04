@@ -24,10 +24,9 @@ resource "aws_lb_target_group" "target_group" {
     type    = "source_ip"
   }
 
-  # The listener below forwards to this target group, so a destroy-then-create
-  # replacement fails with ResourceInUse (the listener still references the old
-  # ARN at delete time). Create the replacement first, let the listener and
-  # TargetGroupBinding repoint to the new ARN, then drop the old group.
+  # The listener still references the old group, so destroy-then-create fails
+  # with ResourceInUse. Create the new group first so the listener and
+  # TargetGroupBinding can repoint before the old one is deleted.
   lifecycle {
     create_before_destroy = true
   }

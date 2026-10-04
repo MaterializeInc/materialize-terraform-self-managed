@@ -1,16 +1,9 @@
 #!/bin/sh
-# Delete ENIs left behind by the VPC CNI when this node group's nodes
-# terminated. Invoked by a destroy-time local-exec provisioner, which runs it
-# through terraform's default /bin/sh — dash, or busybox sh in Materialize's
-# BYOC stack-deployer image — so this must stay POSIX sh with no bashisms.
+# Delete ENIs the VPC CNI left behind when this node group's nodes terminated.
+# Only "available" (detached) ENIs are touched. Run by a destroy-time local-exec
+# via /bin/sh (dash, or busybox sh in the BYOC stack-deployer image): POSIX sh only.
 #
-# Only ENIs in "available" status are touched, so ENIs still attached to
-# running nodes from other node groups are left alone.
-#
-# Required environment (supplied by the provisioner):
-#   SG_ID, REGION, CLUSTER_NAME, NODE_GROUP_PREFIX
-# Optional:
-#   PROFILE   AWS profile name; unset or empty uses the default credentials.
+# Env: SG_ID, REGION, CLUSTER_NAME, NODE_GROUP_PREFIX, optional PROFILE.
 set -eu
 
 PROFILE_ARGS=""
@@ -23,8 +16,7 @@ echo "Cleaning up orphaned ENIs for security group $SG_ID in $REGION..."
 delete_eni() {
   ENI_ID="$1"
   echo "  Deleting $ENI_ID..."
-  # The ENI may have been deleted between the list call and now
-  # (e.g. by the VPC CNI). Treat NotFound as success.
+  # The ENI may already be gone (e.g. deleted by the VPC CNI); NotFound is fine.
   # shellcheck disable=SC2086 # PROFILE_ARGS must word-split into flags
   DELETE_OUTPUT=$(aws ec2 delete-network-interface \
     --network-interface-id "$ENI_ID" \

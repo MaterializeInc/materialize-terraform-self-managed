@@ -2,7 +2,6 @@ locals {
   # Azure has 12-character limit for node pool names
   nodepool_name = substr(replace(var.prefix, "-", ""), 0, 12)
 
-  # Auto-scaling configuration - prioritize autoscaling_config object over individual variables
   auto_scaling_enabled = var.autoscaling_config.enabled
   min_nodes            = var.autoscaling_config.enabled ? var.autoscaling_config.min_nodes : null
   max_nodes            = var.autoscaling_config.enabled ? var.autoscaling_config.max_nodes : null
@@ -43,9 +42,8 @@ resource "azurerm_kubernetes_cluster_node_pool" "primary_nodes" {
 
   node_labels = local.node_labels
 
-  # Apply taints if specified
-  # Note: Once applied, these taints cannot be manually removed by users due to AKS webhook restrictions
-  # Reference: https://github.com/Azure/AKS/issues/2934
+  # AKS webhooks stop users from removing these taints by hand once applied.
+  # https://github.com/Azure/AKS/issues/2934
   node_taints = [
     for taint in var.node_taints : "${taint.key}=${taint.value}:${taint.effect}"
   ]
@@ -117,9 +115,8 @@ resource "kubernetes_daemonset" "disk_setup" {
                   operator = "In"
                   values   = ["true"]
                 }
-                # Scope to this module instance's pool so multiple swap-enabled
-                # pools (e.g. during a blue-green machine type migration) each
-                # run only their own disk-setup daemonset.
+                # Only this pool, so several swap pools (e.g. during a machine
+                # type migration) each run their own daemonset.
                 match_expressions {
                   key      = "kubernetes.azure.com/agentpool"
                   operator = "In"
@@ -130,7 +127,7 @@ resource "kubernetes_daemonset" "disk_setup" {
           }
         }
 
-        # Tolerate all taints (includes both user-provided and swap taints)
+        # Tolerate the pool's taints.
         dynamic "toleration" {
           for_each = var.node_taints
           content {
@@ -140,7 +137,6 @@ resource "kubernetes_daemonset" "disk_setup" {
           }
         }
 
-        # Use host network and PID namespace
         host_network = true
         host_pid     = true
 

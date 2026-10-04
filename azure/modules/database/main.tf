@@ -1,4 +1,3 @@
-# Generate random password for admin if not provided
 resource "random_password" "admin_password" {
   count = var.administrator_password == null || var.administrator_password == "" ? 1 : 0
 
@@ -33,7 +32,6 @@ resource "azurerm_postgresql_flexible_server" "postgres" {
   tags = var.tags
 }
 
-# Create multiple databases
 resource "azurerm_postgresql_flexible_server_database" "databases" {
   for_each = { for db in var.databases : db.name => db }
 

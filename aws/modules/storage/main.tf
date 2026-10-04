@@ -15,7 +15,7 @@ resource "aws_s3_bucket" "materialize_storage" {
 }
 
 resource "aws_s3_bucket_versioning" "materialize_storage" {
-  count = var.enable_bucket_versioning ? 1 : 0 # Only create if versioning is enabled
+  count = var.enable_bucket_versioning ? 1 : 0
 
   bucket = aws_s3_bucket.materialize_storage.id
   versioning_configuration {

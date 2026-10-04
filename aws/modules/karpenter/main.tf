@@ -317,18 +317,10 @@ resource "kubernetes_service_account" "karpenter_controller" {
 }
 
 locals {
-  # What the ServiceMonitor keeps. Karpenter publishes a series per instance
-  # type, zone and capacity type for every instance type in the region: about
-  # 49,000 for the offering price estimates and availability together in
-  # us-east-1, and 2,700 more for each type's CPU and memory, on every scrape.
-  #
-  # Availability is worth keeping for the types the node pools can launch: it
-  # drops to 0 for a zone and capacity type when EC2 refuses a launch for lack of
-  # capacity, until Karpenter retries. The rest describe the catalogue rather
-  # than the cluster, so they are dropped.
-  #
-  # `scheduling_id` changes on every scheduling pass, so it would start a new
-  # series each time; only one pass per controller is live at once.
+  # Karpenter emits a series per instance type, zone and capacity type for every
+  # type in the region (over 50,000 per scrape in us-east-1). Drop that catalogue,
+  # but keep offering availability for the types the node pools can launch: it
+  # drops to 0 when EC2 is out of capacity. `scheduling_id` changes every pass.
   offering_instance_types = join("|", [for t in var.service_monitor_instance_types : replace(t, ".", "\\.")])
 
   service_monitor_metric_relabelings = concat(
@@ -395,10 +387,9 @@ resource "helm_release" "karpenter" {
           "vmMemoryOverheadPercent" : var.vm_memory_overhead_percent,
           "interruptionQueue" : aws_sqs_queue.interruption.name,
         },
-        # The chart renders its ServiceMonitor only when the
-        # monitoring.coreos.com API already exists, and Terraform only upgrades
-        # the release when its values change, so the CRDs have to be installed
-        # before this release, not after it.
+        # The chart renders the ServiceMonitor only if the monitoring.coreos.com
+        # API exists, and Terraform upgrades only on value changes, so install
+        # the CRDs before this release.
         "serviceMonitor" : {
           "enabled" : var.enable_service_monitor,
           "metricRelabelings" : local.service_monitor_metric_relabelings,

@@ -3,9 +3,8 @@ locals {
   # aws ec2 describe-instance-types --query "InstanceTypes[]"
   instance_descriptions = jsondecode(file("${path.module}/instance-descriptions.json"))
 
-  # While the VM overhead is lower as a percentage of the node with larger instance types,
-  # in absolute terms it is larger, so we use the largest instance type we expect to support
-  # when calculating the reserved values.
+  # VM overhead is larger in absolute terms on bigger instances, so size the
+  # reserved values from the largest allowed instance type.
   instance_memory = max([
     for instance_type, description in local.instance_descriptions :
     description["MemoryInfo"]["SizeInMiB"]

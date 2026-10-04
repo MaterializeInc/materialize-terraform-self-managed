@@ -13,8 +13,6 @@ locals {
   # when it changes. Unsuffixed when null, for existing deployments.
   private_ip_address_name = var.private_ip_address_cidr == null ? "${var.prefix}-private-ip" : "${var.prefix}-private-ip-${replace(var.private_ip_address_cidr, "/[./]/", "-")}"
 
-
-  # Create secondary ranges map for all subnets
   secondary_ranges = {
     for subnet in var.subnets : subnet.name => subnet.secondary_ranges
     if length(subnet.secondary_ranges) > 0
@@ -30,9 +28,7 @@ module "vpc" {
   mtu          = var.mtu
 
   auto_create_subnetworks = false
-  # GCP subnets are regional resources (not zonal). A single subnet spans all
-  # zones within its region, so no changes are needed for multi-zone GKE
-  # clusters: pods in any zone can use the same subnet.
+  # Subnets are regional, so one subnet serves every zone of a multi-zone cluster.
   subnets = [
     for subnet in var.subnets : {
       subnet_name           = subnet.name
@@ -54,25 +50,21 @@ module "cloud-nat" {
   project_id = var.project_id
   region     = var.region
 
-  # Indicates whether the Cloud Router should be created or not.
   create_router = var.create_router
-  # Router ASN, only if router is not passed in and is created by the module.
+  # Only used when the module creates the router.
   router_asn = var.router_asn
   router     = local.router_name
   network    = module.vpc.network_name
 
-  # Indicates whether or not to export logs	
   log_config_enable = var.log_config_enable
-  # Specifies the desired filtering of logs on this NAT. Valid values are: 
-  # "ERRORS_ONLY", "TRANSLATIONS_ONLY", "ALL"
+  # One of ERRORS_ONLY, TRANSLATIONS_ONLY, ALL.
   log_config_filter = var.log_config_filter
 
-  # How NAT should be configured per Subnetwork. Valid values include:
-  # ALL_SUBNETWORKS_ALL_IP_RANGES, ALL_SUBNETWORKS_ALL_PRIMARY_IP_RANGES, LIST_OF_SUBNETWORKS.
+  # One of ALL_SUBNETWORKS_ALL_IP_RANGES, ALL_SUBNETWORKS_ALL_PRIMARY_IP_RANGES,
+  # LIST_OF_SUBNETWORKS.
   source_subnetwork_ip_ranges_to_nat = var.source_subnetwork_ip_ranges_to_nat
 
-  # Static IP allocation for stable egress IPs.
-  # When nat_ips is non-empty, the cloud-nat module sets nat_ip_allocate_option = "MANUAL_ONLY".
+  # Static egress IPs. When non-empty, the module sets nat_ip_allocate_option = "MANUAL_ONLY".
   nat_ips = var.nat_ips
 }
 

@@ -25,9 +25,8 @@ resource "kubernetes_service" "console_load_balancer" {
 
   lifecycle {
     ignore_changes = [
-      # The resource_id is known only after apply,
-      # so terraform wants to destroy the resource
-      # on any changes to the Materialize CR.
+      # resource_id is known only after apply, so any change to the
+      # Materialize CR would otherwise replace the service.
       metadata[0].name,
       spec[0].selector["materialize.cloud/name"],
       metadata[0].annotations["cloud.google.com/neg"],
@@ -69,9 +68,8 @@ resource "kubernetes_service" "balancerd_load_balancer" {
 
   lifecycle {
     ignore_changes = [
-      # The resource_id is known only after apply,
-      # so terraform wants to destroy the resource
-      # on any changes to the Materialize CR.
+      # resource_id is known only after apply, so any change to the
+      # Materialize CR would otherwise replace the service.
       metadata[0].name,
       spec[0].selector["materialize.cloud/name"],
       metadata[0].annotations["cloud.google.com/neg"],
@@ -81,9 +79,8 @@ resource "kubernetes_service" "balancerd_load_balancer" {
   wait_for_load_balancer = true
 }
 
-# Custom firewall rule to allow ingress traffic to Materialize nodes (External LB)
-# For external load balancers, this restricts access to specific external IP ranges
-# This rule targets specific nodes via service account instead of all cluster nodes
+# Allow ingress_cidr_blocks to reach Materialize nodes through the external LB.
+# Targets the node service account rather than all cluster nodes.
 resource "google_compute_firewall" "external_rules" {
   count = var.internal ? 0 : 1
 
@@ -100,9 +97,8 @@ resource "google_compute_firewall" "external_rules" {
   target_service_accounts = [var.node_service_account_email]
 }
 
-# Firewall rule to allow client traffic to Materialize nodes (Internal LB)
 # GKE L4 firewall reconciliation is disabled, so GKE creates no allow rule for
-# internal LoadBalancer Services; without this only the node subnet can connect
+# internal LoadBalancer Services; without this only the node subnet can connect.
 resource "google_compute_firewall" "internal_rules" {
   count = var.internal ? 1 : 0
 
@@ -119,9 +115,7 @@ resource "google_compute_firewall" "internal_rules" {
   target_service_accounts = [var.node_service_account_email]
 }
 
-# Firewall rule to allow GCP health check traffic
-# Required for both internal and external load balancer health checks
-# Health checks originate from GCP infrastructure IP ranges
+# LB health checks (internal and external) come from Google's fixed ranges.
 # https://cloud.google.com/load-balancing/docs/firewall-rules
 resource "google_compute_firewall" "health_checks" {
   project     = var.project_id
@@ -133,8 +127,6 @@ resource "google_compute_firewall" "health_checks" {
     protocol = "tcp"
     ports    = ["8080", "6875", "6876"]
   }
-  # GCP health check IP ranges (same for internal and external LBs)
-  # https://cloud.google.com/load-balancing/docs/firewall-rules
   source_ranges           = ["35.191.0.0/16", "130.211.0.0/22"]
   target_service_accounts = [var.node_service_account_email]
 }

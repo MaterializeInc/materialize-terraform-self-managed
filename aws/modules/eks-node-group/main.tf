@@ -21,19 +21,9 @@ locals {
   EOF
 }
 
-# Clean up orphaned ENIs associated with this node group's security group.
-#
-# When the node group is destroyed, the VPC CNI plugin on terminating nodes
-# may not clean up ENIs it created. These ENIs remain associated with the
-# node security group, preventing Terraform from deleting it.
-#
-# The node group depends_on this resource, so during destroy the node group
-# is deleted first, then this cleanup runs, then the security group (in the
-# parent EKS module) can be deleted cleanly.
-#
-# Only ENIs in "available" status (not attached to any instance) are cleaned
-# up, so ENIs belonging to still-running nodes from other node groups are
-# left untouched.
+# On destroy, delete ENIs the VPC CNI left on the node security group, which
+# would block deleting it. The node group depends on this, so it runs after the
+# node group is gone. Only detached ("available") ENIs are removed.
 resource "terraform_data" "eni_cleanup" {
   triggers_replace = {
     security_group_id = var.cluster_primary_security_group_id
@@ -60,15 +50,9 @@ module "node_group" {
   source  = "terraform-aws-modules/eks/aws//modules/eks-managed-node-group"
   version = "~> 21.0"
 
-  # Passed through from the caller so they are known at plan time. When a
-  # caller puts a depends_on on this module call, Terraform defers every data
-  # source inside it (and inside the upstream module) to apply time. The
-  # upstream module resolves these from data sources gated by a conditional
-  # count when they are not supplied, so leaving them unset then fails the
-  # plan with "Invalid count argument" — and even when it can plan, the IAM
-  # policy ARNs derived from them become unknown, forcing a
-  # destroy-and-recreate of every aws_iam_role_policy_attachment whose
-  # create-before-destroy replacement detaches the policy from the live role.
+  # Must be known at plan time. With a depends_on on this module, the upstream
+  # data sources that would look these up defer to apply, which fails with
+  # "Invalid count argument" or replaces (and detaches) every policy attachment.
   partition  = var.partition
   account_id = var.account_id
 
@@ -83,14 +67,11 @@ module "node_group" {
   ami_type       = var.ami_type
   labels         = local.node_labels
 
-  # v21 of the upstream module requires a map; key each entry by taint
-  # key and effect to preserve the list-based interface of this module.
-  # Kubernetes allows the same taint key with different effects, so the
-  # key alone would collide.
+  # Upstream v21 takes a map. Key by key and effect, since one taint key can
+  # appear with several effects.
   taints = { for t in var.node_taints : "${t.key}:${t.effect}" => t }
 
-  # useful to disable this when prefix might be too long and hit following char limit
-  # expected length of name_prefix to be in the range (1 - 38)
+  # Disable if the name is too long: name_prefix allows at most 38 characters.
   iam_role_use_name_prefix = var.iam_role_use_name_prefix
 
   iam_role_permissions_boundary = var.iam_permissions_boundary

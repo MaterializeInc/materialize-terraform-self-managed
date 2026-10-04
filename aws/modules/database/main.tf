@@ -1,8 +1,6 @@
-# KMS key for RDS encryption at rest
-# NOTE: Once an RDS instance is created with this KMS key, it cannot be changed.
-# Deleting this key while the database exists will make the database inaccessible.
-# The deletion_window_in_days provides a recovery period - use `aws kms cancel-key-deletion`
-# to recover if deleted accidentally. See: https://repost.aws/knowledge-center/update-encryption-key-rds
+# An RDS instance's KMS key cannot be changed, and deleting it makes the database
+# inaccessible. Within deletion_window_in_days, `aws kms cancel-key-deletion` recovers it.
+# https://repost.aws/knowledge-center/update-encryption-key-rds
 resource "aws_kms_key" "rds" {
   count = var.create_kms_key ? 1 : 0
 
@@ -23,7 +21,7 @@ resource "aws_kms_alias" "rds" {
 }
 
 locals {
-  # Use created KMS key if create_kms_key is true, otherwise use provided kms_key_id (or null for AWS-managed key)
+  # null means the AWS-managed key.
   kms_key_arn = var.create_kms_key ? aws_kms_key.rds[0].arn : var.kms_key_id
 }
 
@@ -67,8 +65,6 @@ module "db" {
   backup_window           = var.backup_window
   backup_retention_period = var.backup_retention_period
 
-  # When false, the RDS module auto-generates a unique final snapshot identifier
-  # from final_snapshot_identifier_prefix (default "final") plus a random suffix.
   skip_final_snapshot              = var.skip_final_snapshot
   final_snapshot_identifier_prefix = var.final_snapshot_identifier_prefix
 

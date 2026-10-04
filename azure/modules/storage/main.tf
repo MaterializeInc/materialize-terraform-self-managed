@@ -2,8 +2,8 @@ resource "azurerm_storage_account" "materialize" {
   name                = replace("${var.prefix}stg${random_string.unique.result}", "-", "")
   resource_group_name = var.resource_group_name
   location            = var.location
-  # TODO: revisit to make sure we are using best set of values for storage account tier, replication type, and kind
-  # and what other options user have to configure this.
+  # TODO: review tier, replication type and kind, and which of them users should
+  # be able to configure.
   account_tier             = "Premium"
   account_replication_type = "LRS"
   account_kind             = "BlockBlobStorage"
@@ -75,8 +75,8 @@ resource "azurerm_role_assignment" "storage_blob_contributor" {
   principal_id         = var.workload_identity_principal_id
 }
 
-# Federated identity credential that establishes trust between the Kubernetes service account
-# and the Azure workload identity for storage access (similar to GCP Workload Identity or AWS IRSA)
+# Lets the Kubernetes service account use the storage identity (like AWS IRSA or
+# GCP Workload Identity).
 resource "azurerm_federated_identity_credential" "materialize_storage" {
   name                = "${var.prefix}-storage-credential"
   resource_group_name = var.resource_group_name

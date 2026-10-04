@@ -17,11 +17,9 @@ module "vpc" {
   enable_dns_hostnames = true
   enable_dns_support   = true
 
-  # Adopt the AWS-default network ACL and apply our tags so that the BYOC
-  # permissions boundary's ResourceTag-gated allow for `ec2:Delete*` (and
-  # `ec2:*NetworkAclEntry`) matches at destroy time.  Upstream defaults
-  # `manage_default_network_acl` to false, which leaves the ACL untagged
-  # and destroy calls fail with UnauthorizedOperation.
+  # Adopt and tag the default network ACL. The BYOC permissions boundary only
+  # allows `ec2:Delete*` and `ec2:*NetworkAclEntry` on tagged resources, so an
+  # untagged ACL makes destroy fail with UnauthorizedOperation.
   manage_default_network_acl = true
 
   # needed for EKS Cluster private endpoint
@@ -55,7 +53,7 @@ module "vpc_endpoints" {
   security_group_ids = var.enable_vpc_endpoints ? [aws_security_group.vpc_endpoints[0].id] : []
 
   endpoints = {
-    # we store metadata in s3 all pod requests go through this endpoint
+    # Persist blob storage is in S3, so keep that traffic in the VPC.
     s3 = {
       service         = "s3"
       service_type    = "Gateway"
@@ -63,26 +61,24 @@ module "vpc_endpoints" {
       tags            = { Name = "${var.name_prefix}-s3-gateway-endpoint" }
     }
 
-    # not adding aws rds endpoint as it will add up unnecessary cost
-    # pods connect to rds using private ip. The traffic doesn't leave vpc so not needed.
-    # we would endup paying extra $0.02*24*30 = $14.4 per month even if we don't use it.
-    # https://aws.amazon.com/privatelink/pricing/
+    # No RDS endpoint: pods reach RDS by private IP inside the VPC, so it would
+    # only add cost (https://aws.amazon.com/privatelink/pricing/).
 
-    # ec2 api is useful for Karpenter
+    # Used by Karpenter.
     ec2 = {
       service             = "ec2"
       private_dns_enabled = true
       tags                = { Name = "${var.name_prefix}-ec2-endpoint" }
     }
 
-    # not needed secretsmanager endpoint as we use k8s secrets, discuss and remove it.
+    # TODO: likely unneeded since we use k8s secrets; discuss and remove.
     secretsmanager = {
       service             = "secretsmanager"
       private_dns_enabled = true
       tags                = { Name = "${var.name_prefix}-secretsmanager-endpoint" }
     }
 
-    # Required for AWS Session Manager to work, useful to ssh into worker nodes via aws console/cli
+    # ssm, ssmmessages and ec2messages enable Session Manager access to nodes.
     ssm = {
       service             = "ssm"
       private_dns_enabled = true
@@ -99,28 +95,28 @@ module "vpc_endpoints" {
       tags                = { Name = "${var.name_prefix}-ec2messages-endpoint" }
     }
 
-    # sts endpoint is useful for IRSA
+    # Used by IRSA.
     sts = {
       service             = "sts"
       private_dns_enabled = true
       tags                = { Name = "${var.name_prefix}-sts-endpoint" }
     }
 
-    # not needed kms endpoint as we rely on ebs encryption in nodes, discuss and remove it.
+    # TODO: likely unneeded since nodes rely on EBS encryption; discuss and remove.
     kms = {
       service             = "kms"
       private_dns_enabled = true
       tags                = { Name = "${var.name_prefix}-kms-endpoint" }
     }
 
-    # Allows private access to the ELB API to create/manage load balancers. Useful for aws-lbc
+    # Used by aws-lbc to manage load balancers.
     elasticloadbalancing = {
       service             = "elasticloadbalancing"
       private_dns_enabled = true
       tags                = { Name = "${var.name_prefix}-elasticloadbalancing-endpoint" }
     }
 
-    # for image pulls from ecr
+    # Image pulls from ECR.
     ecr_api = {
       service             = "ecr.api"
       private_dns_enabled = true

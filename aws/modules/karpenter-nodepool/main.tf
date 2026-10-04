@@ -1,9 +1,5 @@
-# Terraform doesn't know about any EC2 instances spawned by
-# Karpenter. To avoid leaking them, we delete the associated
-# nodeclaims after destroying the nodepool.
-#
-# The nodeclaims have a finalizer that won't let them be
-# deleted until the associated EC2 instance is deleted.
+# On destroy, delete the nodepool's nodeclaims so the EC2 instances Karpenter
+# launched, which Terraform does not track, do not leak.
 resource "terraform_data" "destroyer" {
   input = {
     NODEPOOL_NAME   = var.name

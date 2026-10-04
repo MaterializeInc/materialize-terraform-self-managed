@@ -81,9 +81,8 @@ variable "labels" {
   default     = {}
 }
 
-# Any change to this variable will be ignored by the module during upgrades
-# if you want to set disk size, you need to set this during the first apply
-# Reference: https://registry.terraform.io/providers/hashicorp/google/6.34.1/docs/resources/sql_database_instance#disk_size-1
+# The module ignores later changes, so set this on the first apply.
+# https://registry.terraform.io/providers/hashicorp/google/6.34.1/docs/resources/sql_database_instance#disk_size-1
 variable "disk_size" {
   description = "The disk size for the database instance in GB"
   type        = number
@@ -107,8 +106,7 @@ variable "disk_autoresize" {
 variable "disk_autoresize_limit" {
   description = "The maximum size to which storage can be auto increased"
   type        = number
-  # https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/sql_database_instance#disk_autoresize_limit-1
-  # 0 means no limit
+  # 0 means no limit.
   default  = 0
   nullable = false
 }

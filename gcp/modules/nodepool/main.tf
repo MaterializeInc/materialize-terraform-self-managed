@@ -6,7 +6,7 @@ locals {
     "PREFER_NO_SCHEDULE" = "PreferNoSchedule"
   }
 
-  # Swap-specific taints that are automatically added when swap is enabled
+  # disk-setup removes this taint once swap is configured.
   swap_taints = var.swap_enabled ? [
     {
       key    = "startup-taint.cluster-autoscaler.kubernetes.io/disk-unconfigured"
@@ -15,7 +15,6 @@ locals {
     }
   ] : []
 
-  # Combine user-specified taints with swap-related taints
   node_taints = concat(var.node_taints, local.swap_taints)
 
   node_labels = merge(
@@ -52,16 +51,10 @@ resource "google_container_node_pool" "primary_nodes" {
     max_node_count = var.max_nodes
   }
 
-  # GKE upgrades node pools automatically (e.g. to roll out new node images)
-  # and this cannot be disabled, only delayed. Autoscaled blue-green upgrades
-  # create the replacement (green) pool empty, cordon all of the original
-  # (blue) nodes, and then wait for up to wait_for_drain_duration before
-  # draining anything, with the cluster autoscaler scaling up the green pool
-  # as pods move over. That wait is the window in which orchestratord
-  # gracefully rolls Materialize instances onto the green nodes (see the
-  # operator module's enable_node_upgrade_rollout_trigger).
-  #
-  # Requires a GKE control plane version of 1.34.0-gke.2201000 or later.
+  # GKE auto-upgrades can only be delayed, not disabled. Autoscaled blue-green
+  # cordons the old nodes and waits up to wait_for_drain_duration before draining,
+  # which gives orchestratord time to roll instances onto the new pool (see the
+  # operator module's enable_node_upgrade_rollout_trigger). Needs GKE 1.34.0-gke.2201000+.
   upgrade_settings {
     strategy = "BLUE_GREEN"
     blue_green_settings {
@@ -176,9 +169,8 @@ resource "kubernetes_daemonset" "disk_setup" {
                   operator = "In"
                   values   = ["true"]
                 }
-                # Scope to this module instance's pool so multiple swap-enabled
-                # pools (e.g. during a blue-green machine type migration) each
-                # run only their own disk-setup daemonset.
+                # Only this pool, so several swap pools (e.g. during a machine
+                # type migration) each run their own daemonset.
                 match_expressions {
                   key      = "cloud.google.com/gke-nodepool"
                   operator = "In"
@@ -189,7 +181,7 @@ resource "kubernetes_daemonset" "disk_setup" {
           }
         }
 
-        # Tolerate all taints (includes both user-provided and swap taints)
+        # Tolerate the pool's taints, including the swap taint.
         dynamic "toleration" {
           for_each = local.node_taints
           content {
@@ -199,8 +191,7 @@ resource "kubernetes_daemonset" "disk_setup" {
           }
         }
 
-        # GKE adds a silly taint to prevent things from going to arm nodes.
-        # Our image is multi-arch, so we can tolerate that taint.
+        # GKE taints Arm nodes; the image is multi-arch.
         toleration {
           key      = "kubernetes.io/arch"
           operator = "Equal"
@@ -208,7 +199,6 @@ resource "kubernetes_daemonset" "disk_setup" {
           effect   = "NoSchedule"
         }
 
-        # Use host network and PID namespace
         host_network = true
         host_pid     = true
 

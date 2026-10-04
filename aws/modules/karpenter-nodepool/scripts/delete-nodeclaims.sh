@@ -1,17 +1,10 @@
 #!/bin/sh
-# Delete the nodeclaims belonging to a Karpenter nodepool. Terraform does not
-# know about the EC2 instances Karpenter spawned, so without this they leak
-# when the nodepool goes away.
+# Delete a nodepool's nodeclaims so the EC2 instances Karpenter launched, which
+# Terraform does not know about, do not leak. A finalizer holds each nodeclaim
+# until its instance is gone, hence --wait=true. Run by a destroy-time local-exec
+# via /bin/sh (dash, or busybox sh in the BYOC stack-deployer image): POSIX sh only.
 #
-# The nodeclaims carry a finalizer that holds them until the backing EC2
-# instance is gone, hence --wait=true.
-#
-# Invoked by a destroy-time local-exec provisioner, which runs it through
-# terraform's default /bin/sh — dash, or busybox sh in Materialize's BYOC
-# stack-deployer image — so this must stay POSIX sh with no bashisms.
-#
-# Required environment (supplied by the provisioner):
-#   NODEPOOL_NAME, KUBECONFIG_DATA
+# Env: NODEPOOL_NAME, KUBECONFIG_DATA
 set -eu
 
 if [ -z "${KUBECONFIG_DATA}" ]; then

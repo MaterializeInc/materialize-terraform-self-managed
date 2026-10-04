@@ -15,11 +15,9 @@ module "eks" {
 
   enabled_log_types = var.cluster_enabled_log_types
 
-  # v21 no longer bootstraps the self-managed kube-proxy on new clusters
-  # (bootstrap_self_managed_addons is hardcoded to false). The VPC CNI and
-  # CoreDNS are installed by our own modules, but nothing else installs
-  # kube-proxy, so manage it as an EKS addon. OVERWRITE lets the addon adopt
-  # the self-managed kube-proxy on clusters created before this change.
+  # v21 no longer bootstraps kube-proxy and nothing else of ours installs it
+  # (unlike the VPC CNI and CoreDNS), so run it as an EKS addon. OVERWRITE
+  # adopts the self-managed kube-proxy on older clusters.
   addons = {
     kube-proxy = {
       resolve_conflicts_on_create = "OVERWRITE"
@@ -61,12 +59,10 @@ module "eks" {
     }
   }
 
-  # Cluster access entry
-  # To add the current caller identity as an administrator
+  # Makes the caller identity a cluster admin.
   enable_cluster_creator_admin_permissions = var.enable_cluster_creator_admin_permissions
 
-  # useful to disable this when prefix might be too long and hit following char limit
-  # expected length of name_prefix to be in the range (1 - 38)
+  # Disable if the name is too long: name_prefix allows at most 38 characters.
   iam_role_use_name_prefix = var.iam_role_use_name_prefix
 
   iam_role_permissions_boundary = var.iam_permissions_boundary

@@ -1,5 +1,5 @@
-#TODO: Currently all the nodepools share this service account. Should we create separate service accounts for different nodepools at nodepool level?
-#  Doing this will allow more flexibility in terms of permissions/firewalls for different nodepools.
+# TODO: all node pools share this service account. Per-nodepool accounts would
+# allow per-pool permissions and firewall rules.
 resource "google_service_account" "gke_sa" {
   project      = var.project_id
   account_id   = coalesce(var.node_service_account_id, "${var.prefix}-gke-sa")
@@ -26,16 +26,14 @@ resource "google_service_account" "workload_identity_sa" {
 }
 
 locals {
-  # Deduplicate CIDR blocks by converting to a map keyed by cidr_block
-  # This ensures each CIDR block appears only once (set-like behavior)
-  # If duplicates exist, the last occurrence is kept
+  # Dedupe by cidr_block; the last duplicate wins.
   unique_k8s_apiserver_authorized_networks = {
     for network in var.k8s_apiserver_authorized_networks :
     network.cidr_block => network
   }
 
-  # This range only needs to be the GKE control plane,
-  # but the documented way of getting the CIDR seems to return null.
+  # Only the control plane range is needed, but the documented way to get it can
+  # return null, so fall back to 0.0.0.0/0.
   master_ipv4_cidr_block                = google_container_cluster.primary.private_cluster_config[0].master_ipv4_cidr_block
   conversion_webhook_rule_source_ranges = (local.master_ipv4_cidr_block != "" && local.master_ipv4_cidr_block != null) ? local.master_ipv4_cidr_block : "0.0.0.0/0"
 }
@@ -62,11 +60,9 @@ resource "google_container_cluster" "primary" {
   network         = var.network_name
   subnetwork      = var.subnet_name
 
-  # ADVANCED_DATAPATH (Dataplane V2) uses eBPF-based networking with built-in
-  # NetworkPolicy support; standard Kubernetes NetworkPolicy is automatically
-  # enforced. The legacy datapath ignores NetworkPolicy resources entirely.
-  # Cannot be changed on an existing cluster without rebuilding it.
-  # Reference: https://cloud.google.com/kubernetes-engine/docs/how-to/dataplane-v2
+  # ADVANCED_DATAPATH (Dataplane V2) enforces NetworkPolicy; the legacy datapath
+  # ignores it here. Changing this recreates the cluster.
+  # https://cloud.google.com/kubernetes-engine/docs/how-to/dataplane-v2
   datapath_provider = var.datapath_provider
 
   remove_default_node_pool = true
@@ -83,12 +79,10 @@ resource "google_container_cluster" "primary" {
     services_secondary_range_name = var.services_secondary_range_name
   }
 
-  # Enable private cluster with both private and public endpoint access
-  # ref : https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/container_cluster#private_cluster_config-1
+  # Private nodes with a public endpoint, restricted by master_authorized_networks_config.
   private_cluster_config {
-    # enables private cluster feature,creating a private endpoint on cluster
     enable_private_nodes = true
-    # when enable_private_endpoint is true, it disables the access through public endpoint, hence this is set to false.
+    # true would disable the public endpoint.
     enable_private_endpoint = false
     master_ipv4_cidr_block  = var.master_ipv4_cidr_block
   }
@@ -127,8 +121,7 @@ resource "google_container_cluster" "primary" {
   disable_l4_lb_firewall_reconciliation = true
   enable_l4_ilb_subsetting              = true
 
-  # Publish upgrade notifications to Pub/Sub so that orchestratord can react
-  # to node pool upgrades (see the operator module's
+  # Lets orchestratord react to node pool upgrades (see the operator module's
   # enable_node_upgrade_rollout_trigger).
   dynamic "notification_config" {
     for_each = var.enable_upgrade_notifications ? [1] : []
@@ -160,9 +153,8 @@ resource "google_pubsub_subscription" "orchestratord_upgrade_notifications" {
   topic   = google_pubsub_topic.upgrade_notifications[0].id
   labels  = var.labels
 
-  # Notifications older than this are only useful for arming faster than
-  # orchestratord's periodic poll of the GKE API, which also catches any
-  # upgrades whose notifications expired here.
+  # A day is enough: orchestratord also polls the GKE API, which catches
+  # upgrades whose notifications expired.
   message_retention_duration = "86400s"
 
   # Never expire the subscription due to inactivity: upgrades can be rare.
@@ -190,9 +182,8 @@ resource "google_project_iam_member" "orchestratord_cluster_viewer" {
   member  = "serviceAccount:${google_service_account.workload_identity_sa.email}"
 }
 
-# Firewall rule to allow traffic to nodes on port 8001 for conversion webhooks.
-# In private clusters, the GKE control plane needs to reach node ports for
-# webhook callbacks (e.g., CRD conversion webhooks).
+# In private clusters the control plane must reach nodes on 8001 for the CRD
+# conversion webhook.
 resource "google_compute_firewall" "conversion_webhook" {
   project     = var.project_id
   name        = "${var.prefix}-gke-conversion-webhook"

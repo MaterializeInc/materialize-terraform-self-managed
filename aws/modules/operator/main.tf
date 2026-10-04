@@ -12,9 +12,8 @@ resource "kubernetes_namespace" "monitoring" {
   }
 }
 
-# The namespace gained `count` so that a caller can create it earlier, with the
-# monitoring CRDs. Existing state holds it without an index; this re-keys it
-# rather than replacing it, which would delete everything in the namespace.
+# Re-key state from before `count` was added. Replacing the namespace would
+# delete everything in it.
 moved {
   from = kubernetes_namespace.monitoring
   to   = kubernetes_namespace.monitoring[0]
@@ -62,12 +61,10 @@ locals {
       clusters = {
         swap_enabled = var.swap_enabled
       }
-      # Node selector and tolerations for operator pods
       nodeSelector = var.operator_node_selector
       tolerations  = var.tolerations
     }
 
-    # Materialize workload configurations
     environmentd = {
       nodeSelector = var.instance_node_selector
       tolerations  = var.instance_pod_tolerations
@@ -127,11 +124,8 @@ resource "kubernetes_network_policy_v1" "allow_kube_system_egress" {
   }
 }
 
-# Allow egress to Kubernetes API server (required for CRD registration)
-# The API server in EKS is a managed service outside the cluster, so we need
-# to allow HTTPS egress to the control plane IP. Using 0.0.0.0/0 on port 443
-# allows the operator to reach the API server regardless of its IP since API 
-# Server IP might change dynamically, hence 0.0.0.0/0 is used
+# Allow egress to the API server (required for CRD registration). The EKS
+# control plane is outside the cluster and its IP can change, so allow 443 to any IP.
 resource "kubernetes_network_policy_v1" "allow_api_server_egress" {
   count = var.enable_network_policies ? 1 : 0
 
@@ -158,12 +152,9 @@ resource "kubernetes_network_policy_v1" "allow_api_server_egress" {
   }
 }
 
-# Allow egress from the operator to environmentd on the HTTPS port (6876).
-# Recent operator versions call https://<svc>:6876/api/login during generation
-# rollout to finalize the Materialize CR. Without this rule the operator wedges
-# at status=Applying because the existing policies only permit port 443 egress.
-# Scoped to port 6876 only; the destination is any namespace because a single
-# operator can manage instances across multiple namespaces.
+# The operator calls environmentd's https://<svc>:6876/api/login during rollout;
+# without this it hangs at status=Applying. Any destination, since one operator
+# can manage instances in several namespaces.
 resource "kubernetes_network_policy_v1" "allow_environmentd_egress" {
   count = var.enable_network_policies ? 1 : 0
 
@@ -245,8 +236,7 @@ resource "kubernetes_network_policy_v1" "allow_monitoring_ingress" {
   }
 }
 
-# Install the metrics-server for monitoring
-# Required for the Materialize Console to display cluster metrics
+# Needed for the Console to show cluster metrics.
 resource "helm_release" "metrics_server" {
   count = var.install_metrics_server ? 1 : 0
 
@@ -256,7 +246,6 @@ resource "helm_release" "metrics_server" {
   chart      = "metrics-server"
   version    = var.metrics_server_version
 
-  # Configuration values based on metrics_server_values
   dynamic "set" {
     for_each = var.metrics_server_values.skip_tls_verification ? [1] : []
     content {
@@ -278,7 +267,6 @@ resource "helm_release" "metrics_server" {
     value = var.enable_metrics_server_service_monitor
   }
 
-  # Add node selectors for metrics-server pods if provided
   dynamic "set" {
     for_each = var.operator_node_selector
     content {
@@ -287,7 +275,6 @@ resource "helm_release" "metrics_server" {
     }
   }
 
-  # Add tolerations for metrics-server pods if provided
   dynamic "set" {
     for_each = length(var.tolerations) > 0 ? range(length(var.tolerations)) : []
     content {

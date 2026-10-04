@@ -1,7 +1,3 @@
-# EBS CSI Driver for EKS
-# Required for dynamic provisioning of EBS volumes
-
-# IAM policy for EBS CSI driver
 # From: https://raw.githubusercontent.com/kubernetes-sigs/aws-ebs-csi-driver/master/docs/example-iam-policy.json
 resource "aws_iam_policy" "ebs_csi_driver" {
   name        = "${var.name_prefix}-ebs-csi-driver"
@@ -243,7 +239,6 @@ resource "aws_iam_role_policy_attachment" "ebs_csi_driver" {
   policy_arn = aws_iam_policy.ebs_csi_driver.arn
 }
 
-# Helm release for EBS CSI driver
 resource "helm_release" "ebs_csi_driver" {
   name       = "aws-ebs-csi-driver"
   chart      = "aws-ebs-csi-driver"
@@ -271,11 +266,9 @@ resource "helm_release" "ebs_csi_driver" {
     value = "true"
   }
 
-  # Metrics Services, and a ServiceMonitor for each: the controller's AWS API
-  # calls and each of its sidecars, and on every node the per-volume EBS
-  # statistics, including time spent over the volume's provisioned IOPS and
-  # throughput. The chart renders the ServiceMonitors only when the
-  # monitoring.coreos.com API already exists.
+  # Metrics and ServiceMonitors for the controller (AWS API calls, sidecars) and
+  # nodes (per-volume EBS stats, incl. time over provisioned IOPS and throughput).
+  # The chart renders the ServiceMonitors only if the monitoring.coreos.com API exists.
   set {
     name  = "controller.enableMetrics"
     value = var.enable_service_monitor
@@ -286,7 +279,6 @@ resource "helm_release" "ebs_csi_driver" {
     value = var.enable_service_monitor
   }
 
-  # Add node selectors for controller pods if provided
   dynamic "set" {
     for_each = var.node_selector
     content {
@@ -300,7 +292,6 @@ resource "helm_release" "ebs_csi_driver" {
   ]
 }
 
-# Create gp3 storage class as default
 resource "kubernetes_storage_class" "gp3" {
   metadata {
     name = "gp3"
@@ -319,10 +310,9 @@ resource "kubernetes_storage_class" "gp3" {
       encrypted = "true"
     },
     var.kms_key_id != null ? { kmsKeyId = var.kms_key_id } : {},
-    # Volumes provisioned by the CSI driver are created by its IRSA role, so
-    # neither provider default_tags nor instance tags reach them. Tag them
-    # explicitly to satisfy tag-enforcement policies (e.g. the scratch
-    # account's RequireTagsScratch SCP).
+    # The driver's IRSA role creates the volumes, so provider default_tags and
+    # instance tags never reach them. Tag explicitly for tag-enforcement policies
+    # (e.g. the scratch account's RequireTagsScratch SCP).
     { for i, k in keys(var.tags) : "tagSpecification_${i + 1}" => "${k}=${var.tags[k]}" }
   )
 

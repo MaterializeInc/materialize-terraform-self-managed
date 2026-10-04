@@ -61,9 +61,8 @@ resource "azurerm_kubernetes_cluster" "aks" {
     identity_ids = [azurerm_user_assigned_identity.aks_identity.id]
   }
 
-  # API Server VNet Integration - Projects API server into a delegated subnet
-  # Can be used for BOTH public and private clusters
-  # Reference: https://learn.microsoft.com/en-us/azure/aks/api-server-vnet-integration
+  # Works for both public and private clusters.
+  # https://learn.microsoft.com/en-us/azure/aks/api-server-vnet-integration
   api_server_access_profile {
     virtual_network_integration_enabled = var.enable_api_server_vnet_integration
     subnet_id                           = var.api_server_subnet_id

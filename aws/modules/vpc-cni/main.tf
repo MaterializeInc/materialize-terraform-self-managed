@@ -3,8 +3,8 @@ locals {
   namespace            = "kube-system"
 }
 
-# Annotate existing VPC CNI resources for Helm adoption
-# EKS creates these resources by default, and Helm needs ownership annotations to manage them
+# Add Helm ownership annotations to the VPC CNI resources EKS created on older
+# clusters, so the release below can adopt them.
 resource "terraform_data" "annotate_existing_resources" {
   count = var.adopt_existing_resources ? 1 : 0
 
@@ -45,13 +45,11 @@ resource "aws_iam_role" "vpc_cni" {
   })
 }
 
-# Attach AWS managed policy for VPC CNI
 resource "aws_iam_role_policy_attachment" "vpc_cni" {
   role       = aws_iam_role.vpc_cni.name
   policy_arn = "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy"
 }
 
-# Helm release for VPC CNI
 resource "helm_release" "vpc_cni" {
   name       = "aws-vpc-cni"
   chart      = "aws-vpc-cni"
@@ -59,10 +57,8 @@ resource "helm_release" "vpc_cni" {
   version    = var.chart_version
   namespace  = local.namespace
 
-  # The chart owns the service account. On clusters created with EKS module
-  # v20 and earlier the pre-existing bootstrap service account was annotated
-  # for Helm adoption by terraform_data.annotate_existing_resources; on newer
-  # clusters nothing bootstraps the CNI, so the chart must create it.
+  # The chart owns the service account: on EKS module v20 and earlier clusters it
+  # adopts the annotated bootstrap one, on newer clusters it creates it.
   set {
     name  = "serviceAccount.create"
     value = "true"
@@ -78,7 +74,6 @@ resource "helm_release" "vpc_cni" {
     value = aws_iam_role.vpc_cni.arn
   }
 
-  # Network Policy configuration
   set {
     name  = "enableNetworkPolicy"
     value = tostring(var.enable_network_policy)
@@ -93,7 +88,6 @@ resource "helm_release" "vpc_cni" {
   }
 
   # https://github.com/aws/amazon-vpc-cni-k8s#cni-configuration-variables
-  # Prefix delegation settings
   dynamic "set" {
     for_each = var.enable_prefix_delegation ? [1] : []
     content {
@@ -110,7 +104,6 @@ resource "helm_release" "vpc_cni" {
     }
   }
 
-  # IP management settings
   dynamic "set" {
     for_each = var.minimum_ip_target != null ? [1] : []
     content {

@@ -1,5 +1,4 @@
 
-# NAT Gateway Public IP
 resource "azurerm_public_ip" "nat_gateway" {
   name                = "${var.prefix}-nat-gateway-pip"
   location            = var.location
@@ -9,7 +8,6 @@ resource "azurerm_public_ip" "nat_gateway" {
   tags                = var.tags
 }
 
-# NAT Gateway
 resource "azurerm_nat_gateway" "main" {
   name                    = "${var.prefix}-nat-gateway"
   location                = var.location
@@ -19,13 +17,11 @@ resource "azurerm_nat_gateway" "main" {
   tags                    = var.tags
 }
 
-# Associate Public IP with NAT Gateway
 resource "azurerm_nat_gateway_public_ip_association" "main" {
   nat_gateway_id       = azurerm_nat_gateway.main.id
   public_ip_address_id = azurerm_public_ip.nat_gateway.id
 }
 
-# Virtual Network using Azure Verified Module
 module "virtual_network" {
   source  = "Azure/avm-res-network-virtualnetwork/azurerm"
   version = "0.10.0"

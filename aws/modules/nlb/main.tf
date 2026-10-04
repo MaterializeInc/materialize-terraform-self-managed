@@ -1,6 +1,5 @@
 locals {
-  # AWS load balancer name_prefix has a maximum length of 6 characters
-  # We trim the name_prefix to ensure it fits within this limit
+  # aws_lb name_prefix allows at most 6 characters.
   trimmed_name_prefix = substr(var.name_prefix, 0, min(6, length(var.name_prefix)))
 }
 
@@ -14,8 +13,7 @@ resource "aws_security_group" "nlb" {
 }
 
 
-# no need to specify from_port and to_port when using -1 for ip_protocol
-# https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/vpc_security_group_egress_rule#ip_protocol-1
+# ip_protocol -1 covers all ports, so from_port and to_port are omitted.
 resource "aws_vpc_security_group_egress_rule" "nlb_egress" {
   count = var.create_security_group ? 1 : 0
 
