@@ -834,8 +834,13 @@ module "ory" {
     })
   ]
 
+  # module.ory_database, not just its outputs: the DSNs use the instance's user
+  # and address, so without this the kratos, hydra and polis databases are
+  # destroyed in parallel with the Ory stack. Hydra then fails, and Maester can't
+  # clear the OAuth2Client's finalizer, which hangs the destroy.
   depends_on = [
     module.coredns,
+    module.ory_database,
   ]
 }
 
