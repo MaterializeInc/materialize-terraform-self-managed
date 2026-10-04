@@ -44,7 +44,6 @@ class AWSStateMigrator(BaseStateMigrator):
 
     def _build_rules(self) -> List[MigrationRule]:
         return [
-            # Remove [0] index from various modules
             MigrationRule(
                 pattern=r'^(module\.operator)\[0\]\.(.+)$',
                 transform=lambda m: f"{m.group(1)}.{m.group(2)}",
@@ -57,21 +56,18 @@ class AWSStateMigrator(BaseStateMigrator):
                 description="Remove [0] index from aws_lbc module"
             ),
 
-            # Rename certificates module to cert_manager
             MigrationRule(
                 pattern=r'^module\.certificates\.(.+)$',
                 transform=lambda m: f'module.cert_manager.{m.group(1)}',
                 description="Rename certificates module to cert_manager"
             ),
 
-            # Skip self-signed cert-manager resources (kubernetes_manifest → kubectl_manifest type change)
             MigrationRule(
                 pattern=r'^module\.cert_manager\.kubernetes_manifest\.(self_signed_cluster_issuer|self_signed_root_ca_certificate|root_ca_cluster_issuer)\[0\]$',
                 transform=lambda m: None,
                 description="Skip self-signed cert resources (type change kubernetes_manifest→kubectl_manifest)"
             ),
 
-            # Move root-level IAM roles to storage module
             MigrationRule(
                 pattern=r'^aws_iam_role\.materialize_s3$',
                 transform=lambda m: 'module.storage.aws_iam_role.materialize_s3',
@@ -84,105 +80,92 @@ class AWSStateMigrator(BaseStateMigrator):
                 description="Move IAM role policy to storage module"
             ),
 
-            # Rename node group modules
             MigrationRule(
                 pattern=r'^module\.materialize_node_group\.(.+)$',
                 transform=lambda m: f'module.mz_node_group.{m.group(1)}',
                 description="Rename materialize_node_group to mz_node_group"
             ),
 
-            # Migrate EKS internal managed node group to base_node_group
             MigrationRule(
                 pattern=r'^module\.eks\.module\.eks\.module\.eks_managed_node_group\[.+?\]\.(.+)$',
                 transform=lambda m: f'module.base_node_group.module.node_group.{m.group(1)}',
                 description="Migrate EKS internal managed node group to base_node_group"
             ),
 
-            # Move Materialize instance resources from operator module to root level
             MigrationRule(
                 pattern=r'^module\.operator\.kubernetes_manifest\.materialize_instances(\[.+?\])$',
                 transform=lambda m: f'kubernetes_manifest.materialize_instances{m.group(1)}',
                 description="Move Materialize instance manifests from operator to root"
             ),
 
-            # Move Materialize instance data sources from operator module to root level
             MigrationRule(
                 pattern=r'^module\.operator\.data\.kubernetes_resource\.materialize_instances(\[.+?\])$',
                 transform=lambda m: f'data.kubernetes_resource.materialize_instances{m.group(1)}',
                 description="Move Materialize instance data sources from operator to root"
             ),
 
-            # Move instance namespaces from operator module to root level
             MigrationRule(
                 pattern=r'^module\.operator\.kubernetes_namespace\.instance_namespaces(\[.+?\])$',
                 transform=lambda m: f'kubernetes_namespace.instance_namespaces{m.group(1)}',
                 description="Move instance namespaces from operator to root"
             ),
 
-            # Move backend secrets from operator module to root level
             MigrationRule(
                 pattern=r'^module\.operator\.kubernetes_secret\.materialize_backends(\[.+?\])$',
                 transform=lambda m: f'kubernetes_secret.materialize_backends{m.group(1)}',
                 description="Move backend secrets from operator to root"
             ),
 
-            # Skip db init jobs — already ran during initial setup, not needed after migration
             MigrationRule(
                 pattern=r'^module\.operator\.kubernetes_job\.db_init_job\[.+?\]$',
                 transform=lambda m: None,
                 description="Skip completed db init job (one-time setup, already ran)"
             ),
 
-            # Skip NLB TargetGroupBinding resources (kubernetes_manifest → kubectl_manifest type change)
             MigrationRule(
                 pattern=r'^module\.nlb\[.+?\]\.module\.target_.+\.kubernetes_manifest\.target_group_binding$',
                 transform=lambda m: None,
                 description="Skip NLB target group binding (type change kubernetes_manifest→kubectl_manifest)"
             ),
 
-            # Keep NLB resources (handles both indexed and nested submodules)
+            # Matches both indexed and nested NLB submodules
             MigrationRule(
                 pattern=r'^(module\.nlb\[.+)$',
                 transform=lambda m: m.group(1),
                 description="Keep NLB module path unchanged"
             ),
 
-            # Keep operator module helm releases unchanged
             MigrationRule(
                 pattern=r'^(module\.operator\.helm_release\..+)$',
                 transform=lambda m: m.group(1),
                 description="Keep operator helm releases unchanged"
             ),
 
-            # Keep aws_lbc module helm release unchanged
             MigrationRule(
                 pattern=r'^(module\.aws_lbc\.helm_release\..+)$',
                 transform=lambda m: m.group(1),
                 description="Keep AWS LBC helm release unchanged"
             ),
 
-            # Keep cert_manager module helm release unchanged
             MigrationRule(
                 pattern=r'^(module\.cert_manager\.helm_release\..+)$',
                 transform=lambda m: m.group(1),
                 description="Keep cert-manager helm release unchanged"
             ),
 
-            # Default: keep same path (for networking, eks, database, storage, operator, aws_lbc, cert_manager)
+            # Fallback for the remaining module paths
             MigrationRule(
                 pattern=r'^(module\.(networking|eks|database|storage|operator|aws_lbc|cert_manager)\..+)$',
                 transform=lambda m: m.group(1),
                 description="Keep module path unchanged"
             ),
 
-            # Skip data sources
             MigrationRule(
                 pattern=r'^(.*\.)?data\..*$',
                 transform=lambda m: None,
                 description="Skip data source (will be recreated)"
             ),
 
-            # Skip old cloudwatch log groups
             MigrationRule(
                 pattern=r'^aws_cloudwatch_log_group\.materialize\[.*\]$',
                 transform=lambda m: None,
@@ -372,7 +355,7 @@ class AWSStateMigrator(BaseStateMigrator):
         else:
             self.log("Could not find DB security group ID - skipping DB SG rule import", 'WARN')
 
-        # EKS Node Security Group Rules — strip IPv6 and re-import
+        # EKS node SG rules: strip IPv6, then re-import
         mz_sg_rules = {
             'mz_ingress_pgwire': 6875,
             'mz_ingress_http': 6876,
@@ -497,7 +480,6 @@ class AWSStateMigrator(BaseStateMigrator):
                             old_values['name_prefix'] = prefix
                             break
 
-        # Build tfvars content
         tfvars_content = '''# =============================================================================
 # Terraform Variables
 # =============================================================================

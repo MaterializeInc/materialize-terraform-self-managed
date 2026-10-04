@@ -34,7 +34,7 @@ class AzureStateMigrator(BaseStateMigrator):
     def _build_rules(self) -> List[MigrationRule]:
         return [
             # =================================================================
-            # Networking — move from module to root (inline in migration config)
+            # Networking: module to root (inline in migration config)
             # =================================================================
             MigrationRule(
                 pattern=r'^module\.networking\.(.+)$',
@@ -43,16 +43,14 @@ class AzureStateMigrator(BaseStateMigrator):
             ),
 
             # =================================================================
-            # AKS — move from module to root (inline in migration config)
+            # AKS: module to root (inline in migration config)
             # =================================================================
-            # Rename the old system nodepool: module.aks.*.materialize → *.system
             MigrationRule(
                 pattern=r'^module\.aks\.azurerm_kubernetes_cluster_node_pool\.materialize$',
                 transform=lambda m: 'azurerm_kubernetes_cluster_node_pool.system',
                 description="Move and rename AKS system nodepool to root"
             ),
 
-            # Move other AKS resources to root
             MigrationRule(
                 pattern=r'^module\.aks\.(.+)$',
                 transform=lambda m: m.group(1),
@@ -60,7 +58,7 @@ class AzureStateMigrator(BaseStateMigrator):
             ),
 
             # =================================================================
-            # Database — move from module to root (inline in migration config)
+            # Database: module to root (inline in migration config)
             # =================================================================
             MigrationRule(
                 pattern=r'^module\.database\.(.+)$',
@@ -69,7 +67,7 @@ class AzureStateMigrator(BaseStateMigrator):
             ),
 
             # =================================================================
-            # Materialize Nodepool — keep same paths
+            # Materialize nodepool: same module paths
             # =================================================================
             MigrationRule(
                 pattern=r'^(module\.materialize_nodepool\..+)$',
@@ -78,16 +76,15 @@ class AzureStateMigrator(BaseStateMigrator):
             ),
 
             # =================================================================
-            # Storage — keep Azure resources, skip Key Vault and SAS token
+            # Storage: keep Azure resources, skip Key Vault and SAS token
             # =================================================================
-            # Skip Key Vault (not in new module — user deletes manually)
+            # Not in the new module; delete the Key Vault manually.
             MigrationRule(
                 pattern=r'^module\.storage\.azurerm_key_vault\..*$',
                 transform=lambda m: None,
                 description="Skip Key Vault (not in new module)"
             ),
 
-            # Keep other storage resources
             MigrationRule(
                 pattern=r'^(module\.storage\..+)$',
                 transform=lambda m: m.group(1),
@@ -95,23 +92,21 @@ class AzureStateMigrator(BaseStateMigrator):
             ),
 
             # =================================================================
-            # Certificates → cert_manager + self_signed_cluster_issuer
+            # Certificates: split into cert_manager + self_signed_cluster_issuer
             # =================================================================
-            # Skip self-signed cert resources (kubernetes_manifest → kubectl_manifest type change)
+            # kubectl_manifest adopts the existing K8s resources with zero disruption.
             MigrationRule(
                 pattern=r'^module\.certificates\.kubernetes_manifest\.(self_signed_cluster_issuer|self_signed_root_ca_certificate|root_ca_cluster_issuer)\[0\]$',
                 transform=lambda m: None,
                 description="Skip self-signed cert resources (type change kubernetes_manifest→kubectl_manifest)"
             ),
 
-            # Move cert-manager namespace (remove [0] count index)
             MigrationRule(
                 pattern=r'^module\.certificates\.kubernetes_namespace\.cert_manager\[0\]$',
                 transform=lambda m: 'module.cert_manager.kubernetes_namespace.cert_manager',
                 description="Move cert-manager namespace to cert_manager module"
             ),
 
-            # Move cert-manager helm release (remove [0] count index)
             MigrationRule(
                 pattern=r'^module\.certificates\.helm_release\.cert_manager\[0\]$',
                 transform=lambda m: 'module.cert_manager.helm_release.cert_manager',
@@ -119,44 +114,38 @@ class AzureStateMigrator(BaseStateMigrator):
             ),
 
             # =================================================================
-            # Operator — remove [0] index (old used count, new is direct)
+            # Operator: drop the [0] index (old used count)
             # =================================================================
-            # Skip metrics server (AKS has built-in)
             MigrationRule(
                 pattern=r'^module\.operator\[0\]\.helm_release\.metrics_server.*$',
                 transform=lambda m: None,
                 description="Skip metrics server helm release (AKS has built-in)"
             ),
 
-            # Move instance namespace to materialize_instance module
             MigrationRule(
                 pattern=r'^module\.operator\[0\]\.kubernetes_namespace\.instance_namespaces\[.+?\]$',
                 transform=lambda m: 'module.materialize_instance.kubernetes_namespace.instance[0]',
                 description="Move instance namespace to materialize_instance module"
             ),
 
-            # Move instance backend secret to materialize_instance module
             MigrationRule(
                 pattern=r'^module\.operator\[0\]\.kubernetes_secret\.materialize_backends\[.+?\]$',
                 transform=lambda m: 'module.materialize_instance.kubernetes_secret.materialize_backend',
                 description="Move backend secret to materialize_instance module"
             ),
 
-            # Skip instance manifests (type change kubernetes_manifest → kubectl_manifest)
             MigrationRule(
                 pattern=r'^module\.operator\[0\]\.kubernetes_manifest\.materialize_instances\[.+?\]$',
                 transform=lambda m: None,
                 description="Skip Materialize instance manifest (type change kubernetes_manifest→kubectl_manifest)"
             ),
 
-            # Skip db init jobs (not in new module)
             MigrationRule(
                 pattern=r'^module\.operator\[0\]\.kubernetes_job\.db_init_job\[.+?\]$',
                 transform=lambda m: None,
                 description="Skip db init job (not in new module)"
             ),
 
-            # Move operator namespaces (remove [0])
             MigrationRule(
                 pattern=r'^module\.operator\[0\]\.(.+)$',
                 transform=lambda m: f'module.operator.{m.group(1)}',
@@ -164,7 +153,7 @@ class AzureStateMigrator(BaseStateMigrator):
             ),
 
             # =================================================================
-            # Load Balancers — remove for_each key
+            # Load balancers: drop the for_each key
             # =================================================================
             MigrationRule(
                 pattern=r'^module\.load_balancers\[.+?\]\.(.+)$',
@@ -173,7 +162,7 @@ class AzureStateMigrator(BaseStateMigrator):
             ),
 
             # =================================================================
-            # Data sources — skip (will be recreated automatically)
+            # Data sources: skipped, recreated automatically
             # =================================================================
             MigrationRule(
                 pattern=r'^(.*\.)?data\..*$',
@@ -228,7 +217,6 @@ class AzureStateMigrator(BaseStateMigrator):
                             old_values['resource_group_name'] = rg
                             break
 
-        # Build tfvars content
         tfvars_content = '''# =============================================================================
 # Terraform Variables
 # =============================================================================

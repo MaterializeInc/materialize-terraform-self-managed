@@ -1,30 +1,16 @@
 # =============================================================================
 # Migration Reference Configuration
 # =============================================================================
+# Copy this file and adapt the values to your existing infrastructure. Module
+# paths must match where the state migration moves resources; if you rename a
+# module, update the state mv commands to match.
 #
-# This file serves as a reference for creating your new Terraform configuration.
-# Copy this file and adapt the values to match your existing infrastructure.
+# Defaults match the old setup so the migration is zero-downtime:
+# 1. NAT gateways: one per AZ, as in the old defaults
+# 2. Node groups: existing node groups kept, Karpenter commented out
+# 3. Instances: set materialize_instance_name; add others in locals
 #
-# IMPORTANT: The module paths in this configuration must match where the state
-# migration will move resources TO. If you change module names (e.g., rename
-# "module.networking" to "module.vpc"), update your state mv commands accordingly.
-#
-# =============================================================================
-#
-# MIGRATION STRATEGY FOR ZERO-DOWNTIME
-# =============================================================================
-#
-# This configuration is pre-configured to MATCH the default infrastructure to
-# minimize changes during migration. Key settings:
-#
-# 1. NAT Gateways: Keeps 3 NAT gateways (one per AZ) - matches old defaults setup
-# 2. Node Groups: Keeps existing node groups, Karpenter commented out
-# 3. Instance Names: Update locals to match the old Materialize instances
-#
-# After successful migration, you can gradually adopt new features:
-# - Enable Karpenter for autoscaling
-# - Update node group configurations
-#
+# After the migration is verified you can enable Karpenter and update node groups.
 # =============================================================================
 
 # -----------------------------------------------------------------------------
@@ -35,8 +21,7 @@ provider "aws" {
   region  = var.aws_region
   profile = var.aws_profile
 
-  # MIGRATION: default_tags omitted to match old module (which didn't use them).
-  # After migration is verified, uncomment to apply tags to all resources:
+  # MIGRATION: the old module set no default_tags. Uncomment after migration is verified.
   # default_tags {
   #   tags = var.tags
   # }
@@ -66,11 +51,9 @@ provider "helm" {
   }
 }
 
-# lazy_load = true lets alekc/kubectl v2.4.0+ defer kubeconfig resolution
-# (which is strict at provider-configure since v2.3.0) until first use. Without
-# it, same-root cluster-plus-manifests applies fail at plan with an empty REST
-# config because module.eks outputs are unknown before the cluster exists. See:
-# https://registry.terraform.io/providers/alekc/kubectl/latest/docs#troubleshooting
+# lazy_load (alekc/kubectl v2.4.0+) defers kubeconfig resolution until first use.
+# Without it, plans fail with an empty REST config while cluster outputs are unknown.
+# See https://registry.terraform.io/providers/alekc/kubectl/latest/docs#troubleshooting
 provider "kubectl" {
   host                   = module.eks.cluster_endpoint
   cluster_ca_certificate = base64decode(module.eks.cluster_certificate_authority_data)
@@ -89,9 +72,7 @@ provider "kubectl" {
 # Networking
 # -----------------------------------------------------------------------------
 # State path: module.networking.module.vpc.*
-#
-# Update these values to match your existing VPC configuration.
-# Run: aws ec2 describe-vpcs --vpc-ids <your-vpc-id> to get current values.
+# Match your existing VPC: aws ec2 describe-vpcs --vpc-ids <your-vpc-id>
 
 module "networking" {
   source      = "../../modules/networking"
@@ -111,9 +92,7 @@ module "networking" {
 # EKS Cluster
 # -----------------------------------------------------------------------------
 # State path: module.eks.module.eks.*
-#
-# Update cluster_version to match your existing cluster.
-# Run: aws eks describe-cluster --name <your-cluster> to get current values.
+# Match your existing cluster_version: aws eks describe-cluster --name <your-cluster>
 
 module "eks" {
   source      = "../../modules/eks"
@@ -136,18 +115,16 @@ module "eks" {
 # Base Node Group (for CoreDNS and system workloads)
 # -----------------------------------------------------------------------------
 # State path: module.base_node_group.module.node_group.*
-#
-# MIGRATION: This is equivalent to your old "{prefix}-system" node group.
-# Update instance_types, min_size, max_size to match your existing setup.
+# MIGRATION: replaces the old EKS module's system node group. Match its
+# instance types and sizes.
 
 module "base_node_group" {
   source = "../../modules/eks-node-group"
 
   cluster_name = module.eks.cluster_name
   subnet_ids   = module.networking.private_subnet_ids
-  # MIGRATION: The old EKS module used name_prefix as the node group name
-  # and "${name_prefix}-system" as the launch template name. Keeping these
-  # ensures no replacement of node groups or launch templates.
+  # MIGRATION: the old EKS module's names; changing them replaces the node
+  # group and launch template.
   node_group_name                   = var.name_prefix
   launch_template_name              = "${var.name_prefix}-system"
   instance_types                    = var.base_instance_types
@@ -160,18 +137,16 @@ module "base_node_group" {
   cluster_primary_security_group_id = module.eks.node_security_group_id
   aws_region                        = var.aws_region
   aws_profile                       = var.aws_profile
-  # Resolved at the root so they are known at plan time; a module-level
-  # depends_on defers data sources inside the module (see the eks-node-group
-  # partition variable description).
+  # Resolved at the root so they are known at plan time (see the
+  # eks-node-group partition variable).
   partition  = data.aws_partition.current.partition
   account_id = data.aws_caller_identity.current.account_id
 
   tags = var.tags
 }
 
-# MIGRATION: CoreDNS module is commented out during migration because it's a NEW
-# module that didn't exist in the old setup. EKS manages CoreDNS by default.
-# After migration is verified, uncomment this to manage CoreDNS via Terraform.
+# MIGRATION: CoreDNS was not managed by the old setup (EKS manages it by
+# default). Uncomment after migration is verified to manage it with Terraform.
 #
 # module "coredns" {
 #   source = "../../../kubernetes/modules/coredns"
@@ -187,9 +162,7 @@ module "base_node_group" {
 # Materialize Node Group
 # -----------------------------------------------------------------------------
 # State path: module.mz_node_group.module.node_group.*
-#
-# MIGRATION: This replaces your old materialize_node_group.
-# Update instance_types, min_size, max_size to match your existing setup.
+# MIGRATION: replaces the old materialize_node_group. Match its instance types and sizes.
 
 module "mz_node_group" {
   source = "../../modules/eks-node-group"
@@ -203,16 +176,14 @@ module "mz_node_group" {
   max_size        = var.mz_node_max_size
   desired_size    = var.mz_node_desired_size
   labels          = local.materialize_node_labels
-  # MIGRATION: Taints commented out - the old module didn't set EKS-level taints.
-  # After migration is verified, uncomment to enable taints.
+  # MIGRATION: the old module set no EKS taints. Uncomment after migration is verified.
   # node_taints                       = local.materialize_node_taints
   cluster_service_cidr              = module.eks.cluster_service_cidr
   cluster_primary_security_group_id = module.eks.node_security_group_id
   aws_region                        = var.aws_region
   aws_profile                       = var.aws_profile
-  # Resolved at the root so they are known at plan time; a module-level
-  # depends_on defers data sources inside the module (see the eks-node-group
-  # partition variable description).
+  # Resolved at the root so they are known at plan time (see the
+  # eks-node-group partition variable).
   partition  = data.aws_partition.current.partition
   account_id = data.aws_caller_identity.current.account_id
 
@@ -226,16 +197,9 @@ module "mz_node_group" {
 # -----------------------------------------------------------------------------
 # Karpenter (Node Autoscaling) - COMMENTED OUT FOR MIGRATION
 # -----------------------------------------------------------------------------
-# MIGRATION: Karpenter is commented out to preserve your existing node groups.
-# After migration is complete and verified, you can:
-# 1. Uncomment these modules
-# 2. Gradually drain workloads from static node groups to Karpenter
-# 3. Remove the mz_node_group module above
-#
-# Benefits of Karpenter:
-# - Automatic scaling based on pod requirements
-# - Better bin-packing and cost optimization
-# - Faster node provisioning
+# MIGRATION: commented out to keep the existing node groups. After migration is
+# verified: uncomment, drain workloads from the static node groups to Karpenter,
+# then remove mz_node_group.
 
 # module "karpenter" {
 #   source = "../../modules/karpenter"
@@ -353,11 +317,8 @@ module "self_signed_cluster_issuer" {
 # Database (RDS PostgreSQL)
 # -----------------------------------------------------------------------------
 # State path: module.database.module.db.module.db_instance.*
-#
-# MIGRATION: These values MUST match your existing RDS instance exactly,
-# otherwise Terraform will try to modify or recreate the database.
-#
-# Run: aws rds describe-db-instances --db-instance-identifier <your-db-id>
+# MIGRATION: values MUST match your existing RDS instance or Terraform will modify
+# or recreate it. Check: aws rds describe-db-instances --db-instance-identifier <your-db-id>
 
 module "database" {
   source = "../../modules/database"
@@ -388,9 +349,8 @@ module "database" {
 # Storage (S3)
 # -----------------------------------------------------------------------------
 # State path: module.storage.*
-#
-# MIGRATION: The bucket name includes a random suffix. After migration,
-# the random_id resource will be in state and the name will be preserved.
+# MIGRATION: the bucket name's random suffix comes from random_id, which moves
+# with the state, so the name is preserved.
 
 module "storage" {
   source = "../../modules/storage"
@@ -441,8 +401,7 @@ module "operator" {
 
   install_metrics_server = true
 
-  # MIGRATION: Pass TLS configuration via helm_values to match old module behavior.
-  # The old module configured TLS via defaultCertificateSpecs in the operator Helm values.
+  # MIGRATION: the old module set TLS via defaultCertificateSpecs in the operator Helm values.
   helm_values = var.use_self_signed_cluster_issuer ? {
     tls = {
       defaultCertificateSpecs = {
@@ -472,12 +431,12 @@ module "operator" {
 }
 
 # -----------------------------------------------------------------------------
-# Materialize Instance Namespace (part of operator module in migrated state)
+# Materialize Instance Namespace
 # -----------------------------------------------------------------------------
-# State path: module.operator.kubernetes_namespace.instance_namespaces["<namespace>"]
+# State path: kubernetes_namespace.instance_namespaces["<instance_name>"]
 #
-# MIGRATION: These resources are managed as part of the operator module structure
-# to match the migrated state. They use for_each to support multiple instances.
+# MIGRATION: this and the instance resources below lived in the old operator
+# module; the moved blocks further down move them to the root.
 
 resource "kubernetes_namespace" "instance_namespaces" {
   for_each = local.materialize_instances
@@ -490,9 +449,9 @@ resource "kubernetes_namespace" "instance_namespaces" {
 }
 
 # -----------------------------------------------------------------------------
-# Materialize Backend Secret (part of operator module in migrated state)
+# Materialize Backend Secret
 # -----------------------------------------------------------------------------
-# State path: module.operator.kubernetes_secret.materialize_backends["<instance_name>"]
+# State path: kubernetes_secret.materialize_backends["<instance_name>"]
 
 resource "kubernetes_secret" "materialize_backends" {
   for_each = local.materialize_instances
@@ -503,9 +462,7 @@ resource "kubernetes_secret" "materialize_backends" {
   }
 
   data = {
-    # MIGRATION: Must match old module's metadata_backend_url exactly.
-    # Old module used: postgres://user:pass@host/{database_name}?sslmode=require
-    # where database_name = coalesce(instance.database_name, instance.name)
+    # MIGRATION: both URLs must match the old module's values exactly.
     metadata_backend_url = format(
       "postgres://%s:%s@%s/%s?sslmode=require",
       module.database.db_instance_username,
@@ -513,8 +470,6 @@ resource "kubernetes_secret" "materialize_backends" {
       module.database.db_instance_endpoint,
       each.value.database_name
     )
-    # MIGRATION: Must match old module's persist_backend_url exactly.
-    # Old module used: s3://bucket/{environment}-{instance_name}:serviceaccount:{namespace}:{instance_name}
     persist_backend_url = format(
       "s3://%s/%s-%s:serviceaccount:%s:%s",
       module.storage.bucket_name,
@@ -524,7 +479,7 @@ resource "kubernetes_secret" "materialize_backends" {
       each.key
     )
     license_key                       = var.license_key
-    external_login_password_mz_system = var.external_login_password_mz_system # This should be set to your existing mz_system user passwordß
+    external_login_password_mz_system = var.external_login_password_mz_system # your existing mz_system password
   }
 
   depends_on = [
@@ -535,11 +490,10 @@ resource "kubernetes_secret" "materialize_backends" {
 }
 
 # -----------------------------------------------------------------------------
-# Materialize Instance Manifest (part of operator module in migrated state)
+# Materialize Instance Manifest
 # -----------------------------------------------------------------------------
-# State path: module.operator.kubernetes_manifest.materialize_instances["<instance_name>"]
-#
-# MIGRATION: Uses kubernetes_manifest (not kubectl_manifest) to match migrated state
+# State path: kubernetes_manifest.materialize_instances["<instance_name>"]
+# MIGRATION: kubernetes_manifest (not kubectl_manifest) to match the migrated state.
 
 resource "kubernetes_manifest" "materialize_instances" {
   for_each = local.materialize_instances
@@ -603,11 +557,10 @@ resource "kubernetes_manifest" "materialize_instances" {
 }
 
 # -----------------------------------------------------------------------------
-# Data Source: Materialize Instances (part of operator module in migrated state)
+# Data Source: Materialize Instances
 # -----------------------------------------------------------------------------
-# State path: module.operator.kubernetes_resource.materialize_instances["<instance_name>"]
-#
-# MIGRATION: Data source to retrieve instance resource IDs (used by NLB module)
+# State path: data.kubernetes_resource.materialize_instances["<instance_name>"]
+# Provides the instance resource IDs used by the NLB module.
 
 data "kubernetes_resource" "materialize_instances" {
   for_each = local.materialize_instances
@@ -626,9 +579,8 @@ data "kubernetes_resource" "materialize_instances" {
 # -----------------------------------------------------------------------------
 # Moved Blocks for Migration
 # -----------------------------------------------------------------------------
-# These moved blocks automatically migrate resources from the old operator module
-# structure to the new root-level structure during terraform apply.
-# After migration is complete and verified, these blocks can be removed.
+# Move instance resources from the old operator module to the root on apply.
+# Safe to remove once the migration is applied and verified.
 
 moved {
   from = module.operator.kubernetes_namespace.instance_namespaces
@@ -659,8 +611,7 @@ moved {
 # Network Load Balancer
 # -----------------------------------------------------------------------------
 # State path: module.nlb["<instance_name>"].*
-#
-# MIGRATION: This uses for_each to match the migrated state structure
+# MIGRATION: for_each matches the migrated state structure.
 
 module "nlb" {
   for_each = local.materialize_instances
@@ -668,9 +619,8 @@ module "nlb" {
 
   instance_name = each.key
   name_prefix   = var.name_prefix
-  # MIGRATION: Preserve old NLB naming pattern: ${name_prefix}-${instance_name}
-  # This avoids NLB recreation during migration. After migration is verified,
-  # you can remove this line to use the new name_prefix-based naming.
+  # MIGRATION: keeps the old NLB name; removing this line renames and so
+  # recreates the NLB.
   nlb_name                         = "${var.name_prefix}-${each.key}"
   namespace                        = each.value.namespace
   subnet_ids                       = var.internal_load_balancer ? module.networking.private_subnet_ids : module.networking.public_subnet_ids
@@ -680,8 +630,7 @@ module "nlb" {
   mz_resource_id                   = data.kubernetes_resource.materialize_instances[each.key].object.status.resourceId
   node_security_group_id           = module.eks.node_security_group_id
   ingress_cidr_blocks              = var.ingress_cidr_blocks
-  # MIGRATION: Old NLBs didn't have security groups. Adding one forces NLB recreation.
-  # After migration is verified, set to true to enable NLB security groups.
+  # MIGRATION: old NLBs had no security group and adding one recreates the NLB.
   create_security_group = false
 
   depends_on = [module.operator]
@@ -695,11 +644,8 @@ locals {
   materialize_instance_namespace = var.materialize_instance_namespace
   materialize_instance_name      = var.materialize_instance_name
 
-  # Map of materialize instances for for_each loops
-  # MIGRATION: If you have multiple instances, add them here.
-  # database_name: The database name used in the old module's metadata_backend_url.
-  #   Old module used: coalesce(instance.database_name, instance.name)
-  #   If you didn't set database_name explicitly, it defaults to the instance name.
+  # MIGRATION: add any other existing instances here. database_name must match
+  # the old module's coalesce(instance.database_name, instance.name).
   materialize_instances = {
     (local.materialize_instance_name) = {
       namespace     = local.materialize_instance_namespace
@@ -711,9 +657,9 @@ locals {
     "workload" = "system" # MIGRATION: Match old module label. Change to "base" after migration.
   }
 
-  # MIGRATION: Set to "system" to match old node labels. The old module didn't set
-  # nodeSelectors on helm releases, so pods ran on system nodes. After migration,
-  # change to "generic" and add dedicated generic nodes (or use Karpenter).
+  # MIGRATION: "system" because the old module set no nodeSelectors, so these pods
+  # ran on system nodes. After migration, switch to "generic" with dedicated nodes
+  # (or Karpenter).
   generic_node_labels = {
     "workload" = "system"
   }

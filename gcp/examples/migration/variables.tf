@@ -7,12 +7,9 @@ variable "project_id" {
   type        = string
 }
 
-# Deliberately still us-central1, unlike the simple and enterprise examples
-# which now default to us-east1. This example adopts an EXISTING deployment
-# into new state, so the default must describe where that deployment already
-# is, not where new deployments should go. Deployments created under the old
-# default are in us-central1, so guessing us-east1 here would make Terraform
-# plan brand-new resources instead of adopting the existing ones.
+# us-central1, not us-east1 like the other examples: existing deployments were
+# created under the old us-central1 default, and a different region would make
+# Terraform plan new resources instead of adopting them.
 variable "region" {
   description = "The GCP region where resources are deployed. Must match your existing deployment; verify with `gcloud container clusters list --format=\"value(location)\"`."
   type        = string

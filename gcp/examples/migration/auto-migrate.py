@@ -34,7 +34,7 @@ class GCPStateMigrator(BaseStateMigrator):
     def _build_rules(self) -> List[MigrationRule]:
         return [
             # =================================================================
-            # Networking — move from module to root (inline in migration config)
+            # Networking: module to root (inline in migration config)
             # =================================================================
             MigrationRule(
                 pattern=r'^module\.networking\.(.+)$',
@@ -43,16 +43,14 @@ class GCPStateMigrator(BaseStateMigrator):
             ),
 
             # =================================================================
-            # GKE — move from module to root (inline in migration config)
+            # GKE: module to root (inline in migration config)
             # =================================================================
-            # Rename the system node pool to match migration config
             MigrationRule(
                 pattern=r'^module\.gke\.google_container_node_pool\.primary_nodes$',
                 transform=lambda m: 'google_container_node_pool.system',
                 description="Move and rename GKE system node pool to root"
             ),
 
-            # Move other GKE resources to root
             MigrationRule(
                 pattern=r'^module\.gke\.(.+)$',
                 transform=lambda m: m.group(1),
@@ -60,7 +58,7 @@ class GCPStateMigrator(BaseStateMigrator):
             ),
 
             # =================================================================
-            # Database — move from module to root (inline in migration config)
+            # Database: module to root (inline in migration config)
             # =================================================================
             MigrationRule(
                 pattern=r'^module\.database\.time_sleep\.wait_for_vpc$',
@@ -75,7 +73,7 @@ class GCPStateMigrator(BaseStateMigrator):
             ),
 
             # =================================================================
-            # Materialize Nodepool — keep same module paths
+            # Materialize nodepool: same module paths
             # =================================================================
             MigrationRule(
                 pattern=r'^(module\.materialize_nodepool\..+)$',
@@ -83,7 +81,7 @@ class GCPStateMigrator(BaseStateMigrator):
                 description="Keep materialize nodepool path unchanged"
             ),
 
-            # Handle legacy swap_nodepool[0] name (before old module's moved block)
+            # Legacy name from before the old module's moved block
             MigrationRule(
                 pattern=r'^module\.swap_nodepool\[0\]\.(.+)$',
                 transform=lambda m: f'module.materialize_nodepool.{m.group(1)}',
@@ -91,7 +89,7 @@ class GCPStateMigrator(BaseStateMigrator):
             ),
 
             # =================================================================
-            # Storage — keep same module paths (old and new are identical)
+            # Storage: same module paths (old and new are identical)
             # =================================================================
             MigrationRule(
                 pattern=r'^(module\.storage\..+)$',
@@ -100,24 +98,21 @@ class GCPStateMigrator(BaseStateMigrator):
             ),
 
             # =================================================================
-            # Certificates → cert_manager + self_signed_cluster_issuer
+            # Certificates: split into cert_manager + self_signed_cluster_issuer
             # =================================================================
-            # Skip self-signed cert resources (kubernetes_manifest → kubectl_manifest type change)
-            # kubectl_manifest will adopt the existing K8s resources with zero disruption.
+            # kubectl_manifest adopts the existing K8s resources with zero disruption.
             MigrationRule(
                 pattern=r'^module\.certificates\.kubernetes_manifest\.(self_signed_cluster_issuer|self_signed_root_ca_certificate|root_ca_cluster_issuer)\[0\]$',
                 transform=lambda m: None,
                 description="Skip self-signed cert resources (type change kubernetes_manifest→kubectl_manifest)"
             ),
 
-            # Move cert-manager namespace (remove [0] count index)
             MigrationRule(
                 pattern=r'^module\.certificates\.kubernetes_namespace\.cert_manager\[0\]$',
                 transform=lambda m: 'module.cert_manager.kubernetes_namespace.cert_manager',
                 description="Move cert-manager namespace to cert_manager module"
             ),
 
-            # Move cert-manager helm release (remove [0] count index)
             MigrationRule(
                 pattern=r'^module\.certificates\.helm_release\.cert_manager\[0\]$',
                 transform=lambda m: 'module.cert_manager.helm_release.cert_manager',
@@ -125,44 +120,38 @@ class GCPStateMigrator(BaseStateMigrator):
             ),
 
             # =================================================================
-            # Operator — remove [0] index (old used count, new is direct)
+            # Operator: drop the [0] index (old used count)
             # =================================================================
-            # Skip metrics server (GKE has built-in)
             MigrationRule(
                 pattern=r'^module\.operator\[0\]\.helm_release\.metrics_server.*$',
                 transform=lambda m: None,
                 description="Skip metrics server helm release (GKE has built-in)"
             ),
 
-            # Move instance namespace to materialize_instance module
             MigrationRule(
                 pattern=r'^module\.operator\[0\]\.kubernetes_namespace\.instance_namespaces\[.+?\]$',
                 transform=lambda m: 'module.materialize_instance.kubernetes_namespace.instance[0]',
                 description="Move instance namespace to materialize_instance module"
             ),
 
-            # Move instance backend secret to materialize_instance module
             MigrationRule(
                 pattern=r'^module\.operator\[0\]\.kubernetes_secret\.materialize_backends\[.+?\]$',
                 transform=lambda m: 'module.materialize_instance.kubernetes_secret.materialize_backend',
                 description="Move backend secret to materialize_instance module"
             ),
 
-            # Skip instance manifests (type change kubernetes_manifest → kubectl_manifest)
             MigrationRule(
                 pattern=r'^module\.operator\[0\]\.kubernetes_manifest\.materialize_instances\[.+?\]$',
                 transform=lambda m: None,
                 description="Skip Materialize instance manifest (type change kubernetes_manifest→kubectl_manifest)"
             ),
 
-            # Skip db init jobs (not in new module)
             MigrationRule(
                 pattern=r'^module\.operator\[0\]\.kubernetes_job\.db_init_job\[.+?\]$',
                 transform=lambda m: None,
                 description="Skip db init job (not in new module)"
             ),
 
-            # Move operator namespaces and helm release (remove [0])
             MigrationRule(
                 pattern=r'^module\.operator\[0\]\.(.+)$',
                 transform=lambda m: f'module.operator.{m.group(1)}',
@@ -170,7 +159,7 @@ class GCPStateMigrator(BaseStateMigrator):
             ),
 
             # =================================================================
-            # Load Balancers — remove for_each key
+            # Load balancers: drop the for_each key
             # =================================================================
             MigrationRule(
                 pattern=r'^module\.load_balancers\[.+?\]\.(.+)$',
@@ -179,7 +168,7 @@ class GCPStateMigrator(BaseStateMigrator):
             ),
 
             # =================================================================
-            # Data sources — skip (will be recreated automatically)
+            # Data sources: skipped, recreated automatically
             # =================================================================
             MigrationRule(
                 pattern=r'^(.*\.)?data\..*$',
@@ -234,7 +223,6 @@ class GCPStateMigrator(BaseStateMigrator):
                             old_values['project_id'] = project
                             break
 
-        # Build tfvars content
         tfvars_content = '''# =============================================================================
 # Terraform Variables
 # =============================================================================
@@ -252,9 +240,7 @@ class GCPStateMigrator(BaseStateMigrator):
         if 'region' in old_values:
             tfvars_content += f'region = "{old_values["region"]}"\n'
         else:
-            # us-central1, not the us-east1 default used for new deployments:
-            # this fallback only fires when the old state had no region, and
-            # that old deployment is where it already is, not where new ones go.
+            # Old deployments defaulted to us-central1 (new ones use us-east1).
             tfvars_content += 'region = "us-central1"  # TODO: Update this\n'
 
         if 'prefix' in old_values:

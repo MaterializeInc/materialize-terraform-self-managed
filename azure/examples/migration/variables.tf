@@ -1,10 +1,8 @@
 # =============================================================================
 # Migration Reference Variables
 # =============================================================================
-#
-# Update these variables to match your existing infrastructure.
-# Set values in terraform.tfvars (see terraform.tfvars.example).
-#
+# Match these to your existing infrastructure in terraform.tfvars (see
+# terraform.tfvars.example).
 # =============================================================================
 
 # -----------------------------------------------------------------------------

@@ -1,31 +1,14 @@
 # =============================================================================
 # Migration Reference Configuration
 # =============================================================================
-#
-# This file migrates from the old monolithic Azure module (azure-old/) to the
-# new modular architecture (azure/modules/* + kubernetes/modules/*).
-#
-# MIGRATION STRATEGY FOR ZERO-DOWNTIME
-# =============================================================================
-#
-# Infrastructure resources (networking, AKS, database) are defined INLINE
-# to preserve exact configuration and avoid breaking changes:
-#
-# 1. AKS cluster: The new AKS module changes outbound_type to NAT gateway
-#    and network_policy to cilium - both force cluster recreation. Inline
-#    preserves the existing cluster configuration exactly.
-#
-# 2. Networking: The new module uses Azure Verified Module (AVM) for VNet
-#    with NAT gateway. Inline avoids AVM nested state and NAT gateway.
-#
-# 3. Database: The old module names servers {prefix}-{random}-pg. The new
-#    module uses {prefix}-pg. Inline preserves the random naming.
-#
-# After migration, you can gradually adopt new modules:
-# - Switch to new AKS module (with NAT gateway + cilium)
-# - Switch to new networking module (with AVM)
-# - Migrate database to new module
-#
+# Migrates from the old monolithic Azure module (azure-old/) to azure/modules/*
+# and kubernetes/modules/*. For zero downtime these stay INLINE:
+# 1. AKS: the new module's NAT gateway outbound_type and cilium network policy
+#    both force cluster recreation.
+# 2. Networking: the new module uses the AVM VNet module and a NAT gateway.
+# 3. Database: the old server name is {prefix}-{random}-pg, the new module's is
+#    {prefix}-pg.
+# After migration you can move these to the new modules one at a time.
 # =============================================================================
 
 # -----------------------------------------------------------------------------
@@ -62,11 +45,9 @@ provider "helm" {
   }
 }
 
-# lazy_load = true lets alekc/kubectl v2.4.0+ defer kubeconfig resolution
-# (which is strict at provider-configure since v2.3.0) until first use. Without
-# it, same-root cluster-plus-manifests applies fail at plan with an empty REST
-# config because the cluster resource's outputs are unknown before it exists.
-# See: https://registry.terraform.io/providers/alekc/kubectl/latest/docs#troubleshooting
+# lazy_load (alekc/kubectl v2.4.0+) defers kubeconfig resolution until first use.
+# Without it, plans fail with an empty REST config while cluster outputs are unknown.
+# See https://registry.terraform.io/providers/alekc/kubectl/latest/docs#troubleshooting
 provider "kubectl" {
   host                   = azurerm_kubernetes_cluster.aks.kube_config[0].host
   client_certificate     = base64decode(azurerm_kubernetes_cluster.aks.kube_config[0].client_certificate)
@@ -78,7 +59,7 @@ provider "kubectl" {
 }
 
 # -----------------------------------------------------------------------------
-# Resource Group (existing — data source, not created)
+# Resource Group (existing, read as a data source)
 # -----------------------------------------------------------------------------
 
 data "azurerm_resource_group" "materialize" {
@@ -86,7 +67,7 @@ data "azurerm_resource_group" "materialize" {
 }
 
 # -----------------------------------------------------------------------------
-# Networking (INLINE — preserves old module resources exactly)
+# Networking (INLINE, preserves the old module resources)
 # -----------------------------------------------------------------------------
 # State paths after migration:
 #   azurerm_virtual_network.vnet
@@ -152,7 +133,7 @@ resource "azurerm_private_dns_zone_virtual_network_link" "postgres" {
 }
 
 # -----------------------------------------------------------------------------
-# AKS Cluster (INLINE — preserves old cluster config exactly)
+# AKS Cluster (INLINE, preserves the old cluster config)
 # -----------------------------------------------------------------------------
 # State paths after migration:
 #   azurerm_user_assigned_identity.aks_identity
@@ -161,11 +142,9 @@ resource "azurerm_private_dns_zone_virtual_network_link" "postgres" {
 #   azurerm_kubernetes_cluster.aks
 #   azurerm_kubernetes_cluster_node_pool.system
 #
-# MIGRATION: The old AKS module used:
-#   - network_plugin = "azure", network_policy = "azure" (no cilium)
-#   - No outbound_type (defaults to loadBalancer, no NAT gateway)
-#   - A separate "materialize" node pool for system workloads
-# These are preserved exactly to avoid cluster recreation.
+# MIGRATION: the old AKS module used network_plugin and network_policy "azure",
+# no outbound_type (loadBalancer) and a separate "materialize" node pool for
+# system workloads. Kept as is to avoid cluster recreation.
 
 resource "azurerm_user_assigned_identity" "aks_identity" {
   name                = "${var.name_prefix}-aks-identity"
@@ -218,9 +197,8 @@ resource "azurerm_kubernetes_cluster" "aks" {
   oidc_issuer_enabled       = true
   workload_identity_enabled = true
 
-  # MIGRATION: Matches old module's network configuration exactly.
-  # Do NOT change network_plugin, network_policy, or add outbound_type —
-  # these changes force AKS cluster recreation.
+  # MIGRATION: changing network_plugin or network_policy, or adding
+  # outbound_type, recreates the cluster.
   network_profile {
     network_plugin = "azure"
     network_policy = "azure"
@@ -235,9 +213,8 @@ resource "azurerm_kubernetes_cluster" "aks" {
   ]
 }
 
-# MIGRATION: The old AKS module had a separate "materialize" node pool
-# for system workloads. This preserves it as "system" to avoid losing
-# the nodes that run system pods.
+# MIGRATION: the old AKS module's "materialize" node pool, which runs system
+# pods. Kept (as "system" in state) so those nodes are not lost.
 resource "azurerm_kubernetes_cluster_node_pool" "system" {
   name                        = substr(replace(var.name_prefix, "-", ""), 0, 12)
   temporary_name_for_rotation = "${substr(replace(var.name_prefix, "-", ""), 0, 12)}2"
@@ -285,8 +262,7 @@ module "materialize_nodepool" {
   disk_size_gb = var.materialize_node_pool_disk_size_gb
   swap_enabled = true
 
-  # MIGRATION: Pin disk setup image to match old module version.
-  # The new module defaults to v0.4.1 but old used v0.4.0.
+  # MIGRATION: the old module used v0.4.0; the module default is v0.4.1.
   disk_setup_image = var.disk_setup_image
 
   labels = local.common_labels
@@ -296,7 +272,7 @@ module "materialize_nodepool" {
 }
 
 # -----------------------------------------------------------------------------
-# Database (INLINE — preserves old {prefix}-{random}-pg naming)
+# Database (INLINE, preserves the old {prefix}-{random}-pg naming)
 # -----------------------------------------------------------------------------
 # State paths after migration:
 #   random_string.postgres_name_suffix
@@ -350,9 +326,8 @@ resource "azurerm_postgresql_flexible_server_database" "materialize" {
 # -----------------------------------------------------------------------------
 # State path: module.storage.*
 #
-# MIGRATION: Same resources as old module (storage account, container,
-# random_string, role_assignment) PLUS new federated identity credential
-# for workload identity. Old key vault and SAS tokens are dropped.
+# MIGRATION: the old module's resources plus a new federated identity
+# credential for workload identity. The old Key Vault and SAS tokens are dropped.
 
 module "storage" {
   source = "../../modules/storage"
@@ -371,9 +346,8 @@ module "storage" {
   service_account_namespace = local.materialize_instance_namespace
   service_account_name      = local.materialize_instance_name
 
-  # MIGRATION: Old module used "Allow" as default_action for network rules.
-  # The new module defaults to "Deny" (more secure). We preserve "Allow" to
-  # avoid changes during migration. You can switch to "Deny" post-migration.
+  # MIGRATION: the old module used "Allow"; the module default is the more
+  # secure "Deny". You can switch after migration.
   network_rules_default_action = "Allow"
 
   storage_account_tags = local.common_labels
@@ -386,9 +360,8 @@ module "storage" {
 # -----------------------------------------------------------------------------
 # State path: module.cert_manager.*
 #
-# MIGRATION: Renamed from module.certificates → module.cert_manager.
-# The cert-manager namespace and helm release are state-moved.
-# Self-signed issuer resources are skipped (type change to kubectl_manifest).
+# MIGRATION: was module.certificates. The namespace and helm release are moved;
+# the self-signed issuer resources are skipped (now kubectl_manifest).
 
 module "cert_manager" {
   source = "../../../kubernetes/modules/cert-manager"
@@ -396,8 +369,7 @@ module "cert_manager" {
   # MIGRATION: Match old module's chart version to avoid unintended upgrades.
   chart_version = var.cert_manager_chart_version
 
-  # MIGRATION: Old module didn't set node_selector for cert-manager.
-  # Leave empty to match old behavior.
+  # MIGRATION: empty, as in the old module.
   node_selector = {}
 
   depends_on = [
@@ -422,24 +394,19 @@ module "self_signed_cluster_issuer" {
 # -----------------------------------------------------------------------------
 # State path: module.operator.*
 #
-# MIGRATION: The old module used an external GitHub source with count.
-# The new module is local. State migration removes the [0] index.
+# MIGRATION: the old external module used count; auto-migrate.py drops the [0] index.
 
 module "operator" {
   source = "../../modules/operator"
 
-  # MIGRATION: The old module named the helm release "${namespace}-${environment}"
-  # which defaults to "materialize-${prefix}". The new module uses name_prefix
-  # directly as the helm release name. We pass the old combined name here to
-  # avoid a helm release replacement (destroy + recreate), but note that an
-  # operator replacement is generally fine — it's just a controller and any
-  # brief downtime does not affect running Materialize instances.
+  # MIGRATION: name_prefix is the helm release name. Keep the old one
+  # ("${namespace}-${environment}", by default "materialize-${prefix}") to avoid replacing it.
+  # A replacement is usually harmless: the operator is a controller and instances keep running.
   name_prefix      = "materialize-${var.name_prefix}"
   operator_version = var.operator_version
   location         = var.location
 
-  # MIGRATION: Old module didn't set node selectors or tolerations
-  # for the operator pod or instance workloads via the operator.
+  # MIGRATION: the old module set no operator node selectors or tolerations.
   instance_pod_tolerations = []
   instance_node_selector   = {}
   operator_node_selector   = {}
@@ -447,13 +414,9 @@ module "operator" {
   # AKS has built-in metrics server
   install_metrics_server = false
 
-  # MIGRATION: Pass TLS and environmentd configuration via helm_values to match
-  # old module behavior. The old module configured:
-  # - TLS via defaultCertificateSpecs
-  # - environmentd nodeSelector to schedule on swap-enabled nodes
-  # The new operator module's instance_node_selector applies to ALL workloads
-  # (environmentd, clusterd, balancerd, console), but the old module only set it
-  # for environmentd. We pass it via helm_values to match exactly.
+  # MIGRATION: the old module set TLS via defaultCertificateSpecs and a swap node
+  # nodeSelector for environmentd only. instance_node_selector would apply to all
+  # workloads (clusterd, balancerd, console too), so use helm_values instead.
   helm_values = merge(
     {
       environmentd = {
@@ -502,9 +465,9 @@ module "operator" {
 # -----------------------------------------------------------------------------
 # State path: module.materialize_instance.*
 #
-# MIGRATION: Instance resources moved from old operator module to this
-# dedicated module. Uses kubectl_manifest (not kubernetes_manifest),
-# so the CRD resource is created fresh but adopts the existing K8s resource.
+# MIGRATION: namespace and backend secret move here from the old operator
+# module. The instance manifest changed to kubectl_manifest, which adopts the
+# existing Materialize resource without disruption.
 
 module "materialize_instance" {
   source             = "../../../kubernetes/modules/materialize-instance"
@@ -514,11 +477,9 @@ module "materialize_instance" {
   metadata_backend_url = local.metadata_backend_url
   persist_backend_url  = local.persist_backend_url
 
-  # The password for the external login to the Materialize instance
   authenticator_kind                = "Password"
   external_login_password_mz_system = var.external_login_password_mz_system
 
-  # Azure workload identity annotations for service account
   service_account_annotations = {
     "azure.workload.identity/client-id" = azurerm_user_assigned_identity.workload_identity.client_id
   }
@@ -553,7 +514,7 @@ module "materialize_instance" {
 # -----------------------------------------------------------------------------
 # State path: module.load_balancers.*
 #
-# MIGRATION: Old module used for_each on instances. New uses direct call.
+# MIGRATION: the old module used for_each; auto-migrate.py drops the key.
 
 module "load_balancers" {
   source = "../../modules/load_balancers"
@@ -570,10 +531,10 @@ module "load_balancers" {
 }
 
 # -----------------------------------------------------------------------------
-# CoreDNS (COMMENTED OUT — new feature, not in old setup)
+# CoreDNS (commented out, not in the old setup)
 # -----------------------------------------------------------------------------
-# MIGRATION: CoreDNS module is new. AKS manages CoreDNS by default.
-# After migration is verified, uncomment to manage CoreDNS via Terraform.
+# MIGRATION: AKS manages CoreDNS by default. Uncomment after migration is
+# verified to manage it with Terraform.
 #
 # module "coredns" {
 #   source          = "../../../kubernetes/modules/coredns"
@@ -592,17 +553,14 @@ locals {
   materialize_instance_namespace = var.materialize_instance_namespace
   materialize_instance_name      = var.materialize_instance_name
 
-  # MIGRATION: Replicates old module's local.common_labels which always
-  # included managed_by and module keys. This is critical because these
-  # labels are used as node_labels on the materialize nodepool, and
-  # changing node_labels triggers a node pool rotation.
+  # MIGRATION: matches the old module's common_labels. They are node labels on
+  # the materialize nodepool, so changing them rotates the node pool.
   common_labels = merge(var.tags, {
     managed_by = "terraform"
     module     = "materialize"
   })
 
-  # MIGRATION: metadata_backend_url matches old module format exactly.
-  # Old module used: postgres://user:pass@host/db?sslmode=require
+  # MIGRATION: must match the old module's URL exactly.
   metadata_backend_url = format(
     "postgres://%s:%s@%s/%s?sslmode=require",
     var.database_username,
@@ -611,9 +569,7 @@ locals {
     var.database_name
   )
 
-  # MIGRATION: persist_backend_url changes from SAS token to workload identity.
-  # Old format: {blob_endpoint}{container}?{sas_token}
-  # New format: {blob_endpoint}{container} (auth via workload identity)
+  # MIGRATION: the old URL appended ?{sas_token}; auth is now via workload identity.
   persist_backend_url = format(
     "%s%s",
     module.storage.primary_blob_endpoint,

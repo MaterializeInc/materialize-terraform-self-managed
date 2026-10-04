@@ -1,27 +1,13 @@
 # =============================================================================
 # GCP Migration Configuration
 # =============================================================================
-#
-# This configuration is designed to accept Terraform state migrated from the
-# old monolithic GCP module (gcp-old/). Resources that cannot safely use the
-# new modules (due to breaking changes) are defined inline to preserve exact
-# resource configurations.
-#
-# INLINE (preserves old config, avoids recreation):
+# Accepts state migrated from the old monolithic GCP module (gcp-old/).
+# Resources whose new modules would force recreation are defined inline:
 #   - Networking: VPC, subnet, route, VPC peering
 #   - GKE: cluster, service accounts, workload identity binding
 #   - System node pool: from old GKE module
 #   - Database: Cloud SQL instance, database, user
-#
-# MODULES (compatible structure):
-#   - materialize_nodepool: gcp/modules/nodepool
-#   - storage: gcp/modules/storage
-#   - cert_manager: kubernetes/modules/cert-manager
-#   - self_signed_cluster_issuer: kubernetes/modules/self-signed-cluster-issuer
-#   - operator: gcp/modules/operator
-#   - materialize_instance: kubernetes/modules/materialize-instance
-#   - load_balancers: gcp/modules/load_balancers
-#
+# Everything else uses the shared modules.
 # =============================================================================
 
 # =============================================================================
@@ -31,10 +17,8 @@
 provider "google" {
   project = var.project_id
   region  = var.region
-  # NOTE: The old module did NOT use default_labels on the provider.
-  # Adding it here would cause unnecessary label diffs on resources that
-  # never had labels (VPC, subnet, route, etc.). Labels are applied
-  # explicitly on resources that need them (Cloud SQL, GCS, node pools).
+  # No default_labels, as in the old module: they would add label diffs to
+  # resources that never had labels. Labels are set per resource instead.
 }
 
 # Used by the nodepool module for autoscaled blue-green upgrade settings,
@@ -60,11 +44,9 @@ provider "helm" {
   }
 }
 
-# lazy_load = true lets alekc/kubectl v2.4.0+ defer kubeconfig resolution
-# (which is strict at provider-configure since v2.3.0) until first use. Without
-# it, same-root cluster-plus-manifests applies fail at plan with an empty REST
-# config because the cluster resource's outputs are unknown before it exists.
-# See: https://registry.terraform.io/providers/alekc/kubectl/latest/docs#troubleshooting
+# lazy_load (alekc/kubectl v2.4.0+) defers kubeconfig resolution until first use.
+# Without it, plans fail with an empty REST config while cluster outputs are unknown.
+# See https://registry.terraform.io/providers/alekc/kubectl/latest/docs#troubleshooting
 provider "kubectl" {
   host                   = "https://${google_container_cluster.primary.endpoint}"
   token                  = data.google_client_config.default.access_token
@@ -79,8 +61,7 @@ provider "kubectl" {
 # =============================================================================
 
 locals {
-  # Matches the old module's common_labels pattern exactly.
-  # Changing labels on GKE node pools would cause node rotation.
+  # Matches the old module's common_labels; changing node pool labels rotates nodes.
   common_labels = merge(var.labels, {
     managed_by = "terraform"
     module     = "materialize"
@@ -119,9 +100,8 @@ locals {
 # =============================================================================
 # INLINE: Networking
 # =============================================================================
-# Preserves the exact old networking module resources.
-# The new networking module uses terraform-google-modules (different state
-# paths and adds Cloud NAT), which would force resource recreation.
+# The new networking module wraps terraform-google-modules (different state
+# paths, adds Cloud NAT), which would force recreation.
 # =============================================================================
 
 resource "google_compute_network" "vpc" {
@@ -200,10 +180,8 @@ resource "google_service_networking_connection" "private_vpc_connection" {
 # =============================================================================
 # INLINE: GKE Cluster & Service Accounts
 # =============================================================================
-# Preserves the exact old GKE module resources.
-# The new GKE module adds private_cluster_config, master_authorized_networks,
-# disable_l4_lb_firewall_reconciliation, and enable_l4_ilb_subsetting which
-# could trigger cluster updates or recreation.
+# The new GKE module adds private_cluster_config, master_authorized_networks
+# and L4 LB settings, which could update or recreate the cluster.
 # =============================================================================
 
 resource "google_service_account" "gke_sa" {
@@ -266,7 +244,7 @@ resource "google_container_cluster" "primary" {
   }
 }
 
-# System node pool — from old GKE module's google_container_node_pool.primary_nodes
+# System node pool, from the old GKE module's google_container_node_pool.primary_nodes
 resource "google_container_node_pool" "system" {
   provider = google
 
@@ -320,9 +298,8 @@ resource "google_service_account_iam_binding" "workload_identity" {
 # =============================================================================
 # INLINE: Database (Cloud SQL)
 # =============================================================================
-# Preserves the exact old database module resources.
-# The new database module uses terraform-google-modules/sql-db/google which
-# has completely different internal state paths.
+# The new database module wraps terraform-google-modules/sql-db, which has
+# different state paths.
 # =============================================================================
 
 resource "time_sleep" "wait_for_vpc" {
@@ -393,11 +370,8 @@ resource "google_sql_user" "materialize" {
 # =============================================================================
 # MODULE: Materialize Node Pool
 # =============================================================================
-# The nodepool module's google_container_node_pool resource has the same
-# structure as the old module, except that it now configures blue-green
-# upgrade settings, which are applied in-place (non-disruptive). The
-# kubernetes resources (disk setup daemonset) will be recreated with shorter
-# names but that's non-disruptive.
+# Same node pool as the old module, plus blue-green upgrade settings that
+# apply in place.
 # =============================================================================
 
 module "materialize_nodepool" {
@@ -422,16 +396,15 @@ module "materialize_nodepool" {
   # Pin to old version to avoid unintended daemonset image upgrade
   disk_setup_image = "materialize/ephemeral-storage-setup-image:v0.4.0"
 
-  # MIGRATION: The old module used "${prefix}-disk-setup" for disk setup
-  # resource names. The new module defaults to "disk-setup". We must pass
-  # the old name to avoid replacement of 5 Kubernetes resources.
+  # MIGRATION: the old "<prefix>-disk-setup" name (also the module default).
+  # A different name replaces the 5 disk setup Kubernetes resources.
   disk_setup_name = "${var.prefix}-mz-swap-disk-setup"
 }
 
 # =============================================================================
 # MODULE: Storage (GCS)
 # =============================================================================
-# Old and new storage modules are identical — same resources, same paths.
+# Same resources and state paths as the old storage module.
 # =============================================================================
 
 module "storage" {
@@ -450,8 +423,7 @@ module "storage" {
 # =============================================================================
 # MODULE: cert-manager
 # =============================================================================
-# Split from old certificates module.
-# Namespace and helm release are state-moved from module.certificates.
+# Split from the old certificates module; namespace and helm release are moved.
 # =============================================================================
 
 module "cert_manager" {
@@ -467,10 +439,9 @@ module "cert_manager" {
 # =============================================================================
 # MODULE: Self-Signed Cluster Issuer
 # =============================================================================
-# Split from old certificates module.
-# Uses kubectl_manifest (old used kubernetes_manifest), so these resources
-# are skipped during state migration and recreated fresh.
-# kubectl_manifest will adopt the existing Kubernetes CRDs.
+# Split from the old certificates module. The manifests changed from
+# kubernetes_manifest to kubectl_manifest, so the migration skips them and
+# kubectl_manifest adopts the existing Kubernetes resources on apply.
 # =============================================================================
 
 module "self_signed_cluster_issuer" {
@@ -488,26 +459,22 @@ module "self_signed_cluster_issuer" {
 # =============================================================================
 # MODULE: Materialize Operator
 # =============================================================================
-# Old used external GitHub module with count (module.operator[0]).
-# New uses local module without count (module.operator).
-# State paths are adjusted by the migration script.
+# The old external module used count; auto-migrate.py drops the [0] index.
 # =============================================================================
 
 module "operator" {
   source = "../../modules/operator"
 
-  # MIGRATION: The old module named the helm release "${namespace}-${environment}"
-  # which defaults to "materialize-${prefix}". The new module uses name_prefix
-  # directly as the helm release name. We must pass the old combined name to
-  # avoid a helm release REPLACEMENT (destroy + recreate).
+  # MIGRATION: name_prefix is the helm release name. Keep the old one
+  # ("${namespace}-${environment}", by default "materialize-${prefix}") to avoid replacing it.
+  # A replacement is usually harmless: the operator is a controller and instances keep running.
   name_prefix = "materialize-${var.prefix}"
   region      = var.region
 
   operator_version = var.operator_version
 
-  # MIGRATION: The old module hardcoded environmentd.nodeSelector to schedule
-  # environmentd pods on swap-enabled nodes. The new module defaults to {}.
-  # We must preserve the old value to avoid rescheduling pods.
+  # MIGRATION: the old module pinned environmentd to swap nodes; keep it to
+  # avoid rescheduling pods.
   helm_values = merge(
     {
       environmentd = {
@@ -560,10 +527,9 @@ module "operator" {
 # =============================================================================
 # MODULE: Materialize Instance
 # =============================================================================
-# Instance resources are moved from the old external operator module to this
-# dedicated instance module. kubernetes_manifest → kubectl_manifest type
-# change means the instance CRD is recreated (kubectl_manifest adopts the
-# existing K8s resource without disruption).
+# Namespace and backend secret move here from the old operator module. The
+# instance manifest changed to kubectl_manifest, which adopts the existing
+# Materialize resource without disruption.
 # =============================================================================
 
 module "materialize_instance" {
@@ -608,9 +574,8 @@ module "materialize_instance" {
 # =============================================================================
 # MODULE: Load Balancers
 # =============================================================================
-# Old used for_each on instances. New uses direct single-instance call.
-# State paths adjusted by migration script.
-# New module also creates firewall rules (not in old module — will be added).
+# The old module used for_each; auto-migrate.py drops the key. The firewall
+# rules are new and are created on apply.
 # =============================================================================
 
 module "load_balancers" {
@@ -632,10 +597,10 @@ module "load_balancers" {
 }
 
 # =============================================================================
-# CoreDNS — COMMENTED OUT
+# CoreDNS (commented out)
 # =============================================================================
-# CoreDNS is a new feature that replaces GKE's kube-dns with zero-TTL caching.
-# It is NOT part of the old setup. Uncomment after migration if desired.
+# Not part of the old setup. Replaces kube-dns with zero-TTL caching;
+# uncomment after migration if wanted.
 #
 # module "coredns" {
 #   source                                      = "../../../kubernetes/modules/coredns"
