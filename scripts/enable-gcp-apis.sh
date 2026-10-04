@@ -33,6 +33,7 @@ apis=(
   serviceusage.googleapis.com         # Required in order to enable any of the above
   sqladmin.googleapis.com             # Cloud SQL for PostgreSQL
   storage.googleapis.com              # Cloud Storage buckets and HMAC keys
+  telemetry.googleapis.com            # Monitoring's metrics export (enable_google_cloud_metrics)
 )
 
 echo "Enabling ${#apis[@]} APIs on ${project}..."

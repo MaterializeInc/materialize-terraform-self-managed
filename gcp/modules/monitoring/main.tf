@@ -218,7 +218,10 @@ resource "google_service_account" "gateway" {
 }
 
 # metricWriter is write-only: it can publish time series and create metric
-# descriptors, and cannot read anything back.
+# descriptors, and cannot read anything back. It is all the export needs: the
+# gateway writes OTLP to the Telemetry API (telemetry.googleapis.com), which
+# checks this role. That API has to be enabled on the project, which this module
+# leaves to the caller, as it does every other API.
 resource "google_project_iam_member" "gateway_metric_writer" {
   count = var.enable_google_cloud_metrics ? 1 : 0
 
@@ -315,7 +318,7 @@ module "monitoring" {
   #
   # v0.13.0 is where `grafana_database_*` and the chart's `grafana.ingress` /
   # `grafana.service` values land. This branch does not plan against v0.12.0.
-  source = "github.com/MaterializeInc/materialize-monitoring//terraform/modules/materialize-monitoring?ref=materialize-monitoring/v0.30.0"
+  source = "github.com/MaterializeInc/materialize-monitoring//terraform/modules/materialize-monitoring?ref=heather/DEP-331-otlp-gmp"
 
   namespace        = var.namespace
   create_namespace = var.create_namespace
@@ -398,9 +401,10 @@ module "monitoring" {
     } : {}
   }
 
+  # No prefix: the export writes `prometheus.googleapis.com/<name>/<kind>`
+  # whatever it is given, and `google_cloud_metrics_prefix` is deprecated.
   google_cloud_metrics = var.enable_google_cloud_metrics ? {
     min_importance = var.google_cloud_metrics_min_importance
-    prefix         = var.google_cloud_metrics_prefix
   } : null
 
   # Straight pass-through; the monitoring module validates the tiers, the OTLP
@@ -591,4 +595,14 @@ locals {
       coalesce(try(ing.hostname, null), try(ing.ip, null))
       if coalesce(try(ing.hostname, null), try(ing.ip, null), "") != ""
   ])
+}
+
+# `google_cloud_metrics_prefix` is accepted and ignored for a deprecation
+# window, so a root still setting it keeps planning. A warning rather than an
+# error, because nothing breaks: the export works, it just cannot honor a prefix.
+check "google_cloud_metrics_prefix" {
+  assert {
+    condition     = var.google_cloud_metrics_prefix == null
+    error_message = "google_cloud_metrics_prefix is deprecated and ignored. The Google Cloud export writes OTLP to the Telemetry API, which names every metric prometheus.googleapis.com/<name>/<kind>. Remove it."
+  }
 }
