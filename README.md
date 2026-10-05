@@ -191,6 +191,10 @@ Nothing changes when `enable_google_cloud_metrics` is false, the default. Before
 
 The new series carry `collected_by="materialize-monitoring"`, which tells them apart from GKE's own managed collection writing the same metric types. Counters start from zero at the gateway's first scrape, so their raw values differ from Thanos while `rate()` and `increase()` agree.
 
+##### Metrics sent to Datadog or an OTLP backend arrive typed
+
+All three `monitoring` modules move to materialize-monitoring [v0.31.0](https://github.com/MaterializeInc/materialize-monitoring/releases/tag/materialize-monitoring%2Fv0.31.0). Its gateway reads each target's metric types, so `datadog_metrics` and `otlp_metrics` now receive counters as counters and histograms as histograms rather than every series as a gauge. In Datadog a histogram becomes one distribution instead of separate `_bucket`, `_count` and `_sum` gauges, so dashboards and monitors built on the old gauges need updating. Thanos, and the Grafana dashboards reading it, are unchanged.
+
 #### v15.0.0
 
 ##### Azure defaults move off retiring VM series
