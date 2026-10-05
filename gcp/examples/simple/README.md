@@ -62,6 +62,7 @@ gcloud services enable servicenetworking.googleapis.com       # Private services
 gcloud services enable serviceusage.googleapis.com            # Required in order to enable any of the above
 gcloud services enable sqladmin.googleapis.com                # Cloud SQL for PostgreSQL
 gcloud services enable storage.googleapis.com                 # Cloud Storage buckets and HMAC keys
+gcloud services enable telemetry.googleapis.com               # Monitoring's metrics export (enable_google_cloud_metrics)
 ```
 
 Or enable all of them in one command with

@@ -180,10 +180,13 @@ variable "min_zones" {
 
 variable "enable_google_cloud_metrics" {
   description = <<-EOT
-    Also export metrics to Google Cloud Monitoring from the Alloy gateway. Thanos is unaffected.
+    Also export metrics to Google Cloud Managed Service for Prometheus from the Alloy gateway, over
+    OTLP to the Telemetry API. Thanos is unaffected. The series land as
+    `prometheus.googleapis.com/<name>/<kind>` metrics, queryable with PromQL in Cloud Monitoring.
 
     Creates a service account with `roles/monitoring.metricWriter` (write-only) and binds the
-    gateway's in-cluster ServiceAccount to it via Workload Identity.
+    gateway's in-cluster ServiceAccount to it via Workload Identity. The project needs the
+    `telemetry.googleapis.com` API enabled, which this module does not do.
   EOT
   type        = bool
   default     = false
@@ -191,14 +194,14 @@ variable "enable_google_cloud_metrics" {
 }
 
 variable "google_cloud_metrics_min_importance" {
-  description = "Metric tier to export: `essential`, `recommended`, `extended`, `diagnostic`, or `all`. Each tier includes the ones below it. A cost control — Cloud Monitoring bills per custom metric."
+  description = "Metric tier to export: `essential`, `recommended`, `extended`, `diagnostic`, or `all`. Each tier includes the ones below it. A cost control: Cloud Monitoring bills these metrics per sample ingested."
   type        = string
   default     = "recommended"
   nullable    = false
 }
 
 variable "google_cloud_metrics_prefix" {
-  description = "Metric name prefix in Cloud Monitoring. Null uses the chart's default (`workload.googleapis.com/mzmon`)."
+  description = "Deprecated and ignored. Every exported metric is `prometheus.googleapis.com/<name>/<kind>`, so there is no prefix to choose."
   type        = string
   default     = null
 }

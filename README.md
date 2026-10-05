@@ -177,6 +177,24 @@ We follow semantic versioning with our tags. If a particular version requires ad
 
 ### Upgrade Notes
 
+#### v15.1.0
+
+##### Google Cloud metrics export writes Prometheus metrics over OTLP
+
+With `enable_google_cloud_metrics = true`, the GCP `monitoring` module now sends metrics over OTLP to Google's [Telemetry API](https://docs.cloud.google.com/stackdriver/docs/otlp/overview). They land in Cloud Monitoring as `prometheus.googleapis.com/<name>/<kind>` metrics, queryable with PromQL, instead of `workload.googleapis.com/mzmon/<name>`. They are billed per sample ingested rather than per byte, which cost about a thirtieth as much for the same points on a test install.
+
+Nothing changes when `enable_google_cloud_metrics` is false, the default. Before applying with it on:
+
+- **Enable `telemetry.googleapis.com` on the project.** [`scripts/enable-gcp-apis.sh`](scripts/enable-gcp-apis.sh) now includes it. Without it the export is refused and nothing else fails, so the plan gives no warning. `roles/monitoring.metricWriter` is still the only role the export needs.
+- **Repoint anything reading `workload.googleapis.com/mzmon/...`**, such as Cloud Monitoring charts or alerting policies, at the new metric types. The old types stop receiving points but are not deleted.
+- **Remove `google_cloud_metrics_prefix`.** It is deprecated and ignored, because the Telemetry API has no prefix to choose, and a plan that sets it warns.
+
+The new series carry `collected_by="materialize-monitoring"`, which tells them apart from GKE's own managed collection writing the same metric types. Counters start from zero at the gateway's first scrape, so their raw values differ from Thanos while `rate()` and `increase()` agree.
+
+##### Metrics sent to Datadog or an OTLP backend arrive typed
+
+All three `monitoring` modules move to materialize-monitoring [v0.31.0](https://github.com/MaterializeInc/materialize-monitoring/releases/tag/materialize-monitoring%2Fv0.31.0). Its gateway reads each target's metric types, so `datadog_metrics` and `otlp_metrics` now receive counters as counters and histograms as histograms rather than every series as a gauge. In Datadog a histogram becomes one distribution instead of separate `_bucket`, `_count` and `_sum` gauges, so dashboards and monitors built on the old gauges need updating. Thanos, and the Grafana dashboards reading it, are unchanged.
+
 #### v15.0.0
 
 ##### Azure defaults move off retiring VM series
