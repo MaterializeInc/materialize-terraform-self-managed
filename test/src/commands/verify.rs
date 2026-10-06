@@ -59,11 +59,12 @@ pub async fn phase_verify(dir: &Path) -> Result<()> {
             println!("\nVerifying Materialize SQL connectivity via port-forward...");
             verify_sql_connection_via_port_forward(&kubeconfig, instance_namespace, &outputs)
                 .await?;
-        } else if let Some(endpoint) = outputs.load_balancer_endpoint() {
+        } else {
+            let endpoint = outputs
+                .load_balancer_endpoint()
+                .context("Missing terraform output: load balancer endpoint")?;
             println!("\nVerifying Materialize SQL connectivity at {endpoint}...");
             verify_sql_connection(endpoint, &outputs).await?;
-        } else {
-            println!("\nSkipping SQL connectivity check (no load balancer endpoint found).");
         }
 
         write_lifecycle(dir, "verify", "completed").await?;

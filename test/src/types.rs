@@ -151,7 +151,7 @@ pub struct TerraformOutputs {
     #[serde(default)]
     pub nlb_dns_name: Option<TfOutput<String>>,
     #[serde(default)]
-    pub load_balancer_ip: Option<TfOutput<String>>,
+    pub balancerd_load_balancer_ip: Option<TfOutput<String>>,
 
     #[serde(default)]
     pub external_login_password_mz_system: Option<TfOutput<String>>,
@@ -180,7 +180,11 @@ impl TerraformOutputs {
         self.nlb_dns_name
             .as_ref()
             .map(|o| o.value.as_str())
-            .or_else(|| self.load_balancer_ip.as_ref().map(|o| o.value.as_str()))
+            .or_else(|| {
+                self.balancerd_load_balancer_ip
+                    .as_ref()
+                    .map(|o| o.value.as_str())
+            })
     }
 
     pub fn mz_password(&self) -> Result<&str> {
