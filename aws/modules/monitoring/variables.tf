@@ -500,9 +500,10 @@ variable "grafana_database" {
   }
 }
 
-# The five below point Grafana at a database this module does not create. They
-# are forwarded to the monitoring module untouched, and are mutually exclusive
-# with `grafana_database`.
+# The six below configure Grafana's database. `grafana_database_host` and
+# `grafana_database_port` point Grafana at a database this module does not
+# create, and are mutually exclusive with `grafana_database`. The other four
+# also apply to the database `grafana_database` creates.
 
 variable "grafana_database_host" {
   description = "Hostname of an existing PostgreSQL database for Grafana's state. Mutually exclusive with `grafana_database`. Host only — the port is `grafana_database_port`."

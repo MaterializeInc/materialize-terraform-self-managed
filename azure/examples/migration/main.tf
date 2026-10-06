@@ -532,7 +532,7 @@ module "operator" {
 #
 # MIGRATION: Instance resources moved from old operator module to this
 # dedicated module. Uses kubectl_manifest (not kubernetes_manifest),
-# so the CRD resource is created fresh but adopts the existing K8s resource.
+# so the Materialize resource is created fresh but adopts the existing K8s resource.
 
 module "materialize_instance" {
   source             = "../../../kubernetes/modules/materialize-instance"

@@ -55,7 +55,7 @@ module "vpc_endpoints" {
   security_group_ids = var.enable_vpc_endpoints ? [aws_security_group.vpc_endpoints[0].id] : []
 
   endpoints = {
-    # we store metadata in s3 all pod requests go through this endpoint
+    # we store Persist blob data in s3 all pod requests go through this endpoint
     s3 = {
       service         = "s3"
       service_type    = "Gateway"

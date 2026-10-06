@@ -419,7 +419,7 @@ module "operator" {
   # binding targets the operator's service account in that namespace.
   operator_namespace = local.materialize_operator_namespace
 
-  # ARM tolerations and node selector for all operator workloads on GCP
+  # Tolerations and node selector for Materialize instance pods on GCP
   instance_pod_tolerations = local.materialize_tolerations
   instance_node_selector   = local.materialize_node_labels
 

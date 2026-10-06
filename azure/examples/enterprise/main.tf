@@ -311,7 +311,7 @@ moved {
   to   = module.monitoring_crds.helm_release.crds[0]
 }
 
-# Materialize-dedicated node pool with taints (via labels on Azure)
+# Materialize-dedicated node pool with taints
 module "materialize_nodepool" {
   source = "../../modules/nodepool"
 
@@ -380,7 +380,7 @@ module "database" {
   tags = var.tags
 }
 
-# Separate Postgres instance for Ory (Kratos + Hydra)
+# Separate Postgres instance for Ory (Kratos + Hydra, and Polis when enabled)
 module "ory_database" {
   source = "../../modules/database"
 
@@ -423,7 +423,7 @@ module "ory_database" {
   tags = var.tags
 }
 
-# Enable PostgreSQL extensions required by Ory Kratos migrations (pg_trgm + btree_gin for GIN indexes)
+# Enable PostgreSQL extensions required by Ory Kratos migrations (pg_trgm + btree_gin for GIN indexes, uuid-ossp)
 resource "azurerm_postgresql_flexible_server_configuration" "ory_extensions" {
   name      = "azure.extensions"
   server_id = module.ory_database.server_id
@@ -512,7 +512,7 @@ module "operator" {
   # node selector for operator and metrics-server workloads
   operator_node_selector = local.generic_node_labels
 
-  # The operator creates both namespaces; monitoring is a consumer of them.
+  # The operator creates its namespace; monitoring_crds creates the monitoring one.
   operator_namespace   = local.materialize_operator_namespace
   monitoring_namespace = module.monitoring_crds.namespace
 
@@ -557,7 +557,7 @@ module "monitoring" {
   storage_class = local.storage_class
 
   # These node pools are zonal — see `availability_zones` above, which reaches
-  # both the default and the generic pool. Derived rather than written as `3` so
+  # both the default and the Materialize pool. Derived rather than written as `3` so
   # the two cannot drift: the chart's zone spread fails closed, and a pool
   # narrowed to fewer zones than `minDomains` leaves Thanos Receive and Loki's
   # ingesters Pending forever rather than merely unbalanced.
@@ -698,8 +698,9 @@ module "materialize_instance" {
   force_rollout   = var.force_rollout
   request_rollout = var.request_rollout
 
-  # Use OIDC authentication via Ory Hydra. The external_login_password is still required
-  # as a fallback for the mz_system admin user.
+  # Use OIDC authentication via Ory Hydra, or var.direct_oidc when set. The
+  # external_login_password is still required as a fallback for the mz_system
+  # admin user.
   authenticator_kind                = "Oidc"
   external_login_password_mz_system = random_password.external_login_password_mz_system.result
 
@@ -726,9 +727,10 @@ module "materialize_instance" {
   console_extra_dns_names   = [var.materialize_console_fqdn]
   balancerd_extra_dns_names = [var.materialize_balancerd_fqdn]
 
-  # OIDC config; client_id is the Hydra Maester-generated UUID read from
-  # the OAuth2 client Secret. system_parameters can also set any of the
-  # parameters listed at https://materialize.com/docs/sql/alter-system-set/#key-configuration-parameters
+  # OIDC config; with Ory, client_id is the Hydra Maester-generated UUID read
+  # from the OAuth2 client Secret (var.direct_oidc supplies its own).
+  # system_parameters can also set any of the parameters listed at
+  # https://materialize.com/docs/sql/alter-system-set/#key-configuration-parameters
   system_parameters = local.materialize_oidc_parameters
 
   # Wire the materialize -> ory NetworkPolicy.

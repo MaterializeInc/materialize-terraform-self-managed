@@ -173,9 +173,10 @@ locals {
     }
   } : {}
 
-  # Standard OIDC claim mapper. Maps the upstream IdP's email claim onto the
-  # Kratos identity's email trait. Encoded as a base64:// data URI so Kratos
-  # can read it inline, no ConfigMap needed.
+  # Standard OIDC claim mapper. Maps the upstream IdP's email and groups claims
+  # onto the Kratos identity's traits, shared by the OIDC and SAML methods.
+  # Encoded as a base64:// data URI so Kratos can read it inline, no ConfigMap
+  # needed.
   upstream_oidc_mapper_jsonnet = <<-EOT
     local claims = std.extVar('claims');
     local raw = if std.objectHas(claims, 'raw_claims') then claims.raw_claims else {};

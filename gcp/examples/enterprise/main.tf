@@ -409,7 +409,7 @@ module "database" {
   depends_on = [module.networking]
 }
 
-# Separate Cloud SQL instance for Ory (Kratos + Hydra)
+# Separate Cloud SQL instance for Ory (Kratos + Hydra, and Polis when enabled)
 module "ory_database" {
   source = "../../modules/database"
 
@@ -453,7 +453,7 @@ module "storage" {
   labels = var.labels
 }
 
-# Install cert-manager for SSL certificate management and create cluster issuer
+# Install cert-manager for SSL certificate management
 module "cert_manager" {
   source = "../../../kubernetes/modules/cert-manager"
 
@@ -496,7 +496,7 @@ module "operator" {
   # binding targets the operator's service account in that namespace.
   operator_namespace = local.materialize_operator_namespace
 
-  # ARM tolerations and node selector for all operator workloads on GCP
+  # Tolerations and node selector for Materialize instance pods on GCP
   instance_pod_tolerations = local.materialize_tolerations
   instance_node_selector   = local.materialize_node_labels
 
@@ -703,8 +703,9 @@ module "materialize_instance" {
   force_rollout   = var.force_rollout
   request_rollout = var.request_rollout
 
-  # Use OIDC authentication via Ory Hydra. The external_login_password is still required
-  # as a fallback for the mz_system admin user.
+  # Use OIDC authentication via Ory Hydra, or var.direct_oidc when set. The
+  # external_login_password is still required as a fallback for the mz_system
+  # admin user.
   external_login_password_mz_system = random_password.external_login_password_mz_system.result
   authenticator_kind                = "Oidc"
 
@@ -729,9 +730,10 @@ module "materialize_instance" {
   console_extra_dns_names   = [var.materialize_console_fqdn]
   balancerd_extra_dns_names = [var.materialize_balancerd_fqdn]
 
-  # OIDC config; client_id is the Hydra Maester-generated UUID read from
-  # the OAuth2 client Secret. system_parameters can also set any of the
-  # parameters listed at https://materialize.com/docs/sql/alter-system-set/#key-configuration-parameters
+  # OIDC config; with Ory, client_id is the Hydra Maester-generated UUID read
+  # from the OAuth2 client Secret (var.direct_oidc supplies its own).
+  # system_parameters can also set any of the parameters listed at
+  # https://materialize.com/docs/sql/alter-system-set/#key-configuration-parameters
   system_parameters = local.materialize_oidc_parameters
 
   # Wire the materialize -> ory NetworkPolicy.

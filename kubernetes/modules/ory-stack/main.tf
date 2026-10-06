@@ -413,10 +413,11 @@ module "ory_selfservice_ui" {
 
   namespace = var.namespace
 
-  # Server-side calls from the UI pod to Kratos's public API. When the issuer
-  # signs cluster.local hostnames (self-signed default) we can use the in-cluster
-  # service URL directly. Otherwise the cert only covers the external hostname,
-  # so we hairpin out through the LB.
+  # Server-side calls from the UI pod to Kratos's public API. In single-domain
+  # mode (plain HTTP in-cluster) or when the issuer signs cluster.local hostnames
+  # (self-signed default) we can use the in-cluster service URL directly.
+  # Otherwise the cert only covers the external hostname, so we hairpin out
+  # through the LB.
   kratos_public_url  = (local.single_domain_enabled || var.cert_issuer_signs_cluster_local) ? module.ory_kratos.public_url : local.kratos_external_url
   kratos_admin_url   = module.ory_kratos.admin_url
   kratos_browser_url = local.kratos_external_url
@@ -445,8 +446,8 @@ module "ory_selfservice_ui" {
 # Ory Polis (optional) -------------------------------------------------------
 
 # Polis is a SAML-to-OIDC bridge: it accepts a customer's SAML IdP on one side
-# and exposes an OIDC provider on the other. Kratos can consume it as an
-# upstream OIDC provider for social sign-in.
+# and exposes an OIDC provider on the other. Kratos consumes it through its
+# SAML (jackson) method, configured via saml_providers.
 #
 # Image and chart are both pulled through the Materialize OEL registry proxy
 # with the license-key JWT (same auth flow as Kratos/Hydra images). Callers
@@ -617,7 +618,8 @@ data "kubernetes_secret_v1" "oauth2_client" {
 # materialize-instance module (it lives in the materialize namespace).
 
 # Allow Ory pods to receive traffic from Materialize, from within the ory
-# namespace, and from external sources on the three public ports.
+# namespace, and from external sources on the public ports (which ones
+# depends on the mode, see below).
 resource "kubernetes_network_policy_v1" "ory_from_materialize_ingress" {
   count = local.wire_materialize ? 1 : 0
 

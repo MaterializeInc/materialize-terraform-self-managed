@@ -195,6 +195,7 @@ module "base_node_group" {
   depends_on = [module.vpc_cni]
 }
 
+# 2.1.2 Install CoreDNS
 module "coredns" {
   source = "../../../kubernetes/modules/coredns"
 

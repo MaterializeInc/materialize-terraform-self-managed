@@ -30,7 +30,7 @@ impl CloudProvider {
 }
 
 // ---------------------------------------------------------------------------
-// terraform.tfvars.json – written during init, read back during verify
+// terraform.tfvars.json: written during init, read back by verify, destroy, sync and purge
 // ---------------------------------------------------------------------------
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

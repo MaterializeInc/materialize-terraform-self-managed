@@ -2,7 +2,6 @@ locals {
   # Azure has 12-character limit for node pool names
   nodepool_name = substr(replace(var.prefix, "-", ""), 0, 12)
 
-  # Auto-scaling configuration - prioritize autoscaling_config object over individual variables
   auto_scaling_enabled = var.autoscaling_config.enabled
   min_nodes            = var.autoscaling_config.enabled ? var.autoscaling_config.min_nodes : null
   max_nodes            = var.autoscaling_config.enabled ? var.autoscaling_config.max_nodes : null
@@ -130,7 +129,7 @@ resource "kubernetes_daemonset" "disk_setup" {
           }
         }
 
-        # Tolerate all taints (includes both user-provided and swap taints)
+        # Tolerate all taints in var.node_taints
         dynamic "toleration" {
           for_each = var.node_taints
           content {

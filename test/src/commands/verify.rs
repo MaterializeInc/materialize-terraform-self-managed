@@ -181,7 +181,8 @@ async fn verify_materialize_instance(kubeconfig: &Path, namespace: &str, name: &
     Ok(())
 }
 
-/// Best-effort diagnostic dump when verify_materialize_instance times out.
+/// Best-effort diagnostic dump when verify_materialize_instance times out or
+/// the pods check fails.
 /// Each command's failure is logged but ignored so we always get the rest of
 /// the output even if one section errors.
 async fn dump_materialize_diagnostics(kubeconfig: &Path, namespace: &str, name: &str) {

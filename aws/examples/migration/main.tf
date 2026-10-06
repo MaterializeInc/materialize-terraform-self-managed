@@ -19,7 +19,8 @@
 #
 # 1. NAT Gateways: Keeps 3 NAT gateways (one per AZ) - matches old defaults setup
 # 2. Node Groups: Keeps existing node groups, Karpenter commented out
-# 3. Instance Names: Update locals to match the old Materialize instances
+# 3. Instance Names: Set materialize_instance_name (and add other instances to
+#    locals) to match the old Materialize instances
 #
 # After successful migration, you can gradually adopt new features:
 # - Enable Karpenter for autoscaling
@@ -472,12 +473,13 @@ module "operator" {
 }
 
 # -----------------------------------------------------------------------------
-# Materialize Instance Namespace (part of operator module in migrated state)
+# Materialize Instance Namespace (moved from the old operator module to the root)
 # -----------------------------------------------------------------------------
-# State path: module.operator.kubernetes_namespace.instance_namespaces["<namespace>"]
+# State path: kubernetes_namespace.instance_namespaces["<instance_name>"]
 #
-# MIGRATION: These resources are managed as part of the operator module structure
-# to match the migrated state. They use for_each to support multiple instances.
+# MIGRATION: These resources were part of the old operator module; the moved
+# blocks below move them to the root. They use for_each to support multiple
+# instances.
 
 resource "kubernetes_namespace" "instance_namespaces" {
   for_each = local.materialize_instances
@@ -490,9 +492,9 @@ resource "kubernetes_namespace" "instance_namespaces" {
 }
 
 # -----------------------------------------------------------------------------
-# Materialize Backend Secret (part of operator module in migrated state)
+# Materialize Backend Secret (moved from the old operator module to the root)
 # -----------------------------------------------------------------------------
-# State path: module.operator.kubernetes_secret.materialize_backends["<instance_name>"]
+# State path: kubernetes_secret.materialize_backends["<instance_name>"]
 
 resource "kubernetes_secret" "materialize_backends" {
   for_each = local.materialize_instances
@@ -535,9 +537,9 @@ resource "kubernetes_secret" "materialize_backends" {
 }
 
 # -----------------------------------------------------------------------------
-# Materialize Instance Manifest (part of operator module in migrated state)
+# Materialize Instance Manifest (moved from the old operator module to the root)
 # -----------------------------------------------------------------------------
-# State path: module.operator.kubernetes_manifest.materialize_instances["<instance_name>"]
+# State path: kubernetes_manifest.materialize_instances["<instance_name>"]
 #
 # MIGRATION: Uses kubernetes_manifest (not kubectl_manifest) to match migrated state
 
@@ -603,9 +605,9 @@ resource "kubernetes_manifest" "materialize_instances" {
 }
 
 # -----------------------------------------------------------------------------
-# Data Source: Materialize Instances (part of operator module in migrated state)
+# Data Source: Materialize Instances (moved from the old operator module to the root)
 # -----------------------------------------------------------------------------
-# State path: module.operator.kubernetes_resource.materialize_instances["<instance_name>"]
+# State path: data.kubernetes_resource.materialize_instances["<instance_name>"]
 #
 # MIGRATION: Data source to retrieve instance resource IDs (used by NLB module)
 

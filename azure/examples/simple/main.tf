@@ -126,10 +126,10 @@ locals {
   )
 
   materialize_instance_namespace = "materialize-environment"
-  # Named here rather than left to each module's default, and passed to both
-  # the operator and monitoring modules, so the two cannot drift apart: the
-  # operator creates these namespaces and monitoring scopes its scrape targets
-  # to them.
+  # Named here rather than left to each module's default, and passed to the
+  # operator, monitoring_crds and monitoring modules, so they cannot drift apart:
+  # the operator and monitoring_crds create these namespaces and monitoring
+  # scopes its scrape targets to them.
   materialize_operator_namespace = "materialize"
   monitoring_namespace           = "monitoring"
   materialize_instance_name      = "main"
@@ -251,7 +251,7 @@ moved {
   to   = module.monitoring_crds.helm_release.crds[0]
 }
 
-# Materialize-dedicated node pool with taints (via labels on Azure)
+# Materialize-dedicated node pool with taints
 module "materialize_nodepool" {
   source = "../../modules/nodepool"
 
@@ -402,7 +402,7 @@ module "operator" {
   # node selector for operator and metrics-server workloads
   operator_node_selector = local.generic_node_labels
 
-  # The operator creates both namespaces; monitoring is a consumer of them.
+  # The operator creates its namespace; monitoring_crds creates the monitoring one.
   operator_namespace   = local.materialize_operator_namespace
   monitoring_namespace = module.monitoring_crds.namespace
 
@@ -446,9 +446,10 @@ module "monitoring" {
   node_selector = local.generic_node_labels
   storage_class = local.storage_class
 
-  # The AKS node pools here are non-zonal — `availability_zones` is left at its
-  # null default — so the chart's hard zone spread on Thanos Receive and Loki's
-  # ingesters has a single domain to place into. Below its floor of two zones
+  # The AKS node pools here are non-zonal (the aks module's `availability_zones`
+  # and the nodepool's `zones` are left at their null defaults), so the chart's
+  # hard zone spread on Thanos Receive and Loki's ingesters has a single domain
+  # to place into. Below its floor of two zones
   # those pods stay Pending forever rather than merely unbalanced, so relax
   # `minDomains` to 1. Raise this to the real count, and it becomes real
   # protection, if you give the node pools zones.

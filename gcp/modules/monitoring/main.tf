@@ -39,7 +39,7 @@
 #     Thanos both enforce their own retention, and Thanos keeps blocks per
 #     downsampling resolution (raw / 5m / 1h), so a bucket rule deleting sooner
 #     removes blocks the compactor still references.
-#   * Grafana is ClusterIP today (the chart exposes no ingress values yet), so
+#   * Grafana is ClusterIP unless `grafana_load_balancer` is set. Without it,
 #     `grafana_url` is in-cluster: reach it with
 #     `kubectl -n monitoring port-forward svc/grafana 3000:80` and
 #     `terraform output -raw grafana_admin_password`.
@@ -317,7 +317,7 @@ module "monitoring" {
   # did not match` (hashicorp/terraform#35552). See versions.tf.
   #
   # v0.13.0 is where `grafana_database_*` and the chart's `grafana.ingress` /
-  # `grafana.service` values land. This branch does not plan against v0.12.0.
+  # `grafana.service` values land.
   source = "github.com/MaterializeInc/materialize-monitoring//terraform/modules/materialize-monitoring?ref=materialize-monitoring/v0.31.0"
 
   namespace        = var.namespace
