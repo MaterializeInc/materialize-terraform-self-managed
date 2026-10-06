@@ -224,6 +224,12 @@ The first apply with it set changes `cluster` from `default` to the cluster's na
 
 If you already set `clusterName` through `additional_values`, that value still wins; move it to `cluster_name`.
 
+##### GCP modules require google provider 8
+
+The GCP modules now need `hashicorp/google` and `hashicorp/google-beta` `>= 8.0, < 9` (previously `>= 7.22, < 8`). Raise both providers' constraints in your root, then run `terraform init -upgrade`.
+
+The modules don't use anything changed in 8.0. If your root manages other GCP resources, check them against the [google provider 8.0 upgrade guide](https://registry.terraform.io/providers/hashicorp/google/latest/docs/guides/version_8_upgrade). In particular, `google_compute_backend_service` and `google_compute_global_forwarding_rule` now default `load_balancing_scheme` to `EXTERNAL_MANAGED`.
+
 #### v16.0.0
 
 ##### Azure modules require azurerm 5
