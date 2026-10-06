@@ -8,6 +8,7 @@ resource "terraform_data" "destroyer" {
   input = {
     NODEPOOL_NAME   = var.name
     KUBECONFIG_DATA = var.kubeconfig_data
+    DELETE_TIMEOUT  = var.nodeclaim_delete_timeout
   }
 
   provisioner "local-exec" {

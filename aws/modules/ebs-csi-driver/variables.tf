@@ -68,3 +68,16 @@ variable "enable_service_monitor" {
   default     = false
   nullable    = false
 }
+
+variable "kubeconfig_data" {
+  description = "Contents of a kubeconfig for the cluster. When set, destroy waits for the driver to release its volumes before uninstalling it, so a VolumeAttachment cannot be stranded on a node Karpenter then never terminates. Requires kubectl where Terraform runs."
+  type        = string
+  default     = null
+}
+
+variable "volume_release_timeout_seconds" {
+  description = "How long destroy waits for the driver to release its volumes before failing with the ones it still holds. Only used when `kubeconfig_data` is set."
+  type        = number
+  default     = 600
+  nullable    = false
+}
