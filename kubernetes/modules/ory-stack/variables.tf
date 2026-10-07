@@ -332,7 +332,7 @@ variable "polis_chart_version" {
   description = "Polis Helm chart version pulled from the OEL registry."
   type        = string
   # renovate: datasource=docker depName=ory-artifacts/helm-oel-polis/polis-oel registryUrl=https://ory.registry.cloud.materialize.com
-  default  = "0.0.54"
+  default  = "0.0.55"
   nullable = false
 }
 
