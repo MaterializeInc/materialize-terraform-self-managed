@@ -22,7 +22,8 @@ jobs:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
-      - name: Create release for merged changes
+      - name: Compute the next version
+        id: version
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CONFIRM_MAJOR: ${{ inputs.confirm_major }}
@@ -79,9 +80,93 @@ jobs:
             patch) version="v$major.$minor.$((patch + 1))" ;;
           esac
 
-          echo "Creating release $version ($bump bump from $latest)"
-          gh release create "$version" \
+          echo "Next release: $version ($bump bump from $latest)"
+          echo "latest=$latest" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout code
+        if: steps.version.outputs.version != ''
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          # The bot token's pushes trigger CI on the upgrade notes PR, the
+          # default GITHUB_TOKEN's don't.
+          token: ${{ secrets.MATERIALIZE_BOT_TOKEN }}
+
+      - name: Install changie
+        if: steps.version.outputs.version != ''
+        run: .github/scripts/install-changie.sh
+
+      # Upgrade notes merged since the latest release are batched into
+      # UPGRADING.md by a PR first. Once it merges, the next run releases.
+      - name: Open the upgrade notes PR
+        id: notes
+        if: steps.version.outputs.version != ''
+        env:
+          GH_TOKEN: ${{ secrets.MATERIALIZE_BOT_TOKEN }}
+          LATEST: ${{ steps.version.outputs.latest }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          if ! compgen -G '.changes/unreleased/*.yaml' > /dev/null; then
+            echo "pending=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "pending=true" >> "$GITHUB_OUTPUT"
+
+          if [ -e ".changes/$VERSION.md" ]; then
+            echo "::error::Upgrade notes merged after .changes/$VERSION.md was created. Move them into that file, run changie merge, and merge that before releasing."
+            exit 1
+          fi
+
+          branch="upgrade-notes-$VERSION"
+          pr=$(gh pr list --head "$branch" --state open --json url --jq '.[].url')
+          if [ -z "$pr" ]; then
+            changie batch "$VERSION"
+            changie merge
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git switch -c "$branch"
+            git add -A .changes UPGRADING.md
+            git commit -m "Upgrade notes for $VERSION"
+            git push --force origin "$branch"
+            pr=$(gh pr create --base main --head "$branch" \
+              --title "Upgrade notes for $VERSION" \
+              --label ignore-for-release \
+              --body "Moves the upgrade notes merged since $LATEST into UPGRADING.md. Merge this, then run the Tag workflow again to release $VERSION.")
+          fi
+          echo "::notice::Merge $pr, then run this workflow again to release $VERSION."
+          echo "Merge $pr, then run this workflow again to release $VERSION." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Create release
+        if: steps.notes.outputs.pending == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          LATEST: ${{ steps.version.outputs.latest }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          # Notes batched for another version mean a PR with a higher bump
+          # merged after the upgrade notes PR.
+          for f in .changes/v*.md; do
+            v=$(basename "$f" .md)
+            newest=$(printf '%s\n%s\n' "$LATEST" "$v" | sort -V | tail -n 1)
+            if [ "$v" != "$LATEST" ] && [ "$v" = "$newest" ] && [ "$v" != "$VERSION" ]; then
+              echo "::error::Upgrade notes are batched for $v, but this release is $VERSION. Rename .changes/$v.md, fix its heading, and run changie merge."
+              exit 1
+            fi
+          done
+
+          notes=()
+          if [ -e ".changes/$VERSION.md" ]; then
+            { echo "## Upgrade notes"; tail -n +2 ".changes/$VERSION.md"; } > "$RUNNER_TEMP/notes.md"
+            notes=(--notes-file "$RUNNER_TEMP/notes.md")
+          fi
+
+          echo "Creating release $VERSION"
+          gh release create "$VERSION" \
             --repo "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" \
-            --title "$version" \
-            --generate-notes
+            --title "$VERSION" \
+            --generate-notes \
+            "${notes[@]}"

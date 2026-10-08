@@ -39,11 +39,50 @@ jobs:
           fi
           echo "Version labels found: $LABELS"
 
+  upgrade-notes:
+    name: Upgrade Notes
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # HEAD is the merge commit, HEAD^1 the base branch.
+          fetch-depth: 2
+
+      - name: Install changie
+        run: .github/scripts/install-changie.sh
+
+      - name: Check upgrade notes
+        env:
+          BREAKING: ${{ contains(github.event.pull_request.labels.*.name, 'breaking-change') }}
+        run: |
+          set -euo pipefail
+          notes=$(changie batch v0.0.0 --dry-run)
+          if grep -q '<no value>' <<< "$notes"; then
+            echo "::error::An upgrade note in .changes/unreleased is missing its Slug or Title."
+            exit 1
+          fi
+
+          changie merge
+          if ! git diff --quiet -- UPGRADING.md; then
+            echo "::error::UPGRADING.md is generated from .changes, run \`changie merge\` and commit the result."
+            git diff -- UPGRADING.md
+            exit 1
+          fi
+
+          added=$(git diff --name-only --diff-filter=A HEAD^1 HEAD -- '.changes/unreleased/*.yaml')
+          if [ "$BREAKING" = true ] && [ -z "$added" ]; then
+            echo "::error::PRs labeled breaking-change need an upgrade note. Add one with \`changie new\`, see CONTRIBUTING.md."
+            exit 1
+          fi
+          echo "Upgrade notes added: ${added:-none}"
+
   ci-success:
     runs-on: ubuntu-latest
     needs:
       - lint
       - version-label
+      - upgrade-notes
     if: always()
     steps:
       - uses: technote-space/workflow-conclusion-action@45ce8e0eb155657ab8ccf346ade734257fd196a5 # v3.0.3
