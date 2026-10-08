@@ -95,6 +95,7 @@ jobs:
 
       # Upgrade notes merged since the latest release are moved into
       # UPGRADING.md by a PR first. Once it merges, the next run releases.
+      # Each run rebuilds the PR from main, so it picks up notes merged since.
       - name: Open the upgrade notes PR
         id: notes
         if: steps.version.outputs.version != ''
@@ -110,21 +111,17 @@ jobs:
           fi
           echo "pending=true" >> "$GITHUB_OUTPUT"
 
-          if grep -qx "## $VERSION" UPGRADING.md; then
-            echo "::error::Upgrade notes merged after the $VERSION notes PR. Move them into the $VERSION section of UPGRADING.md by hand before releasing."
-            exit 1
-          fi
-
           branch="upgrade-notes-$VERSION"
+          .github/scripts/upgrade-notes.sh batch "$VERSION"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$branch"
+          git add -A .upgrade-notes UPGRADING.md
+          git commit -m "Upgrade notes for $VERSION"
+          git push --force origin "$branch"
+
           pr=$(gh pr list --head "$branch" --state open --json url --jq '.[].url')
           if [ -z "$pr" ]; then
-            .github/scripts/upgrade-notes.sh batch "$VERSION"
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git switch -c "$branch"
-            git add -A .upgrade-notes UPGRADING.md
-            git commit -m "Upgrade notes for $VERSION"
-            git push --force origin "$branch"
             pr=$(gh pr create --base main --head "$branch" \
               --title "Upgrade notes for $VERSION" \
               --label ignore-for-release \
@@ -143,7 +140,7 @@ jobs:
           set -euo pipefail
           # A section newer than the latest release that isn't this one means a
           # PR with a higher bump merged after the upgrade notes PR.
-          top=$(grep -m 1 '^## v' UPGRADING.md | cut -c4- || true)
+          top=$(grep -m 1 '^## v[0-9]' UPGRADING.md | cut -c4- || true)
           newest=$(printf '%s\n%s\n' "$LATEST" "$top" | sort -V | tail -n 1)
           if [ -n "$top" ] && [ "$top" = "$newest" ] && [ "$top" != "$LATEST" ] && [ "$top" != "$VERSION" ]; then
             echo "::error::UPGRADING.md has notes for $top, but this release is $VERSION. Rename that section before releasing."

@@ -21,6 +21,11 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
+          if compgen -G '.upgrade-notes/*.md' > /dev/null; then
+            echo "::error::$GITHUB_REF_NAME has upgrade notes in .upgrade-notes/ that aren't in UPGRADING.md yet. Delete the tag and release with the Tag workflow instead."
+            exit 1
+          fi
+
           args=()
           notes=$(.github/scripts/upgrade-notes.sh show "$GITHUB_REF_NAME")
           if [ -n "$notes" ]; then

@@ -48,9 +48,9 @@ Open your PR first, then add `.upgrade-notes/<PR number>.md`, e.g. `.upgrade-not
 The Azure modules now need `hashicorp/azurerm` 5.4 or later. Update the `azurerm` version in your root, then run `terraform init -upgrade`.
 ```
 
-See [UPGRADING.md](./UPGRADING.md) for more examples. To validate your note, run `.github/scripts/upgrade-notes.sh check`.
+Use `####` for any headings below the title. See [UPGRADING.md](./UPGRADING.md) for more examples. To validate your note, run `.github/scripts/upgrade-notes.sh check`.
 
-When a release is cut, the notes move into a new section of `UPGRADING.md`, with a link to each PR, and into the release notes. To fix a note in an existing release, edit `UPGRADING.md` directly.
+When a release is cut, the notes move into a new section of `UPGRADING.md`, with a link to each PR, and into the release notes. To fix a note in an existing release, edit `UPGRADING.md` directly, and the release on GitHub too if it matters there.
 
 ## Generating Documentation
 

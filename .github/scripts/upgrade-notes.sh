@@ -10,6 +10,7 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 REPO_URL="https://github.com/MaterializeInc/materialize-terraform-self-managed"
 NOTES_DIR="${REPO_ROOT}/.upgrade-notes"
 UPGRADING="${REPO_ROOT}/UPGRADING.md"
+VERSION_HEADING='^## v[0-9]'
 
 WORK_DIR=""
 cleanup() {
@@ -58,9 +59,10 @@ check() {
       echo "error: .upgrade-notes/$name.md: add what users need to do below the title" >&2
       status=1
     fi
-    # A version heading inside a note would split the release section.
-    if grep -q '^## v[0-9]' "$f"; then
-      echo "error: .upgrade-notes/$name.md: must not contain a '## v...' heading" >&2
+    # '#' and '##' headings would sit level with the version headings. Lines
+    # inside code blocks, like shell comments, don't count.
+    if ! awk '/^[[:space:]]*(```|~~~)/ { code = !code } !code && /^##? / { exit 1 }' "$f"; then
+      echo "error: .upgrade-notes/$name.md: use '####' or deeper for headings below the title" >&2
       status=1
     fi
   done < <(pending_prs)
@@ -68,7 +70,7 @@ check() {
 }
 
 batch() {
-  local version=$1 prs section tmp line pr f
+  local version=$1 prs block tmp total start next at pr f
   require_version "$version"
   check
 
@@ -77,35 +79,37 @@ batch() {
     echo "No pending upgrade notes."
     return 0
   fi
-  if grep -qx "## $version" "$UPGRADING"; then
-    echo "error: UPGRADING.md already has a $version section" >&2
-    exit 1
-  fi
-
   WORK_DIR=$(mktemp -d)
-  section="$WORK_DIR/section.md"
+  block="$WORK_DIR/block.md"
   tmp="$WORK_DIR/UPGRADING.md"
 
-  # Each title links to its PR. $(...) drops trailing blank lines, so notes are
-  # evenly spaced.
-  {
-    echo "## $version"
-    while IFS= read -r pr; do
-      f="$NOTES_DIR/$pr.md"
-      echo
-      printf '%s ([#%s](%s/pull/%s))\n' "$(head -n 1 "$f")" "$pr" "$REPO_URL" "$pr"
-      printf '%s\n' "$(tail -n +2 "$f")"
-    done <<< "$prs"
-    echo
-  } > "$section"
+  # Each title links to its PR. $(...) drops trailing blank lines, so every
+  # note ends with exactly one blank line.
+  while IFS= read -r pr; do
+    f="$NOTES_DIR/$pr.md"
+    printf '%s ([#%s](%s/pull/%s))\n' "$(head -n 1 "$f")" "$pr" "$REPO_URL" "$pr"
+    printf '%s\n\n' "$(tail -n +2 "$f")"
+  done <<< "$prs" > "$block"
 
-  # The newest release goes on top, right after the header.
-  line=$(grep -n -m 1 '^## v' "$UPGRADING" | cut -d: -f1 || true)
-  if [ -n "$line" ]; then
-    { head -n "$((line - 1))" "$UPGRADING"; cat "$section"; tail -n "+$line" "$UPGRADING"; } > "$tmp"
+  # Insert before line $at: at the end of an existing $version section, or as
+  # a new section above the newest release.
+  total=$(($(wc -l < "$UPGRADING")))
+  start=$(grep -n -F -x -m 1 "## $version" "$UPGRADING" | cut -d: -f1 || true)
+  if [ -n "$start" ]; then
+    next=$(tail -n "+$((start + 1))" "$UPGRADING" | grep -n -m 1 "$VERSION_HEADING" | cut -d: -f1 || true)
+    if [ -n "$next" ]; then at=$((start + next)); else at=$((total + 1)); fi
   else
-    { cat "$UPGRADING"; echo; cat "$section"; } > "$tmp"
+    at=$(grep -n -m 1 "$VERSION_HEADING" "$UPGRADING" | cut -d: -f1 || true)
+    at=${at:-$((total + 1))}
+    { printf '## %s\n\n' "$version"; cat "$block"; } > "$block.new"
+    mv "$block.new" "$block"
   fi
+  if [ "$at" -gt "$total" ]; then
+    { echo; cat "$block"; } > "$block.new"
+    mv "$block.new" "$block"
+  fi
+
+  { head -n "$((at - 1))" "$UPGRADING"; cat "$block"; tail -n "+$at" "$UPGRADING"; } > "$tmp"
   # Overwrite in place to keep the file's permissions.
   cat "$tmp" > "$UPGRADING"
 
@@ -120,7 +124,7 @@ show() {
   require_version "$version"
   awk -v heading="## $version" '
     $0 == heading { found = 1; next }
-    found && /^## v/ { exit }
+    found && /^## v[0-9]/ { exit }
     found { print }
   ' "$UPGRADING"
 }

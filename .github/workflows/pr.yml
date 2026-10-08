@@ -58,7 +58,7 @@ jobs:
           .github/scripts/upgrade-notes.sh check
 
           note=".upgrade-notes/$PR.md"
-          for f in $(git diff --name-only --diff-filter=A HEAD^1 HEAD -- '.upgrade-notes/*.md'); do
+          for f in $(git diff --name-only --no-renames --diff-filter=A HEAD^1 HEAD -- '.upgrade-notes/*.md'); do
             if [ "$f" != "$note" ]; then
               echo "::error::Rename $f to $note, upgrade notes are named after the PR that adds them."
               exit 1
