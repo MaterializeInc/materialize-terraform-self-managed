@@ -324,7 +324,7 @@ variable "polis_oel_image_tag" {
   description = "Tag for the Polis OEL image. Polis releases independently of Kratos/Hydra, so it has its own tag knob."
   type        = string
   # renovate: datasource=docker depName=ory-artifacts/ory-enterprise-polis/polis-oel registryUrl=https://ory.registry.cloud.materialize.com
-  default  = "26.3.19"
+  default  = "26.4.0"
   nullable = false
 }
 
@@ -332,7 +332,7 @@ variable "polis_chart_version" {
   description = "Polis Helm chart version pulled from the OEL registry."
   type        = string
   # renovate: datasource=docker depName=ory-artifacts/helm-oel-polis/polis-oel registryUrl=https://ory.registry.cloud.materialize.com
-  default  = "0.0.55"
+  default  = "0.0.56"
   nullable = false
 }
 
