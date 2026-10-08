@@ -93,26 +93,30 @@ jobs:
           # default GITHUB_TOKEN's don't.
           token: ${{ secrets.MATERIALIZE_BOT_TOKEN }}
 
-      # Upgrade notes merged since the latest release are moved into
-      # UPGRADING.md by a PR first. Once it merges, the next run releases.
-      # Each run rebuilds the PR from main, so it picks up notes merged since.
-      - name: Open the upgrade notes PR
+      # Pending upgrade notes go into UPGRADING.md through a PR. Once it merges,
+      # the next run finds nothing to batch and releases.
+      - name: Batch upgrade notes
         id: notes
         if: steps.version.outputs.version != ''
         env:
-          GH_TOKEN: ${{ secrets.MATERIALIZE_BOT_TOKEN }}
           LATEST: ${{ steps.version.outputs.latest }}
           VERSION: ${{ steps.version.outputs.version }}
         run: |
           set -euo pipefail
-          if ! compgen -G '.upgrade-notes/*.md' > /dev/null; then
-            echo "pending=false" >> "$GITHUB_OUTPUT"
-            exit 0
+          .github/scripts/upgrade-notes.sh batch "$VERSION" "$LATEST"
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "pending=true" >> "$GITHUB_OUTPUT"
           fi
-          echo "pending=true" >> "$GITHUB_OUTPUT"
 
+      # Each run rebuilds the PR from main, so it picks up notes merged since.
+      - name: Open the upgrade notes PR
+        if: steps.notes.outputs.pending == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.MATERIALIZE_BOT_TOKEN }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
           branch="upgrade-notes-$VERSION"
-          .github/scripts/upgrade-notes.sh batch "$VERSION"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git switch -c "$branch"
@@ -122,37 +126,22 @@ jobs:
 
           pr=$(gh pr list --head "$branch" --state open --json url --jq '.[].url')
           if [ -z "$pr" ]; then
-            pr=$(gh pr create --base main --head "$branch" \
+            pr=$(gh pr create --base main --head "$branch" --label ignore-for-release \
               --title "Upgrade notes for $VERSION" \
-              --label ignore-for-release \
-              --body "Moves the upgrade notes merged since $LATEST into UPGRADING.md. Merge this, then run the Tag workflow again to release $VERSION.")
+              --body "Moves the pending upgrade notes into UPGRADING.md. Merge this, then run the Tag workflow again to release $VERSION.")
           fi
           echo "::notice::Merge $pr, then run this workflow again to release $VERSION."
-          echo "Merge $pr, then run this workflow again to release $VERSION." >> "$GITHUB_STEP_SUMMARY"
 
       - name: Create release
-        if: steps.notes.outputs.pending == 'false'
+        if: steps.version.outputs.version != '' && steps.notes.outputs.pending != 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          LATEST: ${{ steps.version.outputs.latest }}
           VERSION: ${{ steps.version.outputs.version }}
         run: |
           set -euo pipefail
-          # A section newer than the latest release that isn't this one means a
-          # PR with a higher bump merged after the upgrade notes PR.
-          top=$(grep -m 1 '^## v[0-9]' UPGRADING.md | cut -c4- || true)
-          newest=$(printf '%s\n%s\n' "$LATEST" "$top" | sort -V | tail -n 1)
-          if [ -n "$top" ] && [ "$top" = "$newest" ] && [ "$top" != "$LATEST" ] && [ "$top" != "$VERSION" ]; then
-            echo "::error::UPGRADING.md has notes for $top, but this release is $VERSION. Rename that section before releasing."
-            exit 1
-          fi
-
+          notes=$(.github/scripts/upgrade-notes.sh release-notes "$VERSION")
           args=()
-          notes=$(.github/scripts/upgrade-notes.sh show "$VERSION")
-          if [ -n "$notes" ]; then
-            printf '## Upgrade notes\n%s\n' "$notes" > "$RUNNER_TEMP/notes.md"
-            args=(--notes-file "$RUNNER_TEMP/notes.md")
-          fi
+          if [ -n "$notes" ]; then args=(--notes "$notes"); fi
 
           echo "Creating release $VERSION"
           gh release create "$VERSION" \

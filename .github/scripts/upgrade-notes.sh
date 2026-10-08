@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Manages the upgrade notes in .upgrade-notes/<PR number>.md, see CONTRIBUTING.md.
 #
-#   upgrade-notes.sh check            validate the pending notes
-#   upgrade-notes.sh batch <version>  move the pending notes into UPGRADING.md
-#   upgrade-notes.sh show <version>   print a released version's notes
+#   upgrade-notes.sh check                      validate the pending notes
+#   upgrade-notes.sh batch <version> [<latest>]  move the pending notes into UPGRADING.md
+#   upgrade-notes.sh release-notes <version>    print the notes for a GitHub release
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -19,7 +19,7 @@ cleanup() {
 trap cleanup EXIT
 
 usage() {
-  echo "usage: $0 check | batch <version> | show <version>" >&2
+  echo "usage: $0 check | batch <version> [<latest>] | release-notes <version>" >&2
   exit 2
 }
 
@@ -28,6 +28,13 @@ require_version() {
     echo "error: version must look like v1.2.3, got '${1:-}'" >&2
     exit 2
   fi
+}
+
+# Sortable form of a version, v1.2.3 -> 000010000200003.
+version_key() {
+  local major minor patch
+  IFS=. read -r major minor patch <<< "${1#v}"
+  printf '%05d%05d%05d\n' "$major" "$minor" "$patch"
 }
 
 # PR numbers of the pending notes, oldest first.
@@ -70,18 +77,31 @@ check() {
 }
 
 batch() {
-  local version=$1 prs block tmp total start next at pr f
+  local version=$1 latest=${2:-} top prs block tmp total start next at pr f
   require_version "$version"
+  [ -z "$latest" ] || require_version "$latest"
   check
+
+  WORK_DIR=$(mktemp -d)
+  block="$WORK_DIR/block.md"
+  tmp="$WORK_DIR/UPGRADING.md"
+
+  # A section newer than <latest> is unreleased. If the next version changed
+  # since it was added, e.g. a PR with a bigger bump merged, rename it.
+  if [ -n "$latest" ]; then
+    top=$(grep -m 1 "$VERSION_HEADING" "$UPGRADING" | cut -c4- || true)
+    if [ -n "$top" ] && [ "$top" != "$version" ] && [[ "$(version_key "$top")" > "$(version_key "$latest")" ]]; then
+      awk -v from="## $top" -v to="## $version" '!done && $0 == from { $0 = to; done = 1 } 1' "$UPGRADING" > "$tmp"
+      cat "$tmp" > "$UPGRADING"
+      echo "Renamed the unreleased $top section to $version."
+    fi
+  fi
 
   prs=$(pending_prs)
   if [ -z "$prs" ]; then
     echo "No pending upgrade notes."
     return 0
   fi
-  WORK_DIR=$(mktemp -d)
-  block="$WORK_DIR/block.md"
-  tmp="$WORK_DIR/UPGRADING.md"
 
   # Each title links to its PR. $(...) drops trailing blank lines, so every
   # note ends with exactly one blank line.
@@ -119,19 +139,26 @@ batch() {
   echo "Moved $(wc -l <<< "$prs" | tr -d ' ') upgrade note(s) into the $version section of UPGRADING.md."
 }
 
-show() {
-  local version=$1
+# Empty when the version has no notes. Refuses while notes are pending, so a
+# release can't skip them.
+release_notes() {
+  local version=$1 notes
   require_version "$version"
-  awk -v heading="## $version" '
+  if [ -n "$(pending_prs)" ]; then
+    echo "error: the notes in .upgrade-notes/ aren't in UPGRADING.md yet, batch them first (the Tag workflow does)" >&2
+    exit 1
+  fi
+  notes=$(awk -v heading="## $version" '
     $0 == heading { found = 1; next }
     found && /^## v[0-9]/ { exit }
     found { print }
-  ' "$UPGRADING"
+  ' "$UPGRADING")
+  if [ -n "$notes" ]; then printf '## Upgrade notes\n%s\n' "$notes"; fi
 }
 
 case "${1:-}" in
   check) [ $# -eq 1 ] || usage; check ;;
-  batch) [ $# -eq 2 ] || usage; batch "$2" ;;
-  show) [ $# -eq 2 ] || usage; show "$2" ;;
+  batch) [ $# -eq 2 ] || [ $# -eq 3 ] || usage; batch "$2" "${3:-}" ;;
+  release-notes) [ $# -eq 2 ] || usage; release_notes "$2" ;;
   *) usage ;;
 esac
