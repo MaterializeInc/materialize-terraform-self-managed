@@ -69,9 +69,9 @@ Upgrade notes are markdown files named `.upgrade-notes/<PR number>.md`, see
 PRs labeled `breaking-change`.
 
 When notes are pending, `tag.yml` doesn't release. It moves them into the
-version's section of `UPGRADING.md` and opens or updates an "Upgrade notes for <version>" PR labeled
-`ignore-for-release`, pushed with `MATERIALIZE_BOT_TOKEN` so that CI runs on
-it. Merge that PR, then run `tag.yml` again. The release notes start with that
+version's section of `UPGRADING.md` and opens or updates an "Upgrade notes for
+<version>" PR labeled `ignore-for-release`, pushed with `MATERIALIZE_BOT_TOKEN`
+so that CI runs on it. Merge that PR, then run `tag.yml` again. The release notes start with that
 version's upgrade notes, followed by the generated list of PRs.
 
 ### What Gets Tested (Merge Queue Only)
