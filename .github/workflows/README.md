@@ -62,10 +62,11 @@ A major release must be confirmed with `gh workflow run tag.yml -f confirm_major
 
 #### Upgrade notes
 
-Upgrade notes are markdown files in `.upgrade-notes/`, see
+Upgrade notes are markdown files named `.upgrade-notes/<PR number>.md`, see
 [CONTRIBUTING.md](../../CONTRIBUTING.md#upgrade-notes), managed by
 [`upgrade-notes.sh`](../scripts/upgrade-notes.sh). The `upgrade-notes` job in
-`pr.yml` validates them and requires one on PRs labeled `breaking-change`.
+`pr.yml` validates them, checks a PR only adds its own, and requires one on
+PRs labeled `breaking-change`.
 
 When notes are pending, `tag.yml` doesn't release. It moves them into a new
 section of `UPGRADING.md` and opens an "Upgrade notes for <version>" PR labeled

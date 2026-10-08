@@ -52,16 +52,24 @@ jobs:
       - name: Check upgrade notes
         env:
           BREAKING: ${{ contains(github.event.pull_request.labels.*.name, 'breaking-change') }}
+          PR: ${{ github.event.pull_request.number }}
         run: |
           set -euo pipefail
           .github/scripts/upgrade-notes.sh check
 
-          added=$(git diff --name-only --diff-filter=A HEAD^1 HEAD -- '.upgrade-notes/*.md')
-          if [ "$BREAKING" = true ] && [ -z "$added" ]; then
-            echo "::error::PRs labeled breaking-change need an upgrade note in .upgrade-notes/, see CONTRIBUTING.md."
+          note=".upgrade-notes/$PR.md"
+          for f in $(git diff --name-only --diff-filter=A HEAD^1 HEAD -- '.upgrade-notes/*.md'); do
+            if [ "$f" != "$note" ]; then
+              echo "::error::Rename $f to $note, upgrade notes are named after the PR that adds them."
+              exit 1
+            fi
+          done
+
+          if [ "$BREAKING" = true ] && [ ! -e "$note" ]; then
+            echo "::error::PRs labeled breaking-change need an upgrade note in $note, see CONTRIBUTING.md."
             exit 1
           fi
-          echo "Upgrade notes added: ${added:-none}"
+          if [ -e "$note" ]; then echo "Upgrade note: $note"; else echo "No upgrade note."; fi
 
   ci-success:
     runs-on: ubuntu-latest

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Manages the upgrade notes in .upgrade-notes/, see CONTRIBUTING.md.
+# Manages the upgrade notes in .upgrade-notes/<PR number>.md, see CONTRIBUTING.md.
 #
 #   upgrade-notes.sh check            validate the pending notes
 #   upgrade-notes.sh batch <version>  move the pending notes into UPGRADING.md
@@ -7,6 +7,7 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+REPO_URL="https://github.com/MaterializeInc/materialize-terraform-self-managed"
 NOTES_DIR="${REPO_ROOT}/.upgrade-notes"
 UPGRADING="${REPO_ROOT}/UPGRADING.md"
 
@@ -28,44 +29,47 @@ require_version() {
   fi
 }
 
-# Pending notes in a stable order.
-pending_notes() {
-  LC_ALL=C find "$NOTES_DIR" -maxdepth 1 -type f -name '*.md' | LC_ALL=C sort
+# PR numbers of the pending notes, oldest first.
+pending_prs() {
+  find "$NOTES_DIR" -mindepth 1 -maxdepth 1 -name '*.md' -exec basename {} .md \; | sort -n
 }
 
 check() {
-  local status=0 f
-  while IFS= read -r f; do
-    case "$(basename "$f")" in
-      .gitkeep | *.md) ;;
-      *)
-        echo "error: ${f#"$REPO_ROOT"/}: upgrade notes must be .md files" >&2
-        status=1
-        ;;
-    esac
-  done < <(find "$NOTES_DIR" -mindepth 1 -maxdepth 1)
+  local status=0 name f
+  while IFS= read -r name; do
+    if [[ "$name" != .gitkeep && ! "$name" =~ ^[1-9][0-9]*\.md$ ]]; then
+      echo "error: .upgrade-notes/$name: name upgrade notes after the PR, e.g. .upgrade-notes/123.md" >&2
+      status=1
+    fi
+  done < <(find "$NOTES_DIR" -mindepth 1 -maxdepth 1 -exec basename {} \;)
+  [ "$status" -eq 0 ] || return 1
 
-  while IFS= read -r f; do
+  while IFS= read -r name; do
+    f="$NOTES_DIR/$name.md"
     if ! head -n 1 "$f" | grep -q '^### [^[:space:]]'; then
-      echo "error: ${f#"$REPO_ROOT"/}: the first line must be a '### Title' heading" >&2
+      echo "error: .upgrade-notes/$name.md: the first line must be a '### Title' heading" >&2
+      status=1
+    fi
+    if ! tail -n +2 "$f" | grep -q '[^[:space:]]'; then
+      echo "error: .upgrade-notes/$name.md: add what users need to do below the title" >&2
       status=1
     fi
     # A version heading inside a note would split the release section.
     if grep -q '^## v[0-9]' "$f"; then
-      echo "error: ${f#"$REPO_ROOT"/}: must not contain a '## v...' heading" >&2
+      echo "error: .upgrade-notes/$name.md: must not contain a '## v...' heading" >&2
       status=1
     fi
-  done < <(pending_notes)
+  done < <(pending_prs)
   return "$status"
 }
 
 batch() {
-  local version=$1 notes section tmp line f
+  local version=$1 prs section tmp line pr f
   require_version "$version"
   check
 
-  notes=$(pending_notes)
-  if [ -z "$notes" ]; then
+  prs=$(pending_prs)
+  if [ -z "$prs" ]; then
     echo "No pending upgrade notes."
     return 0
   fi
@@ -78,13 +82,16 @@ batch() {
   section="$WORK_DIR/section.md"
   tmp="$WORK_DIR/UPGRADING.md"
 
+  # Each title links to its PR. $(...) drops trailing blank lines, so notes are
+  # evenly spaced.
   {
     echo "## $version"
-    while IFS= read -r f; do
+    while IFS= read -r pr; do
+      f="$NOTES_DIR/$pr.md"
       echo
-      # $(...) drops trailing blank lines, so notes are evenly spaced.
-      printf '%s\n' "$(cat "$f")"
-    done <<< "$notes"
+      printf '%s ([#%s](%s/pull/%s))\n' "$(head -n 1 "$f")" "$pr" "$REPO_URL" "$pr"
+      printf '%s\n' "$(tail -n +2 "$f")"
+    done <<< "$prs"
     echo
   } > "$section"
 
@@ -98,10 +105,10 @@ batch() {
   # Overwrite in place to keep the file's permissions.
   cat "$tmp" > "$UPGRADING"
 
-  while IFS= read -r f; do
-    rm -f -- "$f"
-  done <<< "$notes"
-  echo "Moved $(wc -l <<< "$notes" | tr -d ' ') upgrade note(s) into the $version section of UPGRADING.md."
+  while IFS= read -r pr; do
+    rm -f -- "$NOTES_DIR/$pr.md"
+  done <<< "$prs"
+  echo "Moved $(wc -l <<< "$prs" | tr -d ' ') upgrade note(s) into the $version section of UPGRADING.md."
 }
 
 show() {

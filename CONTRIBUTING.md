@@ -40,7 +40,7 @@ Unlabeled PRs land under "Other Changes".
 
 If users need to do something when they upgrade to a release with your change, add an upgrade note. PRs labeled `breaking-change` must have one.
 
-Add a markdown file to `.upgrade-notes/`, named after your change, e.g. `.upgrade-notes/azurerm-5.md`. Start it with a `###` title, then say what changes, who is affected, and what to do before applying:
+Open your PR first, then add `.upgrade-notes/<PR number>.md`, e.g. `.upgrade-notes/536.md` for PR #536. Start it with a `###` title, then say what changes, who is affected, and what to do before applying:
 
 ```markdown
 ### Azure modules require azurerm 5
@@ -50,7 +50,7 @@ The Azure modules now need `hashicorp/azurerm` 5.4 or later. Update the `azurerm
 
 See [UPGRADING.md](./UPGRADING.md) for more examples. To validate your note, run `.github/scripts/upgrade-notes.sh check`.
 
-When a release is cut, the notes move into a new section of `UPGRADING.md` and into the release notes. To fix a note in an existing release, edit `UPGRADING.md` directly.
+When a release is cut, the notes move into a new section of `UPGRADING.md`, with a link to each PR, and into the release notes. To fix a note in an existing release, edit `UPGRADING.md` directly.
 
 ## Generating Documentation
 
