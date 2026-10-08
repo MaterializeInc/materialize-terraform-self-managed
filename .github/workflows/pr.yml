@@ -49,30 +49,16 @@ jobs:
           # HEAD is the merge commit, HEAD^1 the base branch.
           fetch-depth: 2
 
-      - name: Install changie
-        run: .github/scripts/install-changie.sh
-
       - name: Check upgrade notes
         env:
           BREAKING: ${{ contains(github.event.pull_request.labels.*.name, 'breaking-change') }}
         run: |
           set -euo pipefail
-          notes=$(changie batch v0.0.0 --dry-run)
-          if grep -q '<no value>' <<< "$notes"; then
-            echo "::error::An upgrade note in .changes/unreleased is missing its Slug or Title."
-            exit 1
-          fi
+          .github/scripts/upgrade-notes.sh check
 
-          changie merge
-          if ! git diff --quiet -- UPGRADING.md; then
-            echo "::error::UPGRADING.md is generated from .changes, run \`changie merge\` and commit the result."
-            git diff -- UPGRADING.md
-            exit 1
-          fi
-
-          added=$(git diff --name-only --diff-filter=A HEAD^1 HEAD -- '.changes/unreleased/*.yaml')
+          added=$(git diff --name-only --diff-filter=A HEAD^1 HEAD -- '.upgrade-notes/*.md')
           if [ "$BREAKING" = true ] && [ -z "$added" ]; then
-            echo "::error::PRs labeled breaking-change need an upgrade note. Add one with \`changie new\`, see CONTRIBUTING.md."
+            echo "::error::PRs labeled breaking-change need an upgrade note in .upgrade-notes/, see CONTRIBUTING.md."
             exit 1
           fi
           echo "Upgrade notes added: ${added:-none}"

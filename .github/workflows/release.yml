@@ -21,14 +21,15 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          notes=()
-          if [ -e ".changes/$GITHUB_REF_NAME.md" ]; then
-            { echo "## Upgrade notes"; tail -n +2 ".changes/$GITHUB_REF_NAME.md"; } > "$RUNNER_TEMP/notes.md"
-            notes=(--notes-file "$RUNNER_TEMP/notes.md")
+          args=()
+          notes=$(.github/scripts/upgrade-notes.sh show "$GITHUB_REF_NAME")
+          if [ -n "$notes" ]; then
+            printf '## Upgrade notes\n%s\n' "$notes" > "$RUNNER_TEMP/notes.md"
+            args=(--notes-file "$RUNNER_TEMP/notes.md")
           fi
 
           gh release create "$GITHUB_REF_NAME" \
             --repo "$GITHUB_REPOSITORY" \
             --title "$GITHUB_REF_NAME" \
             --generate-notes \
-            "${notes[@]}"
+            "${args[@]}"

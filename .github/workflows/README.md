@@ -6,7 +6,7 @@
 pr.yml (pull_request)
   └── lint.yml
   └── version-label (requires a label determining the version bump)
-  └── upgrade-notes (checks .changes, requires a note on breaking changes)
+  └── upgrade-notes (validates .upgrade-notes, requires a note on breaking changes)
   └── ci-success (gates on all above)
 
 merge_queue.yml (merge_group)
@@ -62,17 +62,16 @@ A major release must be confirmed with `gh workflow run tag.yml -f confirm_major
 
 #### Upgrade notes
 
-Upgrade notes are [changie](https://changie.dev) fragments in
-`.changes/unreleased/`, see [CONTRIBUTING.md](../../CONTRIBUTING.md#upgrade-notes).
-The `upgrade-notes` job in `pr.yml` requires one on PRs labeled
-`breaking-change`, and checks that `UPGRADING.md` matches `.changes`.
+Upgrade notes are markdown files in `.upgrade-notes/`, see
+[CONTRIBUTING.md](../../CONTRIBUTING.md#upgrade-notes), managed by
+[`upgrade-notes.sh`](../scripts/upgrade-notes.sh). The `upgrade-notes` job in
+`pr.yml` validates them and requires one on PRs labeled `breaking-change`.
 
-When fragments are pending, `tag.yml` doesn't release. It runs
-`changie batch <version>` and `changie merge`, and opens an
-"Upgrade notes for <version>" PR labeled `ignore-for-release`, pushed with
-`MATERIALIZE_BOT_TOKEN` so that CI runs on it. Merge that PR, then run
-`tag.yml` again. The release notes start with that version's upgrade notes,
-followed by the generated list of PRs.
+When notes are pending, `tag.yml` doesn't release. It moves them into a new
+section of `UPGRADING.md` and opens an "Upgrade notes for <version>" PR labeled
+`ignore-for-release`, pushed with `MATERIALIZE_BOT_TOKEN` so that CI runs on
+it. Merge that PR, then run `tag.yml` again. The release notes start with that
+version's upgrade notes, followed by the generated list of PRs.
 
 ### What Gets Tested (Merge Queue Only)
 

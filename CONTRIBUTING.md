@@ -38,16 +38,19 @@ Unlabeled PRs land under "Other Changes".
 
 ### Upgrade Notes
 
-If users need to do something when they upgrade to a release with your change, add an upgrade note. PRs labeled `breaking-change` must have one. Install [changie](https://changie.dev/guide/installation/) (`brew install changie`) and run:
+If users need to do something when they upgrade to a release with your change, add an upgrade note. PRs labeled `breaking-change` must have one.
 
-```bash
-changie new --editor
+Add a markdown file to `.upgrade-notes/`, named after your change, e.g. `.upgrade-notes/azurerm-5.md`. Start it with a `###` title, then say what changes, who is affected, and what to do before applying:
+
+```markdown
+### Azure modules require azurerm 5
+
+The Azure modules now need `hashicorp/azurerm` 5.4 or later. Update the `azurerm` version in your root, then run `terraform init -upgrade`.
 ```
 
-It asks for a file name slug and a title, then opens your editor for the body. This creates a file in `.changes/unreleased/`. The body is markdown: say what changes, who is affected, and what to do before applying. See [UPGRADING.md](./UPGRADING.md) for examples.
+See [UPGRADING.md](./UPGRADING.md) for more examples. To validate your note, run `.github/scripts/upgrade-notes.sh check`.
 
-Don't edit `UPGRADING.md` by hand. When a release is cut, the notes in `.changes/unreleased/` move into `.changes/<version>.md` and `UPGRADING.md` is regenerated from those files. To fix a note in an existing release, edit `.changes/<version>.md` and run `changie merge`.
-
+When a release is cut, the notes move into a new section of `UPGRADING.md` and into the release notes. To fix a note in an existing release, edit `UPGRADING.md` directly.
 
 ## Generating Documentation
 
