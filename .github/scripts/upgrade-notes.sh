@@ -46,6 +46,10 @@ check() {
 
   while IFS= read -r name; do
     f="$NOTES_DIR/$name.md"
+    if grep -q $'\r' "$f"; then
+      echo "error: .upgrade-notes/$name.md: use Unix (LF) line endings" >&2
+      status=1
+    fi
     if ! head -n 1 "$f" | grep -q '^### [^[:space:]]'; then
       echo "error: .upgrade-notes/$name.md: the first line must be a '### Title' heading" >&2
       status=1
