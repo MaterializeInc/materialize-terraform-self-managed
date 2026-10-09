@@ -332,6 +332,10 @@ module "ebs_csi_driver" {
   oidc_issuer_url   = module.eks.cluster_oidc_issuer_url
   node_selector     = local.generic_node_labels
 
+  # Lets destroy wait for the driver to release its volumes before it is
+  # uninstalled. See the module's volume_drain.
+  kubeconfig_data = local.kubeconfig_data
+
   tags = var.tags
 
   depends_on = [
