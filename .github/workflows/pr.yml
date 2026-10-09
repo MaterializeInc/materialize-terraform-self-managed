@@ -52,23 +52,29 @@ jobs:
       - name: Check upgrade notes
         env:
           BREAKING: ${{ contains(github.event.pull_request.labels.*.name, 'breaking-change') }}
-          PR: ${{ github.event.pull_request.number }}
+          CREATED_AT: ${{ github.event.pull_request.created_at }}
         run: |
           set -euo pipefail
           .github/scripts/upgrade-notes.sh check
 
-          note=".upgrade-notes/$PR.md"
-          others=$(git diff --name-only --no-renames --diff-filter=A HEAD^1 HEAD -- '.upgrade-notes/*.md' | grep -vxF "$note" || true)
-          if [ -n "$others" ]; then
-            echo "::error::Upgrade notes are named after the PR that adds them, rename $others to $note."
-            exit 1
-          fi
+          # Notes are ordered by their date, so it must fall between a week
+          # before the PR was opened and tomorrow (for time zones ahead of UTC).
+          earliest=$(date -u -d "$(date -u -d "$CREATED_AT" +%F) 7 days ago" +%F)
+          latest=$(date -u -d tomorrow +%F)
+          added=$(git diff --name-only --no-renames --diff-filter=A HEAD^1 HEAD -- 'changelog.d/*.md')
+          for f in $added; do
+            d=$(basename "$f" | cut -c1-10)
+            if [[ "$d" < "$earliest" || "$d" > "$latest" ]]; then
+              echo "::error::$f is dated $d, use a date between $earliest and $latest."
+              exit 1
+            fi
+          done
 
-          if [ "$BREAKING" = true ] && [ ! -e "$note" ]; then
-            echo "::error::PRs labeled breaking-change need an upgrade note in $note, see CONTRIBUTING.md."
+          if [ "$BREAKING" = true ] && [ -z "$added" ]; then
+            echo "::error::PRs labeled breaking-change need an upgrade note in changelog.d/, see CONTRIBUTING.md."
             exit 1
           fi
-          if [ -e "$note" ]; then echo "Upgrade note: $note"; else echo "No upgrade note."; fi
+          echo "Upgrade notes added: ${added:-none}"
 
   ci-success:
     runs-on: ubuntu-latest

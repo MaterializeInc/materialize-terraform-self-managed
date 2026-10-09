@@ -40,7 +40,7 @@ Unlabeled PRs land under "Other Changes".
 
 If users need to do something when they upgrade to a release with your change, add an upgrade note. PRs labeled `breaking-change` must have one.
 
-Open your PR first, then add `.upgrade-notes/<PR number>.md`, e.g. `.upgrade-notes/536.md` for PR #536. Start it with a `###` title, then say what changes, who is affected, and what to do before applying:
+Add `changelog.d/YYYY-MM-DD-<slug>.md` in the same commit as your change, using today's date, e.g. `changelog.d/2026-10-09-azurerm-5.md`. Notes are ordered by that date, and the PR check accepts dates from a week before the PR was opened. Start it with a `###` title, then say what changes, who is affected, and what to do before applying:
 
 ```markdown
 ### Azure modules require azurerm 5

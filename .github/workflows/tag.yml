@@ -89,6 +89,8 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.sha }}
+          # Full history, so each upgrade note can be linked to the PR that added it.
+          fetch-depth: 0
           # The bot token's pushes trigger CI on the upgrade notes PR, the
           # default GITHUB_TOKEN's don't.
           token: ${{ secrets.MATERIALIZE_BOT_TOKEN }}
@@ -120,7 +122,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git switch -c "$branch"
-          git add -A .upgrade-notes UPGRADING.md
+          git add -A changelog.d UPGRADING.md
           git commit -m "Upgrade notes for $VERSION"
           git push --force origin "$branch"
 
