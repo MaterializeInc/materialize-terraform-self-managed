@@ -6,6 +6,7 @@
 pr.yml (pull_request)
   └── lint.yml
   └── version-label (requires a label determining the version bump)
+  └── upgrade-notes (validates changelog.d, requires a note on breaking changes)
   └── ci-success (gates on all above)
 
 merge_queue.yml (merge_group)
@@ -16,7 +17,7 @@ merge_queue.yml (merge_group)
   └── ci-success (gates on all above)
 
 tag.yml (manual, workflow_dispatch on main)
-  └── creates the tag and GitHub release, bump level from PR labels
+  └── opens a PR batching pending upgrade notes, or creates the tag and GitHub release
 ```
 
 ## Merge Queue Integration
@@ -36,7 +37,7 @@ Infrastructure tests **integrate with GitHub's merge queue** to ensure only appr
 
 | Event | Workflow | What Runs | ci-success gates on |
 |-------|----------|-----------|---------------------|
-| `pull_request` | `pr.yml` | Lint + version label check | Lint + version label |
+| `pull_request` | `pr.yml` | Lint + version label + upgrade notes checks | Lint + version label + upgrade notes |
 | `merge_group` | `merge_queue.yml` | Lint + all cloud tests | Lint + AWS + GCP + Azure |
 | `workflow_dispatch` | `tag.yml` | Tag and GitHub release | N/A |
 | `workflow_dispatch` | `test-*.yml` | Individual cloud test | N/A |
@@ -58,6 +59,22 @@ The `version-label` job in `pr.yml` blocks PRs that carry none of these
 labels. If no merged PR carries a version label, no release is created.
 The release fails while any open PR carries the `release-blocker` label.
 A major release must be confirmed with `gh workflow run tag.yml -f confirm_major=true`.
+
+#### Upgrade notes
+
+Upgrade notes are markdown files named `changelog.d/YYYY-MM-DD-<slug>.md`, see
+[CONTRIBUTING.md](../../CONTRIBUTING.md#upgrade-notes), managed by
+[`upgrade-notes.sh`](../scripts/upgrade-notes.sh). The `upgrade-notes` job in
+`pr.yml` validates them, checks their dates, and requires one on PRs labeled
+`breaking-change`. When batching, each note is linked to the PR that added it,
+found from the merge queue's squash commit title.
+
+When notes are pending, `tag.yml` doesn't release. It moves them into the
+version's section of `UPGRADING.md` and opens or updates an "Upgrade notes for
+<version>" PR labeled `ignore-for-release`, pushed with `MATERIALIZE_BOT_TOKEN`
+so that CI runs on it. Merge that PR, then run `tag.yml` again. The release
+notes start with that version's upgrade notes, followed by the generated list
+of PRs.
 
 ### What Gets Tested (Merge Queue Only)
 
@@ -90,6 +107,7 @@ A major release must be confirmed with `gh workflow run tag.yml -f confirm_major
 **Repository Secrets:**
 ```
 MATERIALIZE_LICENSE_KEY
+MATERIALIZE_BOT_TOKEN  # pushes regenerated docs and opens the upgrade notes PR
 AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID  
 ```
 

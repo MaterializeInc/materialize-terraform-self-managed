@@ -39,11 +39,49 @@ jobs:
           fi
           echo "Version labels found: $LABELS"
 
+  upgrade-notes:
+    name: Upgrade Notes
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # HEAD is the merge commit, HEAD^1 the base branch.
+          fetch-depth: 2
+
+      - name: Check upgrade notes
+        env:
+          BREAKING: ${{ contains(github.event.pull_request.labels.*.name, 'breaking-change') }}
+          CREATED_AT: ${{ github.event.pull_request.created_at }}
+        run: |
+          set -euo pipefail
+          .github/scripts/upgrade-notes.sh check
+
+          # Notes are ordered by their date, so it must fall between a week
+          # before the PR was opened and tomorrow (for time zones ahead of UTC).
+          earliest=$(date -u -d "$(date -u -d "$CREATED_AT" +%F) 7 days ago" +%F)
+          latest=$(date -u -d tomorrow +%F)
+          added=$(git diff --name-only --no-renames --diff-filter=A HEAD^1 HEAD -- 'changelog.d/*.md')
+          for f in $added; do
+            d=$(basename "$f" | cut -c1-10)
+            if [[ "$d" < "$earliest" || "$d" > "$latest" ]]; then
+              echo "::error::$f is dated $d, use a date between $earliest and $latest."
+              exit 1
+            fi
+          done
+
+          if [ "$BREAKING" = true ] && [ -z "$added" ]; then
+            echo "::error::PRs labeled breaking-change need an upgrade note in changelog.d/, see CONTRIBUTING.md."
+            exit 1
+          fi
+          echo "Upgrade notes added: ${added:-none}"
+
   ci-success:
     runs-on: ubuntu-latest
     needs:
       - lint
       - version-label
+      - upgrade-notes
     if: always()
     steps:
       - uses: technote-space/workflow-conclusion-action@45ce8e0eb155657ab8ccf346ade734257fd196a5 # v3.0.3
