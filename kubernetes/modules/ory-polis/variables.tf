@@ -45,7 +45,7 @@ variable "chart_version" {
   description = "Polis Helm chart version. See the Ory Polis release notes for the version that pairs with your OEL image tag."
   type        = string
   # renovate: datasource=docker depName=ory-artifacts/helm-oel-polis/polis-oel registryUrl=https://ory.registry.cloud.materialize.com
-  default  = "0.0.56"
+  default  = "0.0.58"
   nullable = false
 }
 
