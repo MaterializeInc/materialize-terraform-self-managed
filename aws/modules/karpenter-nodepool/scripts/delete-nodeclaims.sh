@@ -15,9 +15,15 @@
 # terraform's default /bin/sh — dash, or busybox sh in Materialize's BYOC
 # stack-deployer image — so this must stay POSIX sh with no bashisms.
 #
-# Required environment (supplied by the provisioner):
-#   NODEPOOL_NAME, KUBECONFIG_DATA, DELETE_TIMEOUT
+# Environment (supplied by the provisioner):
+#   NODEPOOL_NAME, KUBECONFIG_DATA  required
+#   DELETE_TIMEOUT                  optional, defaults to 15m
 set -eu
+
+# A destroy-time provisioner reads its environment from state, so a nodepool
+# last applied before DELETE_TIMEOUT existed destroys without it. Fall back to
+# the variable's default rather than tripping `set -u` before deleting anything.
+delete_timeout="${DELETE_TIMEOUT:-15m}"
 
 if [ -z "${KUBECONFIG_DATA}" ]; then
   echo "Error: KUBECONFIG_DATA is empty"
@@ -37,11 +43,11 @@ selector="karpenter.sh/nodepool=${NODEPOOL_NAME}"
 nodeclaims=$(k get nodeclaims -l "${selector}" -o name)
 [ -z "${nodeclaims}" ] && exit 0
 
-if echo "${nodeclaims}" | xargs kubectl --kubeconfig "${kubeconfig_file}" delete --wait=true --timeout="${DELETE_TIMEOUT}"; then
+if echo "${nodeclaims}" | xargs kubectl --kubeconfig "${kubeconfig_file}" delete --wait=true --timeout="${delete_timeout}"; then
   exit 0
 fi
 
-echo "Error: nodeclaims of nodepool ${NODEPOOL_NAME} still exist after ${DELETE_TIMEOUT}." >&2
+echo "Error: nodeclaims of nodepool ${NODEPOOL_NAME} still exist after ${delete_timeout}." >&2
 echo "Karpenter holds each one until its node has drained, its volumes have detached, and its instance is terminated. Still in the way:" >&2
 # Best effort from here: a nodeclaim can finish going away between the list
 # and the lookup, and that must not cut the report short.
