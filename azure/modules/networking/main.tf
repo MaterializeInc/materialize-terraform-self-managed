@@ -33,7 +33,7 @@ data "azurerm_client_config" "current" {}
 # Virtual Network using Azure Verified Module
 module "virtual_network" {
   source  = "Azure/avm-res-network-virtualnetwork/azurerm"
-  version = "0.22.2"
+  version = "0.22.3"
 
   name          = "${var.prefix}-vnet"
   location      = var.location
