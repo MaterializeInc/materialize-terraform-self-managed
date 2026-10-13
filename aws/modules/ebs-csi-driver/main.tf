@@ -281,7 +281,7 @@ resource "helm_release" "ebs_csi_driver" {
   dynamic "set" {
     for_each = var.tags
     content {
-      name  = "controller.extraVolumeTags.${replace(set.key, ".", "\\.")}"
+      name  = "controller.extraVolumeTags.${replace(replace(set.key, ".", "\\."), "=", "\\=")}"
       value = set.value
       type  = "string"
     }
