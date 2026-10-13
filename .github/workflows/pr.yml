@@ -49,32 +49,13 @@ jobs:
           # HEAD is the merge commit, HEAD^1 the base branch.
           fetch-depth: 2
 
-      - name: Check upgrade notes
-        env:
-          BREAKING: ${{ contains(github.event.pull_request.labels.*.name, 'breaking-change') }}
-          CREATED_AT: ${{ github.event.pull_request.created_at }}
+      - name: Require an upgrade note on breaking changes
+        if: contains(github.event.pull_request.labels.*.name, 'breaking-change')
         run: |
-          set -euo pipefail
-          .github/scripts/upgrade-notes.sh check
-
-          # Notes are ordered by their date, so it must fall between a week
-          # before the PR was opened and tomorrow (for time zones ahead of UTC).
-          earliest=$(date -u -d "$(date -u -d "$CREATED_AT" +%F) 7 days ago" +%F)
-          latest=$(date -u -d tomorrow +%F)
-          added=$(git diff --name-only --no-renames --diff-filter=A HEAD^1 HEAD -- 'changelog.d/*.md')
-          for f in $added; do
-            d=$(basename "$f" | cut -c1-10)
-            if [[ "$d" < "$earliest" || "$d" > "$latest" ]]; then
-              echo "::error::$f is dated $d, use a date between $earliest and $latest."
-              exit 1
-            fi
-          done
-
-          if [ "$BREAKING" = true ] && [ -z "$added" ]; then
+          if [ -z "$(git diff --name-only --no-renames --diff-filter=A HEAD^1 HEAD -- 'changelog.d/*.md')" ]; then
             echo "::error::PRs labeled breaking-change need an upgrade note in changelog.d/, see CONTRIBUTING.md."
             exit 1
           fi
-          echo "Upgrade notes added: ${added:-none}"
 
   ci-success:
     runs-on: ubuntu-latest

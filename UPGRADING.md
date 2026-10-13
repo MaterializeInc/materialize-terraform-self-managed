@@ -6,6 +6,8 @@ Upgrades of the materialize version are included in our tagged releases. We do n
 
 We follow semantic versioning with our tags. If a particular version requires additional actions or contains breaking changes, we list them below. Read every section between your current version and the one you upgrade to.
 
+<!-- scriv-insert-here -->
+
 ## v16.0.0
 
 ### Azure modules require azurerm 5

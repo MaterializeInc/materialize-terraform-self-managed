@@ -38,9 +38,16 @@ Unlabeled PRs land under "Other Changes".
 
 ### Upgrade Notes
 
-If users need to do something when they upgrade to a release with your change, add an upgrade note. PRs labeled `breaking-change` must have one.
+If users need to do something when they upgrade to a release with your change, add an upgrade note in the same PR. PRs labeled `breaking-change` must have one.
 
-Add `changelog.d/YYYY-MM-DD-<slug>.md` in the same commit as your change, using today's date, e.g. `changelog.d/2026-10-09-azurerm-5.md`. Notes are ordered by that date, and the PR check accepts dates from a week before the PR was opened. Start it with a `###` title, then say what changes, who is affected, and what to do before applying:
+Notes are markdown files in `changelog.d/`, managed with [scriv](https://scriv.readthedocs.io). Create one with:
+
+```bash
+pipx install scriv  # once
+scriv create
+```
+
+This adds `changelog.d/<timestamp>_<user>_<branch>.md`. Replace its comment with a `###` title, then say what changes, who is affected, and what to do before applying. Use `####` for any headings below the title:
 
 ```markdown
 ### Azure modules require azurerm 5
@@ -48,9 +55,7 @@ Add `changelog.d/YYYY-MM-DD-<slug>.md` in the same commit as your change, using 
 The Azure modules now need `hashicorp/azurerm` 5.4 or later. Update the `azurerm` version in your root, then run `terraform init -upgrade`.
 ```
 
-Use `####` for any headings below the title. See [UPGRADING.md](./UPGRADING.md) for more examples. To validate your note, run `.github/scripts/upgrade-notes.sh check`.
-
-When a release is cut, the notes move into a new section of `UPGRADING.md`, with a link to each PR, and into the release notes. To fix a note in an existing release, edit `UPGRADING.md` directly, and the release on GitHub too if it matters there.
+See [UPGRADING.md](./UPGRADING.md) for more examples. When a release is cut, the notes move into a new section of `UPGRADING.md` and into the release notes. To fix a note in an existing release, edit `UPGRADING.md` directly, and the release on GitHub too if it matters there.
 
 ## Generating Documentation
 

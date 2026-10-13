@@ -89,15 +89,17 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.sha }}
-          # Full history, so each upgrade note can be linked to the PR that added it.
-          fetch-depth: 0
           # The bot token's pushes trigger CI on the upgrade notes PR, the
           # default GITHUB_TOKEN's don't.
           token: ${{ secrets.MATERIALIZE_BOT_TOKEN }}
 
+      - name: Install scriv
+        if: steps.version.outputs.version != ''
+        run: pipx install scriv==1.8.0
+
       # Pending upgrade notes go into UPGRADING.md through a PR. Once it merges,
-      # the next run finds nothing to batch and releases.
-      - name: Batch upgrade notes
+      # the next run finds none and releases.
+      - name: Collect upgrade notes
         id: notes
         if: steps.version.outputs.version != ''
         env:
@@ -105,8 +107,20 @@ jobs:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
           set -euo pipefail
-          .github/scripts/upgrade-notes.sh batch "$VERSION" "$LATEST"
-          if [ -n "$(git status --porcelain)" ]; then
+          # Notes collected for a version newer than the latest release, but not
+          # this one, mean a PR with a bigger bump merged after the notes PR.
+          top=$(grep -m 1 -oE '^## v[0-9]+\.[0-9]+\.[0-9]+$' UPGRADING.md | cut -c4- || true)
+          if [ -n "$top" ] && [ "$top" != "$LATEST" ] && [ "$top" != "$VERSION" ] &&
+            [ "$(printf '%s\n' "$LATEST" "$top" | sort -V | tail -n 1)" = "$top" ]; then
+            echo "::error::UPGRADING.md has notes for $top, but this release is $VERSION. Rename that heading in a PR, then run this again."
+            exit 1
+          fi
+
+          if compgen -G 'changelog.d/*.md' > /dev/null; then
+            if ! scriv collect --version "$VERSION"; then
+              echo "::error::Upgrade notes merged after the $VERSION notes PR. Add them to its section in UPGRADING.md by hand and delete them from changelog.d/, then run this again."
+              exit 1
+            fi
             echo "pending=true" >> "$GITHUB_OUTPUT"
           fi
 
@@ -141,9 +155,9 @@ jobs:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
           set -euo pipefail
-          notes=$(.github/scripts/upgrade-notes.sh release-notes "$VERSION")
+          notes=$(scriv print --version "$VERSION" 2>/dev/null || true)
           args=()
-          if [ -n "$notes" ]; then args=(--notes "$notes"); fi
+          if [ -n "$notes" ]; then args=(--notes "$(printf '## Upgrade notes\n\n%s' "$notes")"); fi
 
           echo "Creating release $VERSION"
           gh release create "$VERSION" \
