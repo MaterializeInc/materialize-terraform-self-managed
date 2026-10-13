@@ -271,6 +271,22 @@ resource "helm_release" "ebs_csi_driver" {
     value = "true"
   }
 
+  # Volumes provisioned by the CSI driver are created by its IRSA role, so
+  # neither provider default_tags nor instance tags reach them. Tag them
+  # explicitly to satisfy tag-enforcement policies (e.g. the scratch
+  # account's RequireTagsScratch SCP). These go on the controller rather than
+  # in the StorageClass's tagSpecification parameters: StorageClass parameters
+  # are immutable, so a tag change there replaces the StorageClass, and the
+  # fixed `gp3` name can't be replaced create-before-destroy.
+  dynamic "set" {
+    for_each = var.tags
+    content {
+      name  = "controller.extraVolumeTags.${replace(set.key, ".", "\\.")}"
+      value = set.value
+      type  = "string"
+    }
+  }
+
   # Metrics Services, and a ServiceMonitor for each: the controller's AWS API
   # calls and each of its sidecars, and on every node the per-volume EBS
   # statistics, including time spent over the volume's provisioned IOPS and
@@ -318,12 +334,7 @@ resource "kubernetes_storage_class" "gp3" {
       type      = "gp3"
       encrypted = "true"
     },
-    var.kms_key_id != null ? { kmsKeyId = var.kms_key_id } : {},
-    # Volumes provisioned by the CSI driver are created by its IRSA role, so
-    # neither provider default_tags nor instance tags reach them. Tag them
-    # explicitly to satisfy tag-enforcement policies (e.g. the scratch
-    # account's RequireTagsScratch SCP).
-    { for i, k in keys(var.tags) : "tagSpecification_${i + 1}" => "${k}=${var.tags[k]}" }
+    var.kms_key_id != null ? { kmsKeyId = var.kms_key_id } : {}
   )
 
   depends_on = [helm_release.ebs_csi_driver]
