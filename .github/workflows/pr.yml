@@ -39,11 +39,30 @@ jobs:
           fi
           echo "Version labels found: $LABELS"
 
+  upgrade-notes:
+    name: Upgrade Notes
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # HEAD is the merge commit, HEAD^1 the base branch.
+          fetch-depth: 2
+
+      - name: Require an upgrade note on breaking changes
+        if: contains(github.event.pull_request.labels.*.name, 'breaking-change')
+        run: |
+          if [ -z "$(git diff --name-only --no-renames --diff-filter=A HEAD^1 HEAD -- 'changelog.d/*.md')" ]; then
+            echo "::error::PRs labeled breaking-change need an upgrade note in changelog.d/, see CONTRIBUTING.md."
+            exit 1
+          fi
+
   ci-success:
     runs-on: ubuntu-latest
     needs:
       - lint
       - version-label
+      - upgrade-notes
     if: always()
     steps:
       - uses: technote-space/workflow-conclusion-action@45ce8e0eb155657ab8ccf346ade734257fd196a5 # v3.0.3

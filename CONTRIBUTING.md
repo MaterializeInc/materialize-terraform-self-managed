@@ -36,6 +36,26 @@ We use labels to categorize pull requests in auto-generated release notes (see [
 
 Unlabeled PRs land under "Other Changes".
 
+### Upgrade Notes
+
+If users need to do something when they upgrade to a release with your change, add an upgrade note in the same PR. PRs labeled `breaking-change` must have one.
+
+Notes are markdown files in `changelog.d/`, managed with [scriv](https://scriv.readthedocs.io). Create one with:
+
+```bash
+pipx install scriv  # once
+scriv create
+```
+
+This adds `changelog.d/<timestamp>_<user>_<branch>.md`. Replace its comment with a `###` title, then say what changes, who is affected, and what to do before applying. Use `####` for any headings below the title:
+
+```markdown
+### Azure modules require azurerm 5
+
+The Azure modules now need `hashicorp/azurerm` 5.4 or later. Update the `azurerm` version in your root, then run `terraform init -upgrade`.
+```
+
+See [UPGRADING.md](./UPGRADING.md) for more examples. When a release is cut, the notes move into a new section of `UPGRADING.md` and into the release notes. To fix a note in an existing release, edit `UPGRADING.md` directly, and the release on GitHub too if it matters there.
 
 ## Generating Documentation
 
