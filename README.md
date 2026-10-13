@@ -177,6 +177,28 @@ We follow semantic versioning with our tags. If a particular version requires ad
 
 ### Upgrade Notes
 
+#### v17.0.0
+
+##### AWS EBS volume tags move from the StorageClass to the CSI driver
+
+The `ebs-csi-driver` module now passes `tags` to the driver's controller as `controller.extraVolumeTags` instead of the `gp3` StorageClass's `tagSpecification_N` parameters. New volumes get the same tags as before. Kubernetes doesn't allow StorageClass parameters to change, so before this change every tag change replaced the StorageClass. Tag changes now update the Helm release in place.
+
+On v9.0.0 or later with non-empty `tags`, this upgrade replaces the `gp3` StorageClass one last time to remove the old parameters. The `simple` and `enterprise` examples make Terraform create the replacement before deleting the old one, and the apply fails with:
+
+```
+Error: storageclasses.storage.k8s.io "gp3" already exists
+```
+
+**Before applying, delete the StorageClass**, then apply:
+
+```bash
+kubectl delete storageclass gp3
+```
+
+An apply that has already failed this way recovers the same way. Existing PersistentVolumes and PersistentVolumeClaims aren't affected. New volumes can't be provisioned between the delete and the apply.
+
+Neither the old tags nor the new ones are applied to volumes that already exist. If you're changing tags as part of this upgrade, retag existing volumes yourself, for example with `aws ec2 create-tags`.
+
 #### v16.0.0
 
 ##### Azure modules require azurerm 5
