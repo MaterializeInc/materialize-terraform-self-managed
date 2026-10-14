@@ -14,7 +14,8 @@
 # Bound PersistentVolumes are deliberately not waited on. They belong to a
 # claim that still exists, such as one a StatefulSet's volumeClaimTemplates
 # created and `helm uninstall` leaves behind by design, and the driver will
-# not delete them however long it is given.
+# not delete them however long it is given. Released PVs with a Retain
+# reclaim policy are skipped for the same reason.
 #
 # Fails on timeout rather than proceeding, naming what is still held, since
 # proceeding is what produces the hang.
@@ -39,20 +40,25 @@ driver=ebs.csi.aws.com
 timeout=${TIMEOUT_SECONDS}
 interval=10
 
-# custom-columns prints <none> for a missing field, so objects without the
-# field fall out of the awk match instead of erroring.
+# Each listing is captured before it is filtered: sh has no pipefail, so a
+# failing kubectl piped straight into awk would read as nothing held and let
+# the driver be uninstalled. custom-columns prints <none> for a missing field,
+# so objects without the field fall out of the awk match instead of erroring.
 held() {
-  kubectl --kubeconfig "${kubeconfig_file}" get volumeattachments --no-headers \
-    -o custom-columns=NAME:.metadata.name,ATTACHER:.spec.attacher,NODE:.spec.nodeName \
-    | awk -v d="${driver}" '$2 == d { print "volumeattachment/" $1 " (node " $3 ")" }'
-  kubectl --kubeconfig "${kubeconfig_file}" get pv --no-headers \
-    -o custom-columns=NAME:.metadata.name,DRIVER:.spec.csi.driver,PHASE:.status.phase \
-    | awk -v d="${driver}" '$2 == d && $3 == "Released" { print "pv/" $1 " (Released)" }'
+  attachments=$(kubectl --kubeconfig "${kubeconfig_file}" get volumeattachments --no-headers \
+    -o custom-columns=NAME:.metadata.name,ATTACHER:.spec.attacher,NODE:.spec.nodeName) || return 1
+  pvs=$(kubectl --kubeconfig "${kubeconfig_file}" get pv --no-headers \
+    -o custom-columns=NAME:.metadata.name,DRIVER:.spec.csi.driver,PHASE:.status.phase,RECLAIM:.spec.persistentVolumeReclaimPolicy) || return 1
+  echo "${attachments}" | awk -v d="${driver}" '$2 == d { print "volumeattachment/" $1 " (node " $3 ")" }'
+  echo "${pvs}" | awk -v d="${driver}" '$2 == d && $3 == "Released" && $4 == "Delete" { print "pv/" $1 " (Released)" }'
 }
 
 elapsed=0
 while :; do
-  left=$(held)
+  if ! left=$(held); then
+    echo "Error: could not list ${driver}'s volumes, so cannot tell whether uninstalling it is safe." >&2
+    exit 1
+  fi
   [ -z "${left}" ] && exit 0
   if [ "${elapsed}" -ge "${timeout}" ]; then
     echo "Error: ${driver} still holds volumes after ${timeout}s, and uninstalling it now would strand them:" >&2

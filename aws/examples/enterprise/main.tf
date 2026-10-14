@@ -341,6 +341,10 @@ module "ebs_csi_driver" {
   depends_on = [
     module.base_node_group,
     module.coredns,
+    # The controller runs on this pool, and destroy's volume drain needs it
+    # to detach volumes. Without this, destroy can remove the pool's nodes
+    # during the drain, leaving the controller Pending and the drain timing out.
+    module.nodepool_generic,
   ]
 }
 
