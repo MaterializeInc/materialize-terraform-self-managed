@@ -1,9 +1,16 @@
 #TODO: Currently all the nodepools share this service account. Should we create separate service accounts for different nodepools at nodepool level?
 #  Doing this will allow more flexibility in terms of permissions/firewalls for different nodepools.
 resource "google_service_account" "gke_sa" {
+  count = var.node_service_account_email == null ? 1 : 0
+
   project      = var.project_id
   account_id   = coalesce(var.node_service_account_id, "${var.prefix}-gke-sa")
   display_name = "GKE Service Account for Materialize"
+}
+
+moved {
+  from = google_service_account.gke_sa
+  to   = google_service_account.gke_sa[0]
 }
 
 # Google's recommended baseline for node service accounts, plus image pulls
@@ -16,7 +23,7 @@ resource "google_project_iam_member" "gke_sa" {
 
   project = var.project_id
   role    = each.value
-  member  = "serviceAccount:${google_service_account.gke_sa.email}"
+  member  = "serviceAccount:${local.node_service_account_email}"
 }
 
 resource "google_service_account" "workload_identity_sa" {
@@ -26,6 +33,8 @@ resource "google_service_account" "workload_identity_sa" {
 }
 
 locals {
+  node_service_account_email = coalesce(var.node_service_account_email, one(google_service_account.gke_sa[*].email))
+
   # Deduplicate CIDR blocks by converting to a map keyed by cidr_block
   # This ensures each CIDR block appears only once (set-like behavior)
   # If duplicates exist, the last occurrence is kept
@@ -71,6 +80,17 @@ resource "google_container_cluster" "primary" {
 
   remove_default_node_pool = true
   initial_node_count       = 1
+
+  # Without node_config the temporary default pool runs as the Compute Engine
+  # default SA, so creating the cluster needs actAs on it. Only set for a
+  # caller-supplied SA: adding it to an existing cluster forces replacement.
+  dynamic "node_config" {
+    for_each = var.node_service_account_email == null ? [] : [1]
+    content {
+      service_account = var.node_service_account_email
+      oauth_scopes    = ["https://www.googleapis.com/auth/cloud-platform"]
+    }
+  }
 
   resource_labels = var.labels
 
@@ -204,7 +224,7 @@ resource "google_compute_firewall" "conversion_webhook" {
     ports    = ["8001"]
   }
   source_ranges           = [local.conversion_webhook_rule_source_ranges]
-  target_service_accounts = [google_service_account.gke_sa.email]
+  target_service_accounts = [local.node_service_account_email]
 }
 
 resource "google_service_account_iam_binding" "workload_identity" {
