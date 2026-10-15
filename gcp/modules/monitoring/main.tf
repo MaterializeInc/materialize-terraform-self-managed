@@ -297,6 +297,46 @@ locals {
 }
 
 # ==============================================================================
+# External dependencies: what the stack watches from the inside
+# ==============================================================================
+# The metadata database is a sibling of this module, so the caller passes it.
+# The monitoring module creates the exporter's Secret from these passwords, and
+# adds Grafana's own database as a target whenever it configures one with a
+# password; nothing here repeats that.
+
+locals {
+  # Mirrors the monitoring module's own gate on Grafana's target: a database it
+  # points Grafana at, with a password it manages. Plan-known either way.
+  postgres_exporter_watches_grafana = local.create_grafana_database || (
+    var.grafana_database_host != null && var.grafana_database_password != null
+  )
+
+  postgres_exporter_enabled = var.enable_postgres_exporter && (
+    var.metadata_database != null || local.postgres_exporter_watches_grafana
+  )
+
+  postgres_exporter_targets = var.enable_postgres_exporter && var.metadata_database != null ? [{
+    name              = "consensus"
+    host              = var.metadata_database.host
+    port              = var.metadata_database.port
+    database          = var.metadata_database.database
+    user              = var.metadata_database.user
+    metadata_database = true
+  }] : []
+
+  postgres_exporter_passwords = length(local.postgres_exporter_targets) == 0 ? {} : {
+    consensus = var.metadata_database_password
+  }
+
+  # Declared only where the pull runs: the `cloudsql` adapter reads nothing else,
+  # and a declaration with no pull behind it is a render-time warning.
+  metadata_databases = local.provider_metrics_enabled && var.metadata_database != null ? [{
+    flavor      = "cloudsql"
+    resource_id = var.metadata_database.resource_id
+  }] : []
+}
+
+# ==============================================================================
 # The stack
 # ==============================================================================
 
@@ -318,6 +358,9 @@ module "monitoring" {
   #
   # v0.13.0 is where `grafana_database_*` and the chart's `grafana.ingress` /
   # `grafana.service` values land.
+  #
+  # v1.3.0 is where `enable_postgres_exporter`, `postgres_exporter_*` and
+  # `metadata_databases` land.
   source = "github.com/MaterializeInc/materialize-monitoring//terraform/modules/materialize-monitoring?ref=materialize-monitoring/v1.3.0"
 
   namespace        = var.namespace
@@ -425,6 +468,13 @@ module "monitoring" {
   alerting                  = var.alerting
   alerting_receiver_secrets = var.alerting_receiver_secrets
   alertmanager_namespace    = var.alertmanager_namespace
+
+  # The metadata database, for the postgres-exporter and the recording rules.
+  # Credentials reach the exporter's Secret, never the Helm values.
+  enable_postgres_exporter    = local.postgres_exporter_enabled
+  postgres_exporter_targets   = local.postgres_exporter_targets
+  postgres_exporter_passwords = local.postgres_exporter_passwords
+  metadata_databases          = local.metadata_databases
 
   # Computed values ahead of the caller's, so `additional_values` still
   # overrides anything computed here.
