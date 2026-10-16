@@ -44,6 +44,19 @@ variable "create_namespace" {
 # Cluster identity
 # ==============================================================================
 
+variable "cluster_name" {
+  description = <<-EOT
+    Name of the AKS cluster, from the `aks` module. The monitoring stack stamps it as the `cluster`
+    label on every log line, metric sample, and alert it produces.
+
+    Set it whenever more than one cluster writes to the same log or metrics store, or notifies the
+    same channel or incident tool: the label is the only thing that tells them apart. Null leaves
+    the label at `default`.
+  EOT
+  type        = string
+  default     = null
+}
+
 variable "oidc_issuer_url" {
   description = "The AKS cluster's OIDC issuer URL, from the `aks` module. Requires `oidc_issuer_enabled` and `workload_identity_enabled` on the cluster."
   type        = string

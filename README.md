@@ -199,6 +199,31 @@ An apply that has already failed this way recovers the same way. Existing Persis
 
 Neither the old tags nor the new ones are applied to volumes that already exist. If you're changing tags as part of this upgrade, retag existing volumes yourself, for example with `aws ec2 create-tags`.
 
+##### The monitoring stack can label its data with the Kubernetes cluster's name
+
+The AWS, GCP, and Azure `monitoring` modules take a new `cluster_name` input.
+The monitoring stack stamps it as the `cluster` label on every log line, metric sample, and alert, and the `simple` and `enterprise` examples now pass it the EKS, GKE, or AKS cluster's name.
+Without it, every install labels its data `cluster="default"`, so two installs that share a Thanos, a Grafana, a Cloud Monitoring project, or a notification channel can't be told apart.
+
+Nothing changes until `cluster_name` is set.
+To set it in a root you copied from an example, add the line the examples now have to its `monitoring` module:
+
+```hcl
+cluster_name = module.eks.cluster_name # module.gke on GCP, module.aks on Azure
+```
+
+The first apply with it set changes `cluster` from `default` to the cluster's name:
+
+- **Metrics start new series** in Thanos and in every other metrics destination, such as Cloud Monitoring or Datadog.
+  The old series stop receiving samples, so a query that selects `cluster="default"` stops returning new data.
+- **Logs start new streams** in Loki, and `{cluster="default"}` stops matching new lines.
+- **Every alert's `cluster` label changes.**
+  Alertmanager groups alerts by `cluster`, and PagerDuty and Opsgenie deduplicate on the group, so an alert that's firing when you apply opens a second incident.
+  The incident under the old label resolves once Alertmanager stops receiving its alerts.
+  Update any silences, inhibition rules, or routes of your own that match `cluster="default"`.
+
+If you already set `clusterName` through `additional_values`, that value still wins; move it to `cluster_name`.
+
 #### v16.0.0
 
 ##### Azure modules require azurerm 5

@@ -297,6 +297,8 @@ module "monitoring" {
   namespace        = var.namespace
   create_namespace = var.create_namespace
 
+  cluster_name = var.cluster_name
+
   chart_version = var.chart_version
 
   # Null on any of these means "use the monitoring module's own default": each
