@@ -504,10 +504,20 @@ module "monitoring" {
   # Compute Engine quota is the project's, per region: the CPUs and local SSD
   # each machine family uses against its limit, across every node pool and VM
   # in the region, since that is what a node pool runs into when it cannot grow.
+  #
+  # Cloud NAT is the path pods take out of the VPC, so its port exhaustion is
+  # why a Materialize source can stall with no cause in the cluster.
+  #
+  # The Materialize load balancers are not listed by default: naming them makes
+  # this module wait for, and fail with, the Materialize instance, since GKE only
+  # makes their forwarding rules once the instance exists. Uncomment to accept
+  # that and see their traffic.
   provider_metrics = var.enable_provider_metrics ? {
     cloud_sql_instances = [module.database.instance_name]
     gcs_buckets         = [module.storage.bucket_name]
     compute_regions     = [var.region]
+    cloud_nat_gateways  = [module.networking.nat_name]
+    # forwarding_rules  = module.load_balancers.forwarding_rule_names
   } : null
 
   # Datadog and generic OTLP (Honeycomb, Grafana Cloud, your own collector) fan
@@ -686,6 +696,7 @@ module "load_balancers" {
   instance_name              = local.materialize_instance_name
   namespace                  = local.materialize_instance_namespace
   resource_id                = module.materialize_instance.instance_resource_id
+  region                     = var.region
 
   depends_on = [
     module.materialize_instance,
