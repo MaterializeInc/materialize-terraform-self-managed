@@ -441,6 +441,7 @@ module "monitoring" {
   create_namespace       = false
   enable_monitoring_crds = false
 
+  cluster_name    = module.aks.cluster_name
   oidc_issuer_url = module.aks.cluster_oidc_issuer_url
 
   node_selector = local.generic_node_labels

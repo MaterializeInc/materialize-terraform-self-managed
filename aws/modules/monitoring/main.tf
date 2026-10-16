@@ -908,6 +908,8 @@ module "monitoring" {
   namespace        = var.namespace
   create_namespace = var.create_namespace
 
+  cluster_name = var.cluster_name
+
   # Null means "use whatever the pinned module ships with", which is the
   # supported path — the module and the chart are one release.
   chart_version = var.chart_version

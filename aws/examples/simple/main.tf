@@ -639,6 +639,7 @@ module "monitoring" {
   create_namespace       = false
   enable_monitoring_crds = false
 
+  cluster_name            = module.eks.cluster_name
   oidc_provider_arn       = module.eks.oidc_provider_arn
   cluster_oidc_issuer_url = module.eks.cluster_oidc_issuer_url
 

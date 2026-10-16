@@ -61,6 +61,19 @@ variable "create_namespace" {
 # Cluster identity
 # ==============================================================================
 
+variable "cluster_name" {
+  description = <<-EOT
+    Name of the EKS cluster, from the EKS module. The monitoring stack stamps it as the `cluster`
+    label on every log line, metric sample, and alert it produces.
+
+    Set it whenever more than one cluster writes to the same log or metrics store, or notifies the
+    same channel or incident tool: the label is the only thing that tells them apart. Null leaves
+    the label at `default`.
+  EOT
+  type        = string
+  default     = null
+}
+
 variable "oidc_provider_arn" {
   description = "ARN of the cluster's IAM OIDC provider, from the EKS module."
   type        = string

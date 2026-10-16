@@ -550,6 +550,8 @@ module "monitoring" {
   project_id = var.project_id
   region     = var.region
 
+  cluster_name = module.gke.cluster_name
+
   # Matches what these examples already pass to `module.storage`. Loki and
   # Thanos start writing immediately, and neither S3 nor GCS will delete a
   # non-empty bucket, so without this `terraform destroy` wedges on the

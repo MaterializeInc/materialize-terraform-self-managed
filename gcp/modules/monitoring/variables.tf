@@ -41,6 +41,27 @@ variable "create_namespace" {
 }
 
 # ==============================================================================
+# Cluster identity
+# ==============================================================================
+
+variable "cluster_name" {
+  description = <<-EOT
+    Name of the GKE cluster, from the `gke` module. The monitoring stack stamps it as the `cluster`
+    label on every log line, metric sample, and alert it produces.
+
+    Set it whenever more than one cluster writes to the same log or metrics store, or notifies the
+    same channel or incident tool: the label is the only thing that tells them apart. Null leaves
+    the label at `default`.
+
+    With `enable_google_cloud_metrics`, it is also the `cluster` label on this stack's series in
+    Cloud Monitoring. GKE's own managed collection labels its series with the cluster's name, so
+    the GKE name is what lets you join the two.
+  EOT
+  type        = string
+  default     = null
+}
+
+# ==============================================================================
 # Buckets
 # ==============================================================================
 
