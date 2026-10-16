@@ -18,6 +18,11 @@ output "vpc_cidr_block" {
   value       = module.vpc.vpc_cidr_block
 }
 
+output "nat_gateway_ids" {
+  description = "IDs of the NAT Gateways, one per availability zone unless `single_nat_gateway` is set"
+  value       = module.vpc.natgw_ids
+}
+
 output "nat_public_ips" {
   description = "List of public Elastic IPs created for AWS NAT Gateway"
   value       = module.vpc.nat_public_ips

@@ -17,3 +17,12 @@ output "security_group_id" {
   description = "The ID of the security group attached to the NLB"
   value       = var.create_security_group ? aws_security_group.nlb[0].id : null
 }
+
+output "target_group_arns" {
+  description = "ARNs of the pgwire, HTTP and console target groups, which CloudWatch publishes target health for."
+  value = [
+    module.target_pgwire.target_group_arn,
+    module.target_http.target_group_arn,
+    module.target_console.target_group_arn,
+  ]
+}
