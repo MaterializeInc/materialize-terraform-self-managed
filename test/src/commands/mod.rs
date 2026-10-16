@@ -1,4 +1,5 @@
 mod apply;
+mod benchmark;
 mod destroy;
 pub(crate) mod init;
 mod list;
@@ -7,6 +8,7 @@ mod sync;
 mod verify;
 
 pub use apply::phase_apply;
+pub use benchmark::phase_benchmark;
 pub use destroy::phase_destroy;
 pub use init::phase_init;
 pub use list::list;
