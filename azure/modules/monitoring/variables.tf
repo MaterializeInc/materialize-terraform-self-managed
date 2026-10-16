@@ -754,3 +754,60 @@ variable "grafana_load_balancer" {
     EOT
   }
 }
+
+variable "metadata_database" {
+  description = <<-EOT
+    The Materialize metadata database, for the monitoring stack to watch. Null leaves it out.
+
+    `resource_id` is the provider's name for it: The flexible server name (`module.database.server_name` in the examples). When `provider_metrics` is set, it is
+    declared the metadata database for the `azure-postgres` recording-rule adapter, which then reads it
+    and no other database the pull watches. The pull still has to watch it, through
+    `provider_metrics.postgres_server_ids`.
+
+    The rest is how the postgres-exporter reaches it when `enable_postgres_exporter` is on, as a
+    target named `consensus`. `database` is the one the connection opens, which is where
+    per-table statistics such as the consensus table's dead rows come from, so it is
+    Materialize's own database rather than `postgres`.
+  EOT
+  type = object({
+    resource_id = string
+    host        = string
+    port        = optional(number, 5432)
+    database    = string
+    user        = string
+  })
+  default = null
+}
+
+variable "metadata_database_password" {
+  description = <<-EOT
+    The password for `metadata_database.user`. Written into the postgres-exporter's Secret and
+    nowhere else. Required when the exporter watches the metadata database.
+  EOT
+  type        = string
+  default     = null
+  sensitive   = true
+
+  validation {
+    condition     = var.metadata_database == null || !var.enable_postgres_exporter || var.metadata_database_password != null
+    error_message = "metadata_database_password is required when metadata_database is set and enable_postgres_exporter is on: the exporter refuses a target without a password."
+  }
+}
+
+variable "enable_postgres_exporter" {
+  description = <<-EOT
+    Run the chart's postgres-exporter, which reads the metadata database and Grafana's database
+    from the inside: connections against the ceiling, transaction-ID age, vacuum on the
+    consensus table, and the size of every database on each instance.
+
+    It connects as the users this configuration already holds: `metadata_database.user` and
+    Grafana's database owner. Those can write as well as read; for a role that can only read
+    statistics, create one with `pg_monitor` and pass it as `metadata_database.user`.
+
+    Runs only when there is a database to watch: `metadata_database`, or a Grafana database with
+    a password.
+  EOT
+  type        = bool
+  default     = true
+  nullable    = false
+}

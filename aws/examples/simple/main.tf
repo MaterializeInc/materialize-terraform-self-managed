@@ -707,6 +707,19 @@ module "monitoring" {
   materialize_instance_namespace = local.materialize_instance_namespace
   materialize_operator_namespace = local.operator_namespace
 
+  # The metadata database, which the postgres-exporter watches as `consensus`
+  # beside Grafana's, and whose provider metrics the recording rules read when
+  # the provider pull is on. The exporter connects as the user Materialize does;
+  # see `enable_postgres_exporter` for a role that can only read statistics.
+  metadata_database = {
+    resource_id = module.database.db_instance_id
+    host        = split(":", module.database.db_instance_endpoint)[0]
+    port        = module.database.db_instance_port
+    database    = module.database.db_instance_name
+    user        = module.database.db_instance_username
+  }
+  metadata_database_password = random_password.database_password.result
+
   # A dedicated RDS instance for Grafana's own state, so dashboards and API
   # tokens created in the UI survive a pod restart. RDS has no API for adding a
   # database to an existing instance, so this is separate from `module.database`

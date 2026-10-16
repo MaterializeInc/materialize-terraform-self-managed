@@ -609,6 +609,18 @@ module "monitoring" {
   materialize_instance_namespace = local.materialize_instance_namespace
   materialize_operator_namespace = local.materialize_operator_namespace
 
+  # The metadata database, which the postgres-exporter watches as `consensus`
+  # beside Grafana's, and whose provider metrics the recording rules read when
+  # the provider pull is on. The exporter connects as the user Materialize does;
+  # see `enable_postgres_exporter` for a role that can only read statistics.
+  metadata_database = {
+    resource_id = module.database.server_name
+    host        = module.database.server_fqdn
+    database    = local.database_config.database_name
+    user        = module.database.administrator_login
+  }
+  metadata_database_password = module.database.administrator_password
+
   # A dedicated Flexible Server for Grafana's own state. Separate from
   # `module.database` because a Flexible Server has one administrator login and
   # no ARM resource for additional roles, so sharing one would hand Grafana the
