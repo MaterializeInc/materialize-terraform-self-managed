@@ -1,0 +1,58 @@
+# Added by hand to benchmark Ceph on the same cluster as rustfs, so both are
+# measured against identical hardware. The harness injection deploys one store
+# per run, which is right for a persist backend but not for a comparison.
+#
+# This gets its own storage node pool: the two stores would otherwise contend
+# for the same disks, and whichever ran second would be measured against a
+# cache and a volume group the other had already filled.
+module "object_store_ceph" {
+  source = "../../../aws/modules/object-store-rook-ceph"
+
+  name   = "ceph"
+  bucket = "materialize-ceph"
+
+  # One monitor: Rook pins each mon to a node by hostname affinity, which
+  # Karpenter will not provision against, so a 3-mon cluster deadlocks on a
+  # pool that scales on demand. HA is not what this deployment is measuring.
+  mon_count = 1
+
+  osd_count = 4
+
+  # rustfs's pool already installed the cluster-scoped LVM CSI driver.
+  install_csi_driver = false
+  osd_size           = "500Gi"
+
+  # A path no earlier cluster used. The warm pool outlives a CephCluster, and a
+  # mon that finds a previous cluster's state here adopts that cluster's
+  # identity, which no longer matches the keyrings Rook has just minted.
+  data_dir_host_path = "/var/lib/rook-bench"
+
+  instance_profile   = module.karpenter.node_instance_profile
+  security_group_ids = [module.eks.node_security_group_id]
+  subnet_ids         = module.networking.private_subnet_ids
+  kubeconfig_data    = local.kubeconfig_data
+  tags               = var.tags
+
+  depends_on = [module.karpenter]
+}
+
+output "ceph_persist_backend_url" {
+  description = "S3 connection URL for the Ceph store."
+  value       = module.object_store_ceph.persist_backend_url
+  sensitive   = true
+}
+
+output "ceph_namespace" {
+  description = "Namespace Ceph runs in."
+  value       = module.object_store_ceph.namespace
+}
+
+output "ceph_node_selector" {
+  description = "Node selector for Ceph's storage nodes."
+  value       = module.object_store_ceph.node_selector
+}
+
+output "ceph_tolerations" {
+  description = "Tolerations for Ceph's storage nodes."
+  value       = module.object_store_ceph.tolerations
+}

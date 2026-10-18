@@ -1,0 +1,37 @@
+# Added by hand to benchmark rustfs on the same four nodes as Ceph, so the two
+# are measured on identical hardware. Using the portable module rather than
+# the AWS wrapper is deliberate: the wrapper brings its own node pool, and a
+# second pool of this instance type would both change the hardware under
+# comparison and exhaust a subnet (the VPC CNI holds 30 to 60 addresses per
+# node at this size).
+#
+# Ceph stays deployed and idle alongside it. Each node's volume group has room
+# for both, and the benchmark only drives one store at a time.
+module "object_store_rustfs" {
+  source = "../../../kubernetes/modules/object-store-rustfs"
+
+  name      = "rustfs"
+  namespace = "object-store"
+
+  # Matches the AWS wrapper's defaults, which the i8g.2xlarge run used.
+  replicas           = 4
+  drives_per_replica = 1
+  drive_size         = "500Gi"
+  storage_class      = module.object_store.storage_class_name
+
+  node_selector = module.object_store.node_selector
+  tolerations   = module.object_store.tolerations
+
+  depends_on = [module.object_store]
+}
+
+output "rustfs_persist_backend_url" {
+  description = "S3 connection URL for the rustfs store."
+  value       = module.object_store_rustfs.persist_backend_url
+  sensitive   = true
+}
+
+output "rustfs_namespace" {
+  description = "Namespace rustfs runs in."
+  value       = module.object_store_rustfs.namespace
+}
