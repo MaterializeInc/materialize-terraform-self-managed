@@ -52,10 +52,11 @@ jobs:
           # a PR or without version labels are released with the next labeled
           # PR.
           bump=""
+          breaking=""
           for pr in $prs; do
             while IFS= read -r label; do
               case "$label" in
-                breaking-change) bump=major ;;
+                breaking-change) bump=major; breaking="$breaking #$pr" ;;
                 enhancement) if [ "$bump" != major ]; then bump=minor; fi ;;
                 bug|dependencies|documentation|github_actions) if [ -z "$bump" ]; then bump=patch; fi ;;
               esac
@@ -67,17 +68,17 @@ jobs:
             exit 0
           fi
 
-          if [ "$bump" = major ] && [ "$CONFIRM_MAJOR" != true ]; then
-            echo "::error::Release since $latest is a major bump, rerun with confirm_major=true to confirm"
-            exit 1
-          fi
-
           IFS=. read -r major minor patch <<< "${latest#v}"
           case "$bump" in
             major) version="v$((major + 1)).0.0" ;;
             minor) version="v$major.$((minor + 1)).0" ;;
             patch) version="v$major.$minor.$((patch + 1))" ;;
           esac
+
+          if [ "$bump" = major ] && [ "$CONFIRM_MAJOR" != true ]; then
+            echo "::error::$version would be a major bump from $latest (breaking-change:$breaking), rerun with confirm_major=true to confirm"
+            exit 1
+          fi
 
           echo "Creating release $version ($bump bump from $latest)"
           gh release create "$version" \
