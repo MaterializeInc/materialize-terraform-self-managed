@@ -505,19 +505,20 @@ module "monitoring" {
   # each machine family uses against its limit, across every node pool and VM
   # in the region, since that is what a node pool runs into when it cannot grow.
   #
+  # The load balancers are found by the network rather than named: GKE names a
+  # forwarding rule only once it makes it, so Grafana's, whose Service the
+  # monitoring release creates, cannot be named at all, and naming
+  # Materialize's would make this module wait for the instance. The network
+  # holds only this deployment, so its load balancers are the ones pulled.
+  #
   # Cloud NAT is the path pods take out of the VPC, so its port exhaustion is
   # why a Materialize source can stall with no cause in the cluster.
-  #
-  # The Materialize load balancers are not listed by default: naming them makes
-  # this module wait for, and fail with, the Materialize instance, since GKE only
-  # makes their forwarding rules once the instance exists. Uncomment to accept
-  # that and see their traffic.
   provider_metrics = var.enable_provider_metrics ? {
-    cloud_sql_instances = [module.database.instance_name]
-    gcs_buckets         = [module.storage.bucket_name]
-    compute_regions     = [var.region]
-    cloud_nat_gateways  = [module.networking.nat_name]
-    # forwarding_rules  = module.load_balancers.forwarding_rule_names
+    cloud_sql_instances    = [module.database.instance_name]
+    gcs_buckets            = [module.storage.bucket_name]
+    compute_regions        = [var.region]
+    load_balancer_networks = [module.networking.network_name]
+    cloud_nat_gateways     = [module.networking.nat_name]
   } : null
 
   # Datadog and generic OTLP (Honeycomb, Grafana Cloud, your own collector) fan

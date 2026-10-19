@@ -921,7 +921,7 @@ module "monitoring" {
   #
   # v1.3.0 is where `enable_postgres_exporter`, `postgres_exporter_*` and
   # `metadata_databases` land.
-  source = "github.com/MaterializeInc/materialize-monitoring//terraform/modules/materialize-monitoring?ref=materialize-monitoring/v1.4.0"
+  source = "github.com/MaterializeInc/materialize-monitoring//terraform/modules/materialize-monitoring?ref=materialize-monitoring/v1.5.0"
 
   namespace        = var.namespace
   create_namespace = var.create_namespace

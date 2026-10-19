@@ -247,8 +247,11 @@ variable "provider_metrics" {
     the GKE node pools run in: the CPUs and local SSD each machine family uses against its quota,
     and every request a quota refused. `roles/monitoring.viewer` already reads it.
 
-    `forwarding_rules` pulls each passthrough load balancer's packets and bytes in each direction,
-    external or internal; `modules/load_balancers` outputs the Materialize Services' rules as
+    `load_balancer_networks` pulls every passthrough load balancer whose backends are in a listed VPC
+    network, external or internal: packets and bytes in each direction. GKE names a forwarding rule
+    only once it makes it, so the network is how to reach Grafana's, whose Service this module's
+    release creates, and Materialize's without waiting for the instance. `forwarding_rules` names
+    rules instead; `modules/load_balancers` outputs the Materialize Services' rules as
     `forwarding_rule_names`. `cloud_nat_gateways` pulls each Cloud NAT gateway's allocation
     failures, per-VM port use, open connections and drops; `modules/networking` outputs the name
     as `nat_name`. `roles/monitoring.viewer` already reads both.
@@ -261,6 +264,7 @@ variable "provider_metrics" {
     gcs_buckets                  = optional(list(string), [])
     compute_regions              = optional(list(string), [])
     forwarding_rules             = optional(list(string), [])
+    load_balancer_networks       = optional(list(string), [])
     cloud_nat_gateways           = optional(list(string), [])
     include_monitoring_resources = optional(bool, true)
     scrape_interval              = optional(string)
@@ -279,17 +283,17 @@ variable "provider_metrics" {
     condition = var.provider_metrics == null ? true : (
       var.provider_metrics.include_monitoring_resources ||
       length(var.provider_metrics.cloud_sql_instances) + length(var.provider_metrics.gcs_buckets) + length(var.provider_metrics.compute_regions) +
-      length(var.provider_metrics.forwarding_rules) + length(var.provider_metrics.cloud_nat_gateways) > 0
+      length(var.provider_metrics.forwarding_rules) + length(var.provider_metrics.load_balancer_networks) + length(var.provider_metrics.cloud_nat_gateways) > 0
     )
-    error_message = "provider_metrics names no resources. List cloud_sql_instances, gcs_buckets, compute_regions, forwarding_rules or cloud_nat_gateways, or leave include_monitoring_resources on — the chart refuses a pull with nothing to watch."
+    error_message = "provider_metrics names no resources. List cloud_sql_instances, gcs_buckets, compute_regions, forwarding_rules, load_balancer_networks or cloud_nat_gateways, or leave include_monitoring_resources on — the chart refuses a pull with nothing to watch."
   }
 
   validation {
     condition = var.provider_metrics == null ? true : alltrue([
-      for name in concat(var.provider_metrics.forwarding_rules, var.provider_metrics.cloud_nat_gateways) :
+      for name in concat(var.provider_metrics.forwarding_rules, var.provider_metrics.load_balancer_networks, var.provider_metrics.cloud_nat_gateways) :
       can(regex("^[a-z]([-a-z0-9]{0,61}[a-z0-9])?$", name))
     ])
-    error_message = "provider_metrics.forwarding_rules and cloud_nat_gateways take resource names, such as module.load_balancers.forwarding_rule_names and module.networking.nat_name, not URLs or IP addresses."
+    error_message = "provider_metrics.forwarding_rules, load_balancer_networks and cloud_nat_gateways take resource names, such as module.load_balancers.forwarding_rule_names, module.networking.network_name and module.networking.nat_name, not URLs or IP addresses."
   }
 
   validation {

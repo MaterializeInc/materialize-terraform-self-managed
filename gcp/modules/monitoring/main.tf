@@ -281,13 +281,16 @@ locals {
         provider = {
           gcp = merge(
             {
-              enabled       = true
-              projectId     = var.project_id
-              cloudSql      = { instances = local.provider_metrics_cloud_sql_instances }
-              gcs           = { buckets = local.provider_metrics_gcs_buckets }
-              compute       = { regions = distinct(var.provider_metrics.compute_regions) }
-              loadBalancing = { forwardingRules = distinct(var.provider_metrics.forwarding_rules) }
-              cloudNat      = { gateways = distinct(var.provider_metrics.cloud_nat_gateways) }
+              enabled   = true
+              projectId = var.project_id
+              cloudSql  = { instances = local.provider_metrics_cloud_sql_instances }
+              gcs       = { buckets = local.provider_metrics_gcs_buckets }
+              compute   = { regions = distinct(var.provider_metrics.compute_regions) }
+              loadBalancing = {
+                forwardingRules = distinct(var.provider_metrics.forwarding_rules)
+                networks        = distinct(var.provider_metrics.load_balancer_networks)
+              }
+              cloudNat = { gateways = distinct(var.provider_metrics.cloud_nat_gateways) }
             },
             var.provider_metrics.scrape_interval == null ? {} : { scrapeInterval = var.provider_metrics.scrape_interval },
             var.provider_metrics.importance == null ? {} : { metricImportance = var.provider_metrics.importance },
@@ -363,7 +366,7 @@ module "monitoring" {
   #
   # v1.3.0 is where `enable_postgres_exporter`, `postgres_exporter_*` and
   # `metadata_databases` land.
-  source = "github.com/MaterializeInc/materialize-monitoring//terraform/modules/materialize-monitoring?ref=materialize-monitoring/v1.4.0"
+  source = "github.com/MaterializeInc/materialize-monitoring//terraform/modules/materialize-monitoring?ref=materialize-monitoring/v1.5.0"
 
   namespace        = var.namespace
   create_namespace = var.create_namespace
