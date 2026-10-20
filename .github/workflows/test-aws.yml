@@ -66,6 +66,16 @@ jobs:
           echo "Testing AWS authentication..."
           aws sts get-caller-identity
 
+      # The Karpenter chart is an OCI artifact on public.ecr.aws, where anonymous
+      # pulls share a per-IP data limit with every hosted runner and 429. The helm
+      # provider reads helm's registry config, so logging in here lifts the limit.
+      # Best-effort: an anonymous pull usually succeeds anyway.
+      - name: Log in to public.ecr.aws
+        continue-on-error: true
+        run: |
+          aws ecr-public get-login-password --region us-east-1 \
+            | helm registry login --username AWS --password-stdin public.ecr.aws
+
       - name: Write AWS profile config
         run: |
           aws configure set region "${{ vars.AWS_REGION }}" --profile default
