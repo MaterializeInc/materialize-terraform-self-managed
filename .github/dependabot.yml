@@ -2,7 +2,6 @@ version: 2
 updates:
   - package-ecosystem: "terraform"
     directories:
-      - "/.github/setup/aws"
       - "/.github/setup/azure"
       - "/aws/examples/migration"
       - "/aws/examples/simple"
