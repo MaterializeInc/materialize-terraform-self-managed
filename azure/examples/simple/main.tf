@@ -524,6 +524,12 @@ module "monitoring" {
   # scale sets in its node resource group, which AKS creates and replaces, so
   # the pull finds them there. The gateway's identity can read only these
   # resources and that group, so nothing else in the subscription is pulled.
+  #
+  # The cluster's load balancers are in the same group: AKS puts every
+  # LoadBalancer Service, Materialize's and Grafana's, behind them. The NAT
+  # gateway is the nodes' way out of the virtual network, so its port
+  # exhaustion is why a Materialize source can stall with no cause in the
+  # cluster.
   provider_metrics = var.enable_provider_metrics ? {
     postgres_server_ids = [module.database.server_id]
     storage_account_ids = [module.storage.storage_account_id]
@@ -531,6 +537,11 @@ module "monitoring" {
       id                  = module.aks.cluster_id
       node_resource_group = module.aks.cluster_node_resource_group
     }]
+    load_balancer_clusters = [{
+      id                  = module.aks.cluster_id
+      node_resource_group = module.aks.cluster_node_resource_group
+    }]
+    nat_gateway_ids = [module.networking.nat_gateway_id]
   } : null
 
   # A dedicated Flexible Server for Grafana's own state, so dashboards and API

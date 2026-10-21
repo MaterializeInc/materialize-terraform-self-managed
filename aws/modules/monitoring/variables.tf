@@ -388,8 +388,9 @@ variable "alertmanager_namespace" {
 
 variable "provider_metrics" {
   description = <<-EOT
-    Pull CloudWatch metrics for the listed RDS instances, S3 buckets and EKS clusters into the
-    Alloy gateway, beside everything else it collects. Null disables it.
+    Pull CloudWatch metrics for the listed RDS instances, S3 buckets, EKS clusters, Network Load
+    Balancers and NAT gateways into the Alloy gateway, beside everything else it collects. Null
+    disables it.
 
     Creates an IRSA role, `<name_prefix>-mzmon-gateway`, allowed
     `cloudwatch:GetMetricStatistics` and `iam:ListAccountAliases`, and binds the gateway's
@@ -397,7 +398,7 @@ variable "provider_metrics" {
 
     The Materialize database, persist bucket and EKS cluster are siblings of this module, so the
     caller passes them. `include_monitoring_resources` adds this module's own two buckets and,
-    when this module creates it, Grafana's database.
+    when this module creates them, Grafana's database and Grafana's load balancer.
 
     `eks_cluster_names` pulls each cluster's nodes and managed node groups: EC2 status checks,
     node group sizes against their maximum, and the region's On-Demand vCPU usage, which is what
@@ -406,13 +407,25 @@ variable "provider_metrics" {
     `cloudwatch:ListMetrics`, `tag:GetResources` and `autoscaling:DescribeAutoScalingGroups` to
     the role.
 
+    `network_load_balancers` pulls each Network Load Balancer's open and new connections, bytes
+    and resets, and each of its `target_group_arns` for healthy and unhealthy targets, which
+    CloudWatch publishes only per target group. `aws/modules/nlb` outputs both, the target groups
+    as a map whose values this takes. `nat_gateway_ids` pulls each NAT gateway's port allocation
+    errors, drops, idle timeouts and connections; `aws/modules/networking` outputs them as a map by
+    availability zone. Both need only `cloudwatch:GetMetricStatistics`.
+
     `importance` is the tier the chart assigns these families, and decides which filtered
     destinations receive them. Null keeps the chart's default, `extended`.
   EOT
   type = object({
-    rds_instance_ids             = optional(list(string), [])
-    s3_bucket_names              = optional(list(string), [])
-    eks_cluster_names            = optional(list(string), [])
+    rds_instance_ids  = optional(list(string), [])
+    s3_bucket_names   = optional(list(string), [])
+    eks_cluster_names = optional(list(string), [])
+    network_load_balancers = optional(list(object({
+      arn               = string
+      target_group_arns = optional(list(string), [])
+    })), [])
+    nat_gateway_ids              = optional(list(string), [])
     include_monitoring_resources = optional(bool, true)
     scrape_interval              = optional(string)
     importance                   = optional(string)
@@ -429,9 +442,27 @@ variable "provider_metrics" {
   validation {
     condition = var.provider_metrics == null ? true : (
       var.provider_metrics.include_monitoring_resources ||
-      length(var.provider_metrics.rds_instance_ids) + length(var.provider_metrics.s3_bucket_names) + length(var.provider_metrics.eks_cluster_names) > 0
+      length(var.provider_metrics.rds_instance_ids) + length(var.provider_metrics.s3_bucket_names) + length(var.provider_metrics.eks_cluster_names) +
+      length(var.provider_metrics.network_load_balancers) + length(var.provider_metrics.nat_gateway_ids) > 0
     )
-    error_message = "provider_metrics names no resources. List rds_instance_ids, s3_bucket_names or eks_cluster_names, or leave include_monitoring_resources on — the chart refuses a pull with nothing to watch."
+    error_message = "provider_metrics names no resources. List rds_instance_ids, s3_bucket_names, eks_cluster_names, network_load_balancers or nat_gateway_ids, or leave include_monitoring_resources on — the chart refuses a pull with nothing to watch."
+  }
+
+  validation {
+    condition = var.provider_metrics == null ? true : alltrue(flatten([
+      for lb in var.provider_metrics.network_load_balancers : concat(
+        [can(regex("^arn:aws[a-z-]*:elasticloadbalancing:[a-z0-9-]+:[0-9]{12}:loadbalancer/net/[^/]+/[0-9a-f]+$", lb.arn))],
+        [for tg in lb.target_group_arns : can(regex("^arn:aws[a-z-]*:elasticloadbalancing:[a-z0-9-]+:[0-9]{12}:targetgroup/[^/]+/[0-9a-f]+$", tg))],
+      )
+    ]))
+    error_message = "provider_metrics.network_load_balancers takes Network Load Balancer ARNs, such as module.materialize_nlb.nlb_arn, and target group ARNs, such as values(module.materialize_nlb.target_group_arns). Application Load Balancers are not pulled."
+  }
+
+  validation {
+    condition = var.provider_metrics == null ? true : alltrue([
+      for id in var.provider_metrics.nat_gateway_ids : can(regex("^nat-[0-9a-f]+$", id))
+    ])
+    error_message = "provider_metrics.nat_gateway_ids takes NAT gateway IDs, such as values(module.networking.nat_gateway_ids), not names or ARNs."
   }
 }
 

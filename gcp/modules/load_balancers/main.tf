@@ -138,3 +138,25 @@ resource "google_compute_firewall" "health_checks" {
   source_ranges           = ["35.191.0.0/16", "130.211.0.0/22"]
   target_service_accounts = [var.node_service_account_email]
 }
+
+# The forwarding rules GKE made for the two Services, for the monitoring stack's
+# provider pull, which names them. Found by address rather than derived from the
+# Service's UID: GKE names an external target-pool rule `a` and the UID, but an
+# internal rule under L4 ILB subsetting, which `modules/gke` turns on, is
+# `k8s2-` and a hash. Both carry the Service's load balancer address.
+data "google_compute_forwarding_rules" "load_balancers" {
+  project = var.project_id
+  region  = var.region
+
+  depends_on = [
+    kubernetes_service.console_load_balancer,
+    kubernetes_service.balancerd_load_balancer,
+  ]
+}
+
+locals {
+  load_balancer_ips = {
+    console   = kubernetes_service.console_load_balancer.status[0].load_balancer[0].ingress[0].ip
+    balancerd = kubernetes_service.balancerd_load_balancer.status[0].load_balancer[0].ingress[0].ip
+  }
+}

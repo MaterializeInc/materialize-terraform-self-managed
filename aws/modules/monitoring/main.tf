@@ -815,6 +815,20 @@ locals {
     var.provider_metrics.include_monitoring_resources ? [for k in keys(local.service_accounts) : aws_s3_bucket.telemetry[k].id] : [],
   )) : []
 
+  # Grafana's load balancer is this module's, so it joins like the buckets. The
+  # Helm values already wait on it for Grafana's address, so naming it here adds
+  # no wait to the release. Keyed by ARN, since the chart refuses a load balancer
+  # listed twice; a repeat's target groups are merged into the first.
+  provider_metrics_load_balancers = local.provider_metrics_enabled ? {
+    for lb in concat(
+      var.provider_metrics.network_load_balancers,
+      var.provider_metrics.include_monitoring_resources && local.grafana_lb != null ? [{
+        arn               = aws_lb.grafana[0].arn
+        target_group_arns = [aws_lb_target_group.grafana[0].arn]
+      }] : [],
+    ) : lb.arn => lb.target_group_arns...
+  } : {}
+
   # Optional fields are omitted rather than set to null, so the chart's own
   # defaults survive.
   provider_metrics_values = local.provider_metrics_enabled ? [yamlencode({
@@ -828,6 +842,10 @@ locals {
               rds     = { instances = local.provider_metrics_rds_instances }
               s3      = { buckets = local.provider_metrics_s3_buckets }
               eks     = { clusters = distinct(var.provider_metrics.eks_cluster_names) }
+              nlb = { loadBalancers = [
+                for arn, groups in local.provider_metrics_load_balancers : { arn = arn, targetGroups = distinct(flatten(groups)) }
+              ] }
+              natGateway = { ids = distinct(var.provider_metrics.nat_gateway_ids) }
             },
             var.provider_metrics.scrape_interval == null ? {} : { scrapeInterval = var.provider_metrics.scrape_interval },
             var.provider_metrics.importance == null ? {} : { metricImportance = var.provider_metrics.importance },
@@ -903,7 +921,7 @@ module "monitoring" {
   #
   # v1.3.0 is where `enable_postgres_exporter`, `postgres_exporter_*` and
   # `metadata_databases` land.
-  source = "github.com/MaterializeInc/materialize-monitoring//terraform/modules/materialize-monitoring?ref=materialize-monitoring/v1.4.0"
+  source = "github.com/MaterializeInc/materialize-monitoring//terraform/modules/materialize-monitoring?ref=materialize-monitoring/v1.5.0"
 
   namespace        = var.namespace
   create_namespace = var.create_namespace
