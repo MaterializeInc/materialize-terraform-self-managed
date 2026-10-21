@@ -617,9 +617,9 @@ data "kubernetes_secret_v1" "oauth2_client" {
 # Network policies. The materialize -> ory egress policy is owned by the
 # materialize-instance module (it lives in the materialize namespace).
 
-# Allow Ory pods to receive traffic from Materialize, from within the ory
-# namespace, and from external sources on the public ports (which ones
-# depends on the mode, see below).
+# Allow Ory pods to receive traffic from Materialize on Hydra's public port,
+# from within the ory namespace, and from external sources on the public ports
+# (which ones depends on the mode, see below).
 resource "kubernetes_network_policy_v1" "ory_from_materialize_ingress" {
   count = local.wire_materialize ? 1 : 0
 
@@ -632,6 +632,11 @@ resource "kubernetes_network_policy_v1" "ory_from_materialize_ingress" {
     pod_selector {}
     policy_types = ["Ingress"]
 
+    # Materialize only fetches OIDC discovery and the JWKS from Hydra's public
+    # listener (via the single-domain proxy when that is on). The Kratos and
+    # Hydra admin APIs share these pods and have no authentication, so keep
+    # them out of reach of the Materialize namespace, whose clusterd pods make
+    # outbound connections on behalf of SQL users.
     ingress {
       from {
         namespace_selector {
@@ -641,6 +646,21 @@ resource "kubernetes_network_policy_v1" "ory_from_materialize_ingress" {
         }
       }
 
+      ports {
+        protocol = "TCP"
+        port     = 4444
+      }
+
+      dynamic "ports" {
+        for_each = local.single_domain_enabled ? [1] : []
+        content {
+          protocol = "TCP"
+          port     = 8443
+        }
+      }
+    }
+
+    ingress {
       from {
         namespace_selector {
           match_labels = {
