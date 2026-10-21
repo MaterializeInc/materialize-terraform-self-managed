@@ -409,9 +409,10 @@ variable "provider_metrics" {
 
     `network_load_balancers` pulls each Network Load Balancer's open and new connections, bytes
     and resets, and each of its `target_group_arns` for healthy and unhealthy targets, which
-    CloudWatch publishes only per target group. `aws/modules/nlb` outputs both. `nat_gateway_ids`
-    pulls each NAT gateway's port allocation errors, drops, idle timeouts and connections;
-    `aws/modules/networking` outputs them. Both need only `cloudwatch:GetMetricStatistics`.
+    CloudWatch publishes only per target group. `aws/modules/nlb` outputs both, the target groups
+    as a map whose values this takes. `nat_gateway_ids` pulls each NAT gateway's port allocation
+    errors, drops, idle timeouts and connections; `aws/modules/networking` outputs them as a map by
+    availability zone. Both need only `cloudwatch:GetMetricStatistics`.
 
     `importance` is the tier the chart assigns these families, and decides which filtered
     destinations receive them. Null keeps the chart's default, `extended`.
@@ -454,14 +455,14 @@ variable "provider_metrics" {
         [for tg in lb.target_group_arns : can(regex("^arn:aws[a-z-]*:elasticloadbalancing:[a-z0-9-]+:[0-9]{12}:targetgroup/[^/]+/[0-9a-f]+$", tg))],
       )
     ]))
-    error_message = "provider_metrics.network_load_balancers takes Network Load Balancer ARNs, such as module.materialize_nlb.nlb_arn, and target group ARNs, such as module.materialize_nlb.target_group_arns. Application Load Balancers are not pulled."
+    error_message = "provider_metrics.network_load_balancers takes Network Load Balancer ARNs, such as module.materialize_nlb.nlb_arn, and target group ARNs, such as values(module.materialize_nlb.target_group_arns). Application Load Balancers are not pulled."
   }
 
   validation {
     condition = var.provider_metrics == null ? true : alltrue([
       for id in var.provider_metrics.nat_gateway_ids : can(regex("^nat-[0-9a-f]+$", id))
     ])
-    error_message = "provider_metrics.nat_gateway_ids takes NAT gateway IDs, such as module.networking.nat_gateway_ids, not names or ARNs."
+    error_message = "provider_metrics.nat_gateway_ids takes NAT gateway IDs, such as values(module.networking.nat_gateway_ids), not names or ARNs."
   }
 }
 

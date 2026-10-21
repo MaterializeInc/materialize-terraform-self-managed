@@ -712,10 +712,10 @@ module "monitoring" {
     rds_instance_ids  = [module.database.db_instance_id]
     s3_bucket_names   = [module.storage.bucket_name]
     eks_cluster_names = [module.eks.cluster_name]
-    nat_gateway_ids   = module.networking.nat_gateway_ids
+    nat_gateway_ids   = values(module.networking.nat_gateway_ids)
     # network_load_balancers = [{
     #   arn               = module.materialize_nlb.nlb_arn
-    #   target_group_arns = module.materialize_nlb.target_group_arns
+    #   target_group_arns = values(module.materialize_nlb.target_group_arns)
     # }]
   } : null
 

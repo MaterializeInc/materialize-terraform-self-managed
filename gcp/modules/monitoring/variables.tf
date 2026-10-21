@@ -252,7 +252,7 @@ variable "provider_metrics" {
     only once it makes it, so the network is how to reach Grafana's, whose Service this module's
     release creates, and Materialize's without waiting for the instance. `forwarding_rules` names
     rules instead; `modules/load_balancers` outputs the Materialize Services' rules as
-    `forwarding_rule_names`. `cloud_nat_gateways` pulls each Cloud NAT gateway's allocation
+    `forwarding_rule_names`, a map by Service whose values this takes. `cloud_nat_gateways` pulls each Cloud NAT gateway's allocation
     failures, per-VM port use, open connections and drops; `modules/networking` outputs the name
     as `nat_name`. `roles/monitoring.viewer` already reads both.
 
@@ -293,7 +293,7 @@ variable "provider_metrics" {
       for name in concat(var.provider_metrics.forwarding_rules, var.provider_metrics.load_balancer_networks, var.provider_metrics.cloud_nat_gateways) :
       can(regex("^[a-z]([-a-z0-9]{0,61}[a-z0-9])?$", name))
     ])
-    error_message = "provider_metrics.forwarding_rules, load_balancer_networks and cloud_nat_gateways take resource names, such as module.load_balancers.forwarding_rule_names, module.networking.network_name and module.networking.nat_name, not URLs or IP addresses."
+    error_message = "provider_metrics.forwarding_rules, load_balancer_networks and cloud_nat_gateways take resource names, such as values(module.load_balancers.forwarding_rule_names), module.networking.network_name and module.networking.nat_name, not URLs or IP addresses."
   }
 
   validation {

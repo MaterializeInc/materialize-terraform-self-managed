@@ -14,6 +14,13 @@ output "balancerd_load_balancer_ip" {
 }
 
 output "forwarding_rule_names" {
-  description = "Names of the forwarding rules GKE made for the console and balancerd load balancers, which the monitoring module's `provider_metrics.forwarding_rules` takes."
-  value       = sort([for rule in data.google_compute_forwarding_rules.load_balancers.rules : rule.name if contains(local.load_balancer_ips, rule.ip_address)])
+  description = "Names of the forwarding rules GKE made for the load balancers, keyed `console` and `balancerd`, whose values the monitoring module's `provider_metrics.forwarding_rules` takes."
+  # One rule per Service: GKE makes a rule per protocol, and both Services are
+  # TCP only. A Service whose rule is not found yet is left out.
+  value = {
+    for service, names in {
+      for service, ip in local.load_balancer_ips :
+      service => [for rule in data.google_compute_forwarding_rules.load_balancers.rules : rule.name if rule.ip_address == ip]
+    } : service => one(names) if length(names) > 0
+  }
 }

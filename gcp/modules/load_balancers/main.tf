@@ -155,8 +155,8 @@ data "google_compute_forwarding_rules" "load_balancers" {
 }
 
 locals {
-  load_balancer_ips = [
-    kubernetes_service.console_load_balancer.status[0].load_balancer[0].ingress[0].ip,
-    kubernetes_service.balancerd_load_balancer.status[0].load_balancer[0].ingress[0].ip,
-  ]
+  load_balancer_ips = {
+    console   = kubernetes_service.console_load_balancer.status[0].load_balancer[0].ingress[0].ip
+    balancerd = kubernetes_service.balancerd_load_balancer.status[0].load_balancer[0].ingress[0].ip
+  }
 }

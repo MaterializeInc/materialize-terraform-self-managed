@@ -52,5 +52,5 @@ No modules.
 | ---- | ----------- |
 | <a name="output_balancerd_load_balancer_ip"></a> [balancerd\_load\_balancer\_ip](#output\_balancerd\_load\_balancer\_ip) | IP address of load balancer pointing at balancerd. |
 | <a name="output_console_load_balancer_ip"></a> [console\_load\_balancer\_ip](#output\_console\_load\_balancer\_ip) | IP address of load balancer pointing at the web console. |
-| <a name="output_forwarding_rule_names"></a> [forwarding\_rule\_names](#output\_forwarding\_rule\_names) | Names of the forwarding rules GKE made for the console and balancerd load balancers, which the monitoring module's `provider_metrics.forwarding_rules` takes. |
+| <a name="output_forwarding_rule_names"></a> [forwarding\_rule\_names](#output\_forwarding\_rule\_names) | Names of the forwarding rules GKE made for the load balancers, keyed `console` and `balancerd`, whose values the monitoring module's `provider_metrics.forwarding_rules` takes. |
 | <a name="output_instance_name"></a> [instance\_name](#output\_instance\_name) | The name of the Materialize instance. |
