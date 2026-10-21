@@ -120,7 +120,7 @@ variable "idp_enabled" {
 }
 
 variable "nextauth_acl" {
-  description = "Optional NextAuth ACL string. Restricts which email addresses can authenticate to the Polis admin UI. Empty allows all."
+  description = "Comma-separated emails or glob patterns (e.g. `alice@example.com,*@ops.example.com`) allowed to sign in to the Polis admin UI by email magic link. Empty denies everyone and hides magic-link login. It does not apply to SAML admin login, which anyone the admin SAML app admits can use."
   type        = string
   default     = ""
   nullable    = false
