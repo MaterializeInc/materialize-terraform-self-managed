@@ -77,15 +77,8 @@ locals {
   # Explicit multi-zone configuration for production HA
   availability_zones = ["1", "2", "3"]
 
-  node_pool_config = {
-    vm_size              = "Standard_E4pds_v6"
-    auto_scaling_enabled = true
-    min_nodes            = 2
-    max_nodes            = 5
-    node_count           = null
-    disk_size_gb         = 100
-    swap_enabled         = true
-  }
+  materialize_vm_sizes = ["Standard_E4pds_v6"]
+  generic_vm_sizes     = ["Standard_D4pds_v6"]
 
   database_config = {
     sku_name         = "GP_Standard_D2ds_v5"
@@ -245,7 +238,8 @@ module "networking" {
   tags = var.tags
 }
 
-# AKS Cluster with Default Node Pool
+# AKS Cluster with a fixed-size default node pool. Node Auto Provisioning adds
+# the rest of the nodes from the NodePools below.
 module "aks" {
   source = "../../modules/aks"
 
@@ -262,14 +256,11 @@ module "aks" {
   k8s_apiserver_authorized_networks  = concat(var.k8s_apiserver_authorized_networks, ["${module.networking.nat_gateway_public_ip}/32"])
   api_server_subnet_id               = module.networking.api_server_subnet_id
 
-  # Default node pool with autoscaling (runs all workloads except Materialize)
-  default_node_pool_vm_size             = "Standard_D4pds_v6"
-  default_node_pool_enable_auto_scaling = true
-  default_node_pool_min_count           = 2
-  # The default pool runs the Ory stack and, with enable_observability, the
-  # zone-spread monitoring stack. 5 nodes is not enough room for both: Loki's
-  # third ingester stays Pending with "max node group size reached".
-  default_node_pool_max_count   = 8
+  # Default node pool (runs all workloads except Materialize), one node per
+  # zone. It can't autoscale under Node Auto Provisioning; nodepool_generic
+  # takes the overflow, such as the Ory and monitoring stacks.
+  default_node_pool_vm_size     = "Standard_D4pds_v6"
+  default_node_pool_node_count  = 3
   default_node_pool_node_labels = local.generic_node_labels
 
   # Optional: Enable monitoring
@@ -311,37 +302,46 @@ moved {
   to   = module.monitoring_crds.helm_release.crds[0]
 }
 
-# Materialize-dedicated node pool with taints
-module "materialize_nodepool" {
-  source = "../../modules/nodepool"
+# Node Auto Provisioning NodePool for generic workloads that don't fit on the
+# default node pool.
+module "nodepool_generic" {
+  source = "../../modules/nap-nodepool"
 
-  prefix     = var.name_prefix
-  cluster_id = module.aks.cluster_id
-  subnet_id  = module.networking.aks_subnet_id
+  name        = "generic"
+  location    = var.location
+  vm_sizes    = local.generic_vm_sizes
+  zones       = local.availability_zones
+  node_labels = local.generic_node_labels
+  tags        = var.tags
 
-  # Workload-specific configuration
-  autoscaling_config = {
-    enabled    = local.node_pool_config.auto_scaling_enabled
-    min_nodes  = local.node_pool_config.min_nodes
-    max_nodes  = local.node_pool_config.max_nodes
-    node_count = local.node_pool_config.node_count
-  }
+  expire_after = "168h"
+  # Generic workloads can tolerate eviction, so cap how long draining
+  # pods can delay node replacement.
+  termination_grace_period = "300s"
 
-  vm_size      = local.node_pool_config.vm_size
-  disk_size_gb = local.node_pool_config.disk_size_gb
-  swap_enabled = local.node_pool_config.swap_enabled
+  depends_on = [module.aks]
+}
 
-  # Explicit multi-zone configuration for production HA
-  zones = local.availability_zones
+# Node Auto Provisioning NodePool dedicated to Materialize, with swap on the
+# local NVMe disks.
+module "nodepool_materialize" {
+  source = "../../modules/nap-nodepool"
 
-  labels = local.materialize_node_labels
+  name         = "materialize"
+  location     = var.location
+  vm_sizes     = local.materialize_vm_sizes
+  zones        = local.availability_zones
+  swap_enabled = true
+  node_labels  = local.materialize_node_labels
+  node_taints  = local.materialize_node_taints
+  tags         = var.tags
 
-  # Materialize-specific taint to isolate workloads
-  # https://github.com/Azure/AKS/issues/2934
-  # Note: Once applied, these cannot be manually removed due to AKS webhook restrictions
-  node_taints = local.materialize_node_taints
+  # WARNING: leave expire_after at "Never" and termination_grace_period unset.
+  # Otherwise Karpenter removes nodes even though Materialize pods carry the
+  # karpenter.sh/do-not-disrupt annotation. Roll nodes gracefully instead:
+  # cordon them, then roll out every Materialize instance on them.
 
-  tags = var.tags
+  depends_on = [module.aks]
 }
 
 
@@ -468,6 +468,10 @@ module "coredns" {
     from = var.ory_polis_fqdn
     to   = "polis-internal.${local.ory_namespace}.svc.cluster.local"
   }] : []
+
+  depends_on = [
+    module.nodepool_generic,
+  ]
 }
 
 module "cert_manager" {
@@ -480,6 +484,7 @@ module "cert_manager" {
   depends_on = [
     module.aks,
     module.coredns,
+    module.nodepool_generic,
   ]
 }
 
@@ -534,6 +539,7 @@ module "operator" {
     module.storage,
     module.coredns,
     module.cert_manager,
+    module.nodepool_generic,
   ]
 }
 
@@ -676,6 +682,7 @@ module "monitoring" {
     module.operator,
     module.aks,
     module.coredns,
+    module.nodepool_generic,
   ]
 }
 
@@ -753,7 +760,7 @@ module "materialize_instance" {
 
   depends_on = [
     module.operator,
-    module.materialize_nodepool,
+    module.nodepool_materialize,
     module.coredns,
   ]
 }
@@ -850,6 +857,7 @@ module "ory" {
     module.coredns,
     module.ory_database,
     azurerm_postgresql_flexible_server_configuration.ory_extensions,
+    module.nodepool_generic,
   ]
 }
 

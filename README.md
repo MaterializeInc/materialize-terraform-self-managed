@@ -84,7 +84,7 @@ Complete support for deploying Materialize on Microsoft Azure with AKS, Azure Da
 - Azure Load Balancer for service exposure
 - Multi-zone deployment support
 
-**Autoscaling:** Uses Azure's native cluster autoscaler that integrates directly with Azure Virtual Machine Scale Sets for automated node scaling. In future we are planning to enhance this by making use of [karpenter-provider-azure](https://github.com/Azure/karpenter-provider-azure)
+**Autoscaling:** Uses AKS [Node Auto Provisioning](https://learn.microsoft.com/en-us/azure/aks/node-auto-provisioning), Azure's managed [Karpenter](https://github.com/Azure/karpenter-provider-azure), to provision right-sized nodes based on pending pod requirements.
 
 **Get Started:** See [azure/examples/simple/README.md](./azure/examples/simple/README.md) for detailed deployment instructions and architecture.
 
@@ -182,6 +182,60 @@ We follow semantic versioning with our tags. If a particular version requires ad
 Kubernetes version 1.35 on AWS and Azure.
 
 The GCP simple example now uses the `REGULAR` GKE release channel (the module default) instead of `STABLE`. Applying this to an existing cluster switches its channel in place, and GKE will then upgrade it to the `REGULAR` channel's version.
+
+##### Azure nodes come from Node Auto Provisioning
+
+The Azure modules now use AKS [Node Auto Provisioning](https://learn.microsoft.com/en-us/azure/aks/node-auto-provisioning) (NAP), Azure's managed Karpenter, instead of the cluster autoscaler. The `simple` and `enterprise` examples replace the `materialize_nodepool` module with two NodePools from the new `nap-nodepool` module: `generic`, for generic workloads that don't fit on the default node pool, and `materialize`. The `materialize` nodes use managed OS disks, so swap can use all of their local NVMe disks.
+
+The `aks` module changes in two ways:
+
+- **`enable_node_auto_provisioning` is a new variable, and defaults to `true`.**
+- **`default_node_pool_enable_auto_scaling` now defaults to `false`.** AKS refuses NAP while any VMSS node pool autoscales, so the default node pool has a fixed size of `default_node_pool_node_count` (default `1`).
+
+The `nodepool` module is deprecated, and kept only for this migration. You can't apply the new modules in one step: AKS rejects NAP until every VMSS pool stops autoscaling, and the Materialize pods have to move to the new nodes. Plan a maintenance window: enabling NAP updates the AKS cluster in place, with SQL through the load balancer stalling for some seconds.
+
+1. Bump `ref=<tag>` on all modules, but keep your `materialize_nodepool` module.
+2. Note how many nodes each pool has:
+
+   ```bash
+   kubectl get nodes -L kubernetes.azure.com/agentpool
+   ```
+3. In the `aks` module, set `enable_node_auto_provisioning = false`, `default_node_pool_enable_auto_scaling = false`, and `default_node_pool_node_count` to the default pool's current node count. Remove `default_node_pool_min_count` and `default_node_pool_max_count`.
+4. In the `materialize_nodepool` module, set `autoscaling_config = { enabled = false, node_count = <current node count> }`.
+5. `terraform apply` to stop autoscaling on the VMSS pools. The plan updates both node pools in place, and no nodes are added or removed. It also updates the AKS cluster once, to set `node_provisioning_profile.default_node_pools = "None"`. This change has no effect until NAP is on.
+6. Remove `enable_node_auto_provisioning = false` from the `aks` module.
+7. Copy the `nodepool_generic` and `nodepool_materialize` modules and their `generic_vm_sizes` and `materialize_vm_sizes` locals from the example into your root.
+8. Add `module.nodepool_generic` to the `depends_on` of every module that runs on generic nodes, as the examples do: `coredns`, `cert_manager`, `operator` and `monitoring`, and `ory` in `enterprise`. Without it, `terraform destroy` can delete the `generic` NodePool, and its nodes, while those modules are still being uninstalled, and the destroy fails.
+9. `terraform init && terraform apply` to enable NAP and create the NodePools. The new NodePools have no nodes yet. NAP adds a `generic` node only when a generic pod doesn't fit on the default node pool.
+10. Cordon the old Materialize nodes so the rollout can't schedule new pods onto them. Cordoning doesn't affect pods that are already running:
+
+    ```bash
+    kubectl cordon -l 'workload=materialize-instance,!karpenter.sh/nodepool'
+    ```
+
+    If your root uses different Materialize node labels, select the old pool with `kubernetes.azure.com/agentpool=<pool name>` instead.
+11. Prepare a rollout of your Materialize instances by setting `force_rollout` to a new UUID.
+12. `terraform apply` to perform the rollout. NAP provisions `materialize` nodes for the new environmentd and clusterd pods.
+13. Verify the new pods are running on nodes labeled `karpenter.sh/nodepool=materialize`, and that the `materialize-disk-setup` pods on those nodes are `Running`:
+
+    ```bash
+    kubectl get pods -A -o wide --field-selector spec.nodeName=<node>
+    ```
+14. Restart balancerd and console, which the rollout doesn't move, and wait for their new pods to be ready. Otherwise SQL connections fail for several seconds when step 17 removes the old nodes:
+
+    ```bash
+    kubectl get deployments -n <instance namespace> -o name | grep -E -- '-(balancerd|console)$' |
+      xargs kubectl rollout restart -n <instance namespace>
+    kubectl get deployments -n <instance namespace> -o name | grep -E -- '-(balancerd|console)$' |
+      xargs -n1 kubectl rollout status -n <instance namespace>
+    ```
+15. Once no environmentd, clusterd, balancerd or console pods are left on the old nodes, remove the `materialize_nodepool` module and any outputs that reference it.
+16. In the `depends_on` of `materialize_instance`, replace `module.materialize_nodepool` with `module.nodepool_materialize`, as the examples do.
+17. `terraform apply` to delete the VMSS pool and its `disk-setup` resources.
+
+You can lower `default_node_pool_node_count` afterwards. Pods evicted from the removed nodes reschedule onto `generic` NAP nodes. Keep at least two nodes so that AKS's system pods stay available.
+
+If your root declares its own AKS cluster, as `azure/examples/migration` does, it's unaffected. To use NAP there, set `node_provisioning_profile { mode = "Auto", default_node_pools = "None" }` once no node pool autoscales.
 
 #### v17.0.0
 

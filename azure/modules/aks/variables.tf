@@ -64,11 +64,24 @@ variable "default_node_pool_vm_size" {
   nullable    = false
 }
 
-variable "default_node_pool_enable_auto_scaling" {
-  description = "Enable auto scaling for the default node pool"
+variable "enable_node_auto_provisioning" {
+  description = "Enable Node Auto Provisioning (managed Karpenter). Declare its NodePools with the nap-nodepool module. AKS refuses it while any VMSS node pool, including the default one, has autoscaling enabled."
   type        = bool
   default     = true
   nullable    = false
+}
+
+variable "default_node_pool_enable_auto_scaling" {
+  description = "Enable auto scaling for the default node pool. Must be false when enable_node_auto_provisioning is true."
+  type        = bool
+  default     = false
+  nullable    = false
+
+  # AKS refuses Node Auto Provisioning while any VMSS pool autoscales.
+  validation {
+    condition     = !(var.enable_node_auto_provisioning && var.default_node_pool_enable_auto_scaling)
+    error_message = "default_node_pool_enable_auto_scaling must be false when enable_node_auto_provisioning is true."
+  }
 }
 
 variable "default_node_pool_node_count" {

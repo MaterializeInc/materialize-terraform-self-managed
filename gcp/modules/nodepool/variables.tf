@@ -120,7 +120,7 @@ variable "disk_setup_name" {
 variable "disk_setup_image" {
   description = "Docker image for the disk setup script"
   type        = string
-  default     = "materialize/ephemeral-storage-setup-image:v0.4.1"
+  default     = "materialize/ephemeral-storage-setup-image:v0.5.1"
   nullable    = false
 }
 

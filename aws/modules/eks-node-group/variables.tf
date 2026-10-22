@@ -99,7 +99,7 @@ variable "swap_enabled" {
 variable "disk_setup_image" {
   description = "Docker image for the disk setup script"
   type        = string
-  default     = "docker.io/materialize/ephemeral-storage-setup-image:v0.4.1"
+  default     = "docker.io/materialize/ephemeral-storage-setup-image:v0.5.1"
   nullable    = false
 }
 
