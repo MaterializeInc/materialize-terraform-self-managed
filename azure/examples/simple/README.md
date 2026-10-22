@@ -20,8 +20,10 @@ This example provisions the following infrastructure:
 
 ### Compute
 - **AKS Cluster**: Version 1.34 with Cilium networking (network plugin: azure, data plane: cilium, policy: cilium)
-- **Default Node Pool**: Standard_D4ps_v6 VMs, autoscaling 2-5 nodes, labeled for generic workloads
-- **Materialize Node Pool**: Standard_E4pds_v6 VMs with 100GB disk, autoscaling 2-5 nodes, swap enabled, dedicated taints for Materialize workloads
+- **Default Node Pool**: 2 Standard_D4ps_v6 VMs, labeled for generic workloads
+- **Node Auto Provisioning**: AKS's managed Karpenter adds nodes from two NodePools
+  - `generic`: Standard_D4ps_v6 VMs for generic workloads that don't fit on the default node pool
+  - `materialize`: Standard_E4pds_v6 VMs with a 100GB managed OS disk and swap on the local NVMe disk, dedicated taints for Materialize workloads
 - **Managed Identities**:
   - AKS cluster identity: Used by AKS control plane to provision Azure resources (creating load balancers when Materialize LoadBalancer services are created, managing network interfaces)
   - Workload identity: Used by Materialize pods for secure, passwordless authentication to Azure Storage (no storage account keys stored in cluster)
