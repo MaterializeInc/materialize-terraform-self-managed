@@ -166,7 +166,7 @@ locals {
         selfservice = {
           default_browser_return_url = local.ui_external_url
           # SSO-only: disable local password login/registration and profile
-          # self-edits so users cannot set their own traits (e.g. groups).
+          # self-edits so users cannot set their own traits.
           # OIDC stays enabled, so IdP just-in-time provisioning still works.
           methods = {
             password = { enabled = false }
@@ -336,11 +336,6 @@ module "ory_kratos" {
                 recovery     = { via = "email" }
                 verification = { via = "email" }
               }
-            }
-            groups = {
-              type  = "array"
-              title = "Groups"
-              items = { type = "string" }
             }
           }
           required = ["email"]
