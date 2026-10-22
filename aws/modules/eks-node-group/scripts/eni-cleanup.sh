@@ -38,39 +38,40 @@ delete_eni() {
   }
 }
 
-# ENIs come in two tag styles:
-# 1. EKS-managed: eks:cluster-name + eks:nodegroup-name
-# 2. VPC CNI-managed: cluster.k8s.amazonaws.com/name
+cleanup_enis() {
+  ENI_QUERY="$1"
+  shift
+  # shellcheck disable=SC2086 # PROFILE_ARGS must word-split into flags
+  ENIS=$(aws ec2 describe-network-interfaces \
+    --filters \
+      "Name=group-id,Values=$SG_ID" \
+      "Name=status,Values=available" \
+      "$@" \
+    --query "$ENI_QUERY" \
+    --output text \
+    --region "$REGION" $PROFILE_ARGS)
+
+  for ENI_ID in $ENIS; do
+    [ "$ENI_ID" = "None" ] && continue
+    delete_eni "$ENI_ID"
+  done
+}
+
 echo "Cleaning up EKS-tagged ENIs..."
-# shellcheck disable=SC2086 # PROFILE_ARGS must word-split into flags
-EKS_ENIS=$(aws ec2 describe-network-interfaces \
-  --filters \
-    "Name=group-id,Values=$SG_ID" \
-    "Name=status,Values=available" \
-    "Name=tag:eks:cluster-name,Values=$CLUSTER_NAME" \
-  --query "NetworkInterfaces[?TagSet[?Key=='eks:nodegroup-name' && starts_with(Value, '$NODE_GROUP_PREFIX')]].NetworkInterfaceId" \
-  --output text \
-  --region "$REGION" $PROFILE_ARGS)
+cleanup_enis \
+  "NetworkInterfaces[?TagSet[?Key=='eks:nodegroup-name' && starts_with(Value, '$NODE_GROUP_PREFIX')]].NetworkInterfaceId" \
+  "Name=tag:eks:cluster-name,Values=$CLUSTER_NAME"
 
-for ENI_ID in $EKS_ENIS; do
-  [ "$ENI_ID" = "None" ] && continue
-  delete_eni "$ENI_ID"
-done
+echo "Cleaning up VPC CNI cluster-tagged ENIs..."
+cleanup_enis "NetworkInterfaces[*].NetworkInterfaceId" \
+  "Name=tag:cluster.k8s.amazonaws.com/name,Values=$CLUSTER_NAME"
 
-echo "Cleaning up VPC CNI-tagged ENIs..."
-# shellcheck disable=SC2086 # PROFILE_ARGS must word-split into flags
-CNI_ENIS=$(aws ec2 describe-network-interfaces \
-  --filters \
-    "Name=group-id,Values=$SG_ID" \
-    "Name=status,Values=available" \
-    "Name=tag:cluster.k8s.amazonaws.com/name,Values=$CLUSTER_NAME" \
-  --query "NetworkInterfaces[*].NetworkInterfaceId" \
-  --output text \
-  --region "$REGION" $PROFILE_ARGS)
-
-for ENI_ID in $CNI_ENIS; do
-  [ "$ENI_ID" = "None" ] && continue
-  delete_eni "$ENI_ID"
-done
+# The CNI always adds the node instance tag, but only adds the cluster tag
+# when its CLUSTER_NAME environment variable is set. Scope ENIs without a
+# cluster tag to this node security group and the CNI's description prefix.
+echo "Cleaning up VPC CNI node-tagged ENIs..."
+cleanup_enis "NetworkInterfaces[?!(TagSet[?Key=='cluster.k8s.amazonaws.com/name'])].NetworkInterfaceId" \
+  "Name=tag-key,Values=node.k8s.amazonaws.com/instance_id" \
+  "Name=description,Values=aws-K8S-*"
 
 echo "ENI cleanup complete."

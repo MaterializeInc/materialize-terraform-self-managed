@@ -147,6 +147,12 @@ jobs:
           echo "$files"
           echo "$files" | xargs shellcheck
 
+      - name: Test shell scripts with mocked AWS
+        run: |
+          python3 -m venv "$RUNNER_TEMP/shell-tests"
+          "$RUNNER_TEMP/shell-tests/bin/pip" install jmespath==1.0.1
+          "$RUNNER_TEMP/shell-tests/bin/python" -m unittest discover -s test/scripts -v
+
   lint-rust:
     name: Rust Tests Lint
     runs-on: ubuntu-latest
