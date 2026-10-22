@@ -21,6 +21,8 @@ moved {
 }
 
 locals {
+  version_file = "${path.module}/../../../VERSION"
+
   # GKE taints Arm nodes with kubernetes.io/arch=arm64:NoSchedule by default.
   # Materialize images are multi-arch, so instance pods always tolerate the
   # taint; it is harmless on x86 pools since scheduling is still constrained
@@ -59,8 +61,9 @@ locals {
         enableLicenseKeyChecks = var.enable_license_key_checks
         installV1CRD           = var.install_v1_crd
         # Reported in Materialize's telemetry. The release workflow writes
-        # VERSION into the tagged commit, so it is "unreleased" off a tag.
-        terraformModuleVersion = trimspace(file("${path.module}/../../../VERSION"))
+        # VERSION into the tagged commit, so it is "unreleased" off a tag. Null
+        # when the module is vendored without the repo root.
+        terraformModuleVersion = fileexists(local.version_file) ? trimspace(file(local.version_file)) : null
       }
       image = var.orchestratord_version == null ? {} : {
         tag = var.orchestratord_version
