@@ -171,6 +171,15 @@ locals {
           methods = {
             password = { enabled = false }
             profile  = { enabled = false }
+            # Pinned off rather than left to Kratos defaults, so a chart or
+            # image upgrade can't quietly add a non-SSO way to register or
+            # sign in (one-time codes, passkeys, WebAuthn, second factors).
+            code          = { enabled = false }
+            link          = { enabled = false }
+            passkey       = { enabled = false }
+            webauthn      = { enabled = false }
+            totp          = { enabled = false }
+            lookup_secret = { enabled = false }
           }
           flows = {
             login = { ui_url = "${local.ui_external_url}/login" }
@@ -185,8 +194,10 @@ locals {
                 saml = { hooks = [{ hook = "session" }] }
               }
             }
-            recovery     = { ui_url = "${local.ui_external_url}/recovery" }
-            verification = { ui_url = "${local.ui_external_url}/verification" }
+            # The IdP owns credentials and email ownership, so Kratos has no
+            # account to recover and no address to verify.
+            recovery     = { enabled = false, ui_url = "${local.ui_external_url}/recovery" }
+            verification = { enabled = false, ui_url = "${local.ui_external_url}/verification" }
             settings     = { ui_url = "${local.ui_external_url}/settings" }
             error        = { ui_url = "${local.ui_external_url}/error" }
             logout       = { after = { default_browser_return_url = local.ui_external_url } }
