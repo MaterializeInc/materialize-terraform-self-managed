@@ -213,9 +213,9 @@ dependencies = [
 
 [[package]]
 name = "aws-sdk-ec2"
-version = "1.267.0"
+version = "1.268.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "15c55586175b6f18392168f9a669398c81ceb8df42e19989e1575a6a3dd7b6b4"
+checksum = "55ec5072fae0a0411219c8033f01b862e7c992a5e9d2fcdddfa0adb271686ce6"
 dependencies = [
  "arc-swap",
  "aws-credential-types",
@@ -1392,9 +1392,9 @@ dependencies = [
 
 [[package]]
 name = "hcl-edit"
-version = "0.9.7"
+version = "0.9.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8a67cc5751cb5996669b9780cd738d4541a76c2d5f2f10c17af4965c5a03a5f5"
+checksum = "69b0f6132a6584a2c29c43c1655ccbd0b57531cb4be993f47685eead3493ffed"
 dependencies = [
  "fnv",
  "hcl-primitives",
