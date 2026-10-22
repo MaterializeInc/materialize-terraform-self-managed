@@ -59,6 +59,11 @@ labels. If no merged PR carries a version label, no release is created.
 The release fails while any open PR carries the `release-blocker` label.
 A major release must be confirmed with `gh workflow run tag.yml -f confirm_major=true`.
 
+The tag points at a commit on top of `main` that writes the version to
+`VERSION`. That commit is never merged, so `VERSION` on `main` stays
+`unreleased`. The operator modules pass `VERSION` to the chart, which reports it
+in Materialize's telemetry.
+
 ### What Gets Tested (Merge Queue Only)
 
 | Path Changes | Tests Triggered |

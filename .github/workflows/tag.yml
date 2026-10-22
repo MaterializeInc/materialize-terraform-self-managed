@@ -81,8 +81,22 @@ jobs:
           fi
 
           echo "Creating release $version ($bump bump from $latest)"
+
+          # Tag a commit on top of $GITHUB_SHA that writes VERSION, which the
+          # operator modules report to Materialize. It is never pushed to main,
+          # so VERSION always matches the tag and main stays "unreleased".
+          api="repos/$GITHUB_REPOSITORY/git"
+          base_tree=$(gh api "$api/commits/$GITHUB_SHA" --jq .tree.sha)
+          tree=$(jq -n --arg base "$base_tree" --arg v "$version" \
+              '{base_tree: $base, tree: [{path: "VERSION", mode: "100644", type: "blob", content: ($v + "\n")}]}' \
+            | gh api "$api/trees" --input - --jq .sha)
+          commit=$(jq -n --arg tree "$tree" --arg parent "$GITHUB_SHA" --arg v "$version" \
+              '{message: ("release: " + $v), tree: $tree, parents: [$parent]}' \
+            | gh api "$api/commits" --input - --jq .sha)
+          gh api "$api/refs" -f ref="refs/tags/$version" -f sha="$commit" > /dev/null
+
           gh release create "$version" \
             --repo "$GITHUB_REPOSITORY" \
-            --target "$GITHUB_SHA" \
+            --verify-tag \
             --title "$version" \
             --generate-notes

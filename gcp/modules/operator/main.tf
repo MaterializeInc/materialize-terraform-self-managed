@@ -58,6 +58,9 @@ locals {
       args = {
         enableLicenseKeyChecks = var.enable_license_key_checks
         installV1CRD           = var.install_v1_crd
+        # Reported in Materialize's telemetry. The release workflow writes
+        # VERSION into the tagged commit, so it is "unreleased" off a tag.
+        terraformModuleVersion = trimspace(file("${path.module}/../../../VERSION"))
       }
       image = var.orchestratord_version == null ? {} : {
         tag = var.orchestratord_version

@@ -109,10 +109,11 @@ We follow [Semantic Versioning](https://semver.org/). For version numbers:
 
 Perform a manual test of the latest code on `main`. See prior section. Then run:
 
-    git tag -a vX.Y.Z -m vX.Y.Z
-    git push origin vX.Y.Z
+    gh workflow run tag.yml
 
-Pushing the tag triggers the [release workflow](./.github/workflows/release.yml), which creates a GitHub release with auto-generated release notes. Notes are grouped by PR label per [.github/release.yml](./.github/release.yml), so make sure merged PRs are labeled correctly (see [PR Labels](#pr-labels)) before tagging.
+The [tag workflow](./.github/workflows/tag.yml) picks the version from PR labels, tags a release commit that writes it to `VERSION`, and creates a GitHub release with auto-generated release notes. Notes are grouped by PR label per [.github/release.yml](./.github/release.yml), so make sure merged PRs are labeled correctly (see [PR Labels](#pr-labels)) before releasing.
+
+Don't push release tags by hand. The operator modules report `VERSION` to Materialize, and a hand-pushed tag would report `unreleased`. The [release workflow](./.github/workflows/release.yml) refuses to create a release for such a tag.
 
 ## References
 

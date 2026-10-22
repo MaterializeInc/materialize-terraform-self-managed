@@ -17,6 +17,15 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          set -euo pipefail
+          # Only tag.yml writes VERSION, so a hand-pushed tag would report the
+          # wrong module version.
+          tagged=$(gh api "repos/$GITHUB_REPOSITORY/contents/VERSION?ref=$GITHUB_REF_NAME" \
+            -H "Accept: application/vnd.github.raw")
+          if [ "$(printf '%s' "$tagged" | tr -d '[:space:]')" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::VERSION at $GITHUB_REF_NAME is '$tagged', create releases with tag.yml"
+            exit 1
+          fi
           gh release create "$GITHUB_REF_NAME" \
             --repo "$GITHUB_REPOSITORY" \
             --title "$GITHUB_REF_NAME" \
