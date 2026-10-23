@@ -238,9 +238,8 @@ The modules don't use anything changed in 8.0. If your root manages other GCP re
    - `allowed_email_domains` on every entry in `upstream_identity_providers` and `saml_providers`. Sign-in with any other email domain fails.
    - `require_email_verified = false` on OIDC providers that don't send `email_verified`, such as Microsoft Entra ID.
    - `kratos_cookie_domain` (`ory_kratos_cookie_domain` in the examples). It was derived from the Kratos hostname before. Use the narrowest domain that covers Kratos and the UI.
-2. **Point your SAML apps at the new audience.** Polis's SAML audience is now its own URL, so update the Audience URI (SP Entity ID) of each IdP app that signs in through Polis. SAML sign-in fails until you do.
-3. **Expect the AWS example to rotate the Hydra and Polis database passwords.** Each RDS instance now has its own password. The pods restart with the new DSNs during the apply.
-4. **Make everyone sign in through the IdP once after the apply.** Tokens now take `email` and `groups` from the identity's `metadata_public`, which the IdP mapper writes at sign-in. Until a user signs in through the IdP again, consent and token refreshes are refused. Remove the old `groups` trait, which the schema no longer allows, and end every session so the next sign-in goes to the IdP:
+2. **Expect the AWS example to rotate the Hydra and Polis database passwords.** Each RDS instance now has its own password. The pods restart with the new DSNs during the apply.
+3. **Make everyone sign in through the IdP once after the apply.** Tokens now take `email` and `groups` from the identity's `metadata_public`, which the IdP mapper writes at sign-in. Until a user signs in through the IdP again, consent and token refreshes are refused. Remove the old `groups` trait, which the schema no longer allows, and end every session so the next sign-in goes to the IdP:
 
    ```bash
    kubectl -n ory port-forward svc/kratos-admin 4434 &

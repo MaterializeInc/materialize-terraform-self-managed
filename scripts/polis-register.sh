@@ -360,7 +360,8 @@ print(f"""{bar}
 {bar}
 On the SAML application, General -> SAML Settings:
   Single sign-on URL          : {polis}/api/oauth/saml
-  Audience URI (SP Entity ID) : {polis}
+  Audience URI (SP Entity ID) : https://saml.boxyhq.com
+                                (or polis_saml_audience, if you set it)
 
 SCIM is not wired to Kratos yet: users and groups Okta pushes land only in the
 Polis directory, and deactivating a user in Okta does not end their Materialize

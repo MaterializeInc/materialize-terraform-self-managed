@@ -127,7 +127,7 @@ variable "nextauth_acl" {
 }
 
 variable "saml_audience" {
-  description = "SAML audience (Polis's SP entity ID), set as SAML_AUDIENCE. The upstream IdP's SAML app must use the same value as its audience (Okta: Audience URI (SP Entity ID)). Null uses external_url, which is specific to this deployment."
+  description = "SAML audience (Polis's SP entity ID), set as SAML_AUDIENCE. The upstream IdP's SAML app must use the same value as its audience (Okta: Audience URI (SP Entity ID)). Null keeps Polis's default, https://saml.boxyhq.com, which every Polis install shares; setting it to the Polis URL ties assertions to this deployment."
   type        = string
   default     = null
 }

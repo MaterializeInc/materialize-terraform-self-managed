@@ -80,11 +80,10 @@ locals {
   } : {}
 
   # Polis only honors SAML_AUDIENCE when set as an env var; the chart does not
-  # plumb it through values, so route it through deployment.extraEnvs. Its own
-  # default is the same https://saml.boxyhq.com for every install.
-  saml_audience_env = [{
+  # plumb it through values, so route it through deployment.extraEnvs.
+  saml_audience_env = var.saml_audience == null ? [] : [{
     name  = "SAML_AUDIENCE"
-    value = coalesce(var.saml_audience, var.external_url)
+    value = var.saml_audience
   }]
 
   # EXTERNAL_URL controls the host Polis advertises in SCIM endpoint URLs,

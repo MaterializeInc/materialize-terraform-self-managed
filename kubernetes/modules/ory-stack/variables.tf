@@ -538,6 +538,12 @@ variable "polis_nextauth_secret" {
   sensitive   = true
 }
 
+variable "polis_saml_audience" {
+  description = "SAML audience (Polis's SP entity ID). The IdP's SAML app must use the same value as its Audience URI (SP Entity ID). Null keeps Polis's default, https://saml.boxyhq.com, which every Polis install shares; setting it to the Polis URL ties assertions to this deployment."
+  type        = string
+  default     = null
+}
+
 variable "polis_helm_values" {
   description = "Additional helm_values merged on top of the Polis defaults."
   type        = any

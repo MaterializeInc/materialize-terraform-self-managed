@@ -585,8 +585,9 @@ module "ory_polis" {
   namespace        = var.namespace
   create_namespace = false
 
-  dsn          = var.polis_dsn
-  external_url = local.polis_external_url
+  dsn           = var.polis_dsn
+  external_url  = local.polis_external_url
+  saml_audience = var.polis_saml_audience
 
   chart_registry        = var.polis_chart_registry != null ? var.polis_chart_registry : local.oel_registry_host
   chart_repository      = var.polis_chart_repository != null ? var.polis_chart_repository : local.polis_chart_repository
