@@ -410,12 +410,20 @@ module "ebs_csi_driver" {
   oidc_issuer_url   = module.eks.cluster_oidc_issuer_url
   node_selector     = local.generic_node_labels
 
+  # Lets destroy wait for the driver to release its volumes before it is
+  # uninstalled. See the module's volume_drain.
+  kubeconfig_data = local.kubeconfig_data
+
   tags = var.tags
 
   depends_on = [
     module.eks,
     module.base_node_group,
     module.coredns,
+    # The controller runs on this pool, and destroy's volume drain needs it
+    # to detach volumes. Without this, destroy can remove the pool's nodes
+    # during the drain, leaving the controller Pending and the drain timing out.
+    module.nodepool_generic,
   ]
 }
 
