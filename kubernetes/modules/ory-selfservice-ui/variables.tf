@@ -211,18 +211,40 @@ variable "screens_enabled" {
   nullable    = false
 }
 
-variable "claim_traits_id_token" {
-  description = "Identity trait names copied from the Kratos identity onto every id_token issued through the consent flow. Pairs with Hydra's allowed_top_level_claims so the claims land top-level rather than under Hydra's ext."
+variable "claim_metadata_public_id_token" {
+  description = "Keys copied from the Kratos identity's metadata_public onto every id_token. Users cannot write metadata_public, so the IdP-mapped groups land here. Pairs with Hydra's allowed_top_level_claims so the claims land top-level rather than under Hydra's ext."
   type        = list(string)
   default     = ["groups"]
   nullable    = false
 }
 
-variable "claim_traits_access_token" {
-  description = "Identity trait names copied from the Kratos identity onto every access token issued through the consent flow. Materialize reads groups off the access token, which is what makes MCP OAuth work."
+variable "claim_metadata_public_access_token" {
+  description = "Keys copied from the Kratos identity's metadata_public onto every access token. Materialize reads groups off the access token, which is what makes MCP OAuth work."
   type        = list(string)
   default     = ["groups"]
   nullable    = false
+}
+
+variable "claim_traits_id_token" {
+  description = "Identity trait names copied onto every id_token. Empty by default: only list traits users cannot edit, and never a name also in claim_metadata_public_id_token (the image refuses to start)."
+  type        = list(string)
+  default     = []
+  nullable    = false
+}
+
+variable "claim_traits_access_token" {
+  description = "Identity trait names copied onto every access token. Empty by default, with the same rules as claim_traits_id_token."
+  type        = list(string)
+  default     = []
+  nullable    = false
+
+  validation {
+    condition = (
+      length(setintersection(var.claim_traits_id_token, var.claim_metadata_public_id_token)) == 0 &&
+      length(setintersection(var.claim_traits_access_token, var.claim_metadata_public_access_token)) == 0
+    )
+    error_message = "A claim can't be in both the claim_traits_* and claim_metadata_public_* list for the same token: a user-editable trait would stand in for the IdP-sourced value."
+  }
 }
 
 variable "token_hook_enabled" {
@@ -303,10 +325,22 @@ variable "metrics_port" {
 }
 
 variable "log_redact_pii" {
-  description = "Redact personally identifiable information (email addresses, trait values) from the service's logs. Leave false while debugging sign-in issues; turn it on where logs are shipped off-cluster."
+  description = "Redact personally identifiable information (email addresses, group names) from the service's logs by hashing them. Set false temporarily while debugging sign-in issues."
   type        = bool
-  default     = false
+  default     = true
   nullable    = false
+}
+
+variable "token_hook_max_auth_age_seconds" {
+  description = "The token hook refuses user tokens once the user hasn't signed in through Kratos for this long, bounding how long a refresh chain keeps stale groups and email. 0 disables the check."
+  type        = number
+  default     = 0
+  nullable    = false
+
+  validation {
+    condition     = var.token_hook_max_auth_age_seconds >= 0
+    error_message = "token_hook_max_auth_age_seconds must be 0 or more."
+  }
 }
 
 variable "remember_consent_for_seconds" {
@@ -314,4 +348,9 @@ variable "remember_consent_for_seconds" {
   type        = number
   default     = 3600
   nullable    = false
+
+  validation {
+    condition     = var.remember_consent_for_seconds >= 1
+    error_message = "remember_consent_for_seconds must be at least 1: Hydra reads 0 as remember forever."
+  }
 }

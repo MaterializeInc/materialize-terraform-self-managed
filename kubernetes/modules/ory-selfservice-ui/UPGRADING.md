@@ -63,6 +63,43 @@ To roll back, revert the module version (or pin `image_repository` /`image_tag` 
 initContainer along with the old image. Sessions are cookie-based and the cookie secrets
 are unchanged, so users stay signed in across the roll in both directions.
 
+## Security changes that come with ory-selfservice v0.2.7
+
+- **`email` and `groups` now come from the identity's `metadata_public`, never its
+  traits.** During SSO registration Kratos keeps any `traits` the user submits over the
+  IdP mapper's values, so a user could otherwise put someone else's email on their token
+  and sign in to Materialize as that person. The `ory-kratos` claim mapper now writes the
+  IdP's email and groups to `metadata_public`, which only the mapper and the admin API
+  can write. The UI refuses an identity whose `traits.email` differs from
+  `metadata_public.email`, and one with no `metadata_public.email`.
+- **Existing users need one fresh sign-in.** Identities created before this have no
+  `metadata_public.email` until their next sign-in through the IdP, so their tokens are
+  refused until then. To make everyone sign in again right away, revoke their Kratos
+  sessions after applying (Kratos admin API: `DELETE /admin/identities/{id}/sessions`
+  for each identity).
+- **The identity schema refuses traits it doesn't define** (`additionalProperties:
+  false`), so nothing a user submits during registration is stored besides `email`.
+- **The token hook is on by default** wherever the selfservice UI is deployed
+  (`selfservice_ui_token_hook_enabled` now defaults to null, meaning on). Hydra checks
+  every token issuance with it, so refresh tokens stop working for deactivated users.
+- **Refresh chains are bounded.** The hook refuses user tokens once the user hasn't
+  signed in through the IdP for `selfservice_ui_token_hook_max_auth_age_seconds`
+  (default 7 days), so groups the IdP removed don't live on through refresh tokens.
+- **Machine tokens need an operator-managed client.** The hook refuses
+  `client_credentials` tokens for clients without `metadata.materialize_managed: true`,
+  so a self-registered client can't mint tokens for Materialize without a user.
+- **Logs hash emails and groups by default** (`selfservice_ui_log_redact_pii` defaults
+  to true). Set it to false temporarily while debugging sign-in issues.
+- **Logout works in consent-only mode.** Hydra's logout endpoint is served whether or
+  not the screens are on.
+- **Hydra restarts when the token hook key changes**, instead of failing every token
+  request until its pods happen to restart.
+- **The claim inputs are split:** `claim_metadata_public_*` (default `groups`) and
+  `claim_traits_*` (default empty). The image refuses `groups`, `email` and standard
+  token claims in the trait lists, and the same name in both lists.
+- **`remember_consent_for_seconds` must be at least 1**: Hydra treats 0 as remembering
+  consent forever.
+
 ## Security changes that come with ory-selfservice v0.2.5
 
 - **The console's `OAuth2Client` is marked operator-managed** with

@@ -1,4 +1,7 @@
 locals {
+  # On by default wherever the selfservice UI runs (see the variable).
+  selfservice_ui_token_hook_enabled = coalesce(var.selfservice_ui_token_hook_enabled, var.deploy_selfservice_ui)
+
   # When set, the module creates the OAuth2 client CRD and the ory-side ingress
   # policy from the materialize namespace. Null skips Materialize integration.
   wire_materialize = var.materialize_namespace != null
@@ -251,7 +254,7 @@ locals {
         # top level, where Materialize reads the auth and group claims. Without
         # this, MCP access tokens are rejected (claims stay under ext). Still
         # required with the ory-selfservice image: it is what puts the claims on
-        # the token in the first place (see selfservice_ui_claim_traits), this
+        # the token in the first place (see selfservice_ui_claim_metadata_public), this
         # is what lifts them out of ext.
         oauth2 = {
           allowed_top_level_claims = ["email", "groups"]
@@ -386,6 +389,9 @@ module "ory_kratos" {
             }
           }
           required = ["email"]
+          # A user can submit traits during SSO registration, so refuse any the
+          # schema doesn't define rather than store them.
+          additionalProperties = false
         }
       }
     })
@@ -443,7 +449,7 @@ module "ory_hydra" {
   #     (hairpin through the LB, like the other in-cluster callers) and trusts
   #     it through its system roots. A private CA that cannot sign cluster.local
   #     names needs its root added to Hydra (hydra_helm_values) as well.
-  token_hook = var.selfservice_ui_token_hook_enabled ? {
+  token_hook = local.selfservice_ui_token_hook_enabled ? {
     url = (
       var.cert_issuer_signs_cluster_local
       ? module.ory_selfservice_ui[0].token_hook_url
@@ -512,13 +518,17 @@ module "ory_selfservice_ui" {
   # health and the token hook keep working.
   screens_enabled = !local.selfservice_ui_consent_only
 
-  # Traits copied onto the issued tokens. Pairs with Hydra's
+  # Claims copied onto the issued tokens: groups from metadata_public (see the
+  # Kratos claim mapper), plus any explicitly listed traits. Pairs with Hydra's
   # allowed_top_level_claims (see hydra_helm_values_baseline) so they land
   # top-level rather than under Hydra's ext.
-  claim_traits_id_token     = var.selfservice_ui_claim_traits
-  claim_traits_access_token = var.selfservice_ui_claim_traits
+  claim_metadata_public_id_token     = var.selfservice_ui_claim_metadata_public
+  claim_metadata_public_access_token = var.selfservice_ui_claim_metadata_public
+  claim_traits_id_token              = var.selfservice_ui_claim_traits
+  claim_traits_access_token          = var.selfservice_ui_claim_traits
 
-  token_hook_enabled = var.selfservice_ui_token_hook_enabled
+  token_hook_enabled              = local.selfservice_ui_token_hook_enabled
+  token_hook_max_auth_age_seconds = var.selfservice_ui_token_hook_max_auth_age_seconds
 
   log_redact_pii = var.selfservice_ui_log_redact_pii
 
@@ -674,7 +684,7 @@ resource "kubectl_manifest" "materialize_oauth2_client" {
         for fqdn in local.materialize_console_fqdns : ["https://${fqdn}/", "https://${fqdn}/account/login"]
       ])
       # First-party client: no consent page. Hydra still calls the consent
-      # endpoint, which adds email/groups (see selfservice_ui_claim_traits).
+      # endpoint, which adds email/groups (see selfservice_ui_claim_metadata_public).
       skipConsent = true
       # Public SPA client. No secret; PKCE on the console side.
       secretName              = var.oauth2_client_name
@@ -720,6 +730,41 @@ data "kubernetes_secret_v1" "oauth2_client" {
 # Network policies. The materialize -> ory egress policy is owned by the
 # materialize-instance module (it lives in the materialize namespace).
 
+# In single-domain mode Materialize reaches Hydra's public paths through the
+# reverse proxy on 8443. Polis's TLS sidecar listens on 8443 too, and its admin
+# API and SCIM endpoint must stay behind the Polis load balancer's allowlist,
+# so this opens 8443 to the proxy pods only.
+resource "kubernetes_network_policy_v1" "ory_proxy_from_materialize_ingress" {
+  count = local.wire_materialize && local.single_domain_enabled ? 1 : 0
+
+  metadata {
+    name      = "allow-ory-proxy-from-materialize"
+    namespace = var.namespace
+  }
+
+  spec {
+    pod_selector {
+      match_labels = { "app.kubernetes.io/name" = local.single_domain_proxy_name }
+    }
+    policy_types = ["Ingress"]
+
+    ingress {
+      from {
+        namespace_selector {
+          match_labels = {
+            "kubernetes.io/metadata.name" = var.materialize_namespace
+          }
+        }
+      }
+
+      ports {
+        protocol = "TCP"
+        port     = 8443
+      }
+    }
+  }
+}
+
 # Allow Ory pods to receive traffic from Materialize on Hydra's public port,
 # from within the ory namespace, and from external sources on the public ports
 # (which ones depends on the mode, see below).
@@ -752,14 +797,6 @@ resource "kubernetes_network_policy_v1" "ory_from_materialize_ingress" {
       ports {
         protocol = "TCP"
         port     = 4444
-      }
-
-      dynamic "ports" {
-        for_each = local.single_domain_enabled ? [1] : []
-        content {
-          protocol = "TCP"
-          port     = 8443
-        }
       }
     }
 

@@ -292,22 +292,46 @@ variable "login_url" {
 }
 
 variable "selfservice_ui_token_hook_enabled" {
-  description = "Serve Hydra's OAuth2 token hook from the selfservice UI and point Hydra at it. Hydra then calls the hook on every token issuance, so identity claims are refreshed from Kratos on refresh-token grants instead of being frozen at consent time. Requires deploy_selfservice_ui."
+  description = "Serve Hydra's OAuth2 token hook from the selfservice UI and point Hydra at it. Hydra then calls the hook on every token issuance, so refresh tokens stop working for deactivated users and pick up groups refreshed at sign-in, instead of keeping what was granted at consent. Null (the default) turns it on whenever deploy_selfservice_ui is true."
   type        = bool
-  default     = false
-  nullable    = false
+  default     = null
+  nullable    = true
 
   validation {
-    condition     = !var.selfservice_ui_token_hook_enabled || var.deploy_selfservice_ui
+    condition     = var.selfservice_ui_token_hook_enabled != true || var.deploy_selfservice_ui
     error_message = "selfservice_ui_token_hook_enabled requires deploy_selfservice_ui: the hook is served by the selfservice UI."
   }
 }
 
-variable "selfservice_ui_claim_traits" {
-  description = "Kratos identity trait names copied onto the issued tokens (applied to both the id_token and the access token). Materialize reads groups off the access token, so this pairs with Hydra's allowed_top_level_claims."
+variable "selfservice_ui_token_hook_max_auth_age_seconds" {
+  description = "The token hook refuses user tokens once the user hasn't signed in through the IdP for this long. groups and email only change when the IdP mapper runs at sign-in, so this bounds how long a refresh-token chain can keep ones the IdP has since removed. 0 disables the check."
+  type        = number
+  default     = 604800
+  nullable    = false
+
+  validation {
+    condition     = var.selfservice_ui_token_hook_max_auth_age_seconds >= 0
+    error_message = "selfservice_ui_token_hook_max_auth_age_seconds must be 0 or more."
+  }
+}
+
+variable "selfservice_ui_claim_metadata_public" {
+  description = "Kratos metadata_public keys copied onto the issued tokens (both the id_token and the access token). The Kratos claim mapper writes the IdP's groups there, where users cannot change them. Materialize reads groups off the access token, so this pairs with Hydra's allowed_top_level_claims."
   type        = list(string)
   default     = ["groups"]
   nullable    = false
+}
+
+variable "selfservice_ui_claim_traits" {
+  description = "Kratos identity trait names copied onto the issued tokens (both tokens). Empty by default: groups come from metadata_public, and a name may not appear in both lists."
+  type        = list(string)
+  default     = []
+  nullable    = false
+
+  validation {
+    condition     = length(setintersection(var.selfservice_ui_claim_traits, var.selfservice_ui_claim_metadata_public)) == 0
+    error_message = "A claim can't be in both selfservice_ui_claim_traits and selfservice_ui_claim_metadata_public: a user-editable trait would stand in for the IdP-sourced value."
+  }
 }
 
 variable "kratos_recovery_enabled" {
@@ -346,9 +370,9 @@ variable "dcr_default_audience" {
 }
 
 variable "selfservice_ui_log_redact_pii" {
-  description = "Redact personally identifiable information (email addresses, trait values) from the selfservice UI's logs. Leave false while debugging sign-in issues; turn it on where logs are shipped off-cluster."
+  description = "Redact personally identifiable information (email addresses, group names) from the selfservice UI's logs by hashing them. Set false temporarily while debugging sign-in issues."
   type        = bool
-  default     = false
+  default     = true
   nullable    = false
 }
 
