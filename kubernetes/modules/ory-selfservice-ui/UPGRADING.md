@@ -108,7 +108,8 @@ are unchanged, so users stay signed in across the roll in both directions.
   `dcr_audience_allowlist` audiences, because Hydra lets a self-registered client declare
   any audience it likes. **Any other OAuth2 client you create through Hydra's admin API or
   as an `OAuth2Client` needs the same marker**, or it loses any audience that is not on the
-  allow-list. Self-registered clients cannot set `metadata`, so the marker cannot be forged.
+  allow-list. Dynamic client registration cannot set `metadata`, and Hydra Maester runs in
+  single-namespace mode, so only `OAuth2Client` resources in the Ory namespace reach Hydra.
 - **Hydra enforces PKCE for public clients** (`oauth2.pkce.enforced_for_public_clients`).
   The console (oidc-client-ts) sends PKCE by default and MCP clients are required to.
 - **Secrets reach the UI as files.** The pod mounts the `<name>-secrets` Secret read-only

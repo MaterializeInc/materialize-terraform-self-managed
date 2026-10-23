@@ -837,7 +837,7 @@ module "ory" {
   cert_issuer_ref                 = local.cert_issuer
   cert_issuer_signs_cluster_local = var.cert_issuer_ref == null
 
-  # Materialize integration: OAuth2 client CRD + ory-side ingress NetworkPolicy.
+  # Materialize integration: OAuth2 client CRD + ingress from Materialize to Hydra.
   materialize_namespace    = local.materialize_instance_namespace
   materialize_console_fqdn = var.materialize_console_fqdn
 
@@ -849,11 +849,18 @@ module "ory" {
 
   # Firewall the public Ory NLBs like the Materialize ones. The LBC turns
   # loadBalancerSourceRanges into the NLB security group's inbound rules.
-  lb_overrides = var.internal_load_balancer || local.ory_lb_source_ranges == null ? {} : {
-    for role in ["hydra", "kratos", "ui", "polis"] : role => {
-      source_ranges = role == "polis" ? concat(local.ory_lb_source_ranges, local.okta_scim_source_ranges) : local.ory_lb_source_ranges
-    }
-  }
+  # Polis keeps its own allowlist when ory_polis_source_ranges is set or
+  # okta-scim-source-ranges.json exists (Okta's SCIM egress plus your ranges),
+  # so a default ingress_cidr_blocks of 0.0.0.0/0 never reopens a Polis locked
+  # to Okta.
+  lb_overrides = merge(
+    var.internal_load_balancer || local.ory_lb_source_ranges == null ? {} : {
+      for role in ["hydra", "kratos", "ui", "polis"] : role => { source_ranges = local.ory_lb_source_ranges }
+    },
+    length(local.polis_lb_source_ranges) > 0 ? {
+      polis = { source_ranges = local.polis_lb_source_ranges }
+    } : {},
+  )
 
   node_selector = local.generic_node_labels
 
@@ -1037,9 +1044,10 @@ locals {
     [module.networking.vpc_cidr_block],
   )
 
-  # Okta's SCIM egress ranges, written by scripts/update-okta-ip-ranges.sh.
-  # Okta pushes SCIM to Polis from its own cloud, so Polis admits them too.
+  # Okta's SCIM egress ranges (generate with scripts/update-okta-ip-ranges.sh),
+  # plus any operator ranges, applied as the Polis LB allowlist.
   okta_scim_source_ranges = fileexists("${path.module}/okta-scim-source-ranges.json") ? jsondecode(file("${path.module}/okta-scim-source-ranges.json")) : []
+  polis_lb_source_ranges  = concat(local.okta_scim_source_ranges, var.ory_polis_source_ranges)
 
   # AWS LBC annotations for the Ory NLBs (module.ory).
   ory_lb_annotations = merge(

@@ -71,9 +71,11 @@ variable "single_domain_fqdn" {
 }
 
 variable "single_domain_proxy_image" {
-  description = "Container image for the single-domain reverse proxy. Defaults to the public pingap image. Point this at a hardened build pulled through the OEL registry proxy for production; the proxy pod uses the same OEL registry pull secret, so an image under the OEL proxy authenticates with the license key."
+  description = "Container image for the single-domain reverse proxy. Defaults to the public pingap image, pinned by digest. Point this at a hardened build pulled through the OEL registry proxy for production; the proxy pod uses the same OEL registry pull secret, so an image under the OEL proxy authenticates with the license key. The pod runs as UID 65532 with a read-only root filesystem and a writable /tmp."
   type        = string
-  default     = "vicanso/pingap:0.12.1-full"
+  # renovate: datasource=docker depName=vicanso/pingap
+  default  = "vicanso/pingap:0.12.1-full@sha256:88aaf15f953e64450162f19041952c65dfe43102d103d77198142b1a91ad7492"
+  nullable = false
 }
 
 # Databases -------------------------------------------------------------------
@@ -148,7 +150,7 @@ variable "cert_issuer_signs_cluster_local" {
 # Materialize integration (optional) ------------------------------------------
 
 variable "materialize_namespace" {
-  description = "Namespace of the Materialize instance to wire up. When set, the module creates an OAuth2Client CRD in Hydra and NetworkPolicies bridging the two namespaces. Set to null to deploy Ory without Materialize integration. The Materialize console HTTPS LoadBalancer itself is owned by the materialize-instance module."
+  description = "Namespace of the Materialize instance to wire up. When set, the module creates an OAuth2Client CRD in Hydra and admits that namespace to Hydra's public port (or the single-domain proxy). Set to null to deploy Ory without Materialize integration. The Materialize console HTTPS LoadBalancer itself is owned by the materialize-instance module."
   type        = string
   default     = null
 }
@@ -204,7 +206,7 @@ variable "lb_external_traffic_policy" {
 }
 
 variable "lb_source_cidrs" {
-  description = "CIDR blocks allowed to reach the Ory public ports (Hydra 4444, Kratos 4433, selfservice UI 3000) via the NetworkPolicy. Defaults to all sources; tighten to your LB or office CIDR ranges to restrict ingress. NOTE: NetworkPolicy only takes effect on clusters whose datapath enforces it (GKE Dataplane V2, or a NetworkPolicy provider like Calico); on other clusters this input is silently ignored. For firewall-level enforcement that works everywhere, set source_ranges in lb_overrides instead."
+  description = "CIDR blocks allowed to reach the Ory public listeners behind the load balancers (Hydra 4444 and Kratos 4433, or the single-domain proxy, plus the selfservice UI and Polis) via the NetworkPolicy, each on its own pods only. Defaults to all sources; tighten to your LB or office CIDR ranges to restrict ingress. NOTE: NetworkPolicy only takes effect on clusters whose datapath enforces it (GKE Dataplane V2, or a NetworkPolicy provider like Calico); on other clusters this input is silently ignored. For firewall-level enforcement that works everywhere, set source_ranges in lb_overrides instead."
   type        = list(string)
   default     = ["0.0.0.0/0"]
   nullable    = false
@@ -292,7 +294,7 @@ variable "login_url" {
 }
 
 variable "selfservice_ui_token_hook_enabled" {
-  description = "Serve Hydra's OAuth2 token hook from the selfservice UI and point Hydra at it. Hydra then calls the hook on every token issuance, so refresh tokens stop working for deactivated users and pick up groups refreshed at sign-in, instead of keeping what was granted at consent. Null (the default) turns it on whenever deploy_selfservice_ui is true."
+  description = "Serve Hydra's OAuth2 token hook from the selfservice UI and point Hydra at it. Hydra then calls the hook on every token issuance, so refresh tokens stop working for deactivated users and pick up groups refreshed at sign-in, instead of keeping what was granted at consent. Null (the default) turns it on whenever deploy_selfservice_ui is true. Hydra calls the UI's in-cluster service when cert_issuer_signs_cluster_local is true; otherwise the UI's cert only covers ui_fqdn, so Hydra calls https://<ui_fqdn> through the UI's load balancer, and token issuance fails unless that LB admits the cluster's own addresses (lb_overrides source_ranges) and Hydra trusts its CA."
   type        = bool
   default     = null
   nullable    = true
@@ -356,7 +358,7 @@ variable "screens_registration_link_enabled" {
 }
 
 variable "dcr_audience_allowlist" {
-  description = "Audience allow-list for OAuth2 clients that register themselves through dynamic client registration, such as MCP clients like Claude Code. A client asking for an RFC 8707 resource under one of these https URIs is granted that entry as its audience. Set it to the Materialize MCP resource URL(s), which must also be in Materialize's oidc_audience."
+  description = "Audience allow-list for OAuth2 clients that register themselves through dynamic client registration, such as MCP clients like Claude Code. A client asking for an RFC 8707 resource under one of these https URIs is granted that entry as its audience. Set it to the Materialize MCP resource URL(s), which must also be in Materialize's oidc_audience. Registration (POST /oauth2/register, enabled through hydra_helm_values) is unauthenticated and not rate limited by this module, so put a rate limit in front of Hydra's public endpoint if it is reachable from the internet."
   type        = list(string)
   default     = []
   nullable    = false
@@ -531,22 +533,30 @@ variable "polis_chart_oci_password" {
 }
 
 variable "enable_service_monitors" {
-  description = "Create ServiceMonitors for Kratos and Hydra, and admit the metrics scraper to their admin ports. Ory serves metrics only on the admin listener, so this admits the scraper to the whole admin API, not just `/admin/metrics/prometheus`: Kratos's identities, sessions and recovery links, and Hydra's OAuth2 clients and login and consent. That API has no authentication of its own, so anything that can run a pod matching `metrics_scraper_pod_labels` in `monitoring_namespace` could sign in to Materialize as anyone. The prometheus-operator CRDs must be installed before this module, or the charts leave the monitors out."
+  description = "Create ServiceMonitors for Kratos and Hydra. Ory serves metrics only on its unauthenticated admin listener, so the scraper never reaches it: it scrapes a small nginx proxy in the Ory namespace that serves only `GET /admin/metrics/prometheus` from each Kratos and Hydra pod. The prometheus-operator CRDs must be installed before this module, or the charts leave the monitors out."
   type        = bool
   default     = false
   nullable    = false
 }
 
 variable "monitoring_namespace" {
-  description = "Namespace the metrics scraper runs in, admitted to the Kratos and Hydra admin ports when `enable_service_monitors` is set."
+  description = "Namespace the metrics scraper runs in, admitted to the metrics proxy when `enable_service_monitors` is set."
   type        = string
   default     = "monitoring"
   nullable    = false
 }
 
 variable "metrics_scraper_pod_labels" {
-  description = "Labels of the pods admitted to the Kratos and Hydra admin ports when `enable_service_monitors` is set. The default matches the materialize-monitoring gateway, which is what scrapes ServiceMonitors. Labels are not an identity: anything that can create pods in `monitoring_namespace` can match them."
+  description = "Labels of the pods in `monitoring_namespace` admitted to the metrics proxy when `enable_service_monitors` is set. The default matches the materialize-monitoring gateway, which is what scrapes ServiceMonitors."
   type        = map(string)
   default     = { "app.kubernetes.io/name" = "alloy-gateway" }
   nullable    = false
+}
+
+variable "metrics_proxy_image" {
+  description = "Container image for the metrics proxy deployed when `enable_service_monitors` is set. Must be an nginx-unprivileged build: the pod runs as UID 101 with a read-only root filesystem. Pinned by digest by default."
+  type        = string
+  # renovate: datasource=docker depName=nginxinc/nginx-unprivileged
+  default  = "docker.io/nginxinc/nginx-unprivileged:1.30.6-alpine@sha256:f5116ed4606f3eb015dd4a8e28cb9b351476dc0ad4bc6e9f93b19cec130cdf03"
+  nullable = false
 }

@@ -130,6 +130,13 @@ variable "polis_helm_values" {
   default     = {}
 }
 
+variable "ory_polis_source_ranges" {
+  description = "Extra CIDRs, besides Okta's SCIM egress ranges from okta-scim-source-ranges.json, allowed to reach the public Polis LoadBalancer. The browser reaches Polis directly for the SAML and OIDC hops, so set these to the public egress addresses your browsers appear as (VPN/NAT egress, office range). loadBalancerSourceRanges is a cloud firewall rule matched against the source IP as the cloud sees the packet, so a private VPC or tailnet CIDR (e.g. 100.64.0.0/10 or 10.x) will not match a browser coming over the internet and will lock those hops out. Combined with the Okta ranges and applied as loadBalancerSourceRanges. Leave empty to keep Polis unrestricted."
+  type        = list(string)
+  default     = []
+  nullable    = false
+}
+
 variable "materialize_console_fqdn" {
   description = "External hostname for the Materialize console. Used to construct the OAuth2 redirect URI. Example: materialize.internal.example.com"
   type        = string
@@ -249,10 +256,9 @@ variable "direct_oidc" {
 
 variable "enable_ory_service_monitors" {
   description = <<-EOT
-    Scrape Kratos's and Hydra's metrics into the monitoring stack. Ory serves them only on its admin
-    listener, so this admits the monitoring gateway to the whole Kratos and Hydra admin API, which
-    has no authentication of its own and can sign anyone in to Materialize. Set it to false where
-    the monitoring namespace is not trusted as much as the Ory one.
+    Scrape Kratos's and Hydra's metrics into the monitoring stack. Ory serves them only on its
+    unauthenticated admin listener, so the monitoring gateway scrapes a proxy in the Ory namespace
+    that serves only the metrics path, and is never admitted to the admin API itself.
   EOT
   type        = bool
   default     = true

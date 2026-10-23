@@ -291,7 +291,7 @@ If the cluster gets these CRDs from elsewhere, such as kube-prometheus-stack, se
 With `internal_load_balancer = false`, Hydra, Kratos, the selfservice UI and Polis now admit only `ingress_cidr_blocks` (plus the cluster's own addresses), like the Materialize load balancers already did. If your root sets a narrower `ingress_cidr_blocks` than `0.0.0.0/0`, the next apply locks them down. Before applying:
 
 - **Add every address that reaches Ory:** where your users sign in from, and any server that calls Hydra on its own, such as an MCP connector in claude.ai or ChatGPT. Anthropic's outbound range is `160.79.104.0/21`; use the published egress ranges of any other connector.
-- **If Okta pushes SCIM to Polis, generate Okta's ranges first:** `./scripts/update-okta-ip-ranges.sh <cloud>/examples/enterprise <okta-cell>`. Without `okta-scim-source-ranges.json`, Polis no longer admits Okta and provisioning stops. On GCP, that file and `ory_polis_source_ranges` replace `ingress_cidr_blocks` for Polis, as before, so add your users' addresses to `ory_polis_source_ranges`.
+- **If Okta pushes SCIM to Polis, generate Okta's ranges first:** `./scripts/update-okta-ip-ranges.sh <cloud>/examples/enterprise <okta-cell>`. Without `okta-scim-source-ranges.json`, Polis no longer admits Okta and provisioning stops. That file and `ory_polis_source_ranges` replace `ingress_cidr_blocks` for Polis, so add your users' addresses to `ory_polis_source_ranges`.
 
 ##### The examples use Premium SSD v2 for the metadata database
 

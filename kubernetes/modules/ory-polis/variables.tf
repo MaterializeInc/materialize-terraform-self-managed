@@ -270,6 +270,22 @@ variable "tls_key_file" {
   nullable    = false
 }
 
+variable "tls_sidecar_image" {
+  description = "Image for the TLS sidecar. The chart joins these as <registry>/<repository>:<tag>, so tag can carry a digest (<tag>@sha256:...). Pinned by digest by default."
+  type = object({
+    registry   = string
+    repository = string
+    tag        = string
+  })
+  default = {
+    registry   = "docker.io"
+    repository = "nginxinc/nginx-unprivileged"
+    # renovate: datasource=docker depName=nginxinc/nginx-unprivileged
+    tag = "1.30.6-alpine@sha256:f5116ed4606f3eb015dd4a8e28cb9b351476dc0ad4bc6e9f93b19cec130cdf03"
+  }
+  nullable = false
+}
+
 variable "tls_sidecar_port" {
   description = "Port the TLS sidecar listens on inside the pod. The chart's Service routes to this port when tls_secret_name is set."
   type        = number
