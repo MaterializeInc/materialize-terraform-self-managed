@@ -323,8 +323,6 @@ locals {
           group_prefix           = p.group_prefix
           require_email_verified = p.require_email_verified
         })))}"
-        # Binds the authorization code to this flow; Polis supports S256.
-        pkce = "force"
         # Re-run the mapper on every login, not just registration, so a group
         # removed in the IdP drops the matching Materialize role at next sign-in.
         update_identity_on_login = "automatic"
