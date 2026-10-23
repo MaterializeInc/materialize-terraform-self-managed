@@ -235,7 +235,7 @@ variable "upstream_identity_providers" {
 }
 
 variable "saml_providers" {
-  description = "SAML sign-in providers exposed via the Kratos SAML method (selfservice.methods.saml), used for Ory Polis (the jackson SAML-to-OIDC bridge). Each entry renders as a 'Sign in with X' button whose SAML callback is <kratos public URL>/self-service/methods/saml/callback/<id>. Leave as [] when no SAML sign-in is configured. Use this instead of upstream_identity_providers for Polis, since jackson is a SAML method rather than an OIDC provider. allowed_email_domains, allowed_groups, group_prefix and require_email_verified work as in upstream_identity_providers, except that require_email_verified defaults to false: SAML assertions carry no email_verified claim. Kratos always uses PKCE towards Polis."
+  description = "SAML sign-in providers exposed via the Kratos SAML method (selfservice.methods.saml), used for Ory Polis (the jackson SAML-to-OIDC bridge). Each entry renders as a 'Sign in with X' button whose SAML callback is <kratos public URL>/self-service/methods/saml/callback/<id>. Leave as [] when no SAML sign-in is configured. Use this instead of upstream_identity_providers for Polis, since jackson is a SAML method rather than an OIDC provider. allowed_email_domains, allowed_groups, group_prefix and require_email_verified work as in upstream_identity_providers, except that require_email_verified defaults to false: SAML assertions carry no email_verified claim."
   type = list(object({
     id                     = string
     label                  = optional(string)
