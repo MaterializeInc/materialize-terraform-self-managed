@@ -237,7 +237,7 @@ Test runs are stored under `test/runs/<id>/`. Each directory contains:
 
 ## GitHub Actions workflows
 
-CI is split into six workflow files under `.github/workflows/`:
+CI is split into seven workflow files under `.github/workflows/`:
 
 ### `pr.yml` -- Pull request checks
 
@@ -269,7 +269,11 @@ Same structure as AWS. Authenticates to Azure via OIDC and to AWS via OIDC (for 
 
 ### `test-kind.yml` -- Kind integration tests
 
-Runs the self-managed kind lifecycle (`cargo run -- run --destroy-on-failure kind`) on a larger (`ubuntu-24.04-16core`) GitHub-hosted runner -- the stack's default resource requests do not fit the standard 4-CPU runner. Needs no cloud credentials, only the `MATERIALIZE_LICENSE_KEY` secret. Currently `workflow_dispatch`/`workflow_call` only -- not wired into the merge queue until it has proven reliable there.
+Runs the self-managed kind lifecycle (`cargo run -- run --destroy-on-failure kind`) on a larger (`ubuntu-24.04-16core`) GitHub-hosted runner -- the stack's default resource requests do not fit the standard 4-CPU runner. Needs no cloud credentials, only the `MATERIALIZE_LICENSE_KEY` secret. Called by `pr-kind.yml`, and manually triggerable (`workflow_dispatch`).
+
+### `pr-kind.yml` -- Kind tests on pull requests
+
+Triggered on pull requests to `main` (opened, synchronized, reopened -- not on label changes, unlike `pr.yml`). Calls `test-kind.yml` when the PR changes `kubernetes/**` or `test/**` (Markdown excluded) or either kind workflow, and skips it otherwise, as well as on PRs from forks or Dependabot, which do not get the license key secret. The `kind-success` gate job always reports, passing when the run succeeded or was skipped, so it can be made a required check. A new push cancels the PR's in-flight run.
 
 All four test workflows use `--destroy-on-failure` to ensure infrastructure is torn down even on test failure; the three cloud workflows store Terraform state remotely in S3, while kind keeps state locally on the runner.
 
