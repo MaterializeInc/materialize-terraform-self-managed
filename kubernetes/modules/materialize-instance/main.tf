@@ -58,7 +58,12 @@ resource "kubectl_manifest" "materialize_instance" {
       name      = var.instance_name
       namespace = var.instance_namespace
     }
-    spec = merge(
+    # Drop null-valued keys instead of sending them as JSON nulls. The operator
+    # writes the whole spec back with its unset fields as explicit nulls, so a
+    # key sent as null is absent from the object right after apply but present
+    # once the operator has written, and kubectl_manifest reports that as drift
+    # in yaml_incluster on every plan.
+    spec = { for k, v in merge(
       {
         environmentdImageRef         = "materialize/environmentd:${var.environmentd_version}"
         backendSecretName            = "${var.instance_name}-materialize-backend"
@@ -133,7 +138,7 @@ resource "kubectl_manifest" "materialize_instance" {
       var.balancerd_parameters != null ? {
         balancerdConfigmapName = kubernetes_config_map.balancerd_params[0].metadata[0].name
       } : {}
-    )
+    ) : k => v if v != null }
   })
 
   wait_for {
