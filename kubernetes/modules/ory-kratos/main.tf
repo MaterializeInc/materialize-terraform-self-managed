@@ -173,39 +173,53 @@ locals {
     }
   } : {}
 
-  # Standard OIDC claim mapper, shared by the OIDC and SAML methods. Email goes
-  # to traits; groups go to metadata_public, which users cannot write through
-  # any self-service flow, so only the IdP can set the groups Hydra issues.
-  # Encoded as a base64:// data URI so Kratos can read it inline, no ConfigMap
-  # needed.
-  upstream_oidc_mapper_jsonnet = <<-EOT
+  # Claim mapper template. Each provider gets its own copy with its settings
+  # filled in at __MAPPER_CONFIG__, so a provider can only sign in its own
+  # email domains and grant the groups it is allowed to. Email goes to traits
+  # and metadata_public, groups to metadata_public only. Users cannot write
+  # metadata_public through any self-service flow, so what Materialize trusts
+  # only ever comes from here.
+  claim_mapper_template = <<-EOT
+    local cfg = __MAPPER_CONFIG__;
     local claims = std.extVar('claims');
-    local raw = if std.objectHas(claims, 'raw_claims') then claims.raw_claims else {};
-    local groups_from(src) = if std.objectHas(src, 'groups') then src.groups else [];
-    // Only an explicit "not verified" withholds the email: many SAML IdPs send
-    // no email_verified at all.
-    local email_unverified = std.objectHas(raw, 'email_verified') &&
-      (raw.email_verified == false || raw.email_verified == 'false');
+    // Kratos exposes standard OIDC fields (email, email_verified, ...) flat on
+    // claims and everything else under raw_claims, so groups come from there.
+    local raw = if std.objectHas(claims, 'raw_claims') && std.isObject(claims.raw_claims) then claims.raw_claims else {};
+    local is_true(v) = v == true || v == 'true';
+    local email_verified =
+      (std.objectHas(claims, 'email_verified') && is_true(claims.email_verified)) ||
+      (std.objectHas(raw, 'email_verified') && is_true(raw.email_verified));
+    local email = std.asciiLower(if std.objectHas(claims, 'email') && std.isString(claims.email) then claims.email else '');
+    local email_parts = std.split(email, '@');
+    local email_domain = if std.length(email_parts) == 2 && email_parts[0] != '' then email_parts[1] else '';
+    local groups_claim =
+      if std.objectHas(claims, 'groups') then claims.groups
+      else if std.objectHas(raw, 'groups') then raw.groups
+      else [];
+    local groups = std.set([
+      g
+      for g in (if std.isArray(groups_claim) then groups_claim else [])
+      if std.isString(g) &&
+         (cfg.allowed_groups == null || std.member(cfg.allowed_groups, g)) &&
+         (cfg.group_prefix == null || std.startsWith(g, cfg.group_prefix))
+    ]);
     {
+      assert email_domain != '' : 'The identity provider did not send a valid email address.',
+      assert std.member(cfg.allowed_email_domains, email_domain) : 'This email domain may not sign in through this identity provider.',
+      assert !cfg.require_email_verified || email_verified : 'The identity provider did not mark this email address as verified.',
       identity: {
         traits: {
-          email: claims.email,
+          email: email,
         },
-        // What Materialize trusts goes here, not in traits: during SSO
-        // registration Kratos keeps traits the user submits over these, but
-        // metadata_public only ever comes from this mapper.
+        // During SSO registration Kratos keeps traits the user submits over
+        // these, so Materialize reads email and groups from metadata_public.
         metadata_public: {
-          [if !email_unverified then 'email']: claims.email,
-          // Kratos exposes standard OIDC fields (email, sub, aud, ...) flat on
-          // claims and everything else under claims.raw_claims. SAML-derived
-          // group memberships come in as a non-standard claim, so check both.
-          groups: if std.length(groups_from(claims)) > 0 then groups_from(claims) else groups_from(raw),
+          email: email,
+          groups: groups,
         },
       },
     }
   EOT
-
-  upstream_oidc_mapper_data_uri = "base64://${base64encode(local.upstream_oidc_mapper_jsonnet)}"
 
   # The provider objects as Kratos expects them. They only ever land in a
   # Kubernetes Secret, never in the Helm-rendered ConfigMap.
@@ -218,7 +232,13 @@ locals {
         client_secret = p.client_secret
         issuer_url    = p.issuer_url
         scope         = p.scope
-        mapper_url    = local.upstream_oidc_mapper_data_uri
+        # Inline as a base64:// data URI, so Kratos needs no ConfigMap.
+        mapper_url = "base64://${base64encode(replace(local.claim_mapper_template, "__MAPPER_CONFIG__", jsonencode({
+          allowed_email_domains  = [for d in p.allowed_email_domains : lower(d)]
+          allowed_groups         = p.allowed_groups
+          group_prefix           = p.group_prefix
+          require_email_verified = p.require_email_verified
+        })))}"
         # Same as the SAML providers: refresh traits and groups on every login.
         update_identity_on_login = "automatic"
       },
@@ -285,8 +305,7 @@ locals {
 
   # The SAML provider objects as Kratos's jackson (Polis) method expects them.
   # They only ever land in a Kubernetes Secret, never in the Helm-rendered
-  # ConfigMap. The IdP metadata is delivered inline as a base64:// data URI and
-  # the mapper is shared with the OIDC method (it already maps email + groups).
+  # ConfigMap. The IdP metadata is delivered inline as a base64:// data URI.
   saml_provider_objects = [
     for p in var.saml_providers : merge(
       {
@@ -298,7 +317,14 @@ locals {
         auth_url             = p.auth_url
         token_url            = p.token_url
         raw_idp_metadata_xml = "base64://${base64encode(p.raw_idp_metadata_xml)}"
-        mapper_url           = local.upstream_oidc_mapper_data_uri
+        mapper_url = "base64://${base64encode(replace(local.claim_mapper_template, "__MAPPER_CONFIG__", jsonencode({
+          allowed_email_domains  = [for d in p.allowed_email_domains : lower(d)]
+          allowed_groups         = p.allowed_groups
+          group_prefix           = p.group_prefix
+          require_email_verified = p.require_email_verified
+        })))}"
+        # Binds the authorization code to this flow; Polis supports S256.
+        pkce = "force"
         # Re-run the mapper on every login, not just registration, so a group
         # removed in the IdP drops the matching Materialize role at next sign-in.
         update_identity_on_login = "automatic"
@@ -412,6 +438,35 @@ locals {
           effect   = t.effect
         }
       ]
+    }
+
+    # Deletes rows that expired over keepLast ago, at most batchSize per table
+    # per run.
+    cleanup = {
+      enabled   = var.cleanup_enabled
+      batchSize = 1000
+      keepLast  = "6h"
+    }
+
+    cronjob = {
+      cleanup = {
+        schedule     = var.cleanup_schedule
+        nodeSelector = var.node_selector
+        tolerations = [
+          for t in var.tolerations : {
+            key      = t.key
+            operator = t.operator
+            value    = t.value
+            effect   = t.effect
+          }
+        ]
+        # It only talks to the database.
+        automountServiceAccountToken = false
+        resources = {
+          requests = { cpu = "50m", memory = "64Mi" }
+          limits   = { memory = "128Mi" }
+        }
+      }
     }
 
     pdb = {

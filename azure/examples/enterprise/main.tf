@@ -173,7 +173,9 @@ locals {
   # https://learn.microsoft.com/en-us/azure/aks/concepts-storage#storage-classes
   storage_class = "managed-csi"
 
-  # Ory database DSNs
+  # Ory database DSNs. All three share the server's admin login: azurerm cannot
+  # create Postgres roles, so per-service users need a Postgres connection
+  # (the postgresql provider or a bootstrap job) that this example does not set up.
   ory_kratos_dsn = format(
     "postgres://%s:%s@%s/%s?sslmode=require",
     module.ory_database.administrator_login,
@@ -789,6 +791,10 @@ module "ory" {
   hydra_fqdn  = var.ory_hydra_fqdn
   kratos_fqdn = var.ory_kratos_fqdn
   ui_fqdn     = var.ory_ui_fqdn
+
+  # Kratos and the selfservice UI are on separate hostnames, so the session
+  # cookie needs a domain covering both.
+  kratos_cookie_domain = var.ory_kratos_cookie_domain
 
   kratos_dsn = local.ory_kratos_dsn
   hydra_dsn  = local.ory_hydra_dsn

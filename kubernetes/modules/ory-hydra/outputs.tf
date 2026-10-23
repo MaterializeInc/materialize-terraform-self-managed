@@ -34,3 +34,11 @@ output "secrets_cookie" {
   value       = local.secrets_cookie
   sensitive   = true
 }
+
+output "maester_pod_labels" {
+  description = "Labels on the Hydra Maester pods, e.g. for NetworkPolicies that admit Maester to Hydra's admin port. The chart names them after the subchart's fullname."
+  value = {
+    "app.kubernetes.io/name"     = strcontains(var.release_name, "hydra-maester") ? var.release_name : trimsuffix(substr("${var.release_name}-hydra-maester", 0, 63), "-")
+    "app.kubernetes.io/instance" = var.release_name
+  }
+}

@@ -76,23 +76,17 @@ locals {
   login_flow_url              = local.selfservice_ui_consent_only ? var.login_url : "${local.ui_external_url}/login"
   polis_external_url          = local.wire_polis ? "https://${var.polis_fqdn}" : null
 
-  # Cookie domain for Kratos session/CSRF cookies. Even in single-domain mode the
-  # selfservice UI keeps its own hostname (a sibling of the Hydra/Kratos host), so
-  # the cookie must be scoped to their shared parent domain to be sent to both,
-  # otherwise the login flow loops. Defaults to the parent domain of the primary
-  # FQDN (single-domain host, else kratos_fqdn); single-label hosts fall back to
-  # the value itself. var.cookie_parent_domain overrides it.
-  cookie_primary_fqdn = local.single_domain_enabled ? var.single_domain_fqdn : var.kratos_fqdn
-  cookie_fqdn_parts   = split(".", local.cookie_primary_fqdn)
-  cookie_parent_domain = (
-    var.cookie_parent_domain != null
-    ? var.cookie_parent_domain
-    : (
-      length(local.cookie_fqdn_parts) > 1
-      ? join(".", slice(local.cookie_fqdn_parts, 1, length(local.cookie_fqdn_parts)))
-      : local.cookie_primary_fqdn
-    )
-  )
+  # Kratos cookies are host-only unless var.kratos_cookie_domain is set, and it
+  # must be set whenever a page serving Kratos flows (the UI, or the login page
+  # in consent-only mode) is on another host. The UI keeps its own hostname in
+  # both modes, so with the UI deployed it always is. No parent domain is
+  # derived: every host under it would receive the session cookie.
+  kratos_host = lower(local.single_domain_enabled ? var.single_domain_fqdn : var.kratos_fqdn)
+  kratos_flow_hosts = distinct([
+    for u in [local.login_flow_url, local.ui_external_url] : lower(regex("^[a-zA-Z]+://([^/:?#]+)", u)[0]) if u != null
+  ])
+  kratos_cookie_domain_required = anytrue([for h in local.kratos_flow_hosts : h != local.kratos_host])
+  kratos_cookie_domain_config   = var.kratos_cookie_domain != null ? { domain = var.kratos_cookie_domain } : {}
 
   # In-cluster admin URL for Hydra. Used by Kratos (oauth2_provider.url) and the
   # selfservice UI (HYDRA_ADMIN_URL). Hardcoded service hostname because the
@@ -166,15 +160,16 @@ locals {
             base_url = local.kratos_external_url
           }
         }
-        cookies = {
-          domain    = local.cookie_parent_domain
-          same_site = "Lax"
-        }
+        cookies = merge(local.kratos_cookie_domain_config, { same_site = "Lax" })
         session = {
-          cookie = {
-            domain    = local.cookie_parent_domain
-            same_site = "Lax"
-          }
+          lifespan = "${var.kratos_session_lifespan_seconds}s"
+          # Kept on: Kratos also passes it to Hydra as remember, and with it off
+          # every authorization forces a fresh IdP sign-in. The lifespan bounds
+          # the session and Hydra's remembered sign-in alike.
+          cookie = merge(local.kratos_cookie_domain_config, {
+            persistent = true
+            same_site  = "Lax"
+          })
         }
         oauth2_provider = {
           url = local.hydra_admin_internal_url
@@ -342,6 +337,23 @@ resource "kubectl_manifest" "ory_certificate" {
   depends_on = [kubernetes_namespace.ory]
 }
 
+# Input checks that span several variables ----------------------------------
+
+resource "terraform_data" "input_checks" {
+  lifecycle {
+    precondition {
+      condition     = var.kratos_cookie_domain != null || !local.kratos_cookie_domain_required
+      error_message = "kratos_cookie_domain must be set: Kratos is on ${local.kratos_host} but its flow pages are on ${join(", ", local.kratos_flow_hosts)}, and Kratos cookies are host-only without it. Set it to the narrowest domain covering all of them, e.g. one that holds only the Ory hostnames. Every host under that domain receives the Kratos session cookie, so do not use a domain shared with other apps."
+    }
+    precondition {
+      condition = var.kratos_cookie_domain == null || alltrue([
+        for h in concat([local.kratos_host], local.kratos_flow_hosts) : h == var.kratos_cookie_domain || endswith(h, ".${coalesce(var.kratos_cookie_domain, "-")}")
+      ])
+      error_message = "kratos_cookie_domain (${coalesce(var.kratos_cookie_domain, "-")}) must cover Kratos's host and every flow page host: ${join(", ", concat([local.kratos_host], local.kratos_flow_hosts))}."
+    }
+  }
+}
+
 # Ory Kratos -----------------------------------------------------------------
 
 module "ory_kratos" {
@@ -376,18 +388,22 @@ module "ory_kratos" {
         traits = {
           type = "object"
           properties = {
-            email = {
-              type   = "string"
-              format = "email"
-              title  = "Email"
-              "ory.sh/kratos" = {
-                credentials = {
-                  password = { identifier = true }
-                }
-                recovery     = { via = "email" }
-                verification = { via = "email" }
-              }
-            }
+            # No password identifier: sign-in is SSO only, and an identifier
+            # would let a second IdP collide with (and link to) an identity.
+            # Recovery and verification addresses only when those flows are on.
+            email = merge(
+              {
+                type   = "string"
+                format = "email"
+                title  = "Email"
+              },
+              var.kratos_recovery_enabled || var.kratos_verification_enabled ? {
+                "ory.sh/kratos" = merge(
+                  var.kratos_recovery_enabled ? { recovery = { via = "email" } } : {},
+                  var.kratos_verification_enabled ? { verification = { via = "email" } } : {},
+                )
+              } : {},
+            )
           }
           required = ["email"]
           # A user can submit traits during SSO registration, so refuse any the
@@ -502,11 +518,9 @@ module "ory_selfservice_ui" {
   # The UI's own origin, so it never has to trust the request's Host header.
   public_url = local.ui_external_url
 
-  # The UI is on its own hostname in both modes, a sibling of the Kratos host,
-  # so SSO needs Kratos's Domain-less continuity cookie scoped to the same
-  # parent domain as its session and CSRF cookies. A single-label fallback is
-  # not a valid cookie domain, so it leaves the setting off.
-  kratos_cookie_domain = length(split(".", local.cookie_parent_domain)) > 1 ? local.cookie_parent_domain : null
+  # Scopes Kratos's Domain-less continuity cookie like its session and CSRF
+  # cookies, so the IdP callback on Kratos's host sees it.
+  kratos_cookie_domain = var.kratos_cookie_domain
 
   # The UI keeps its own hostname (off the single-domain proxy, since its assets
   # are root-mounted), so it terminates its own TLS in both modes.
@@ -693,7 +707,7 @@ resource "kubectl_manifest" "materialize_oauth2_client" {
       # Public SPA client. No secret; PKCE on the console side.
       secretName              = var.oauth2_client_name
       tokenEndpointAuthMethod = "none"
-      # Marks this client as operator-managed. ory-selfservice (v0.2.5+)
+      # Marks this client as operator-managed. ory-selfservice
       # treats any client without it as self-registered and grants it only
       # DCR_AUDIENCE_ALLOWLIST audiences, so without the marker the console
       # would lose its audience. Dynamic client registration cannot set
@@ -739,10 +753,9 @@ data "kubernetes_secret_v1" "oauth2_client" {
 
 locals {
   # Pod labels the policies select on, as set by the charts and modules.
-  kratos_pod_labels = { "app.kubernetes.io/name" = "kratos", "app.kubernetes.io/instance" = "kratos" }
-  hydra_pod_labels  = { "app.kubernetes.io/name" = "hydra", "app.kubernetes.io/instance" = "hydra" }
-  # The hydra chart's Maester subchart is named <release>-hydra-maester.
-  hydra_maester_pod_labels = { "app.kubernetes.io/name" = "hydra-hydra-maester", "app.kubernetes.io/instance" = "hydra" }
+  kratos_pod_labels        = { "app.kubernetes.io/name" = "kratos", "app.kubernetes.io/instance" = "kratos" }
+  hydra_pod_labels         = { "app.kubernetes.io/name" = "hydra", "app.kubernetes.io/instance" = "hydra" }
+  hydra_maester_pod_labels = module.ory_hydra.maester_pod_labels
   ui_pod_labels = var.deploy_selfservice_ui ? {
     "app.kubernetes.io/name"     = "kratos-selfservice-ui-node"
     "app.kubernetes.io/instance" = module.ory_selfservice_ui[0].service_name

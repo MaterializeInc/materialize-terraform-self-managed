@@ -427,8 +427,22 @@ resource "random_password" "external_login_password_mz_system" {
   override_special = "!#$%&*()-_=+[]{}<>:?"
 }
 
-resource "random_password" "ory_database_password" {
-  length           = 16
+# One password per Ory database instance, so a leaked DSN only opens its own.
+resource "random_password" "ory_kratos_database_password" {
+  length           = 24
+  special          = true
+  override_special = "!#$%&*()-_=+[]{}<>:?"
+}
+
+resource "random_password" "ory_hydra_database_password" {
+  length           = 24
+  special          = true
+  override_special = "!#$%&*()-_=+[]{}<>:?"
+}
+
+resource "random_password" "ory_polis_database_password" {
+  count            = var.enable_polis ? 1 : 0
+  length           = 24
   special          = true
   override_special = "!#$%&*()-_=+[]{}<>:?"
 }
@@ -466,7 +480,7 @@ module "ory_kratos_database" {
   max_allocated_storage     = 50
   database_name             = "kratos"
   database_username         = "oryadmin"
-  database_password         = random_password.ory_database_password.result
+  database_password         = random_password.ory_kratos_database_password.result
   multi_az                  = false
   database_subnet_ids       = module.networking.private_subnet_ids
   vpc_id                    = module.networking.vpc_id
@@ -488,7 +502,7 @@ module "ory_hydra_database" {
   max_allocated_storage     = 50
   database_name             = "hydra"
   database_username         = "oryadmin"
-  database_password         = random_password.ory_database_password.result
+  database_password         = random_password.ory_hydra_database_password.result
   multi_az                  = false
   database_subnet_ids       = module.networking.private_subnet_ids
   vpc_id                    = module.networking.vpc_id
@@ -512,7 +526,7 @@ module "ory_polis_database" {
   max_allocated_storage     = 50
   database_name             = "polis"
   database_username         = "oryadmin"
-  database_password         = random_password.ory_database_password.result
+  database_password         = random_password.ory_polis_database_password[0].result
   multi_az                  = false
   database_subnet_ids       = module.networking.private_subnet_ids
   vpc_id                    = module.networking.vpc_id
@@ -820,6 +834,10 @@ module "ory" {
   kratos_fqdn = var.ory_kratos_fqdn
   ui_fqdn     = var.ory_ui_fqdn
 
+  # Kratos and the selfservice UI are on separate hostnames, so the session
+  # cookie needs a domain covering both.
+  kratos_cookie_domain = var.ory_kratos_cookie_domain
+
   kratos_dsn = local.ory_kratos_dsn
   hydra_dsn  = local.ory_hydra_dsn
 
@@ -1003,7 +1021,7 @@ locals {
   ory_kratos_dsn = format(
     "postgres://%s:%s@%s/%s?sslmode=require",
     module.ory_kratos_database.db_instance_username,
-    urlencode(random_password.ory_database_password.result),
+    urlencode(random_password.ory_kratos_database_password.result),
     module.ory_kratos_database.db_instance_endpoint,
     "kratos"
   )
@@ -1011,7 +1029,7 @@ locals {
   ory_hydra_dsn = format(
     "postgres://%s:%s@%s/%s?sslmode=require",
     module.ory_hydra_database.db_instance_username,
-    urlencode(random_password.ory_database_password.result),
+    urlencode(random_password.ory_hydra_database_password.result),
     module.ory_hydra_database.db_instance_endpoint,
     "hydra"
   )
@@ -1020,7 +1038,7 @@ locals {
   ory_polis_dsn = var.enable_polis ? format(
     "postgres://%s:%s@%s/%s?sslmode=require&uselibpqcompat=true",
     module.ory_polis_database[0].db_instance_username,
-    urlencode(random_password.ory_database_password.result),
+    urlencode(random_password.ory_polis_database_password[0].result),
     module.ory_polis_database[0].db_instance_endpoint,
     "polis"
   ) : null
