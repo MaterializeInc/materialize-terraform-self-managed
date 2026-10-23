@@ -110,9 +110,10 @@ Existing deployments have a few steps to take; see the v17.0.0 upgrade notes in 
 - **Machine tokens need an operator-managed client.** The hook refuses
   `client_credentials` tokens for clients without `metadata.materialize_managed: true`,
   so a self-registered client can't mint tokens for Materialize without a user.
-- **Polis is pinned to this deployment.** Its SAML entity ID (`SAML_AUDIENCE`) is the
-  Polis URL, so the IdP's SAML app must use that as its audience; `CLIENT_SECRET_VERIFIER`
-  is random instead of `dummy`.
+- **Polis's `CLIENT_SECRET_VERIFIER` is random** instead of `dummy`. To also tie SAML
+  assertions to this deployment, set `polis_saml_audience` to the Polis URL and use the
+  same value as the IdP app's Audience URI; by default Polis keeps its shared
+  `https://saml.boxyhq.com`.
 - **Kratos cleans up after itself.** The chart's cleanup CronJob deletes expired
   sessions, flows and continuity rows hourly.
 - **Logs hash emails and groups by default** (`selfservice_ui_log_redact_pii`). Set it to

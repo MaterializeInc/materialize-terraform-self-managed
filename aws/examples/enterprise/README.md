@@ -42,7 +42,7 @@ OKTA_SAML_METADATA=~/Downloads/metadata.xml \
   ./scripts/polis-register.sh aws/examples/enterprise
 ```
 
-It registers (or re-reads, idempotently) the connection and directory, writes their credentials to `aws/examples/enterprise/polis-credentials.txt` (mode 0600, gitignored), and prints the `saml_providers` block to add to `terraform.tfvars` and the remaining Okta admin-console steps. Pass `--print-secrets` to also print the credentials. In the Okta SAML app, set the Single sign-on URL to `https://<ory_polis_fqdn>/api/oauth/saml` and the Audience URI (SP Entity ID) to `https://<ory_polis_fqdn>`, which is Polis's entity ID in this deployment.
+It registers (or re-reads, idempotently) the connection and directory, writes their credentials to `aws/examples/enterprise/polis-credentials.txt` (mode 0600, gitignored), and prints the `saml_providers` block to add to `terraform.tfvars` and the remaining Okta admin-console steps. Pass `--print-secrets` to also print the credentials. In the Okta SAML app, set the Single sign-on URL to `https://<ory_polis_fqdn>/api/oauth/saml` and the Audience URI (SP Entity ID) to `https://saml.boxyhq.com`, Polis's default entity ID.
 
 **SCIM does not deprovision yet.** Nothing syncs the Polis SCIM directory into Kratos, so deactivating a user in Okta does not end their Materialize access. It ends when their Kratos session expires (8 hours by default, `kratos_session_lifespan_seconds` on the `ory-stack` module) or the token hook's max auth age passes, plus the life of any access token already issued. Delete the user's Kratos identity to end it sooner.
 
