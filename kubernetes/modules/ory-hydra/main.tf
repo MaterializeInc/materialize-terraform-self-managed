@@ -186,6 +186,14 @@ locals {
 
   oauth2_config = length(local.token_hook_config) > 0 ? { oauth2 = local.token_hook_config } : {}
 
+  # Hydra fetches client-supplied URIs (jwks_uri, request_uri, sector_identifier_uri,
+  # backchannel logout) and the token hook with the same HTTP client, so refuse
+  # private addresses and exempt the hook, which is always in-cluster.
+  private_ip_exception_urls = distinct(concat(
+    var.private_ip_exception_urls,
+    local.token_hook_enabled ? [nonsensitive(var.token_hook.url)] : [],
+  ))
+
   default_helm_values = merge({
     replicaCount = var.replica_count
 
@@ -193,7 +201,8 @@ locals {
     # The chart renders the monitor only when the monitoring.coreos.com API
     # already exists.
     serviceMonitor = {
-      enabled = var.enable_service_monitor
+      enabled     = var.enable_service_monitor
+      relabelings = var.service_monitor_relabelings
     }
 
     secret = {
@@ -203,6 +212,12 @@ locals {
 
     maester = {
       enabled = var.maester_enabled
+    }
+
+    # Maester only watches OAuth2Client resources and reads Secrets in Hydra's
+    # own namespace, through a Role instead of a ClusterRole.
+    "hydra-maester" = {
+      singleNamespaceMode = true
     }
 
     # Janitor cleans stale rows the DB has no TTL for. cleanupRequests is the
@@ -239,6 +254,13 @@ locals {
         }
 
         urls = local.urls_config
+
+        clients = {
+          http = {
+            disallow_private_ip_ranges = var.disallow_private_ip_ranges
+            private_ip_exception_urls  = local.private_ip_exception_urls
+          }
+        }
       }, local.oauth2_config)
     }
 

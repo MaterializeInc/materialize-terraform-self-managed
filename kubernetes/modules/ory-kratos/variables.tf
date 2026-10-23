@@ -244,8 +244,15 @@ variable "helm_values" {
 }
 
 variable "enable_service_monitor" {
-  description = "Create a ServiceMonitor for Kratos's admin metrics. The prometheus-operator CRDs must be installed before this module, or the chart leaves it out. A NetworkPolicy on the namespace must also admit the scraper to the admin port, which serves Kratos's whole admin API beside the metrics."
+  description = "Create a ServiceMonitor for Kratos's admin metrics. The prometheus-operator CRDs must be installed before this module, or the chart leaves it out. The scraper must reach the admin port, which serves Kratos's whole admin API beside the metrics, so route it through a metrics-only proxy with service_monitor_relabelings rather than admitting the scraper to that port."
   type        = bool
   default     = false
+  nullable    = false
+}
+
+variable "service_monitor_relabelings" {
+  description = "Prometheus relabelings applied to the ServiceMonitor's endpoint, e.g. to scrape through a proxy instead of the admin port."
+  type        = any
+  default     = []
   nullable    = false
 }

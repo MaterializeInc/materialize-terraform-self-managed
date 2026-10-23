@@ -124,6 +124,7 @@ locals {
   tls_sidecar_config = var.tls_secret_name != null ? {
     tlsSidecar = {
       enabled = true
+      image   = var.tls_sidecar_image
       port    = var.tls_sidecar_port
       tls = {
         secretName = var.tls_secret_name

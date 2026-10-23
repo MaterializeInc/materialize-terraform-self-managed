@@ -354,7 +354,8 @@ locals {
     # The chart renders the monitor only when the monitoring.coreos.com API
     # already exists.
     serviceMonitor = {
-      enabled = var.enable_service_monitor
+      enabled     = var.enable_service_monitor
+      relabelings = var.service_monitor_relabelings
     }
 
     secret = {

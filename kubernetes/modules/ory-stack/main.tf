@@ -2,8 +2,8 @@ locals {
   # On by default wherever the selfservice UI runs (see the variable).
   selfservice_ui_token_hook_enabled = coalesce(var.selfservice_ui_token_hook_enabled, var.deploy_selfservice_ui)
 
-  # When set, the module creates the OAuth2 client CRD and the ory-side ingress
-  # policy from the materialize namespace. Null skips Materialize integration.
+  # When set, the module creates the OAuth2 client CRD and admits the materialize
+  # namespace to Hydra's public listener. Null skips Materialize integration.
   wire_materialize = var.materialize_namespace != null
 
   # Every browser origin the console is served on: the primary FQDN plus any
@@ -347,10 +347,11 @@ resource "kubectl_manifest" "ory_certificate" {
 module "ory_kratos" {
   source = "../ory-kratos"
 
-  namespace              = var.namespace
-  enable_service_monitor = var.enable_service_monitors
-  create_namespace       = false
-  dsn                    = var.kratos_dsn
+  namespace                   = var.namespace
+  enable_service_monitor      = var.enable_service_monitors
+  service_monitor_relabelings = local.metrics_proxy_relabelings["kratos"]
+  create_namespace            = false
+  dsn                         = var.kratos_dsn
 
   secrets_default = var.kratos_secrets_default
   secrets_cookie  = var.kratos_secrets_cookie
@@ -416,9 +417,10 @@ module "ory_kratos" {
 module "ory_hydra" {
   source = "../ory-hydra"
 
-  namespace              = var.namespace
-  enable_service_monitor = var.enable_service_monitors
-  create_namespace       = false
+  namespace                   = var.namespace
+  enable_service_monitor      = var.enable_service_monitors
+  service_monitor_relabelings = local.metrics_proxy_relabelings["hydra"]
+  create_namespace            = false
 
   dsn        = var.hydra_dsn
   issuer_url = local.hydra_external_url
@@ -443,12 +445,14 @@ module "ory_hydra" {
   # UI terminates TLS with the ory-selfservice-ui-tls cert), so the URL's host
   # must be in that cert and Hydra must trust its issuer:
   #   - an issuer that signs cluster.local names (the self-signed default) puts
-  #     the in-cluster service name in the cert, so Hydra calls that and is
-  #     given the cert's ca.crt to trust;
-  #   - any other issuer only covers the public name, so Hydra calls that
-  #     (hairpin through the LB, like the other in-cluster callers) and trusts
-  #     it through its system roots. A private CA that cannot sign cluster.local
-  #     names needs its root added to Hydra (hydra_helm_values) as well.
+  #     the in-cluster service name in the cert, so Hydra calls that directly
+  #     and is given the cert's ca.crt to trust;
+  #   - any other issuer only covers the public name, so Hydra has to call that,
+  #     through the UI's load balancer, and trusts it through its system roots.
+  #     Token issuance then depends on that LB admitting the cluster (see
+  #     selfservice_ui_token_hook_enabled). A private CA that cannot sign
+  #     cluster.local names needs its root added to Hydra (hydra_helm_values).
+  # The ory-hydra module exempts this URL from Hydra's private IP block.
   token_hook = local.selfservice_ui_token_hook_enabled ? {
     url = (
       var.cert_issuer_signs_cluster_local
@@ -692,8 +696,8 @@ resource "kubectl_manifest" "materialize_oauth2_client" {
       # Marks this client as operator-managed. ory-selfservice (v0.2.5+)
       # treats any client without it as self-registered and grants it only
       # DCR_AUDIENCE_ALLOWLIST audiences, so without the marker the console
-      # would lose its audience. Self-registered clients cannot set metadata,
-      # so the marker cannot be forged.
+      # would lose its audience. Dynamic client registration cannot set
+      # metadata, and Maester only honors OAuth2Clients in this namespace.
       metadata = {
         materialize_managed = true
       }
@@ -727,78 +731,101 @@ data "kubernetes_secret_v1" "oauth2_client" {
   depends_on = [kubectl_manifest.materialize_oauth2_client]
 }
 
-# Network policies. The materialize -> ory egress policy is owned by the
+# Network policies ------------------------------------------------------------
+#
+# Every Ory pod is isolated for ingress, and each listener is opened only to
+# the callers it needs. The materialize -> ory egress policy is owned by the
 # materialize-instance module (it lives in the materialize namespace).
 
-# In single-domain mode Materialize reaches Hydra's public paths through the
-# reverse proxy on 8443. Polis's TLS sidecar listens on 8443 too, and its admin
-# API and SCIM endpoint must stay behind the Polis load balancer's allowlist,
-# so this opens 8443 to the proxy pods only.
-resource "kubernetes_network_policy_v1" "ory_proxy_from_materialize_ingress" {
-  count = local.wire_materialize && local.single_domain_enabled ? 1 : 0
+locals {
+  # Pod labels the policies select on, as set by the charts and modules.
+  kratos_pod_labels = { "app.kubernetes.io/name" = "kratos", "app.kubernetes.io/instance" = "kratos" }
+  hydra_pod_labels  = { "app.kubernetes.io/name" = "hydra", "app.kubernetes.io/instance" = "hydra" }
+  # The hydra chart's Maester subchart is named <release>-hydra-maester.
+  hydra_maester_pod_labels = { "app.kubernetes.io/name" = "hydra-hydra-maester", "app.kubernetes.io/instance" = "hydra" }
+  ui_pod_labels = var.deploy_selfservice_ui ? {
+    "app.kubernetes.io/name"     = "kratos-selfservice-ui-node"
+    "app.kubernetes.io/instance" = module.ory_selfservice_ui[0].service_name
+  } : null
+  polis_pod_labels               = { "app.kubernetes.io/name" = "polis", "app.kubernetes.io/instance" = "polis" }
+  single_domain_proxy_pod_labels = { "app.kubernetes.io/name" = local.single_domain_proxy_name }
 
-  metadata {
-    name      = "allow-ory-proxy-from-materialize"
-    namespace = var.namespace
-  }
+  # Public listeners. Every Ory pod may call them; external (the LB source
+  # CIDRs) and materialize (the Materialize namespace) add those sources.
+  ory_public_listeners = merge(
+    {
+      kratos = { pod_labels = local.kratos_pod_labels, port = 4433, external = !local.single_domain_enabled, materialize = false }
+      # Materialize fetches OIDC discovery and the JWKS here, or through the
+      # single-domain proxy when that is on.
+      hydra = { pod_labels = local.hydra_pod_labels, port = 4444, external = !local.single_domain_enabled, materialize = local.wire_materialize }
+    },
+    var.deploy_selfservice_ui ? {
+      selfservice-ui = { pod_labels = local.ui_pod_labels, port = module.ory_selfservice_ui[0].port, external = true, materialize = false }
+    } : {},
+    # Polis's TLS sidecar serves its admin API and SCIM endpoint too, so it is
+    # kept apart from the Materialize namespace.
+    local.wire_polis ? {
+      polis = { pod_labels = local.polis_pod_labels, port = 8443, external = true, materialize = false }
+    } : {},
+    local.single_domain_enabled ? {
+      single-domain-proxy = { pod_labels = local.single_domain_proxy_pod_labels, port = 8443, external = true, materialize = local.wire_materialize }
+    } : {},
+  )
 
-  spec {
-    pod_selector {
-      match_labels = { "app.kubernetes.io/name" = local.single_domain_proxy_name }
+  # Admin listeners, which have no authentication of their own: Kratos's
+  # identities and sessions, Hydra's OAuth2 clients, login/consent and signing
+  # keys. Open only to the pods that call them.
+  ory_admin_listeners = {
+    kratos = {
+      pod_labels = local.kratos_pod_labels
+      port       = 4434
+      clients = concat(
+        var.deploy_selfservice_ui ? [local.ui_pod_labels] : [],
+        var.enable_service_monitors ? [local.metrics_proxy_pod_labels] : [],
+      )
     }
-    policy_types = ["Ingress"]
-
-    ingress {
-      from {
-        namespace_selector {
-          match_labels = {
-            "kubernetes.io/metadata.name" = var.materialize_namespace
-          }
-        }
-      }
-
-      ports {
-        protocol = "TCP"
-        port     = 8443
-      }
+    hydra = {
+      pod_labels = local.hydra_pod_labels
+      port       = 4445
+      # Kratos accepts Hydra login requests (oauth2_provider), Maester syncs
+      # OAuth2Clients, and the UI accepts login, consent and logout.
+      clients = concat(
+        [local.kratos_pod_labels, local.hydra_maester_pod_labels],
+        var.deploy_selfservice_ui ? [local.ui_pod_labels] : [],
+        var.enable_service_monitors ? [local.metrics_proxy_pod_labels] : [],
+      )
     }
   }
 }
 
-# Allow Ory pods to receive traffic from Materialize on Hydra's public port,
-# from within the ory namespace, and from external sources on the public ports
-# (which ones depends on the mode, see below).
-resource "kubernetes_network_policy_v1" "ory_from_materialize_ingress" {
-  count = local.wire_materialize ? 1 : 0
-
+# Pods no policy below admits (jobs, Maester, the courier) take no ingress.
+resource "kubernetes_network_policy_v1" "ory_default_deny_ingress" {
   metadata {
-    name      = "allow-ory-ingress"
+    name      = "default-deny-ingress"
     namespace = var.namespace
   }
 
   spec {
     pod_selector {}
     policy_types = ["Ingress"]
+  }
 
-    # Materialize only fetches OIDC discovery and the JWKS from Hydra's public
-    # listener (via the single-domain proxy when that is on). The Kratos and
-    # Hydra admin APIs share these pods and have no authentication, so keep
-    # them out of reach of the Materialize namespace, whose clusterd pods make
-    # outbound connections on behalf of SQL users.
-    ingress {
-      from {
-        namespace_selector {
-          match_labels = {
-            "kubernetes.io/metadata.name" = var.materialize_namespace
-          }
-        }
-      }
+  depends_on = [kubernetes_namespace.ory]
+}
 
-      ports {
-        protocol = "TCP"
-        port     = 4444
-      }
+resource "kubernetes_network_policy_v1" "ory_public_ingress" {
+  for_each = local.ory_public_listeners
+
+  metadata {
+    name      = "allow-${each.key}-ingress"
+    namespace = var.namespace
+  }
+
+  spec {
+    pod_selector {
+      match_labels = each.value.pod_labels
     }
+    policy_types = ["Ingress"]
 
     ingress {
       from {
@@ -808,73 +835,64 @@ resource "kubernetes_network_policy_v1" "ory_from_materialize_ingress" {
           }
         }
       }
-    }
 
-    # The monitoring gateway, to the Kratos and Hydra admin ports, where their
-    # ServiceMonitors read /admin/metrics/prometheus. Ory serves metrics on no
-    # other listener, so this admits the gateway to the whole admin API, which
-    # has no authentication of its own; see `enable_service_monitors`. It admits
-    # the gateway's pods and nothing else in the monitoring namespace.
-    dynamic "ingress" {
-      for_each = var.enable_service_monitors ? [1] : []
-      content {
-        from {
+      dynamic "from" {
+        for_each = each.value.materialize ? [var.materialize_namespace] : []
+        content {
           namespace_selector {
             match_labels = {
-              "kubernetes.io/metadata.name" = var.monitoring_namespace
+              "kubernetes.io/metadata.name" = from.value
             }
           }
-          pod_selector {
-            match_labels = var.metrics_scraper_pod_labels
-          }
-        }
-        ports {
-          protocol = "TCP"
-          port     = 4434
-        }
-        ports {
-          protocol = "TCP"
-          port     = 4445
         }
       }
-    }
 
-    # External traffic from the LBs. Admin ports stay internal.
-    ingress {
       dynamic "from" {
-        for_each = var.lb_source_cidrs
+        for_each = each.value.external ? var.lb_source_cidrs : []
         content {
           ip_block {
             cidr = from.value
           }
         }
       }
-      # Hydra public (4444) and Kratos public (4433): reachable from the LB CIDRs
-      # only in per-service mode. In single-domain mode the proxy fronts them and
-      # reaches them via the in-namespace rule above, so they need no external port.
-      dynamic "ports" {
-        for_each = local.single_domain_enabled ? [] : [4444, 4433]
+
+      ports {
+        protocol = "TCP"
+        port     = each.value.port
+      }
+    }
+  }
+
+  depends_on = [kubernetes_namespace.ory]
+}
+
+resource "kubernetes_network_policy_v1" "ory_admin_ingress" {
+  for_each = { for k, v in local.ory_admin_listeners : k => v if length(v.clients) > 0 }
+
+  metadata {
+    name      = "allow-${each.key}-admin-ingress"
+    namespace = var.namespace
+  }
+
+  spec {
+    pod_selector {
+      match_labels = each.value.pod_labels
+    }
+    policy_types = ["Ingress"]
+
+    ingress {
+      dynamic "from" {
+        for_each = each.value.clients
         content {
-          protocol = "TCP"
-          port     = ports.value
+          pod_selector {
+            match_labels = from.value
+          }
         }
       }
-      # Selfservice UI (3000): keeps its own LB in both modes, so it is external
-      # whenever the UI is deployed.
-      dynamic "ports" {
-        for_each = var.deploy_selfservice_ui ? [1] : []
-        content {
-          protocol = "TCP"
-          port     = 3000
-        }
-      }
-      # TLS 8443: the single-domain reverse proxy and/or the Polis TLS sidecar.
-      dynamic "ports" {
-        for_each = (local.single_domain_enabled || local.wire_polis) ? [1] : []
-        content {
-          protocol = "TCP"
-          port     = 8443
-        }
+
+      ports {
+        protocol = "TCP"
+        port     = each.value.port
       }
     }
   }
@@ -898,6 +916,11 @@ locals {
   # Hydra/Kratos emit prefixed absolute URLs (issuer/base_url carry the path),
   # so the browser round-trips through the same prefix.
   single_domain_pingap_conf = <<-EOT
+    # The root filesystem is read-only; /tmp is an emptyDir.
+    [basic]
+    pid_file = "/tmp/pingap.pid"
+    upgrade_sock = "/tmp/pingap_upgrade.sock"
+
     [certificates.ory]
     tls_cert = "/opt/pingap/certs/tls.crt"
     tls_key = "/opt/pingap/certs/tls.key"
@@ -984,7 +1007,18 @@ resource "kubernetes_deployment_v1" "single_domain_proxy" {
       }
 
       spec {
-        node_selector = var.node_selector
+        node_selector                   = var.node_selector
+        automount_service_account_token = false
+        enable_service_links            = false
+
+        security_context {
+          run_as_non_root = true
+          run_as_user     = 65532
+          run_as_group    = 65532
+          seccomp_profile {
+            type = "RuntimeDefault"
+          }
+        }
 
         # Same OEL registry pull secret as the Ory pods, so a hardened image
         # published under the OEL proxy authenticates with the license key. The
@@ -995,9 +1029,9 @@ resource "kubernetes_deployment_v1" "single_domain_proxy" {
 
         container {
           name = "pingap"
-          # Defaults to the public pingap image. Override with a hardened build
-          # (e.g. the cloud team's distroless pingap) pulled through the OEL
-          # registry proxy; see single_domain_proxy_image.
+          # Defaults to the public pingap image, pinned by digest. Override with
+          # a hardened build (e.g. the cloud team's distroless pingap) pulled
+          # through the OEL registry proxy; see single_domain_proxy_image.
           image             = var.single_domain_proxy_image
           image_pull_policy = "IfNotPresent"
           args              = ["-c", "/opt/pingap/conf"]
@@ -1024,6 +1058,11 @@ resource "kubernetes_deployment_v1" "single_domain_proxy" {
             read_only  = true
           }
 
+          volume_mount {
+            name       = "tmp"
+            mount_path = "/tmp"
+          }
+
           liveness_probe {
             tcp_socket { port = 8443 }
             initial_delay_seconds = 5
@@ -1046,11 +1085,10 @@ resource "kubernetes_deployment_v1" "single_domain_proxy" {
             }
           }
 
-          # Minimal hardening for the spike image. Fuller hardening (non-root,
-          # read-only root filesystem) comes with the hardened pingap build pulled
-          # through the OEL registry proxy.
           security_context {
             allow_privilege_escalation = false
+            read_only_root_filesystem  = true
+            run_as_non_root            = true
             capabilities {
               drop = ["ALL"]
             }
@@ -1068,6 +1106,13 @@ resource "kubernetes_deployment_v1" "single_domain_proxy" {
           name = "tls"
           secret {
             secret_name = "single-domain-tls"
+          }
+        }
+
+        volume {
+          name = "tmp"
+          empty_dir {
+            size_limit = "16Mi"
           }
         }
       }
@@ -1118,4 +1163,302 @@ resource "kubernetes_service_v1" "single_domain_proxy_lb" {
   }
 
   depends_on = [kubernetes_deployment_v1.single_domain_proxy]
+}
+
+# Metrics proxy (when enable_service_monitors) --------------------------------
+#
+# Ory serves its prometheus metrics only on the admin listener, beside the
+# unauthenticated admin API (Hydra's includes its private signing keys). The
+# scraper reaches this nginx instead, which forwards GET /admin/metrics/prometheus
+# to one Kratos or Hydra pod and refuses everything else.
+
+locals {
+  metrics_proxy_name       = "ory-metrics-proxy"
+  metrics_proxy_port       = 8080
+  metrics_proxy_pod_labels = { "app.kubernetes.io/name" = local.metrics_proxy_name }
+
+  # The chart ServiceMonitors keep one target per Kratos/Hydra pod, so every
+  # replica is scraped. These relabelings keep the pod as the instance label
+  # but send the scrape to the proxy, naming the pod's IP in the path.
+  metrics_proxy_relabelings = {
+    for app in ["kratos", "hydra"] : app => var.enable_service_monitors ? [
+      { sourceLabels = ["__address__"], targetLabel = "instance", replacement = "$1" },
+      { sourceLabels = ["__meta_kubernetes_pod_ip"], targetLabel = "__metrics_path__", replacement = "/${app}/$1/metrics" },
+      { sourceLabels = ["__address__"], targetLabel = "__address__", replacement = "${local.metrics_proxy_name}.${var.namespace}.svc.cluster.local:${local.metrics_proxy_port}" },
+    ] : []
+  }
+
+  # Only IPv4 pod addresses match, and only the admin ports' metrics path is
+  # ever requested upstream. Temp files and the pid go to the /tmp emptyDir.
+  metrics_proxy_nginx_conf = <<-EOT
+    worker_processes 1;
+    pid /tmp/nginx.pid;
+    error_log /dev/stderr warn;
+
+    events {
+      worker_connections 64;
+    }
+
+    http {
+      access_log off;
+      server_tokens off;
+      client_max_body_size 1k;
+      client_body_temp_path /tmp/client_temp;
+      proxy_temp_path /tmp/proxy_temp;
+      fastcgi_temp_path /tmp/fastcgi_temp;
+      uwsgi_temp_path /tmp/uwsgi_temp;
+      scgi_temp_path /tmp/scgi_temp;
+
+      proxy_connect_timeout 5s;
+      proxy_read_timeout 25s;
+
+      server {
+        listen ${local.metrics_proxy_port};
+
+        location ~ "^/kratos/(?<pod_ip>[0-9]{1,3}(\.[0-9]{1,3}){3})/metrics$" {
+          limit_except GET { deny all; }
+          proxy_pass http://$pod_ip:4434/admin/metrics/prometheus;
+        }
+
+        location ~ "^/hydra/(?<pod_ip>[0-9]{1,3}(\.[0-9]{1,3}){3})/metrics$" {
+          limit_except GET { deny all; }
+          proxy_pass http://$pod_ip:4445/admin/metrics/prometheus;
+        }
+
+        location / {
+          return 404;
+        }
+      }
+    }
+  EOT
+}
+
+resource "kubernetes_config_map_v1" "metrics_proxy" {
+  count = var.enable_service_monitors ? 1 : 0
+
+  metadata {
+    name      = local.metrics_proxy_name
+    namespace = var.namespace
+  }
+
+  data = {
+    "nginx.conf" = local.metrics_proxy_nginx_conf
+  }
+
+  depends_on = [kubernetes_namespace.ory]
+}
+
+resource "kubernetes_deployment_v1" "metrics_proxy" {
+  count = var.enable_service_monitors ? 1 : 0
+
+  metadata {
+    name      = local.metrics_proxy_name
+    namespace = var.namespace
+    labels    = local.metrics_proxy_pod_labels
+  }
+
+  spec {
+    replicas = 1
+
+    selector {
+      match_labels = local.metrics_proxy_pod_labels
+    }
+
+    template {
+      metadata {
+        labels      = local.metrics_proxy_pod_labels
+        annotations = { "checksum/config" = sha256(local.metrics_proxy_nginx_conf) }
+      }
+
+      spec {
+        node_selector                   = var.node_selector
+        automount_service_account_token = false
+        enable_service_links            = false
+
+        security_context {
+          run_as_non_root = true
+          run_as_user     = 101
+          run_as_group    = 101
+          seccomp_profile {
+            type = "RuntimeDefault"
+          }
+        }
+
+        container {
+          name  = "nginx"
+          image = var.metrics_proxy_image
+          # Skips the image's entrypoint scripts, which rewrite files under /etc.
+          command = ["nginx", "-g", "daemon off;"]
+
+          port {
+            name           = "http"
+            container_port = local.metrics_proxy_port
+            protocol       = "TCP"
+          }
+
+          volume_mount {
+            name       = "config"
+            mount_path = "/etc/nginx/nginx.conf"
+            sub_path   = "nginx.conf"
+            read_only  = true
+          }
+
+          volume_mount {
+            name       = "tmp"
+            mount_path = "/tmp"
+          }
+
+          liveness_probe {
+            tcp_socket { port = local.metrics_proxy_port }
+            period_seconds = 10
+          }
+
+          readiness_probe {
+            tcp_socket { port = local.metrics_proxy_port }
+            period_seconds = 5
+          }
+
+          resources {
+            requests = {
+              cpu    = "10m"
+              memory = "16Mi"
+            }
+            limits = {
+              cpu    = "100m"
+              memory = "64Mi"
+            }
+          }
+
+          security_context {
+            allow_privilege_escalation = false
+            read_only_root_filesystem  = true
+            run_as_non_root            = true
+            capabilities {
+              drop = ["ALL"]
+            }
+          }
+        }
+
+        volume {
+          name = "config"
+          config_map {
+            name = kubernetes_config_map_v1.metrics_proxy[0].metadata[0].name
+          }
+        }
+
+        volume {
+          name = "tmp"
+          empty_dir {
+            size_limit = "16Mi"
+          }
+        }
+      }
+    }
+  }
+}
+
+resource "kubernetes_service_v1" "metrics_proxy" {
+  count = var.enable_service_monitors ? 1 : 0
+
+  metadata {
+    name      = local.metrics_proxy_name
+    namespace = var.namespace
+    labels    = local.metrics_proxy_pod_labels
+  }
+
+  spec {
+    type     = "ClusterIP"
+    selector = local.metrics_proxy_pod_labels
+
+    port {
+      name        = "http"
+      port        = local.metrics_proxy_port
+      target_port = local.metrics_proxy_port
+      protocol    = "TCP"
+    }
+  }
+
+  depends_on = [kubernetes_namespace.ory]
+}
+
+# The scraper reaches the proxy and nothing else in this namespace. It admits
+# the scraper's pods and nothing else in the monitoring namespace.
+resource "kubernetes_network_policy_v1" "metrics_proxy_ingress" {
+  count = var.enable_service_monitors ? 1 : 0
+
+  metadata {
+    name      = "allow-${local.metrics_proxy_name}-ingress"
+    namespace = var.namespace
+  }
+
+  spec {
+    pod_selector {
+      match_labels = local.metrics_proxy_pod_labels
+    }
+    policy_types = ["Ingress"]
+
+    ingress {
+      from {
+        namespace_selector {
+          match_labels = {
+            "kubernetes.io/metadata.name" = var.monitoring_namespace
+          }
+        }
+        pod_selector {
+          match_labels = var.metrics_scraper_pod_labels
+        }
+      }
+
+      ports {
+        protocol = "TCP"
+        port     = local.metrics_proxy_port
+      }
+    }
+  }
+
+  depends_on = [kubernetes_namespace.ory]
+}
+
+# The proxy takes its upstream address from the request path, so pin where it
+# can connect: the Kratos and Hydra admin ports, nowhere else.
+resource "kubernetes_network_policy_v1" "metrics_proxy_egress" {
+  count = var.enable_service_monitors ? 1 : 0
+
+  metadata {
+    name      = "allow-${local.metrics_proxy_name}-egress"
+    namespace = var.namespace
+  }
+
+  spec {
+    pod_selector {
+      match_labels = local.metrics_proxy_pod_labels
+    }
+    policy_types = ["Egress"]
+
+    egress {
+      to {
+        pod_selector {
+          match_labels = local.kratos_pod_labels
+        }
+      }
+      ports {
+        protocol = "TCP"
+        port     = 4434
+      }
+    }
+
+    egress {
+      to {
+        pod_selector {
+          match_labels = local.hydra_pod_labels
+        }
+      }
+      ports {
+        protocol = "TCP"
+        port     = 4445
+      }
+    }
+  }
+
+  depends_on = [kubernetes_namespace.ory]
 }

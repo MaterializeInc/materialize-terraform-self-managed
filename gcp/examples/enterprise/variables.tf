@@ -310,10 +310,9 @@ variable "direct_oidc" {
 
 variable "enable_ory_service_monitors" {
   description = <<-EOT
-    Scrape Kratos's and Hydra's metrics into the monitoring stack. Ory serves them only on its admin
-    listener, so this admits the monitoring gateway to the whole Kratos and Hydra admin API, which
-    has no authentication of its own and can sign anyone in to Materialize. Set it to false where
-    the monitoring namespace is not trusted as much as the Ory one.
+    Scrape Kratos's and Hydra's metrics into the monitoring stack. Ory serves them only on its
+    unauthenticated admin listener, so the monitoring gateway scrapes a proxy in the Ory namespace
+    that serves only the metrics path, and is never admitted to the admin API itself.
   EOT
   type        = bool
   default     = true
