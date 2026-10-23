@@ -428,6 +428,12 @@ resource "random_password" "external_login_password_mz_system" {
 }
 
 # One password per Ory database instance, so a leaked DSN only opens its own.
+# Kratos keeps the password the shared one had.
+moved {
+  from = random_password.ory_database_password
+  to   = random_password.ory_kratos_database_password
+}
+
 resource "random_password" "ory_kratos_database_password" {
   length           = 24
   special          = true

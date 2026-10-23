@@ -108,12 +108,10 @@ locals {
   # throttle under three services' connection pools.
   ory_database_config = {
     tier                    = "db-custom-1-3840"
+    user_name               = "oryadmin"
     db_version              = "POSTGRES_18"
     backup_retained_backups = 35
   }
-
-  # One user per Ory service, named after its database.
-  ory_database_users = concat(["kratos", "hydra"], var.enable_polis ? ["polis"] : [])
 
   database_statement_timeout = "15min"
 
@@ -172,28 +170,28 @@ locals {
   # Ory database DSNs
   ory_kratos_dsn = format(
     "postgres://%s:%s@%s/%s?sslmode=require",
-    "kratos",
-    urlencode(random_password.ory_database["kratos"].result),
+    module.ory_database.users[0].name,
+    urlencode(module.ory_database.users[0].password),
     module.ory_database.private_ip,
     "kratos"
   )
 
   ory_hydra_dsn = format(
     "postgres://%s:%s@%s/%s?sslmode=require",
-    "hydra",
-    urlencode(random_password.ory_database["hydra"].result),
+    module.ory_database.users[0].name,
+    urlencode(module.ory_database.users[0].password),
     module.ory_database.private_ip,
     "hydra"
   )
 
   # uselibpqcompat=true keeps sslmode=require at libpq semantics (encrypt, don't verify).
-  ory_polis_dsn = var.enable_polis ? format(
+  ory_polis_dsn = format(
     "postgres://%s:%s@%s/%s?sslmode=require&uselibpqcompat=true",
-    "polis",
-    urlencode(random_password.ory_database["polis"].result),
+    module.ory_database.users[0].name,
+    urlencode(module.ory_database.users[0].password),
     module.ory_database.private_ip,
     "polis"
-  ) : null
+  )
 
   ory_namespace = "ory"
 
@@ -413,13 +411,6 @@ module "database" {
   depends_on = [module.networking]
 }
 
-resource "random_password" "ory_database" {
-  for_each         = toset(local.ory_database_users)
-  length           = 24
-  special          = true
-  override_special = "!#$%&*()-_=+[]{}<>:?"
-}
-
 # Separate Cloud SQL instance for Ory (Kratos + Hydra, and Polis when enabled)
 module "ory_database" {
   source = "../../modules/database"
@@ -433,10 +424,10 @@ module "ory_database" {
       { name = "polis", charset = "UTF8", collation = "en_US.UTF8" },
     ] : []
   )
-  # Separate credentials per service. Cloud SQL makes every built-in user a
-  # member of cloudsqlsuperuser, so this does not isolate the databases from
-  # each other (that needs per-database grants over a Postgres connection).
-  users = [for name in local.ory_database_users : { name = name, password = random_password.ory_database[name].result }]
+  # One user for all three databases: Cloud SQL makes every built-in user a
+  # member of cloudsqlsuperuser, so separate users would not isolate them
+  # (that needs per-database grants over a Postgres connection).
+  users = [{ name = local.ory_database_config.user_name }]
 
   project_id = var.project_id
   region     = var.region
@@ -870,8 +861,8 @@ module "ory" {
     })
   ]
 
-  # module.ory_database, not just its outputs: the DSNs only use the instance's
-  # address, so without this the kratos, hydra and polis users and databases are
+  # module.ory_database, not just its outputs: the DSNs use the instance's user
+  # and address, so without this the kratos, hydra and polis databases are
   # destroyed in parallel with the Ory stack. Hydra then fails, and Maester can't
   # clear the OAuth2Client's finalizer, which hangs the destroy.
   depends_on = [

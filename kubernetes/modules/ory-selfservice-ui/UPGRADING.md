@@ -67,6 +67,9 @@ are unchanged, so users stay signed in across the roll in both directions.
 
 What the image, `ory-kratos` and `ory-stack` enforce together:
 
+Existing deployments have a few steps to take; see the v17.0.0 upgrade notes in the
+[root README](../../../README.md#upgrade-notes).
+
 - **`email` and `groups` come from the identity's `metadata_public`, never its traits.**
   During SSO registration Kratos keeps any `traits` the user submits over the IdP mapper's
   values, so a user could otherwise put someone else's email on their token. The claim
@@ -109,7 +112,7 @@ What the image, `ory-kratos` and `ory-stack` enforce together:
   so a self-registered client can't mint tokens for Materialize without a user.
 - **Polis is pinned to this deployment.** Its SAML entity ID (`SAML_AUDIENCE`) is the
   Polis URL, so the IdP's SAML app must use that as its audience; `CLIENT_SECRET_VERIFIER`
-  is random instead of `dummy`; and Kratos always uses PKCE towards it.
+  is random instead of `dummy`.
 - **Kratos cleans up after itself.** The chart's cleanup CronJob deletes expired
   sessions, flows and continuity rows hourly.
 - **Logs hash emails and groups by default** (`selfservice_ui_log_redact_pii`). Set it to

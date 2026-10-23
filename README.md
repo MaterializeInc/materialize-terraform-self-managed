@@ -230,6 +230,32 @@ The GCP modules now need `hashicorp/google` and `hashicorp/google-beta` `>= 8.0,
 
 The modules don't use anything changed in 8.0. If your root manages other GCP resources, check them against the [google provider 8.0 upgrade guide](https://registry.terraform.io/providers/hashicorp/google/latest/docs/guides/version_8_upgrade). In particular, `google_compute_backend_service` and `google_compute_global_forwarding_rule` now default `load_balancing_scheme` to `EXTERNAL_MANAGED`.
 
+##### The Ory stack runs ory-selfservice and enforces stricter sign-in rules
+
+`ory-stack` replaces `oryd/kratos-selfservice-ui-node` with `materialize/ory-selfservice` v0.3.0 and tightens what an IdP can assert. [`kubernetes/modules/ory-selfservice-ui/UPGRADING.md`](kubernetes/modules/ory-selfservice-ui/UPGRADING.md) lists every change. If you already run the Ory stack:
+
+1. **Set the new inputs before applying.**
+   - `allowed_email_domains` on every entry in `upstream_identity_providers` and `saml_providers`. Sign-in with any other email domain fails.
+   - `require_email_verified = false` on OIDC providers that don't send `email_verified`, such as Microsoft Entra ID.
+   - `kratos_cookie_domain` (`ory_kratos_cookie_domain` in the examples). It was derived from the Kratos hostname before. Use the narrowest domain that covers Kratos and the UI.
+2. **Point your SAML apps at the new audience.** Polis's SAML audience is now its own URL, so update the Audience URI (SP Entity ID) of each IdP app that signs in through Polis. SAML sign-in fails until you do.
+3. **Expect the AWS example to rotate the Hydra and Polis database passwords.** Each RDS instance now has its own password. The pods restart with the new DSNs during the apply.
+4. **Make everyone sign in through the IdP once after the apply.** Tokens now take `email` and `groups` from the identity's `metadata_public`, which the IdP mapper writes at sign-in. Until a user signs in through the IdP again, consent and token refreshes are refused. Remove the old `groups` trait, which the schema no longer allows, and end every session so the next sign-in goes to the IdP:
+
+   ```bash
+   kubectl -n ory port-forward svc/kratos-admin 4434 &
+   kubectl -n ory port-forward svc/hydra-admin 4445 &
+   # Past 500 identities, repeat with the page_token from the Link header.
+   for id in $(curl -s 'localhost:4434/admin/identities?page_size=500' | jq -r '.[].id'); do
+     curl -s -X PATCH "localhost:4434/admin/identities/$id" -H 'content-type: application/json' \
+       -d '[{"op":"remove","path":"/traits/groups"}]' >/dev/null
+     curl -s -X DELETE "localhost:4434/admin/identities/$id/sessions"
+     curl -s -X DELETE "localhost:4445/admin/oauth2/auth/sessions/login?subject=$id"
+   done
+   ```
+
+   The PATCH fails harmlessly for identities without a `groups` trait.
+
 #### v16.0.0
 
 ##### Azure modules require azurerm 5
