@@ -111,25 +111,50 @@ locals {
     }
   } : {}
 
-  tls_deployment_config = local.tls_enabled ? {
+  # Extra volumes, mounts and env for the Hydra container, built here in one
+  # place: the deep merge below replaces lists rather than appending to them,
+  # so separate fragments would silently drop each other's entries.
+  token_hook_enabled     = nonsensitive(var.token_hook != null)
+  token_hook_ca_secret   = local.token_hook_enabled ? nonsensitive(var.token_hook.ca_secret_name) : null
+  token_hook_ca_mount    = "/etc/hydra/token-hook-ca"
+  token_hook_secret_name = "${var.release_name}-token-hook"
+
+  extra_volumes = concat(
+    local.tls_enabled ? [{ name = "tls-cert", secret = { secretName = var.tls_cert_secret_name } }] : [],
+    local.token_hook_ca_secret != null ? [{
+      name = "token-hook-ca"
+      secret = {
+        secretName = local.token_hook_ca_secret
+        items      = [{ key = "ca.crt", path = "ca.crt" }]
+      }
+    }] : [],
+  )
+  extra_volume_mounts = concat(
+    local.tls_enabled ? [{ name = "tls-cert", mountPath = local.tls_mount_dir, readOnly = true }] : [],
+    local.token_hook_ca_secret != null ? [{ name = "token-hook-ca", mountPath = local.token_hook_ca_mount, readOnly = true }] : [],
+  )
+  extra_env = concat(
+    # The hook's API key reaches Hydra from a Secret, not the config: the
+    # chart renders hydra.config into a ConfigMap, which anyone with the
+    # built-in "view" role can read.
+    local.token_hook_enabled ? [{
+      name      = "OAUTH2_TOKEN_HOOK_AUTH_CONFIG_VALUE"
+      valueFrom = { secretKeyRef = { name = local.token_hook_secret_name, key = "api-key" } }
+    }] : [],
+    # Go reads SSL_CERT_DIR in addition to the system bundle file, so this adds
+    # the CA that signs the hook's certificate without dropping public roots.
+    local.token_hook_ca_secret != null ? [{ name = "SSL_CERT_DIR", value = local.token_hook_ca_mount }] : [],
+  )
+
+  # Always emitted: empty lists are the chart's own defaults, and helm_values
+  # (merged last) still overrides them.
+  deployment_extras_config = {
     deployment = {
-      extraVolumes = [
-        {
-          name = "tls-cert"
-          secret = {
-            secretName = var.tls_cert_secret_name
-          }
-        },
-      ]
-      extraVolumeMounts = [
-        {
-          name      = "tls-cert"
-          mountPath = local.tls_mount_dir
-          readOnly  = true
-        },
-      ]
+      extraVolumes      = local.extra_volumes
+      extraVolumeMounts = local.extra_volume_mounts
+      extraEnv          = local.extra_env
     }
-  } : {}
+  }
 
   urls_config = merge(
     {
@@ -142,6 +167,33 @@ locals {
     var.logout_url != null ? { logout = var.logout_url } : {},
   )
 
+  # Hydra calls the token hook on every token issuance; the shared key goes in
+  # a header the hook validates. Only emitted when a hook is configured, so the
+  # chart keeps its own defaults otherwise. The key itself is not in here: it
+  # comes from OAUTH2_TOKEN_HOOK_AUTH_CONFIG_VALUE (see extra_env).
+  token_hook_config = local.token_hook_enabled ? {
+    token_hook = {
+      url = var.token_hook.url
+      auth = {
+        type = "api_key"
+        config = {
+          in   = "header"
+          name = var.token_hook.api_key_header
+        }
+      }
+    }
+  } : {}
+
+  oauth2_config = length(local.token_hook_config) > 0 ? { oauth2 = local.token_hook_config } : {}
+
+  # Hydra fetches client-supplied URIs (jwks_uri, request_uri, sector_identifier_uri,
+  # backchannel logout) and the token hook with the same HTTP client, so refuse
+  # private addresses and exempt the hook, which is always in-cluster.
+  private_ip_exception_urls = distinct(concat(
+    var.private_ip_exception_urls,
+    local.token_hook_enabled ? [nonsensitive(var.token_hook.url)] : [],
+  ))
+
   default_helm_values = merge({
     replicaCount = var.replica_count
 
@@ -149,7 +201,8 @@ locals {
     # The chart renders the monitor only when the monitoring.coreos.com API
     # already exists.
     serviceMonitor = {
-      enabled = var.enable_service_monitor
+      enabled     = var.enable_service_monitor
+      relabelings = var.service_monitor_relabelings
     }
 
     secret = {
@@ -159,6 +212,12 @@ locals {
 
     maester = {
       enabled = var.maester_enabled
+    }
+
+    # Maester only watches OAuth2Client resources and reads Secrets in Hydra's
+    # own namespace, through a Role instead of a ClusterRole.
+    "hydra-maester" = {
+      singleNamespaceMode = true
     }
 
     # Janitor cleans stale rows the DB has no TTL for. cleanupRequests is the
@@ -184,7 +243,7 @@ locals {
         type    = var.automigration_type
       }
 
-      config = {
+      config = merge({
         serve = {
           public = {
             port = 4444
@@ -195,13 +254,26 @@ locals {
         }
 
         urls = local.urls_config
-      }
+
+        clients = {
+          http = {
+            disallow_private_ip_ranges = var.disallow_private_ip_ranges
+            private_ip_exception_urls  = local.private_ip_exception_urls
+          }
+        }
+      }, local.oauth2_config)
     }
 
     deployment = {
-      annotations = {
-        "checksum/secrets" = local.secret_checksum
-      }
+      annotations = merge(
+        { "checksum/secrets" = local.secret_checksum },
+        # The hook key reaches Hydra as an env var from a Secret, which the pod
+        # reads only at start. Roll Hydra when it changes, or every hook call
+        # fails until the pods restart and no tokens are issued.
+        local.token_hook_enabled ? {
+          "checksum/token-hook" = nonsensitive(sha256(var.token_hook.api_key))
+        } : {},
+      )
 
       resources = {
         requests = {
@@ -250,11 +322,24 @@ locals {
   default_helm_values_with_tls = provider::deepmerge::mergo(
     provider::deepmerge::mergo(
       provider::deepmerge::mergo(local.default_helm_values, local.tls_hydra_config),
-      local.tls_deployment_config,
+      local.deployment_extras_config,
     ),
     local.cors_config,
     local.tls_allow_termination_config,
   )
+}
+
+resource "kubernetes_secret" "token_hook" {
+  count = local.token_hook_enabled ? 1 : 0
+
+  metadata {
+    name      = local.token_hook_secret_name
+    namespace = local.namespace
+  }
+
+  data = {
+    "api-key" = var.token_hook.api_key
+  }
 }
 
 resource "helm_release" "hydra" {
@@ -271,5 +356,6 @@ resource "helm_release" "hydra" {
 
   depends_on = [
     kubernetes_namespace.hydra,
+    kubernetes_secret.token_hook,
   ]
 }

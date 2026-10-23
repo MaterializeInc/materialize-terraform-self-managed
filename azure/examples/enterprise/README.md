@@ -13,7 +13,7 @@ Everything from the [simple example](../simple/README.md), plus:
 ### Ory Database
 - **Azure PostgreSQL Flexible Server** (separate instance from Materialize): Version 18
 - **SKU**: GP_Standard_D2ds_v5 (2 vCores, 8GB memory)
-- **Databases**: `kratos` and `hydra` on the same server (plus `polis` when `enable_polis = true`)
+- **Databases**: `kratos` and `hydra` on the same server (plus `polis` when `enable_polis = true`). All three connect as the server's admin login: azurerm cannot create Postgres roles, so per-service users need a Postgres connection this example does not set up.
 - **Network Access**: Private only, same subnet as the Materialize database
 
 ### Ory Kratos (Identity Management)
@@ -42,7 +42,9 @@ OKTA_SAML_METADATA=~/Downloads/metadata.xml \
   ./scripts/polis-register.sh azure/examples/enterprise
 ```
 
-It registers (or re-reads, idempotently) the connection and directory, then prints the `upstream_oidc_providers` block to add to `terraform.tfvars` and the remaining Okta admin-console steps.
+It registers (or re-reads, idempotently) the connection and directory, writes their credentials to `azure/examples/enterprise/polis-credentials.txt` (mode 0600, gitignored), and prints the `saml_providers` block to add to `terraform.tfvars` and the remaining Okta admin-console steps. Pass `--print-secrets` to also print the credentials. In the Okta SAML app, set the Single sign-on URL to `https://<ory_polis_fqdn>/api/oauth/saml` and the Audience URI (SP Entity ID) to `https://saml.boxyhq.com`, Polis's default entity ID.
+
+**SCIM does not deprovision yet.** Nothing syncs the Polis SCIM directory into Kratos, so deactivating a user in Okta does not end their Materialize access. It ends when their Kratos session expires (8 hours by default, `kratos_session_lifespan_seconds` on the `ory-stack` module) or the token hook's max auth age passes, plus the life of any access token already issued. Delete the user's Kratos identity to end it sooner.
 
 ---
 
@@ -68,6 +70,7 @@ license_key = "your-materialize-license-key"
 ory_hydra_fqdn             = "hydra.mz.example.com"
 ory_ui_fqdn                = "auth.mz.example.com"
 ory_kratos_fqdn            = "kratos.mz.example.com"
+ory_kratos_cookie_domain   = "mz.example.com"
 materialize_console_fqdn   = "console.mz.example.com"
 materialize_balancerd_fqdn = "balancerd.mz.example.com"
 
@@ -84,14 +87,17 @@ tags = {
 - `license_key`: Materialize license key JWT. Used for Materialize itself and as the password authenticating to the Ory registry proxy. Must carry the `ory` entitlement.
 - `k8s_apiserver_authorized_networks`: List of CIDR blocks allowed to reach the AKS API server. No default; pass `["0.0.0.0/0"]` for lab use, or a tight allowlist for production.
 - `ory_hydra_fqdn`, `ory_ui_fqdn`, `ory_kratos_fqdn`, `materialize_console_fqdn`, `materialize_balancerd_fqdn`: Public hostnames for the five browser-facing endpoints (Hydra OAuth2, Kratos public API, selfservice UI, Materialize console, and balancerd, which serves the SQL-over-HTTP endpoint the console JS calls from the browser)
+- `ory_kratos_cookie_domain`: Domain the Kratos session cookie is scoped to. It must cover the Kratos and selfservice UI hostnames, and every host under it receives the session cookie, so use the narrowest such domain, ideally one that holds only these hostnames.
 
 **Optional Variables:**
 - `location`: Azure region for deployment (defaults to `westus2`)
-- `ingress_cidr_blocks`: List of CIDR blocks allowed to reach the LoadBalancer frontends, both Materialize's and Ory's (no effect when `internal_load_balancer = true`). The Ory load balancers also admit the cluster's own NAT gateway IP and VNet, because pods call the Ory hostnames. Servers that call Hydra themselves need to be in the list too, such as MCP connectors in claude.ai or ChatGPT, which reach Hydra from the provider's own servers; Anthropic's outbound range is `160.79.104.0/21` ([published here](https://platform.claude.com/docs/en/api/ip-addresses)). Polis also admits Okta's SCIM egress ranges when `okta-scim-source-ranges.json` exists; generate it with `./scripts/update-okta-ip-ranges.sh azure/examples/enterprise <your-okta-cell>`.
+- `ingress_cidr_blocks`: List of CIDR blocks allowed to reach the LoadBalancer frontends, both Materialize's and Ory's (no effect when `internal_load_balancer = true`). The Ory load balancers also admit the cluster's own NAT gateway IP and VNet, because pods call the Ory hostnames. Servers that call Hydra themselves need to be in the list too, such as MCP connectors in claude.ai or ChatGPT, which reach Hydra from the provider's own servers; Anthropic's outbound range is `160.79.104.0/21` ([published here](https://platform.claude.com/docs/en/api/ip-addresses)). Polis uses its own allowlist instead when `ory_polis_source_ranges` is set or `okta-scim-source-ranges.json` exists; generate the latter with `./scripts/update-okta-ip-ranges.sh azure/examples/enterprise <your-okta-cell>`.
+- `ory_polis_source_ranges`: Extra CIDRs, besides Okta's SCIM egress ranges from `okta-scim-source-ranges.json`, allowed to reach the public Polis load balancer. Together they replace `ingress_cidr_blocks` for Polis. The browser reaches Polis directly for the SAML and OIDC hops, so add the public egress addresses your browsers appear as (VPN/NAT egress, office range). Leave both unset to apply `ingress_cidr_blocks` to Polis like the other Ory load balancers.
 - `internal_load_balancer`: Whether to use an internal load balancer (defaults to `true`). Set to `false` for prod-like demos validated against real DNS.
 - `enable_observability`: Enable Prometheus and Grafana monitoring stack (defaults to `true`)
-- `enable_ory_service_monitors`: Scrape Kratos's and Hydra's metrics into the monitoring stack (defaults to `true`). Ory serves them only on its admin listener, so this admits the monitoring gateway to the whole Kratos and Hydra admin API, which has no authentication of its own. Set it to `false` where the monitoring namespace is not trusted as much as the Ory one.
+- `enable_ory_service_monitors`: Scrape Kratos's and Hydra's metrics into the monitoring stack (defaults to `true`). Ory serves them only on its unauthenticated admin listener, so the monitoring gateway scrapes a proxy in the Ory namespace that serves only the metrics path, and is never admitted to the admin API itself.
 - `grafana_host`: Hostname to reach Grafana on (defaults to `null`). The Azure load balancer is created either way and answers on an IP; setting this is what makes Grafana's `root_url` — and so its share links, alert notification links, and OAuth redirect URIs — correct. DNS for the name is yours to create. Exposure follows `internal_load_balancer` and `ingress_cidr_blocks`, the same as the Materialize load balancers.
+- `upstream_identity_providers`, `saml_providers`: The IdPs users sign in with. Every entry needs `allowed_email_domains`, the email domains that IdP may sign in (exact lowercase domains, subdomains listed separately); a sign-in from any other domain fails. `allowed_groups` and `group_prefix` limit which of its groups reach Materialize. OIDC entries refuse emails the IdP does not mark verified (`require_email_verified`, default `true`); Microsoft Entra ID does not send `email_verified` by default, so set it to `false` there and rely on `allowed_email_domains`.
 - TLS certificate options (`cert_issuer_ref`, …): see [TLS Certificates](#tls-certificates) below.
 
 ### Step 2: Deploy

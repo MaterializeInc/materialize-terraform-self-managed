@@ -103,9 +103,11 @@ locals {
     backup_retained_backups = 35
   }
 
-  # Ory database configuration (separate Cloud SQL instance)
+  # Ory database configuration (separate Cloud SQL instance). 1 vCPU and
+  # 3.75 GB: shared-core tiers (db-f1-micro, db-g1-small) have no SLA and
+  # throttle under three services' connection pools.
   ory_database_config = {
-    tier                    = "db-f1-micro"
+    tier                    = "db-custom-1-3840"
     user_name               = "oryadmin"
     db_version              = "POSTGRES_18"
     backup_retained_backups = 35
@@ -422,6 +424,9 @@ module "ory_database" {
       { name = "polis", charset = "UTF8", collation = "en_US.UTF8" },
     ] : []
   )
+  # One user for all three databases: Cloud SQL makes every built-in user a
+  # member of cloudsqlsuperuser, so separate users would not isolate them
+  # (that needs per-database grants over a Postgres connection).
   users = [{ name = local.ory_database_config.user_name }]
 
   project_id = var.project_id
@@ -797,6 +802,10 @@ module "ory" {
   kratos_fqdn = var.ory_kratos_fqdn
   ui_fqdn     = var.ory_ui_fqdn
 
+  # Kratos and the selfservice UI are on separate hostnames, so the session
+  # cookie needs a domain covering both.
+  kratos_cookie_domain = var.ory_kratos_cookie_domain
+
   # When set, Hydra and Kratos share one hostname behind a reverse proxy. The UI
   # and Polis keep their own hostnames.
   single_domain_fqdn = var.ory_single_domain_fqdn
@@ -818,7 +827,7 @@ module "ory" {
   cert_issuer_ref                 = local.cert_issuer
   cert_issuer_signs_cluster_local = var.cert_issuer_ref == null
 
-  # Materialize integration: OAuth2 client CRD + ory-side ingress NetworkPolicy.
+  # Materialize integration: OAuth2 client CRD + ingress from Materialize to Hydra.
   materialize_namespace    = local.materialize_instance_namespace
   materialize_console_fqdn = var.materialize_console_fqdn
 

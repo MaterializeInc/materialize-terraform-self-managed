@@ -8,6 +8,10 @@
 # side; the remaining Okta admin-console steps are printed at the end (they are
 # genuinely not scriptable).
 #
+# Credentials (the connection's client_secret, the SCIM token) go to a 0600
+# file, not stdout, unless --print-secrets is given. The Polis admin API key
+# reaches curl through a header file, never its argv.
+#
 # IDEMPOTENT: a connection or directory with the same name is re-read rather
 # than duplicated, so this is also how you recover values you have lost. That
 # matters -- Polis dedupes a repeated SAML connection POST but does NOT dedupe
@@ -21,16 +25,18 @@
 #     ./scripts/polis-register.sh gcp/examples/enterprise
 #
 set -eu
+umask 077
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 NC='\033[0m'
 
 usage() {
-    echo "Usage: [OKTA_SAML_METADATA=<path>] $0 <example-dir>"
+    echo "Usage: [OKTA_SAML_METADATA=<path>] $0 [--print-secrets] <example-dir>"
     echo ""
     echo "Arguments:"
-    echo "  example-dir    path to the enterprise example, e.g. gcp/examples/enterprise"
+    echo "  example-dir      path to the enterprise example, e.g. gcp/examples/enterprise"
+    echo "  --print-secrets  also print client_secret and the SCIM token to stdout"
     echo ""
     echo "Environment variables:"
     echo "  OKTA_SAML_METADATA   path to the Okta SAML app metadata XML"
@@ -38,10 +44,17 @@ usage() {
     echo "  ORY_NAMESPACE        namespace Ory runs in       (default: ory)"
     echo "  POLIS_TENANT         Polis tenant                (default: materialize)"
     echo "  POLIS_PRODUCT        Polis product               (default: materialize)"
-    echo "  POLIS_OIDC_ID        upstream_oidc_providers id  (default: polis)"
+    echo "  POLIS_OIDC_ID        saml_providers id           (default: polis)"
+    echo "  POLIS_SECRETS_FILE   where credentials are written (0600)"
+    echo "                       (default: <example-dir>/polis-credentials.txt)"
     exit 1
 }
 
+PRINT_SECRETS=0
+if [ "${1:-}" = "--print-secrets" ]; then
+    PRINT_SECRETS=1
+    shift
+fi
 [ $# -eq 1 ] || usage
 EXAMPLE_DIR="$1"
 [ -d "$EXAMPLE_DIR" ] || {
@@ -55,6 +68,7 @@ PRODUCT="${POLIS_PRODUCT:-materialize}"
 SSO_NAME="${POLIS_SSO_NAME:-okta-saml}"
 SCIM_NAME="${POLIS_SCIM_NAME:-okta-scim}"
 OIDC_ID="${POLIS_OIDC_ID:-polis}"
+SECRETS_FILE="${POLIS_SECRETS_FILE:-$EXAMPLE_DIR/polis-credentials.txt}"
 
 need() {
     command -v "$1" >/dev/null 2>&1 || {
@@ -89,6 +103,13 @@ if [ -z "$KEY" ]; then
     exit 1
 fi
 
+# Private scratch dir (umask 077) for the API key header and secrets that curl
+# reads from files instead of its argv, which other local users can see.
+WORK=$(mktemp -d)
+trap 'rm -rf "$WORK"' EXIT
+AUTH_HEADER="$WORK/auth-header"
+printf 'Authorization: Api-Key %s\n' "$KEY" >"$AUTH_HEADER"
+
 echo "==> checking Polis is reachable"
 code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "$POLIS/" || true)
 if [ "$code" != "200" ]; then
@@ -107,7 +128,7 @@ polis_post() {
     shift 2
     response_body=$(mktemp)
     status=$(curl -s -o "$response_body" -w '%{http_code}' -X POST "$post_url" \
-        -H "Authorization: Api-Key $KEY" \
+        -H @"$AUTH_HEADER" \
         -H "Content-Type: application/x-www-form-urlencoded" \
         "$@" || true)
     if [ "$status" -lt 200 ] || [ "$status" -ge 300 ]; then
@@ -146,7 +167,7 @@ WANT_DEFAULT="https://$CONSOLE_FQDN"
 
 echo "==> SAML connection '$SSO_NAME'"
 existing=$(curl -s "$POLIS/api/v1/sso?tenant=$TENANT&product=$PRODUCT" \
-    -H "Authorization: Api-Key $KEY")
+    -H @"$AUTH_HEADER")
 sso=$(printf '%s' "$existing" | python3 -c '
 import json, sys
 want = sys.argv[1]
@@ -185,12 +206,12 @@ print(have_d)
         printf "      defaultRedirectUrl: have %s\n                          want %s\n" "$have_d" "$WANT_DEFAULT" >&2
         if [ -n "${OKTA_SAML_METADATA:-}" ] && [ -s "${OKTA_SAML_METADATA:-}" ]; then
             cid=$(printf '%s' "$sso" | python3 -c 'import json,sys; print(json.load(sys.stdin)["clientID"])')
-            csec=$(printf '%s' "$sso" | python3 -c 'import json,sys; print(json.load(sys.stdin)["clientSecret"])')
+            printf '%s' "$sso" | python3 -c 'import json,sys; sys.stdout.write(json.load(sys.stdin)["clientSecret"])' >"$WORK/client-secret"
             pcode=$(curl -s -o /dev/null -w '%{http_code}' -X PATCH "$POLIS/api/v1/sso" \
-                -H "Authorization: Api-Key $KEY" \
+                -H @"$AUTH_HEADER" \
                 -H "Content-Type: application/x-www-form-urlencoded" \
                 --data-urlencode "clientID=$cid" \
-                --data-urlencode "clientSecret=$csec" \
+                --data-urlencode "clientSecret@$WORK/client-secret" \
                 --data-urlencode "tenant=$TENANT" \
                 --data-urlencode "product=$PRODUCT" \
                 --data-urlencode "name=$SSO_NAME" \
@@ -200,7 +221,7 @@ print(have_d)
             if [ "$pcode" -ge 200 ] && [ "$pcode" -lt 300 ]; then
                 printf "%b    reconciled the redirect URLs.%b\n" "$GREEN" "$NC"
                 existing=$(curl -s "$POLIS/api/v1/sso?tenant=$TENANT&product=$PRODUCT" \
-                    -H "Authorization: Api-Key $KEY")
+                    -H @"$AUTH_HEADER")
                 sso=$(printf '%s' "$existing" | python3 -c '
 import json, sys
 want = sys.argv[1]
@@ -245,7 +266,7 @@ fi
 # ---------------------------------------------------------------------------
 echo "==> SCIM directory '$SCIM_NAME'"
 existing=$(curl -s "$POLIS/api/v1/dsync?tenant=$TENANT&product=$PRODUCT" \
-    -H "Authorization: Api-Key $KEY")
+    -H @"$AUTH_HEADER")
 dsync=$(printf '%s' "$existing" | python3 -c '
 import json, sys
 want = sys.argv[1]
@@ -272,8 +293,8 @@ fi
 # Output: what to do with the results
 # ---------------------------------------------------------------------------
 SSO_JSON="$sso" DSYNC_JSON="$dsync" POLIS="$POLIS" KRATOS="$KRATOS" \
-    OIDC_ID="$OIDC_ID" TENANT="$TENANT" PRODUCT="$PRODUCT" \
-    EXAMPLE_DIR="$EXAMPLE_DIR" python3 <<'PY'
+    OIDC_ID="$OIDC_ID" EXAMPLE_DIR="$EXAMPLE_DIR" \
+    SECRETS_FILE="$SECRETS_FILE" PRINT_SECRETS="$PRINT_SECRETS" python3 <<'PY'
 import json, os
 
 sso = json.loads(os.environ["SSO_JSON"])
@@ -283,23 +304,48 @@ polis = os.environ["POLIS"]
 kratos = os.environ["KRATOS"]
 oidc_id = os.environ["OIDC_ID"]
 example_dir = os.environ["EXAMPLE_DIR"]
+secrets_file = os.environ["SECRETS_FILE"]
+print_secrets = os.environ["PRINT_SECRETS"] == "1"
 bar = "=" * 74
+
+
+def providers_block(client_secret):
+    return f"""saml_providers = [
+  {{
+    id            = "{oidc_id}"
+    label         = "Okta"
+    client_id     = "{sso.get('clientID','')}"
+    client_secret = "{client_secret}"
+    issuer_url    = "{polis}"
+    auth_url      = "{polis}/api/oauth/authorize"
+    token_url     = "{polis}/api/oauth/token"
+    # Required: the email domains this IdP may sign in, e.g. ["example.com"].
+    allowed_email_domains = ["example.com"]
+    # Optional: keep only these groups, or only groups with this prefix.
+    # allowed_groups = ["mz-admins"]
+    # group_prefix   = "mz-"
+  }},
+]"""
+
+
+secrets = f"""# Polis credentials for {polis}. Keep this file out of version control.
+
+{providers_block(sso.get('clientSecret', ''))}
+
+# SCIM directory (not wired to Kratos, see below)
+scim_endpoint = "{scim.get('endpoint', '')}"
+scim_token    = "{scim.get('secret', '')}"
+"""
+fd = os.open(secrets_file, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+os.fchmod(fd, 0o600)
+with os.fdopen(fd, "w") as f:
+    f.write(secrets)
 
 print(f"""
 {bar}
 1. TERRAFORM -- add Polis as a SAML provider in terraform.tfvars
 {bar}
-saml_providers = [
-  {{
-    id            = "{oidc_id}"
-    label         = "Okta"
-    client_id     = "{sso.get('clientID','')}"
-    client_secret = "{sso.get('clientSecret','')}"
-    issuer_url    = "{polis}"
-    auth_url      = "{polis}/api/oauth/authorize"
-    token_url     = "{polis}/api/oauth/token"
-  }},
-]
+{providers_block(sso.get('clientSecret', '') if print_secrets else '<client_secret from ' + secrets_file + '>')}
 
 Also save the Okta SAML app's IdP metadata XML as:
   {example_dir}/idp-metadata.xml
@@ -312,43 +358,32 @@ Keep client_secret out of version control (it is a Terraform sensitive value).
 print(f"""{bar}
 2. OKTA ADMIN CONSOLE -- not scriptable
 {bar}
-On the SAML application:
+On the SAML application, General -> SAML Settings:
+  Single sign-on URL          : {polis}/api/oauth/saml
+  Audience URI (SP Entity ID) : https://saml.boxyhq.com
+                                (or polis_saml_audience, if you set it)
 
-  a. General -> Provisioning -> select SCIM -> Save
-  b. Provisioning -> Integration -> Edit:
-       SCIM connector base URL     : {scim.get('endpoint','')}/
-                                     ^ TRAILING SLASH REQUIRED, Okta rejects
-                                       the URL client-side without it
-       Unique identifier for users : email
-       Supported provisioning actions:
-           [x] Import New Users and Profile Updates
-           [x] Push New Users
-           [x] Push Profile Updates
-           [x] Push Groups
-       Authentication Mode : HTTP Header
-       Authorization       : {scim.get('secret','')}
-  c. Provisioning -> To App -> Edit:
-       [x] Create Users  [x] Update User Attributes  [x] Deactivate Users
-  d. Push Groups -> by name -> add each mz-* group, ticking
-       "Push group memberships immediately"
-
-Existing assignments do NOT backfill: Okta pushes only on assignment change.
-Unassign and reassign one user to trigger the first sync, or use Directory ->
-People -> the user -> Applications -> Push profile updates.
+SCIM is not wired to Kratos yet: users and groups Okta pushes land only in the
+Polis directory, and deactivating a user in Okta does not end their Materialize
+access. That ends when their Kratos session expires
+(kratos_session_lifespan_seconds) or the token hook's max auth age passes, plus
+the life of any access token already issued. Delete the Kratos identity to end
+it sooner. The SCIM endpoint and token are in {secrets_file}.
 """)
 
-endpoint = scim.get("endpoint", "")
 print(f"""{bar}
 3. VERIFY
 {bar}
-# users pushed into the Polis directory
-curl -s "{endpoint}/Users" -H "Authorization: Bearer {scim.get('secret','')}" \\
-  | python3 -m json.tool
-
 # the SAML sign-in button present in Kratos
 curl -s "{kratos}/self-service/login/browser" -H "Accept: application/json" \\
-  | python3 -c 'import json,sys; [print(n["attributes"]["value"]) for n in json.load(sys.stdin)["ui"]["nodes"] if n.get("group")=="oidc"]'
+  | python3 -c 'import json,sys; [print(n["attributes"]["value"]) for n in json.load(sys.stdin)["ui"]["nodes"] if n.get("group")=="saml"]'
+
+Credentials written to {secrets_file} (mode 0600).
 """)
+
+if print_secrets:
+    print(bar)
+    print(secrets)
 PY
 
 printf "%bDone.%b\n" "$GREEN" "$NC"

@@ -16,6 +16,11 @@ ory_kratos_fqdn            = "kratos.mz.example.com"
 materialize_console_fqdn   = "console.mz.example.com"
 materialize_balancerd_fqdn = "balancerd.mz.example.com"
 
+# Domain the Kratos session cookie is scoped to. It must cover the Kratos and
+# selfservice UI hostnames above, and every host under it receives the
+# session cookie, so keep it to a domain that holds only these hostnames.
+ory_kratos_cookie_domain = "mz.example.com"
+
 # Optional: deploy Ory Polis (SAML-to-OIDC bridge). When true, set
 # ory_polis_fqdn and point a CNAME at the polis LB hostname after apply.
 # A dedicated RDS instance is provisioned for the polis database. The Polis
@@ -35,7 +40,7 @@ materialize_balancerd_fqdn = "balancerd.mz.example.com"
 
 # Optional: federate logins through one or more upstream IdPs (Okta, Entra,
 # Auth0, Google Workspace). Each entry renders as a "Sign in with X" button
-# on the selfservice UI. Leave as [] for password-only login.
+# on the selfservice UI.
 # upstream_identity_providers = [
 #   {
 #     id            = "okta"
@@ -44,6 +49,13 @@ materialize_balancerd_fqdn = "balancerd.mz.example.com"
 #     client_secret = "your-okta-client-secret"
 #     issuer_url    = "https://your-org.okta.com/oauth2/default"
 #     label         = "Okta"
+#     # Required: the email domains this IdP may sign in (exact match).
+#     allowed_email_domains = ["example.com"]
+#     # Optional: keep only these groups, or only groups with this prefix.
+#     # allowed_groups = ["mz-admins", "mz-analysts"]
+#     # group_prefix   = "mz-"
+#     # Entra ID sends no email_verified claim by default; set false there.
+#     # require_email_verified = false
 #   },
 # ]
 
@@ -62,6 +74,7 @@ materialize_balancerd_fqdn = "balancerd.mz.example.com"
 #     issuer_url    = "https://polis.mz.example.com"
 #     auth_url      = "https://polis.mz.example.com/api/oauth/authorize"
 #     token_url     = "https://polis.mz.example.com/api/oauth/token"
+#     allowed_email_domains = ["example.com"]
 #   },
 # ]
 

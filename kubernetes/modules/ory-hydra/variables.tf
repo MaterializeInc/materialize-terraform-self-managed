@@ -78,6 +78,18 @@ variable "logout_url" {
   default     = null
 }
 
+variable "token_hook" {
+  description = "Hydra's OAuth2 token hook. Hydra calls this URL on every token issuance (authorization code, refresh, client credentials) and uses the response's claims for the issued tokens, which is how claims stay fresh on refresh-token grants instead of being frozen at consent time. The ory-selfservice UI serves the hook; its module exports token_hook_url, token_hook_api_key_header and token_hook_api_key. The api_key is stored in a Kubernetes Secret and handed to Hydra as the OAUTH2_TOKEN_HOOK_AUTH_CONFIG_VALUE env var, never in the chart's ConfigMap. ca_secret_name, when set, names a Secret in the same namespace whose ca.crt Hydra should trust for the hook's TLS certificate (a private or cluster-local CA); leave it null when the hook's certificate chains to a public CA. Setting deployment.extraEnv, extraVolumes or extraVolumeMounts in helm_values replaces the ones this module adds. Null disables the hook."
+  type = object({
+    url            = string
+    api_key_header = string
+    api_key        = string
+    ca_secret_name = optional(string)
+  })
+  default   = null
+  sensitive = true
+}
+
 variable "automigration_enabled" {
   description = "Whether to enable automatic database migration."
   type        = bool
@@ -224,8 +236,29 @@ variable "helm_values" {
 }
 
 variable "enable_service_monitor" {
-  description = "Create a ServiceMonitor for Hydra's admin metrics. The prometheus-operator CRDs must be installed before this module, or the chart leaves it out. A NetworkPolicy on the namespace must also admit the scraper to the admin port, which serves Hydra's whole admin API beside the metrics."
+  description = "Create a ServiceMonitor for Hydra's admin metrics. The prometheus-operator CRDs must be installed before this module, or the chart leaves it out. The scraper must reach the admin port, which serves Hydra's whole admin API beside the metrics, so route it through a metrics-only proxy with service_monitor_relabelings rather than admitting the scraper to that port."
   type        = bool
   default     = false
+  nullable    = false
+}
+
+variable "service_monitor_relabelings" {
+  description = "Prometheus relabelings applied to the ServiceMonitor's endpoint, e.g. to scrape through a proxy instead of the admin port."
+  type        = any
+  default     = []
+  nullable    = false
+}
+
+variable "disallow_private_ip_ranges" {
+  description = "Refuse outgoing HTTP calls from Hydra to private IP ranges (clients.http.disallow_private_ip_ranges). Hydra fetches URIs that clients supply, such as jwks_uri, request_uri and sector_identifier_uri, so this keeps a self-registered client from pointing it at in-cluster services. The token_hook URL is always exempt."
+  type        = bool
+  default     = true
+  nullable    = false
+}
+
+variable "private_ip_exception_urls" {
+  description = "Exact URLs Hydra may call despite resolving to a private IP when disallow_private_ip_ranges is on (clients.http.private_ip_exception_urls). The token_hook URL is added automatically."
+  type        = list(string)
+  default     = []
   nullable    = false
 }

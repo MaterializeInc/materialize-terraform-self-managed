@@ -18,6 +18,13 @@ resource "random_password" "nextauth_secret" {
   special = false
 }
 
+# Polis accepts this as the client_secret for any connection addressed by
+# tenant/product, and defaults it to "dummy".
+resource "random_password" "client_secret_verifier" {
+  length  = 48
+  special = false
+}
+
 resource "random_password" "db_encryption_key" {
   count   = var.db_encryption_key == null ? 1 : 0
   length  = 32
@@ -50,6 +57,7 @@ locals {
     API_KEYS                = local.admin_api_keys
     NEXTAUTH_SECRET         = local.nextauth_secret
     POLIS_DB_ENCRYPTION_KEY = local.db_encryption_key
+    CLIENT_SECRET_VERIFIER  = random_password.client_secret_verifier.result
     OPENID_RSA_PRIVATE_KEY  = base64encode(tls_private_key.openid_rsa.private_key_pem_pkcs8)
     OPENID_RSA_PUBLIC_KEY   = base64encode(tls_private_key.openid_rsa.public_key_pem)
   }
@@ -73,10 +81,10 @@ locals {
 
   # Polis only honors SAML_AUDIENCE when set as an env var; the chart does not
   # plumb it through values, so route it through deployment.extraEnvs.
-  saml_audience_env = var.saml_audience != null ? [{
+  saml_audience_env = var.saml_audience == null ? [] : [{
     name  = "SAML_AUDIENCE"
     value = var.saml_audience
-  }] : []
+  }]
 
   # EXTERNAL_URL controls the host Polis advertises in SCIM endpoint URLs,
   # OAuth callbacks, and similar. Without it Polis falls back to its internal
@@ -124,6 +132,7 @@ locals {
   tls_sidecar_config = var.tls_secret_name != null ? {
     tlsSidecar = {
       enabled = true
+      image   = var.tls_sidecar_image
       port    = var.tls_sidecar_port
       tls = {
         secretName = var.tls_secret_name

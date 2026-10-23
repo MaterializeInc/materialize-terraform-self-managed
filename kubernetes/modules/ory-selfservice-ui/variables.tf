@@ -20,17 +20,18 @@ variable "name" {
 }
 
 variable "image_repository" {
-  description = "Docker image repository for the selfservice UI."
+  description = "Docker image repository for the selfservice UI. Defaults to Materialize's own ory-selfservice service (https://github.com/MaterializeInc/ory-selfservice), published publicly on Docker Hub. Air-gapped installs mirror the image into their own registry and point this at the mirror."
   type        = string
-  default     = "oryd/kratos-selfservice-ui-node"
+  default     = "materialize/ory-selfservice"
   nullable    = false
 }
 
 variable "image_tag" {
-  description = "Docker image tag for the selfservice UI."
+  description = "Docker image tag for the selfservice UI. Tracks ory-selfservice releases; pin it (rather than following a floating tag) so upgrades are deliberate, and mirror the same tag for air-gapped installs."
   type        = string
-  default     = "v25.4.0"
-  nullable    = false
+  # renovate: datasource=docker depName=materialize/ory-selfservice versioning=regex:^v(?<major>\d+)\.(?<minor>\d+)\.(?<patch>\d+)$
+  default  = "v0.3.0"
+  nullable = false
 }
 
 variable "image_pull_policy" {
@@ -48,9 +49,9 @@ variable "port" {
 }
 
 variable "kratos_public_url" {
-  description = "Internal URL for the Kratos public API. Example: http://kratos-public.ory.svc.cluster.local:4433"
+  description = "Internal URL for the Kratos public API. Example: http://kratos-public.ory.svc.cluster.local:4433. Required when screens_enabled is true; consent-only deployments (screens_enabled = false) never talk to the Kratos public API and can leave it null."
   type        = string
-  nullable    = false
+  default     = null
 }
 
 variable "kratos_admin_url" {
@@ -60,9 +61,32 @@ variable "kratos_admin_url" {
 }
 
 variable "kratos_browser_url" {
-  description = "Browser-accessible URL for the Kratos public API. If not set, kratos_public_url is used."
+  description = "Browser-accessible URL for the Kratos public API. If not set, kratos_public_url is used. Unused when screens_enabled is false, since the browser never reaches the self-service screens."
   type        = string
   default     = null
+}
+
+variable "public_url" {
+  description = "Browser-facing origin of the UI (PUBLIC_URL), e.g. https://auth.example.com. The service uses it to rewrite Kratos URLs and scope cookies, and to check kratos_cookie_domain at start; without it the origin is taken from each request's Host header. Null leaves it unset."
+  type        = string
+  default     = null
+}
+
+variable "kratos_cookie_domain" {
+  description = "Parent domain shared by the UI's hostname and the Kratos browser host (KRATOS_COOKIE_DOMAIN), e.g. example.com. Set it to Kratos's cookies.domain whenever the two are on different hostnames: Kratos sets its SSO continuity cookie without a Domain, and without this the cookie stays on the UI's host, so the OIDC/SAML callback to Kratos fails with \"no resumable session found\". Null leaves such cookies host-only. Unused when screens_enabled is false."
+  type        = string
+  default     = null
+
+  validation {
+    condition = var.kratos_cookie_domain == null || (
+      can(regex(
+        "^\\.?([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\\.)+[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$",
+        lower(var.kratos_cookie_domain),
+      )) &&
+      !can(regex("^\\.?[0-9.]+$", var.kratos_cookie_domain))
+    )
+    error_message = "kratos_cookie_domain must be a bare domain with at least two labels, e.g. example.com (no scheme, port, path, wildcard or IP address)."
+  }
 }
 
 variable "hydra_admin_url" {
@@ -72,14 +96,14 @@ variable "hydra_admin_url" {
 }
 
 variable "cookie_secret" {
-  description = "Secret for signing cookies. If not set, a random 32-character secret will be generated."
+  description = "Secret for signing cookies. Must be at least 32 characters. If not set, a random 32-character secret will be generated."
   type        = string
   default     = null
   sensitive   = true
 }
 
 variable "csrf_cookie_secret" {
-  description = "Secret for CSRF cookie hashing. If not set, a random 32-character secret will be generated."
+  description = "Secret for CSRF cookie hashing. Must be at least 32 characters. If not set, a random 32-character secret will be generated."
   type        = string
   default     = null
   sensitive   = true
@@ -178,9 +202,155 @@ variable "extra_env" {
   nullable    = false
 }
 
-variable "default_access_token_audience" {
-  description = "Audience written onto OAuth2 clients that have none (such as MCP clients registered through dynamic client registration) and granted on their access tokens. Set it to the Materialize MCP resource URL(s). Empty leaves such clients without an audience."
+# ory-selfservice behaviour -----------------------------------------------------
+
+variable "screens_enabled" {
+  description = "Serve the Kratos self-service screens (login, registration, recovery, verification, settings, error). Set to false for consent-only mode, where the service only serves Hydra's consent endpoint, the health endpoints and (when enabled) the token hook, and another app - typically the Materialize console - owns the user-facing flows. In that mode kratos_public_url and kratos_browser_url are unused."
+  type        = bool
+  default     = true
+  nullable    = false
+}
+
+variable "claim_metadata_public_id_token" {
+  description = "Keys copied from the Kratos identity's metadata_public onto every id_token. Users cannot write metadata_public, so the IdP-mapped groups land here. Pairs with Hydra's allowed_top_level_claims so the claims land top-level rather than under Hydra's ext."
+  type        = list(string)
+  default     = ["groups"]
+  nullable    = false
+}
+
+variable "claim_metadata_public_access_token" {
+  description = "Keys copied from the Kratos identity's metadata_public onto every access token. Materialize reads groups off the access token, which is what makes MCP OAuth work."
+  type        = list(string)
+  default     = ["groups"]
+  nullable    = false
+}
+
+variable "claim_traits_id_token" {
+  description = "Identity trait names copied onto every id_token. Empty by default: only list traits users cannot edit, and never a name also in claim_metadata_public_id_token (the image refuses to start)."
   type        = list(string)
   default     = []
   nullable    = false
+}
+
+variable "claim_traits_access_token" {
+  description = "Identity trait names copied onto every access token. Empty by default, with the same rules as claim_traits_id_token."
+  type        = list(string)
+  default     = []
+  nullable    = false
+
+  validation {
+    condition = (
+      length(setintersection(var.claim_traits_id_token, var.claim_metadata_public_id_token)) == 0 &&
+      length(setintersection(var.claim_traits_access_token, var.claim_metadata_public_access_token)) == 0
+    )
+    error_message = "A claim can't be in both the claim_traits_* and claim_metadata_public_* list for the same token: a user-editable trait would stand in for the IdP-sourced value."
+  }
+}
+
+variable "token_hook_enabled" {
+  description = "Serve POST /hooks/token, Hydra's token hook. Hydra calls it on every token issuance so claims can be refreshed from Kratos on refresh-token grants, not just at consent time. Hydra must be pointed at the hook separately (see the ory-hydra module's token_hook variable, or ory-stack's selfservice_ui_token_hook_enabled)."
+  type        = bool
+  default     = false
+  nullable    = false
+}
+
+variable "token_hook_api_key" {
+  description = "Shared secret Hydra sends in the X-Token-Hook-Api-Key header when calling the token hook. Must be at least 32 characters. If not set and token_hook_enabled is true, a random 48-character key is generated; read it back from the token_hook_api_key output to configure Hydra."
+  type        = string
+  default     = null
+  sensitive   = true
+
+  validation {
+    condition     = var.token_hook_api_key == null || length(coalesce(var.token_hook_api_key, "")) >= 32
+    error_message = "token_hook_api_key must be at least 32 characters."
+  }
+}
+
+variable "log_level" {
+  description = "Log level for the selfservice service."
+  type        = string
+  default     = "info"
+  nullable    = false
+
+  validation {
+    condition     = contains(["fatal", "error", "warn", "info", "debug", "trace"], var.log_level)
+    error_message = "log_level must be one of: fatal, error, warn, info, debug, trace."
+  }
+}
+
+variable "screens_registration_enabled" {
+  description = "Whether the login screen links to registration (SCREENS_REGISTRATION_ENABLED). Set to match Kratos's selfservice.flows.registration.enabled; the link otherwise leads to a flow Kratos refuses."
+  type        = bool
+  default     = true
+  nullable    = false
+}
+
+variable "screens_recovery_enabled" {
+  description = "Whether the login screen offers account recovery (SCREENS_RECOVERY_ENABLED). Set to match Kratos's selfservice.flows.recovery.enabled."
+  type        = bool
+  default     = true
+  nullable    = false
+}
+
+variable "screens_verification_enabled" {
+  description = "Whether the screens link to address verification (SCREENS_VERIFICATION_ENABLED). Set to match Kratos's selfservice.flows.verification.enabled."
+  type        = bool
+  default     = true
+  nullable    = false
+}
+
+variable "dcr_audience_allowlist" {
+  description = "https URIs (DCR_AUDIENCE_ALLOWLIST). A client with no registered audience, typically an MCP client that registered itself through Hydra's dynamic client registration, that asks for an RFC 8707 resource under one of these entries is granted that entry as its access token audience, and the entry is written onto the client so refresh keeps working. Set it to the Materialize MCP resource URL(s), which must also be in Materialize's oidc_audience."
+  type        = list(string)
+  default     = []
+  nullable    = false
+}
+
+variable "dcr_default_audience" {
+  description = "https URIs (DCR_DEFAULT_AUDIENCE) granted to a client that has no registered audience and requested no resource. Same rules as dcr_audience_allowlist. Empty leaves such clients without an audience, which Materialize rejects."
+  type        = list(string)
+  default     = []
+  nullable    = false
+}
+
+variable "metrics_port" {
+  description = "Port for the service's Prometheus metrics listener (METRICS_PORT). Served separately from the public port so the LoadBalancer never exposes it; scrape it from the pod. Null disables the listener. Must differ from var.port."
+  type        = number
+  default     = null
+
+  validation {
+    condition     = var.metrics_port == null || var.metrics_port != var.port
+    error_message = "metrics_port must differ from port."
+  }
+}
+
+variable "log_redact_pii" {
+  description = "Redact personally identifiable information (email addresses, group names) from the service's logs by hashing them. Set false temporarily while debugging sign-in issues."
+  type        = bool
+  default     = true
+  nullable    = false
+}
+
+variable "token_hook_max_auth_age_seconds" {
+  description = "The token hook refuses user tokens once the user hasn't signed in through Kratos for this long, bounding how long a refresh chain keeps stale groups and email. 0 disables the check."
+  type        = number
+  default     = 0
+  nullable    = false
+
+  validation {
+    condition     = var.token_hook_max_auth_age_seconds >= 0
+    error_message = "token_hook_max_auth_age_seconds must be 0 or more."
+  }
+}
+
+variable "remember_consent_for_seconds" {
+  description = "How long Hydra remembers a granted consent for, in seconds. Within this window returning users skip the consent screen."
+  type        = number
+  default     = 3600
+  nullable    = false
+
+  validation {
+    condition     = var.remember_consent_for_seconds >= 1
+    error_message = "remember_consent_for_seconds must be at least 1: Hydra reads 0 as remember forever."
+  }
 }

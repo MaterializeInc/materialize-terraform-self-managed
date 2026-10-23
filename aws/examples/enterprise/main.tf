@@ -427,8 +427,28 @@ resource "random_password" "external_login_password_mz_system" {
   override_special = "!#$%&*()-_=+[]{}<>:?"
 }
 
-resource "random_password" "ory_database_password" {
-  length           = 16
+# One password per Ory database instance, so a leaked DSN only opens its own.
+# Kratos keeps the password the shared one had.
+moved {
+  from = random_password.ory_database_password
+  to   = random_password.ory_kratos_database_password
+}
+
+resource "random_password" "ory_kratos_database_password" {
+  length           = 24
+  special          = true
+  override_special = "!#$%&*()-_=+[]{}<>:?"
+}
+
+resource "random_password" "ory_hydra_database_password" {
+  length           = 24
+  special          = true
+  override_special = "!#$%&*()-_=+[]{}<>:?"
+}
+
+resource "random_password" "ory_polis_database_password" {
+  count            = var.enable_polis ? 1 : 0
+  length           = 24
   special          = true
   override_special = "!#$%&*()-_=+[]{}<>:?"
 }
@@ -466,7 +486,7 @@ module "ory_kratos_database" {
   max_allocated_storage     = 50
   database_name             = "kratos"
   database_username         = "oryadmin"
-  database_password         = random_password.ory_database_password.result
+  database_password         = random_password.ory_kratos_database_password.result
   multi_az                  = false
   database_subnet_ids       = module.networking.private_subnet_ids
   vpc_id                    = module.networking.vpc_id
@@ -488,7 +508,7 @@ module "ory_hydra_database" {
   max_allocated_storage     = 50
   database_name             = "hydra"
   database_username         = "oryadmin"
-  database_password         = random_password.ory_database_password.result
+  database_password         = random_password.ory_hydra_database_password.result
   multi_az                  = false
   database_subnet_ids       = module.networking.private_subnet_ids
   vpc_id                    = module.networking.vpc_id
@@ -512,7 +532,7 @@ module "ory_polis_database" {
   max_allocated_storage     = 50
   database_name             = "polis"
   database_username         = "oryadmin"
-  database_password         = random_password.ory_database_password.result
+  database_password         = random_password.ory_polis_database_password[0].result
   multi_az                  = false
   database_subnet_ids       = module.networking.private_subnet_ids
   vpc_id                    = module.networking.vpc_id
@@ -820,6 +840,10 @@ module "ory" {
   kratos_fqdn = var.ory_kratos_fqdn
   ui_fqdn     = var.ory_ui_fqdn
 
+  # Kratos and the selfservice UI are on separate hostnames, so the session
+  # cookie needs a domain covering both.
+  kratos_cookie_domain = var.ory_kratos_cookie_domain
+
   kratos_dsn = local.ory_kratos_dsn
   hydra_dsn  = local.ory_hydra_dsn
 
@@ -837,7 +861,7 @@ module "ory" {
   cert_issuer_ref                 = local.cert_issuer
   cert_issuer_signs_cluster_local = var.cert_issuer_ref == null
 
-  # Materialize integration: OAuth2 client CRD + ory-side ingress NetworkPolicy.
+  # Materialize integration: OAuth2 client CRD + ingress from Materialize to Hydra.
   materialize_namespace    = local.materialize_instance_namespace
   materialize_console_fqdn = var.materialize_console_fqdn
 
@@ -849,11 +873,18 @@ module "ory" {
 
   # Firewall the public Ory NLBs like the Materialize ones. The LBC turns
   # loadBalancerSourceRanges into the NLB security group's inbound rules.
-  lb_overrides = var.internal_load_balancer || local.ory_lb_source_ranges == null ? {} : {
-    for role in ["hydra", "kratos", "ui", "polis"] : role => {
-      source_ranges = role == "polis" ? concat(local.ory_lb_source_ranges, local.okta_scim_source_ranges) : local.ory_lb_source_ranges
-    }
-  }
+  # Polis keeps its own allowlist when ory_polis_source_ranges is set or
+  # okta-scim-source-ranges.json exists (Okta's SCIM egress plus your ranges),
+  # so a default ingress_cidr_blocks of 0.0.0.0/0 never reopens a Polis locked
+  # to Okta.
+  lb_overrides = merge(
+    var.internal_load_balancer || local.ory_lb_source_ranges == null ? {} : {
+      for role in ["hydra", "kratos", "ui", "polis"] : role => { source_ranges = local.ory_lb_source_ranges }
+    },
+    length(local.polis_lb_source_ranges) > 0 ? {
+      polis = { source_ranges = local.polis_lb_source_ranges }
+    } : {},
+  )
 
   node_selector = local.generic_node_labels
 
@@ -996,7 +1027,7 @@ locals {
   ory_kratos_dsn = format(
     "postgres://%s:%s@%s/%s?sslmode=require",
     module.ory_kratos_database.db_instance_username,
-    urlencode(random_password.ory_database_password.result),
+    urlencode(random_password.ory_kratos_database_password.result),
     module.ory_kratos_database.db_instance_endpoint,
     "kratos"
   )
@@ -1004,7 +1035,7 @@ locals {
   ory_hydra_dsn = format(
     "postgres://%s:%s@%s/%s?sslmode=require",
     module.ory_hydra_database.db_instance_username,
-    urlencode(random_password.ory_database_password.result),
+    urlencode(random_password.ory_hydra_database_password.result),
     module.ory_hydra_database.db_instance_endpoint,
     "hydra"
   )
@@ -1013,7 +1044,7 @@ locals {
   ory_polis_dsn = var.enable_polis ? format(
     "postgres://%s:%s@%s/%s?sslmode=require&uselibpqcompat=true",
     module.ory_polis_database[0].db_instance_username,
-    urlencode(random_password.ory_database_password.result),
+    urlencode(random_password.ory_polis_database_password[0].result),
     module.ory_polis_database[0].db_instance_endpoint,
     "polis"
   ) : null
@@ -1037,9 +1068,10 @@ locals {
     [module.networking.vpc_cidr_block],
   )
 
-  # Okta's SCIM egress ranges, written by scripts/update-okta-ip-ranges.sh.
-  # Okta pushes SCIM to Polis from its own cloud, so Polis admits them too.
+  # Okta's SCIM egress ranges (generate with scripts/update-okta-ip-ranges.sh),
+  # plus any operator ranges, applied as the Polis LB allowlist.
   okta_scim_source_ranges = fileexists("${path.module}/okta-scim-source-ranges.json") ? jsondecode(file("${path.module}/okta-scim-source-ranges.json")) : []
+  polis_lb_source_ranges  = concat(local.okta_scim_source_ranges, var.ory_polis_source_ranges)
 
   # AWS LBC annotations for the Ory NLBs (module.ory).
   ory_lb_annotations = merge(
