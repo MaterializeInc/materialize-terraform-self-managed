@@ -365,6 +365,9 @@ module "ory_kratos" {
   create_namespace            = false
   dsn                         = var.kratos_dsn
 
+  # The token hook reads the last IdP sign-in from expired sessions too.
+  cleanup_keep_last_seconds = local.selfservice_ui_token_hook_enabled ? max(21600, var.selfservice_ui_token_hook_max_auth_age_seconds) : 21600
+
   secrets_default = var.kratos_secrets_default
   secrets_cookie  = var.kratos_secrets_cookie
   secrets_cipher  = var.kratos_secrets_cipher

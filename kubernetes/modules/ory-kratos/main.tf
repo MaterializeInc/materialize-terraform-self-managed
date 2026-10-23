@@ -443,7 +443,7 @@ locals {
     cleanup = {
       enabled   = var.cleanup_enabled
       batchSize = 1000
-      keepLast  = "6h"
+      keepLast  = "${var.cleanup_keep_last_seconds}s"
     }
 
     cronjob = {
