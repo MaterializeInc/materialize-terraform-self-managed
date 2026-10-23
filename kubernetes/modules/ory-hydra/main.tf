@@ -243,9 +243,15 @@ locals {
     }
 
     deployment = {
-      annotations = {
-        "checksum/secrets" = local.secret_checksum
-      }
+      annotations = merge(
+        { "checksum/secrets" = local.secret_checksum },
+        # The hook key reaches Hydra as an env var from a Secret, which the pod
+        # reads only at start. Roll Hydra when it changes, or every hook call
+        # fails until the pods restart and no tokens are issued.
+        local.token_hook_enabled ? {
+          "checksum/token-hook" = nonsensitive(sha256(var.token_hook.api_key))
+        } : {},
+      )
 
       resources = {
         requests = {

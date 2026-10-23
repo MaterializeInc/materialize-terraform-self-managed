@@ -278,9 +278,21 @@ resource "kubernetes_deployment" "ui" {
             value = tostring(var.screens_verification_enabled)
           }
 
-          # Identity traits copied onto the issued tokens. This is what makes
-          # MCP OAuth work; pair with ory-stack's allowed_top_level_claims so
-          # the claims sit top-level rather than under Hydra's ext.
+          # Claims copied onto the issued tokens: groups from metadata_public,
+          # which only the IdP mapper writes, and any explicitly listed traits.
+          # This is what makes MCP OAuth work; pair with ory-stack's
+          # allowed_top_level_claims so the claims sit top-level rather than
+          # under Hydra's ext.
+          env {
+            name  = "CLAIM_METADATA_PUBLIC_ID_TOKEN"
+            value = join(",", var.claim_metadata_public_id_token)
+          }
+
+          env {
+            name  = "CLAIM_METADATA_PUBLIC_ACCESS_TOKEN"
+            value = join(",", var.claim_metadata_public_access_token)
+          }
+
           env {
             name  = "CLAIM_TRAITS_ID_TOKEN"
             value = join(",", var.claim_traits_id_token)
@@ -294,6 +306,11 @@ resource "kubernetes_deployment" "ui" {
           env {
             name  = "TOKEN_HOOK_ENABLED"
             value = tostring(var.token_hook_enabled)
+          }
+
+          env {
+            name  = "TOKEN_HOOK_MAX_AUTH_AGE_SECONDS"
+            value = tostring(var.token_hook_max_auth_age_seconds)
           }
 
           env {

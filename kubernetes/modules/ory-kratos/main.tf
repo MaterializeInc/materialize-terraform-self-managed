@@ -182,12 +182,20 @@ locals {
     local claims = std.extVar('claims');
     local raw = if std.objectHas(claims, 'raw_claims') then claims.raw_claims else {};
     local groups_from(src) = if std.objectHas(src, 'groups') then src.groups else [];
+    // Only an explicit "not verified" withholds the email: many SAML IdPs send
+    // no email_verified at all.
+    local email_unverified = std.objectHas(raw, 'email_verified') &&
+      (raw.email_verified == false || raw.email_verified == 'false');
     {
       identity: {
         traits: {
           email: claims.email,
         },
+        // What Materialize trusts goes here, not in traits: during SSO
+        // registration Kratos keeps traits the user submits over these, but
+        // metadata_public only ever comes from this mapper.
         metadata_public: {
+          [if !email_unverified then 'email']: claims.email,
           // Kratos exposes standard OIDC fields (email, sub, aud, ...) flat on
           // claims and everything else under claims.raw_claims. SAML-derived
           // group memberships come in as a non-standard claim, so check both.
