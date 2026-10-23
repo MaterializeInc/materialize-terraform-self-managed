@@ -85,6 +85,7 @@ No modules.
 | Name | Description |
 | ---- | ----------- |
 | <a name="output_admin_url"></a> [admin\_url](#output\_admin\_url) | Internal URL for Hydra admin API (privileged: OAuth2 client management, consent/login flow management) |
+| <a name="output_maester_pod_labels"></a> [maester\_pod\_labels](#output\_maester\_pod\_labels) | Labels on the Hydra Maester pods, e.g. for NetworkPolicies that admit Maester to Hydra's admin port. The chart names them after the subchart's fullname. |
 | <a name="output_namespace"></a> [namespace](#output\_namespace) | Namespace where Ory Hydra is deployed |
 | <a name="output_public_url"></a> [public\_url](#output\_public\_url) | Internal URL for Hydra public API (user-facing: OAuth2 authorize, token, OIDC discovery) |
 | <a name="output_release_name"></a> [release\_name](#output\_release\_name) | Name of the Ory Hydra Helm release |

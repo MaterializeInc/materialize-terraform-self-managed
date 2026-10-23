@@ -11,7 +11,7 @@ Ory enterprise images are pulled through the Materialize-hosted registry proxy a
 Everything from the [simple example](../simple/README.md), plus:
 
 ### Ory Databases
-- **Separate RDS instances** (one per Ory component): PostgreSQL 18. Kratos and Hydra always, Polis added when `enable_polis = true`.
+- **Separate RDS instances** (one per Ory component, each with its own password): PostgreSQL 18. Kratos and Hydra always, Polis added when `enable_polis = true`.
 - **Instance class**: db.t3.small (suitable for Ory workloads)
 - **Storage**: 20GB with autoscaling up to 50GB
 - **Network Access**: Private subnets only, same VPC as the Materialize database
@@ -31,7 +31,7 @@ Everything from the [simple example](../simple/README.md), plus:
 
 ### Ory Polis (optional, SAML-to-OIDC bridge)
 - **Helm release**: Deployed in the `ory` namespace when `enable_polis = true`
-- **Purpose**: Accepts a customer's SAML IdP on one side and exposes an OIDC provider on the other so Kratos can consume it as an upstream social sign-in. Also exposes a SCIM endpoint for IdP-driven user provisioning.
+- **Purpose**: Accepts a customer's SAML IdP on one side and exposes an OIDC provider on the other so Kratos can consume it as an upstream social sign-in. Also exposes a SCIM endpoint, which is not wired to Kratos yet (see below).
 - **Chart and image**: Both pulled through the Materialize OEL registry proxy with the license-key JWT, no separate credential required
 - Off by default. Set `enable_polis = true` and `ory_polis_fqdn` to deploy.
 
@@ -42,7 +42,9 @@ OKTA_SAML_METADATA=~/Downloads/metadata.xml \
   ./scripts/polis-register.sh aws/examples/enterprise
 ```
 
-It registers (or re-reads, idempotently) the connection and directory, then prints the `upstream_oidc_providers` block to add to `terraform.tfvars` and the remaining Okta admin-console steps.
+It registers (or re-reads, idempotently) the connection and directory, writes their credentials to `aws/examples/enterprise/polis-credentials.txt` (mode 0600, gitignored), and prints the `saml_providers` block to add to `terraform.tfvars` and the remaining Okta admin-console steps. Pass `--print-secrets` to also print the credentials. In the Okta SAML app, set the Single sign-on URL to `https://<ory_polis_fqdn>/api/oauth/saml` and the Audience URI (SP Entity ID) to `https://<ory_polis_fqdn>`, which is Polis's entity ID in this deployment.
+
+**SCIM does not deprovision yet.** Nothing syncs the Polis SCIM directory into Kratos, so deactivating a user in Okta does not end their Materialize access. It ends when their Kratos session expires (8 hours by default, `kratos_session_lifespan_seconds` on the `ory-stack` module) or the token hook's max auth age passes, plus the life of any access token already issued. Delete the user's Kratos identity to end it sooner.
 
 ---
 
@@ -71,6 +73,7 @@ k8s_apiserver_authorized_networks = ["203.0.113.0/24"]
 ory_hydra_fqdn             = "hydra.mz.example.com"
 ory_ui_fqdn                = "auth.mz.example.com"
 ory_kratos_fqdn            = "kratos.mz.example.com"
+ory_kratos_cookie_domain   = "mz.example.com"
 materialize_console_fqdn   = "console.mz.example.com"
 materialize_balancerd_fqdn = "balancerd.mz.example.com"
 
@@ -87,6 +90,7 @@ tags = {
 - `tags`: Map of tags to apply to resources
 - `k8s_apiserver_authorized_networks`: List of CIDR blocks allowed to reach the EKS cluster endpoint. No default; pass `["0.0.0.0/0"]` for lab use, or a tight allowlist for production.
 - `ory_hydra_fqdn`, `ory_ui_fqdn`, `ory_kratos_fqdn`, `materialize_console_fqdn`, `materialize_balancerd_fqdn`: Public hostnames for the five browser-facing endpoints (Hydra OAuth2, Kratos public API, selfservice UI, Materialize console, and balancerd, which serves the SQL-over-HTTP endpoint the console JS calls from the browser)
+- `ory_kratos_cookie_domain`: Domain the Kratos session cookie is scoped to. It must cover the Kratos and selfservice UI hostnames, and every host under it receives the session cookie, so use the narrowest such domain, ideally one that holds only these hostnames.
 
 **Optional Variables:**
 - `aws_region`: AWS region (defaults to `us-east-1`)
@@ -99,6 +103,7 @@ tags = {
 - `ory_polis_fqdn`: Public hostname for Polis. Required when `enable_polis = true`.
 - `polis_helm_values`: Additional Helm values for the Polis chart. Escape hatch for overriding resources, node selectors, tolerations, etc.
 - `ory_polis_source_ranges`: Extra CIDRs, besides Okta's SCIM egress ranges from `okta-scim-source-ranges.json`, allowed to reach the public Polis load balancer. Together they replace `ingress_cidr_blocks` for Polis. The browser reaches Polis directly for the SAML and OIDC hops, so add the public egress addresses your browsers appear as (VPN/NAT egress, office range). Leave both unset to apply `ingress_cidr_blocks` to Polis like the other Ory load balancers.
+- `upstream_identity_providers`, `saml_providers`: The IdPs users sign in with. Every entry needs `allowed_email_domains`, the email domains that IdP may sign in (exact lowercase domains, subdomains listed separately); a sign-in from any other domain fails. `allowed_groups` and `group_prefix` limit which of its groups reach Materialize. OIDC entries refuse emails the IdP does not mark verified (`require_email_verified`, default `true`); Microsoft Entra ID does not send `email_verified` by default, so set it to `false` there and rely on `allowed_email_domains`.
 - TLS certificate options (`cert_issuer_ref`, …): see [TLS Certificates](#tls-certificates) below.
 
 ### Step 2: Deploy

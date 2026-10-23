@@ -58,10 +58,18 @@ variable "polis_extra_dns_names" {
   nullable    = false
 }
 
-variable "cookie_parent_domain" {
-  description = "Cookie domain for Kratos session and CSRF cookies, so they are shared across the Ory hostnames. Defaults to the parent domain of the primary FQDN: the single-domain host in single-domain mode, otherwise kratos_fqdn (e.g. kratos.example.com -> example.com). The selfservice UI keeps its own sibling hostname even in single-domain mode, so the shared parent is required or the login flow loops. Falls back to the FQDN itself when it has no '.' separator. Set explicitly to override."
+variable "kratos_cookie_domain" {
+  description = "Domain Kratos scopes its session, CSRF and SSO continuity cookies to, e.g. auth.example.com. Required whenever a page that serves Kratos flows (the selfservice UI, or login_url in consent-only mode) is on a different host than Kratos, which with the selfservice UI on its own ui_fqdn is always. Every host under this domain receives the Kratos session cookie, so use the narrowest domain that covers Kratos (or the single-domain host) and those pages, ideally one that holds only the Ory hostnames. Null keeps the cookies host-only, which only works when those pages share Kratos's host."
   type        = string
   default     = null
+
+  validation {
+    condition = var.kratos_cookie_domain == null || (
+      can(regex("^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\\.)+[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$", coalesce(var.kratos_cookie_domain, "-"))) &&
+      !can(regex("^[0-9.]+$", coalesce(var.kratos_cookie_domain, "-")))
+    )
+    error_message = "kratos_cookie_domain must be a lowercase domain with at least two labels, e.g. auth.example.com (no scheme, leading dot, port, path, wildcard or IP address)."
+  }
 }
 
 variable "single_domain_fqdn" {
@@ -224,15 +232,26 @@ variable "node_selector" {
 # Upstream identity providers -------------------------------------------------
 
 variable "upstream_identity_providers" {
-  description = "Optional upstream identity providers exposed as social sign-in buttons on the selfservice UI. Most entries (Okta, Entra, Auth0, Google, etc.) use provider = \"generic\" and register their redirect URI at the upstream IdP as https://<kratos_fqdn>/self-service/methods/oidc/callback/<id>. The exception is Ory Polis, the SAML-to-OIDC bridge: set its entry to provider = \"jackson\", whose callback Kratos registers under the SAML method base, https://<kratos_fqdn>/self-service/methods/saml/callback/<id>, not the oidc one. Using generic for Polis sends the code to the wrong path and the flow dies at the redirect."
+  description = <<-EOT
+    Optional upstream identity providers exposed as social sign-in buttons on the selfservice UI. Most entries (Okta, Entra, Auth0, Google, etc.) use provider = "generic" and register their redirect URI at the upstream IdP as https://<kratos_fqdn>/self-service/methods/oidc/callback/<id>. Ory Polis goes in saml_providers instead.
+
+    Each provider gets its own claim mapper (see the ory-kratos module):
+    - allowed_email_domains (required): email domains this provider may sign in, matched exactly against the lowercased email (list subdomains separately).
+    - allowed_groups / group_prefix: keep only these groups, or only groups starting with the prefix, from the provider's groups claim.
+    - require_email_verified (default true): refuse emails the provider does not mark verified. Microsoft Entra ID does not send email_verified by default; set false there and rely on allowed_email_domains.
+  EOT
   type = list(object({
-    id            = string
-    provider      = optional(string, "generic")
-    client_id     = string
-    client_secret = string
-    issuer_url    = string
-    scope         = optional(list(string), ["openid", "email", "profile"])
-    label         = optional(string)
+    id                     = string
+    provider               = optional(string, "generic")
+    client_id              = string
+    client_secret          = string
+    issuer_url             = string
+    scope                  = optional(list(string), ["openid", "email", "profile"])
+    label                  = optional(string)
+    allowed_email_domains  = list(string)
+    allowed_groups         = optional(list(string))
+    group_prefix           = optional(string)
+    require_email_verified = optional(bool, true)
   }))
   default   = []
   nullable  = false
@@ -240,16 +259,20 @@ variable "upstream_identity_providers" {
 }
 
 variable "saml_providers" {
-  description = "SAML sign-in providers exposed via the Kratos SAML method (selfservice.methods.saml), used for Ory Polis (the jackson SAML-to-OIDC bridge). Each entry renders as a 'Sign in with X' button whose SAML callback is https://<kratos_fqdn>/self-service/methods/saml/callback/<id>. Leave as [] when no SAML sign-in is configured. Use this instead of upstream_identity_providers for Polis, since jackson is a SAML method rather than an OIDC provider."
+  description = "SAML sign-in providers exposed via the Kratos SAML method (selfservice.methods.saml), used for Ory Polis (the jackson SAML-to-OIDC bridge). Each entry renders as a 'Sign in with X' button whose SAML callback is https://<kratos_fqdn>/self-service/methods/saml/callback/<id>. Leave as [] when no SAML sign-in is configured. allowed_email_domains, allowed_groups and group_prefix work as in upstream_identity_providers; require_email_verified defaults to false, since SAML assertions carry no email_verified claim."
   type = list(object({
-    id                   = string
-    label                = optional(string)
-    client_id            = string
-    client_secret        = string
-    issuer_url           = string
-    auth_url             = string
-    token_url            = string
-    raw_idp_metadata_xml = string
+    id                     = string
+    label                  = optional(string)
+    client_id              = string
+    client_secret          = string
+    issuer_url             = string
+    auth_url               = string
+    token_url              = string
+    raw_idp_metadata_xml   = string
+    allowed_email_domains  = list(string)
+    allowed_groups         = optional(list(string))
+    group_prefix           = optional(string)
+    require_email_verified = optional(bool, false)
   }))
   default   = []
   nullable  = false
@@ -314,6 +337,21 @@ variable "selfservice_ui_token_hook_max_auth_age_seconds" {
   validation {
     condition     = var.selfservice_ui_token_hook_max_auth_age_seconds >= 0
     error_message = "selfservice_ui_token_hook_max_auth_age_seconds must be 0 or more."
+  }
+}
+
+variable "kratos_session_lifespan_seconds" {
+  description = "How long a Kratos session lasts, in seconds. Hydra remembers a sign-in for as long, so this bounds how long a user removed at the IdP can keep authorizing new clients without going back to the IdP. Must not exceed selfservice_ui_token_hook_max_auth_age_seconds when that is above 0."
+  type        = number
+  default     = 28800
+  nullable    = false
+
+  validation {
+    condition = var.kratos_session_lifespan_seconds >= 60 && (
+      var.selfservice_ui_token_hook_max_auth_age_seconds == 0 ||
+      var.kratos_session_lifespan_seconds <= var.selfservice_ui_token_hook_max_auth_age_seconds
+    )
+    error_message = "kratos_session_lifespan_seconds must be at least 60 and no more than selfservice_ui_token_hook_max_auth_age_seconds (when that is above 0)."
   }
 }
 
