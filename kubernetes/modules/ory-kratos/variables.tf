@@ -298,6 +298,18 @@ variable "cleanup_enabled" {
   nullable    = false
 }
 
+variable "cleanup_keep_last_seconds" {
+  description = "How long after expiry the cleanup CronJob keeps sessions, flows and continuity rows. Expired sessions still record when a user last signed in through the IdP, so keep this at least as long as anything that reads that, such as the selfservice UI's token hook max auth age."
+  type        = number
+  default     = 21600
+  nullable    = false
+
+  validation {
+    condition     = var.cleanup_keep_last_seconds >= 0
+    error_message = "cleanup_keep_last_seconds must not be negative."
+  }
+}
+
 variable "cleanup_schedule" {
   description = "Cron schedule for the cleanup CronJob."
   type        = string

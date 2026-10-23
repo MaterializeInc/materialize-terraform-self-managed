@@ -104,6 +104,8 @@ Existing deployments have a few steps to take; see the v17.0.0 upgrade notes in 
 - **Refresh chains are bounded.** The hook refuses user tokens once the user hasn't
   signed in through the IdP for `selfservice_ui_token_hook_max_auth_age_seconds`
   (default 7 days), so groups the IdP removed don't live on through refresh tokens.
+  Revoking a user's Kratos sessions does not end their refresh tokens; deactivate the
+  identity or revoke their Hydra consent.
 - **SCIM does not deprovision.** Polis's SCIM directory is not synced into Kratos, so
   deactivating a user at the IdP ends their access only when their Kratos session expires
   or the max auth age passes. Delete the Kratos identity to end it sooner.
@@ -115,7 +117,8 @@ Existing deployments have a few steps to take; see the v17.0.0 upgrade notes in 
   same value as the IdP app's Audience URI; by default Polis keeps its shared
   `https://saml.boxyhq.com`.
 - **Kratos cleans up after itself.** The chart's cleanup CronJob deletes expired
-  sessions, flows and continuity rows hourly.
+  sessions, flows and continuity rows hourly, keeping them for the token hook's max
+  auth age after expiry, since the hook reads the last IdP sign-in from them.
 - **Logs hash emails and groups by default** (`selfservice_ui_log_redact_pii`). Set it to
   false temporarily while debugging sign-in issues.
 - **Logout works in consent-only mode.** Hydra's logout endpoint is served whether or
