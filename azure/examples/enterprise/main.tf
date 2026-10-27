@@ -68,7 +68,7 @@ locals {
   }
 
   aks_config = {
-    kubernetes_version         = "1.34"
+    kubernetes_version         = "1.35"
     service_cidr               = "10.1.0.0/16"
     enable_azure_monitor       = false
     log_analytics_workspace_id = null
