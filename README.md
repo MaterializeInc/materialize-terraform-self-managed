@@ -181,6 +181,8 @@ We follow semantic versioning with our tags. If a particular version requires ad
 
 Kubernetes version 1.35 on AWS and Azure.
 
+The GCP simple example now uses the `REGULAR` GKE release channel (the module default) instead of `STABLE`. Applying this to an existing cluster switches its channel in place, and GKE will then upgrade it to the `REGULAR` channel's version.
+
 #### v17.0.0
 
 ##### AWS EBS volume tags move from the StorageClass to the CSI driver
