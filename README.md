@@ -177,6 +177,10 @@ We follow semantic versioning with our tags. If a particular version requires ad
 
 ### Upgrade Notes
 
+#### v18.0.0
+
+Kubernetes version 1.35 on AWS and Azure.
+
 #### v17.0.0
 
 ##### AWS EBS volume tags move from the StorageClass to the CSI driver
