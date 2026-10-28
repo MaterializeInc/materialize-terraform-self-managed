@@ -181,6 +181,8 @@ We follow semantic versioning with our tags. If a particular version requires ad
 
 Kubernetes version 1.35 on AWS and Azure.
 
+On Azure, the `aks` module now also sets the default node pool's version. Before, changing `kubernetes_version` upgraded only the control plane, so on an existing cluster this apply also upgrades the default pool's nodes.
+
 The GCP simple example now uses the `REGULAR` GKE release channel (the module default) instead of `STABLE`. Applying this to an existing cluster switches its channel in place, and GKE will then upgrade it to the `REGULAR` channel's version.
 
 #### v17.0.0
