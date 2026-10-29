@@ -34,7 +34,7 @@ No modules.
 | Name | Description | Type | Default | Required |
 | ---- | ----------- | ---- | ------- | :------: |
 | <a name="input_disk_setup_container_resource_config"></a> [disk\_setup\_container\_resource\_config](#input\_disk\_setup\_container\_resource\_config) | Resource configuration for disk setup init container | <pre>object({<br/>    memory_limit   = string<br/>    memory_request = string<br/>    cpu_request    = string<br/>  })</pre> | <pre>{<br/>  "cpu_request": "50m",<br/>  "memory_limit": "128Mi",<br/>  "memory_request": "128Mi"<br/>}</pre> | no |
-| <a name="input_disk_setup_image"></a> [disk\_setup\_image](#input\_disk\_setup\_image) | Docker image for the disk setup script | `string` | `"materialize/ephemeral-storage-setup-image:v0.5.1"` | no |
+| <a name="input_disk_setup_image"></a> [disk\_setup\_image](#input\_disk\_setup\_image) | Docker image for the disk setup script | `string` | `"materialize/ephemeral-storage-setup-image:v0.6.0"` | no |
 | <a name="input_disk_setup_name"></a> [disk\_setup\_name](#input\_disk\_setup\_name) | Name used for disk setup Kubernetes resources (namespace, daemonset, service account, cluster role, cluster role binding). Defaults to "<name>-disk-setup". | `string` | `null` | no |
 | <a name="input_disruption"></a> [disruption](#input\_disruption) | Configuration for node disruption. | `any` | <pre>{<br/>  "budgets": [<br/>    {<br/>      "nodes": "10%"<br/>    }<br/>  ],<br/>  "consolidateAfter": "60s",<br/>  "consolidationPolicy": "WhenEmpty"<br/>}</pre> | no |
 | <a name="input_expire_after"></a> [expire\_after](#input\_expire\_after) | Time after which the node will expire. | `string` | `"Never"` | no |
