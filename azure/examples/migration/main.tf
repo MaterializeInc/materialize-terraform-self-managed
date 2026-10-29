@@ -217,6 +217,7 @@ resource "azurerm_kubernetes_cluster" "aks" {
     temporary_name_for_rotation = "default2"
     name                        = "default"
     vm_size                     = var.default_node_pool_vm_size
+    orchestrator_version        = var.kubernetes_version
     node_count                  = 1
     vnet_subnet_id              = azurerm_subnet.aks.id
 

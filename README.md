@@ -181,6 +181,10 @@ We follow semantic versioning with our tags. If a particular version requires ad
 
 Kubernetes version 1.35 on AWS and Azure.
 
+On Azure, the `aks` module and the migration example now also set the default node pool's version. Before, changing `kubernetes_version` upgraded only the control plane, so on an existing cluster this apply also upgrades the default pool's nodes.
+
+Pools created by the `nodepool` module, including the Materialize pools, are not upgraded and stay on their current version. Each `kubernetes_version` bump widens their skew from the control plane, and AKS blocks control plane upgrades once a pool falls too far behind. Upgrade them yourself with `az aks nodepool upgrade --resource-group <rg> --cluster-name <cluster> --name <pool> --kubernetes-version <version>`. This drains and replaces their nodes, so expect Materialize clusters on them to restart.
+
 The GCP simple example now uses the `REGULAR` GKE release channel (the module default) instead of `STABLE`. Applying this to an existing cluster switches its channel in place, and GKE will then upgrade it to the `REGULAR` channel's version.
 
 ##### Azure nodes come from Node Auto Provisioning

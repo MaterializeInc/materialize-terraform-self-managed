@@ -39,6 +39,7 @@ resource "azurerm_kubernetes_cluster" "aks" {
     temporary_name_for_rotation  = "default2"
     name                         = "default"
     vm_size                      = var.default_node_pool_vm_size
+    orchestrator_version         = var.kubernetes_version
     auto_scaling_enabled         = var.default_node_pool_enable_auto_scaling
     node_count                   = var.default_node_pool_enable_auto_scaling ? null : var.default_node_pool_node_count
     min_count                    = var.default_node_pool_enable_auto_scaling ? var.default_node_pool_min_count : null
