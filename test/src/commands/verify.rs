@@ -44,6 +44,9 @@ pub async fn phase_verify(dir: &Path) -> Result<()> {
             return Err(e);
         }
 
+        println!("\nVerifying Pod Security enforcement in namespace {instance_namespace}...");
+        verify_pod_security_enforced(&kubeconfig, instance_namespace).await?;
+
         if let Some(version) = tfvars.common().environmentd_version.as_deref() {
             println!("\nVerifying environmentd is running version {version}...");
             verify_environmentd_image(&kubeconfig, instance_namespace, version).await?;
@@ -310,6 +313,37 @@ async fn check_expected_pods(kubeconfig: &Path, namespace: &str) -> Result<()> {
         let mark = if *phase == "Running" { "ok" } else { "--" };
         println!("  [{mark}] {name}: {phase}");
     }
+    Ok(())
+}
+
+/// Asserts that the instance namespace rejects a privileged pod.
+///
+/// The Materialize pods coming up only shows they meet the restricted Pod
+/// Security Standard, not that it is enforced. A server-side dry run goes
+/// through admission without creating anything.
+async fn verify_pod_security_enforced(kubeconfig: &Path, namespace: &str) -> Result<()> {
+    let output = kubectl(kubeconfig)
+        .args([
+            "run",
+            "pod-security-check",
+            "-n",
+            namespace,
+            "--image=busybox",
+            "--restart=Never",
+            "--privileged",
+            "--dry-run=server",
+        ])
+        .output()
+        .await
+        .context("Failed to execute command")?;
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    if output.status.success() {
+        bail!("a privileged pod was admitted to {namespace}");
+    }
+    if !stderr.contains("violates PodSecurity") {
+        bail!("privileged pod was rejected, but not by Pod Security: {stderr}");
+    }
+    println!("  [ok] privileged pod rejected");
     Ok(())
 }
 
