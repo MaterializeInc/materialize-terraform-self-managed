@@ -5,7 +5,7 @@
 | <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | >= 1.10 |
 | <a name="requirement_aws"></a> [aws](#requirement\_aws) | ~> 6.37 |
 | <a name="requirement_helm"></a> [helm](#requirement\_helm) | >= 2.5.0, < 2.18.0 |
-| <a name="requirement_kubectl"></a> [kubectl](#requirement\_kubectl) | 2.4.1 |
+| <a name="requirement_kubectl"></a> [kubectl](#requirement\_kubectl) | 3.0.0 |
 | <a name="requirement_kubernetes"></a> [kubernetes](#requirement\_kubernetes) | >= 2.10.0, < 2.39.0 |
 | <a name="requirement_random"></a> [random](#requirement\_random) | >= 3.0.0, < 3.10.0 |
 
@@ -14,7 +14,7 @@
 | Name | Version |
 | ---- | ------- |
 | <a name="provider_aws"></a> [aws](#provider\_aws) | ~> 6.37 |
-| <a name="provider_kubectl"></a> [kubectl](#provider\_kubectl) | 2.4.1 |
+| <a name="provider_kubectl"></a> [kubectl](#provider\_kubectl) | 3.0.0 |
 | <a name="provider_random"></a> [random](#provider\_random) | >= 3.0.0, < 3.10.0 |
 
 ## Modules
@@ -44,7 +44,7 @@
 | [aws_security_group_rule.grafana_nlb_to_nodes](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/security_group_rule) | resource |
 | [aws_vpc_security_group_egress_rule.grafana_nlb](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/vpc_security_group_egress_rule) | resource |
 | [aws_vpc_security_group_ingress_rule.grafana_nlb](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/vpc_security_group_ingress_rule) | resource |
-| [kubectl_manifest.grafana_target_group_binding](https://registry.terraform.io/providers/alekc/kubectl/2.4.1/docs/resources/manifest) | resource |
+| [kubectl_manifest.grafana_target_group_binding](https://registry.terraform.io/providers/alekc/kubectl/3.0.0/docs/resources/manifest) | resource |
 | [random_id.bucket_suffix](https://registry.terraform.io/providers/hashicorp/random/latest/docs/resources/id) | resource |
 | [random_password.grafana_database](https://registry.terraform.io/providers/hashicorp/random/latest/docs/resources/password) | resource |
 | [aws_iam_policy_document.assume_role](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/iam_policy_document) | data source |
