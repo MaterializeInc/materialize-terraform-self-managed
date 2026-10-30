@@ -1,10 +1,11 @@
 name: PR Kind
 
 # Runs the kind lifecycle (test-kind.yml) on pull requests that touch what it
-# exercises. Kept out of pr.yml because that workflow reruns on label changes
-# for its version-label check, and a 16-core kind run per label change is
-# wasted; skipping kind on those reruns instead would let a later ci-success
-# pass over an earlier kind failure.
+# exercises, and on every Renovate PR, since a dependency bump anywhere can
+# change what the kind stack deploys. Kept out of pr.yml because that workflow
+# reruns on label changes for its version-label check, and a 16-core kind run
+# per label change is wasted; skipping kind on those reruns instead would let
+# a later ci-success pass over an earlier kind failure.
 
 on:
   pull_request:
@@ -45,7 +46,8 @@ jobs:
     # Needs the MATERIALIZE_LICENSE_KEY secret, which pull requests from forks
     # and from Dependabot do not get.
     if: >-
-      needs.changes.outputs.any_modified == 'true' &&
+      (needs.changes.outputs.any_modified == 'true' ||
+        github.event.pull_request.user.login == 'renovate[bot]') &&
       github.event.pull_request.head.repo.full_name == github.repository &&
       github.actor != 'dependabot[bot]'
     uses: $/.github/workflows/test-kind.yml

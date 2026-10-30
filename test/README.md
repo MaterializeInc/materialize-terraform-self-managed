@@ -273,7 +273,7 @@ Runs the self-managed kind lifecycle (`cargo run -- run --destroy-on-failure kin
 
 ### `pr-kind.yml` -- Kind tests on pull requests
 
-Triggered on pull requests to `main` (opened, synchronized, reopened -- not on label changes, unlike `pr.yml`). Calls `test-kind.yml` when the PR changes `kubernetes/**` or `test/**` (Markdown excluded) or either kind workflow, and skips it otherwise, as well as on PRs from forks or Dependabot, which do not get the license key secret. The `kind-success` gate job always reports, passing when the run succeeded or was skipped, so it can be made a required check. A new push cancels the PR's in-flight run.
+Triggered on pull requests to `main` (opened, synchronized, reopened -- not on label changes, unlike `pr.yml`). Calls `test-kind.yml` when the PR changes `kubernetes/**` or `test/**` (Markdown excluded) or either kind workflow, or was opened by Renovate, and skips it otherwise, as well as on PRs from forks or Dependabot, which do not get the license key secret. The `kind-success` gate job always reports, passing when the run succeeded or was skipped, so it can be made a required check. A new push cancels the PR's in-flight run.
 
 All four test workflows use `--destroy-on-failure` to ensure infrastructure is torn down even on test failure; the three cloud workflows store Terraform state remotely in S3, while kind keeps state locally on the runner.
 
