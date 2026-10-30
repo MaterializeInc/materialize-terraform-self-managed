@@ -23,6 +23,13 @@ variable "create_namespace" {
   nullable    = false
 }
 
+variable "pod_security_enforce" {
+  description = "Enforce the restricted Pod Security Standard on the instance namespace, so Kubernetes rejects pods that don't meet it. The namespace always warns and audits against restricted. Only applies when create_namespace is true."
+  type        = bool
+  default     = true
+  nullable    = false
+}
+
 variable "instance_namespace" {
   description = "Kubernetes namespace for the instance."
   type        = string
