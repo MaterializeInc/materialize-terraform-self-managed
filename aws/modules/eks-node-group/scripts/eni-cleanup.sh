@@ -49,29 +49,39 @@ cleanup_enis() {
       "$@" \
     --query "$ENI_QUERY" \
     --output text \
-    --region "$REGION" $PROFILE_ARGS)
+    --region "$REGION" $PROFILE_ARGS) || return 1
 
+  PASS_STATUS=0
   for ENI_ID in $ENIS; do
     [ "$ENI_ID" = "None" ] && continue
-    delete_eni "$ENI_ID"
+    delete_eni "$ENI_ID" || PASS_STATUS=1
   done
+  return "$PASS_STATUS"
 }
 
+# Try every selector, but report failure so Terraform retries the destroy hook.
+CLEANUP_STATUS=0
+
+# ENI ownership tag styles:
+# - EKS: cluster and node group.
+# - CNI: cluster, when the CNI's CLUSTER_NAME is configured.
+# - CNI: node instance without a cluster tag.
 echo "Cleaning up EKS-tagged ENIs..."
 cleanup_enis \
   "NetworkInterfaces[?TagSet[?Key=='eks:nodegroup-name' && starts_with(Value, '$NODE_GROUP_PREFIX')]].NetworkInterfaceId" \
-  "Name=tag:eks:cluster-name,Values=$CLUSTER_NAME"
+  "Name=tag:eks:cluster-name,Values=$CLUSTER_NAME" || CLEANUP_STATUS=1
 
 echo "Cleaning up VPC CNI cluster-tagged ENIs..."
 cleanup_enis "NetworkInterfaces[*].NetworkInterfaceId" \
-  "Name=tag:cluster.k8s.amazonaws.com/name,Values=$CLUSTER_NAME"
+  "Name=tag:cluster.k8s.amazonaws.com/name,Values=$CLUSTER_NAME" || CLEANUP_STATUS=1
 
-# The CNI always adds the node instance tag, but only adds the cluster tag
-# when its CLUSTER_NAME environment variable is set. Scope ENIs without a
-# cluster tag to this node security group and the CNI's description prefix.
 echo "Cleaning up VPC CNI node-tagged ENIs..."
 cleanup_enis "NetworkInterfaces[?!(TagSet[?Key=='cluster.k8s.amazonaws.com/name'])].NetworkInterfaceId" \
   "Name=tag-key,Values=node.k8s.amazonaws.com/instance_id" \
-  "Name=description,Values=aws-K8S-*"
+  "Name=description,Values=aws-K8S-*" || CLEANUP_STATUS=1
+
+if [ "$CLEANUP_STATUS" -ne 0 ]; then
+  exit "$CLEANUP_STATUS"
+fi
 
 echo "ENI cleanup complete."
