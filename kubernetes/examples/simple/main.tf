@@ -17,10 +17,53 @@ module "self_signed_cluster_issuer" {
   depends_on = [module.cert_manager]
 }
 
+resource "kubernetes_namespace" "materialize_operator" {
+  metadata {
+    name = "materialize"
+  }
+}
+
+# The chart's egress-to-environmentd policy selects the operator pods and has
+# only egress rules, so Kubernetes applies it to both directions: the operator
+# can reach environmentd and nothing else, and nothing can reach the operator.
+# On a CNI that enforces NetworkPolicy (kindnet since kind v0.27, Calico,
+# Cilium), that cuts it off from the API server and DNS and blocks the v1
+# conversion webhook and its health probes on 8001, so it crash-loops and
+# never reconciles. Policies are additive; this one gives the operator back
+# egress and the ingress its ports need. It has to exist before the release,
+# because the release waits for the operator to become ready.
+resource "kubernetes_network_policy_v1" "materialize_operator" {
+  metadata {
+    name      = "allow-materialize-operator"
+    namespace = kubernetes_namespace.materialize_operator.metadata[0].name
+  }
+
+  spec {
+    pod_selector {
+      match_labels = {
+        "app.kubernetes.io/name" = "materialize-operator"
+      }
+    }
+    policy_types = ["Ingress", "Egress"]
+
+    egress {}
+
+    ingress {
+      ports {
+        protocol = "TCP"
+        port     = 8001 # v1 conversion webhook and health probes
+      }
+      ports {
+        protocol = "TCP"
+        port     = 3100 # metrics
+      }
+    }
+  }
+}
+
 resource "helm_release" "materialize_operator" {
-  name             = "materialize-operator"
-  namespace        = "materialize"
-  create_namespace = true
+  name      = "materialize-operator"
+  namespace = kubernetes_namespace.materialize_operator.metadata[0].name
 
   repository = var.use_local_chart ? null : "https://materializeinc.github.io/materialize/"
   chart      = var.helm_chart
@@ -52,7 +95,7 @@ resource "helm_release" "materialize_operator" {
     })
   ]
 
-  depends_on = [module.cert_manager]
+  depends_on = [module.cert_manager, kubernetes_network_policy_v1.materialize_operator]
 }
 
 resource "random_password" "external_login_password_mz_system" {
