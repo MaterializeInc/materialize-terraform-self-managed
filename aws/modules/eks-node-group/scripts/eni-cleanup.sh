@@ -38,39 +38,50 @@ delete_eni() {
   }
 }
 
-# ENIs come in two tag styles:
-# 1. EKS-managed: eks:cluster-name + eks:nodegroup-name
-# 2. VPC CNI-managed: cluster.k8s.amazonaws.com/name
+cleanup_enis() {
+  ENI_QUERY="$1"
+  shift
+  # shellcheck disable=SC2086 # PROFILE_ARGS must word-split into flags
+  ENIS=$(aws ec2 describe-network-interfaces \
+    --filters \
+      "Name=group-id,Values=$SG_ID" \
+      "Name=status,Values=available" \
+      "$@" \
+    --query "$ENI_QUERY" \
+    --output text \
+    --region "$REGION" $PROFILE_ARGS) || return 1
+
+  PASS_STATUS=0
+  for ENI_ID in $ENIS; do
+    [ "$ENI_ID" = "None" ] && continue
+    delete_eni "$ENI_ID" || PASS_STATUS=1
+  done
+  return "$PASS_STATUS"
+}
+
+# Try every selector, but report failure so Terraform retries the destroy hook.
+CLEANUP_STATUS=0
+
+# ENI ownership tag styles:
+# - EKS: cluster and node group.
+# - CNI: cluster, when the CNI's CLUSTER_NAME is configured.
+# - CNI: node instance without a cluster tag.
 echo "Cleaning up EKS-tagged ENIs..."
-# shellcheck disable=SC2086 # PROFILE_ARGS must word-split into flags
-EKS_ENIS=$(aws ec2 describe-network-interfaces \
-  --filters \
-    "Name=group-id,Values=$SG_ID" \
-    "Name=status,Values=available" \
-    "Name=tag:eks:cluster-name,Values=$CLUSTER_NAME" \
-  --query "NetworkInterfaces[?TagSet[?Key=='eks:nodegroup-name' && starts_with(Value, '$NODE_GROUP_PREFIX')]].NetworkInterfaceId" \
-  --output text \
-  --region "$REGION" $PROFILE_ARGS)
+cleanup_enis \
+  "NetworkInterfaces[?TagSet[?Key=='eks:nodegroup-name' && starts_with(Value, '$NODE_GROUP_PREFIX')]].NetworkInterfaceId" \
+  "Name=tag:eks:cluster-name,Values=$CLUSTER_NAME" || CLEANUP_STATUS=1
 
-for ENI_ID in $EKS_ENIS; do
-  [ "$ENI_ID" = "None" ] && continue
-  delete_eni "$ENI_ID"
-done
+echo "Cleaning up VPC CNI cluster-tagged ENIs..."
+cleanup_enis "NetworkInterfaces[*].NetworkInterfaceId" \
+  "Name=tag:cluster.k8s.amazonaws.com/name,Values=$CLUSTER_NAME" || CLEANUP_STATUS=1
 
-echo "Cleaning up VPC CNI-tagged ENIs..."
-# shellcheck disable=SC2086 # PROFILE_ARGS must word-split into flags
-CNI_ENIS=$(aws ec2 describe-network-interfaces \
-  --filters \
-    "Name=group-id,Values=$SG_ID" \
-    "Name=status,Values=available" \
-    "Name=tag:cluster.k8s.amazonaws.com/name,Values=$CLUSTER_NAME" \
-  --query "NetworkInterfaces[*].NetworkInterfaceId" \
-  --output text \
-  --region "$REGION" $PROFILE_ARGS)
+echo "Cleaning up VPC CNI node-tagged ENIs..."
+cleanup_enis "NetworkInterfaces[?!(TagSet[?Key=='cluster.k8s.amazonaws.com/name'])].NetworkInterfaceId" \
+  "Name=tag-key,Values=node.k8s.amazonaws.com/instance_id" \
+  "Name=description,Values=aws-K8S-*" || CLEANUP_STATUS=1
 
-for ENI_ID in $CNI_ENIS; do
-  [ "$ENI_ID" = "None" ] && continue
-  delete_eni "$ENI_ID"
-done
+if [ "$CLEANUP_STATUS" -ne 0 ]; then
+  exit "$CLEANUP_STATUS"
+fi
 
 echo "ENI cleanup complete."
