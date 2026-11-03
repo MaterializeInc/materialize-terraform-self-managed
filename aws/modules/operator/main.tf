@@ -79,6 +79,10 @@ locals {
     balancerd = {
       nodeSelector = var.instance_node_selector
       tolerations  = var.instance_pod_tolerations
+      # The NLB health check reads /api/readyz instead. A pod failing readiness
+      # would be deregistered by the AWS Load Balancer Controller, which closes
+      # its sessions after the deregistration delay.
+      readinessProbePath = "/api/livez"
     }
     console = {
       nodeSelector = var.instance_node_selector
