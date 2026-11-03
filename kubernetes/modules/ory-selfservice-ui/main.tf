@@ -60,7 +60,7 @@ locals {
     node -e '
       const fs = require("fs");
       const src = fs.readFileSync("/usr/src/app/lib/routes/consent.js", "utf8");
-      const inject = "    if (identity.traits && identity.traits.groups) { session.id_token.groups = identity.traits.groups; session.access_token.groups = identity.traits.groups; } var mzEmail = (identity.traits && identity.traits.email) ? identity.traits.email : null; if (!mzEmail && Array.isArray(identity.verifiable_addresses)) { var mzA = identity.verifiable_addresses.filter(function (x) { return x && x.via === \"email\"; })[0]; if (mzA) mzEmail = mzA.value; } if (mzEmail) { session.access_token.email = mzEmail; if (!session.id_token.email) session.id_token.email = mzEmail; }\n    ";
+      const inject = "    if (identity.metadata_public && identity.metadata_public.groups) { session.id_token.groups = identity.metadata_public.groups; session.access_token.groups = identity.metadata_public.groups; } var mzEmail = (identity.traits && identity.traits.email) ? identity.traits.email : null; if (!mzEmail && Array.isArray(identity.verifiable_addresses)) { var mzA = identity.verifiable_addresses.filter(function (x) { return x && x.via === \"email\"; })[0]; if (mzA) mzEmail = mzA.value; } if (mzEmail) { session.access_token.email = mzEmail; if (!session.id_token.email) session.id_token.email = mzEmail; }\n    ";
       const idx = src.lastIndexOf("return session;");
       if (idx < 0) throw new Error("consent.js: session pattern not found");
       var out = src.slice(0, idx) + inject + src.slice(idx);

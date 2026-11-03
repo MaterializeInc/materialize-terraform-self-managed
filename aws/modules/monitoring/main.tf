@@ -815,6 +815,20 @@ locals {
     var.provider_metrics.include_monitoring_resources ? [for k in keys(local.service_accounts) : aws_s3_bucket.telemetry[k].id] : [],
   )) : []
 
+  # Grafana's load balancer is this module's, so it joins like the buckets. The
+  # Helm values already wait on it for Grafana's address, so naming it here adds
+  # no wait to the release. Keyed by ARN, since the chart refuses a load balancer
+  # listed twice; a repeat's target groups are merged into the first.
+  provider_metrics_load_balancers = local.provider_metrics_enabled ? {
+    for lb in concat(
+      var.provider_metrics.network_load_balancers,
+      var.provider_metrics.include_monitoring_resources && local.grafana_lb != null ? [{
+        arn               = aws_lb.grafana[0].arn
+        target_group_arns = [aws_lb_target_group.grafana[0].arn]
+      }] : [],
+    ) : lb.arn => lb.target_group_arns...
+  } : {}
+
   # Optional fields are omitted rather than set to null, so the chart's own
   # defaults survive.
   provider_metrics_values = local.provider_metrics_enabled ? [yamlencode({
@@ -828,6 +842,10 @@ locals {
               rds     = { instances = local.provider_metrics_rds_instances }
               s3      = { buckets = local.provider_metrics_s3_buckets }
               eks     = { clusters = distinct(var.provider_metrics.eks_cluster_names) }
+              nlb = { loadBalancers = [
+                for arn, groups in local.provider_metrics_load_balancers : { arn = arn, targetGroups = distinct(flatten(groups)) }
+              ] }
+              natGateway = { ids = distinct(var.provider_metrics.nat_gateway_ids) }
             },
             var.provider_metrics.scrape_interval == null ? {} : { scrapeInterval = var.provider_metrics.scrape_interval },
             var.provider_metrics.importance == null ? {} : { metricImportance = var.provider_metrics.importance },
@@ -836,6 +854,46 @@ locals {
       }
     }
   })] : []
+}
+
+# ==============================================================================
+# External dependencies: what the stack watches from the inside
+# ==============================================================================
+# The metadata database is a sibling of this module, so the caller passes it.
+# The monitoring module creates the exporter's Secret from these passwords, and
+# adds Grafana's own database as a target whenever it configures one with a
+# password; nothing here repeats that.
+
+locals {
+  # Mirrors the monitoring module's own gate on Grafana's target: a database it
+  # points Grafana at, with a password it manages. Plan-known either way.
+  postgres_exporter_watches_grafana = local.create_grafana_database || (
+    var.grafana_database_host != null && var.grafana_database_password != null
+  )
+
+  postgres_exporter_enabled = var.enable_postgres_exporter && (
+    var.metadata_database != null || local.postgres_exporter_watches_grafana
+  )
+
+  postgres_exporter_targets = var.enable_postgres_exporter && var.metadata_database != null ? [{
+    name              = "consensus"
+    host              = var.metadata_database.host
+    port              = var.metadata_database.port
+    database          = var.metadata_database.database
+    user              = var.metadata_database.user
+    metadata_database = true
+  }] : []
+
+  postgres_exporter_passwords = length(local.postgres_exporter_targets) == 0 ? {} : {
+    consensus = var.metadata_database_password
+  }
+
+  # Declared only where the pull runs: the `rds` adapter reads nothing else,
+  # and a declaration with no pull behind it is a render-time warning.
+  metadata_databases = local.provider_metrics_enabled && var.metadata_database != null ? [{
+    flavor      = "rds"
+    resource_id = var.metadata_database.resource_id
+  }] : []
 }
 
 # ==============================================================================
@@ -860,10 +918,15 @@ module "monitoring" {
   #
   # v0.13.0 is where `grafana_database_*` and the chart's `grafana.ingress` /
   # `grafana.service` values land.
-  source = "github.com/MaterializeInc/materialize-monitoring//terraform/modules/materialize-monitoring?ref=materialize-monitoring/v1.1.0"
+  #
+  # v1.3.0 is where `enable_postgres_exporter`, `postgres_exporter_*` and
+  # `metadata_databases` land.
+  source = "github.com/MaterializeInc/materialize-monitoring//terraform/modules/materialize-monitoring?ref=materialize-monitoring/v1.6.0"
 
   namespace        = var.namespace
   create_namespace = var.create_namespace
+
+  cluster_name = var.cluster_name
 
   # Null means "use whatever the pinned module ships with", which is the
   # supported path — the module and the chart are one release.
@@ -964,6 +1027,13 @@ module "monitoring" {
   alerting                  = var.alerting
   alerting_receiver_secrets = var.alerting_receiver_secrets
   alertmanager_namespace    = var.alertmanager_namespace
+
+  # The metadata database, for the postgres-exporter and the recording rules.
+  # Credentials reach the exporter's Secret, never the Helm values.
+  enable_postgres_exporter    = local.postgres_exporter_enabled
+  postgres_exporter_targets   = local.postgres_exporter_targets
+  postgres_exporter_passwords = local.postgres_exporter_passwords
+  metadata_databases          = local.metadata_databases
 
   # Computed values ahead of the caller's, so `additional_values` still overrides
   # anything computed here.

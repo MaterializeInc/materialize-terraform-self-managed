@@ -236,11 +236,6 @@ module "gke" {
   # Publish upgrade notifications to Pub/Sub for the node upgrade rollout
   # trigger (see the operator module below).
   enable_upgrade_notifications = var.enable_node_upgrade_rollout_trigger
-
-  # Pinned to STABLE: REGULAR's 1.35.x line regressed cleanup of the per-cluster
-  # k8s-<cluster-uid>-node-http-hc firewall on cluster destroy, leaving the VPC
-  # un-deletable. STABLE is still on 1.34.x which doesn't have the regression.
-  release_channel = "STABLE"
 }
 
 # Install the monitoring namespace and CRDs before anything that ships a
@@ -472,6 +467,8 @@ module "monitoring" {
   project_id = var.project_id
   region     = var.region
 
+  cluster_name = module.gke.cluster_name
+
   # Matches what these examples already pass to `module.storage`. Loki and
   # Thanos start writing immediately, and neither S3 nor GCS will delete a
   # non-empty bucket, so without this `terraform destroy` wedges on the
@@ -502,10 +499,21 @@ module "monitoring" {
   # Compute Engine quota is the project's, per region: the CPUs and local SSD
   # each machine family uses against its limit, across every node pool and VM
   # in the region, since that is what a node pool runs into when it cannot grow.
+  #
+  # The load balancers are found by the network rather than named: GKE names a
+  # forwarding rule only once it makes it, so Grafana's, whose Service the
+  # monitoring release creates, cannot be named at all, and naming
+  # Materialize's would make this module wait for the instance. The network
+  # holds only this deployment, so its load balancers are the ones pulled.
+  #
+  # Cloud NAT is the path pods take out of the VPC, so its port exhaustion is
+  # why a Materialize source can stall with no cause in the cluster.
   provider_metrics = var.enable_provider_metrics ? {
-    cloud_sql_instances = [module.database.instance_name]
-    gcs_buckets         = [module.storage.bucket_name]
-    compute_regions     = [var.region]
+    cloud_sql_instances    = [module.database.instance_name]
+    gcs_buckets            = [module.storage.bucket_name]
+    compute_regions        = [var.region]
+    load_balancer_networks = [module.networking.network_name]
+    cloud_nat_gateways     = [module.networking.nat_name]
   } : null
 
   # Datadog and generic OTLP (Honeycomb, Grafana Cloud, your own collector) fan
@@ -553,6 +561,18 @@ module "monitoring" {
 
   materialize_instance_namespace = local.materialize_instance_namespace
   materialize_operator_namespace = local.materialize_operator_namespace
+
+  # The metadata database, which the postgres-exporter watches as `consensus`
+  # beside Grafana's, and whose provider metrics the recording rules read when
+  # the provider pull is on. The exporter connects as the user Materialize does;
+  # see `enable_postgres_exporter` for a role that can only read statistics.
+  metadata_database = {
+    resource_id = module.database.instance_name
+    host        = module.database.private_ip
+    database    = local.database_config.database.name
+    user        = local.database_config.user_name
+  }
+  metadata_database_password = module.database.users[0].password
 
   # A dedicated Cloud SQL instance for Grafana's own state, so dashboards and API
   # tokens created in the UI survive a pod restart.
@@ -672,6 +692,7 @@ module "load_balancers" {
   instance_name              = local.materialize_instance_name
   namespace                  = local.materialize_instance_namespace
   resource_id                = module.materialize_instance.instance_resource_id
+  region                     = var.region
 
   depends_on = [
     module.materialize_instance,

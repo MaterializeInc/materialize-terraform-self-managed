@@ -91,7 +91,7 @@ module "networking" {
 module "eks" {
   source                                   = "../../modules/eks"
   name_prefix                              = var.name_prefix
-  cluster_version                          = "1.34"
+  cluster_version                          = "1.35"
   vpc_id                                   = module.networking.vpc_id
   private_subnet_ids                       = module.networking.private_subnet_ids
   cluster_enabled_log_types                = ["api", "audit"]
@@ -410,12 +410,20 @@ module "ebs_csi_driver" {
   oidc_issuer_url   = module.eks.cluster_oidc_issuer_url
   node_selector     = local.generic_node_labels
 
+  # Lets destroy wait for the driver to release its volumes before it is
+  # uninstalled. See the module's volume_drain.
+  kubeconfig_data = local.kubeconfig_data
+
   tags = var.tags
 
   depends_on = [
     module.eks,
     module.base_node_group,
     module.coredns,
+    # The controller runs on this pool, and destroy's volume drain needs it
+    # to detach volumes. Without this, destroy can remove the pool's nodes
+    # during the drain, leaving the controller Pending and the drain timing out.
+    module.nodepool_generic,
   ]
 }
 
@@ -639,6 +647,7 @@ module "monitoring" {
   create_namespace       = false
   enable_monitoring_crds = false
 
+  cluster_name            = module.eks.cluster_name
   oidc_provider_arn       = module.eks.oidc_provider_arn
   cluster_oidc_issuer_url = module.eks.cluster_oidc_issuer_url
 
@@ -698,14 +707,41 @@ module "monitoring" {
   # found by the cluster's `aws:eks:cluster-name` tag, which keeps the pull to
   # this cluster's nodes and node groups. The one account-wide series is
   # On-Demand vCPU usage, which is what the vCPU quota counts.
+  #
+  # The NAT gateways are the path every pod takes out of the VPC, so their port
+  # exhaustion and idle timeouts are why a Materialize source can stall with no
+  # cause in the cluster. Grafana's load balancer joins on its own.
+  #
+  # Materialize's own load balancer is not listed by default: naming it makes
+  # this module wait for, and fail with, the Materialize instance, since the
+  # load balancer is only created once the instance exists. Uncomment to accept
+  # that and see its target health and resets.
   provider_metrics = var.enable_provider_metrics ? {
     rds_instance_ids  = [module.database.db_instance_id]
     s3_bucket_names   = [module.storage.bucket_name]
     eks_cluster_names = [module.eks.cluster_name]
+    nat_gateway_ids   = values(module.networking.nat_gateway_ids)
+    # network_load_balancers = [{
+    #   arn               = module.materialize_nlb.nlb_arn
+    #   target_group_arns = values(module.materialize_nlb.target_group_arns)
+    # }]
   } : null
 
   materialize_instance_namespace = local.materialize_instance_namespace
   materialize_operator_namespace = local.operator_namespace
+
+  # The metadata database, which the postgres-exporter watches as `consensus`
+  # beside Grafana's, and whose provider metrics the recording rules read when
+  # the provider pull is on. The exporter connects as the user Materialize does;
+  # see `enable_postgres_exporter` for a role that can only read statistics.
+  metadata_database = {
+    resource_id = module.database.db_instance_id
+    host        = split(":", module.database.db_instance_endpoint)[0]
+    port        = module.database.db_instance_port
+    database    = module.database.db_instance_name
+    user        = module.database.db_instance_username
+  }
+  metadata_database_password = random_password.database_password.result
 
   # A dedicated RDS instance for Grafana's own state, so dashboards and API
   # tokens created in the UI survive a pod restart. RDS has no API for adding a

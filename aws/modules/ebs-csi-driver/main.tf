@@ -271,6 +271,22 @@ resource "helm_release" "ebs_csi_driver" {
     value = "true"
   }
 
+  # Volumes provisioned by the CSI driver are created by its IRSA role, so
+  # neither provider default_tags nor instance tags reach them. Tag them
+  # explicitly to satisfy tag-enforcement policies (e.g. the scratch
+  # account's RequireTagsScratch SCP). These go on the controller rather than
+  # in the StorageClass's tagSpecification parameters: StorageClass parameters
+  # are immutable, so a tag change there replaces the StorageClass, and the
+  # fixed `gp3` name can't be replaced create-before-destroy.
+  dynamic "set" {
+    for_each = var.tags
+    content {
+      name  = "controller.extraVolumeTags.${replace(replace(set.key, ".", "\\."), "=", "\\=")}"
+      value = set.value
+      type  = "string"
+    }
+  }
+
   # Metrics Services, and a ServiceMonitor for each: the controller's AWS API
   # calls and each of its sidecars, and on every node the per-volume EBS
   # statistics, including time spent over the volume's provisioned IOPS and
@@ -318,13 +334,34 @@ resource "kubernetes_storage_class" "gp3" {
       type      = "gp3"
       encrypted = "true"
     },
-    var.kms_key_id != null ? { kmsKeyId = var.kms_key_id } : {},
-    # Volumes provisioned by the CSI driver are created by its IRSA role, so
-    # neither provider default_tags nor instance tags reach them. Tag them
-    # explicitly to satisfy tag-enforcement policies (e.g. the scratch
-    # account's RequireTagsScratch SCP).
-    { for i, k in keys(var.tags) : "tagSpecification_${i + 1}" => "${k}=${var.tags[k]}" }
+    var.kms_key_id != null ? { kmsKeyId = var.kms_key_id } : {}
   )
 
   depends_on = [helm_release.ebs_csi_driver]
+}
+
+# Holds the driver's uninstall until it has released every volume it still
+# owes work on. Destroy runs storage-class consumers, then this, then the
+# driver: this depends on the driver, and `storage_class_name` depends on
+# this, so anything referencing that output is destroyed first. The wait
+# itself is in scripts/wait-volumes-released.sh.
+#
+# Optional so that existing callers are unaffected: it needs kubectl and a
+# kubeconfig, which this module did not previously require.
+resource "terraform_data" "volume_drain" {
+  count = var.kubeconfig_data == null ? 0 : 1
+
+  input = {
+    KUBECONFIG_DATA = var.kubeconfig_data
+    TIMEOUT_SECONDS = tostring(var.volume_release_timeout_seconds)
+  }
+
+  provisioner "local-exec" {
+    when = destroy
+
+    command     = "sh '${path.module}/scripts/wait-volumes-released.sh'"
+    environment = self.input
+  }
+
+  depends_on = [helm_release.ebs_csi_driver, kubernetes_storage_class.gp3]
 }

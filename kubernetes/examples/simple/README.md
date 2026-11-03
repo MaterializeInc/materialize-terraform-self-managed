@@ -5,7 +5,7 @@ This example deploys self-managed Materialize onto a Kubernetes cluster you alre
 ## What Gets Created
 
 - **cert-manager** and a **self-signed ClusterIssuer** for TLS between Materialize components
-- **Materialize operator** (`orchestratord`), installed from the [Helm chart](https://materializeinc.github.io/materialize/) into the `materialize` namespace, with the v1 CRD and its conversion webhook enabled
+- **Materialize operator** (`orchestratord`), installed from the [Helm chart](https://materializeinc.github.io/materialize/) into the `materialize` namespace, with the v1 CRD and its conversion webhook enabled, plus an `allow-materialize-operator` NetworkPolicy that keeps the chart's own operator policy from cutting it off on CNIs that enforce NetworkPolicy
 - **Materialize instance** (`main`) in the `materialize-environment` namespace, with password authentication for `mz_system`
 
 ## What You Bring

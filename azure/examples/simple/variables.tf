@@ -90,9 +90,10 @@ variable "enable_observability" {
 variable "enable_provider_metrics" {
   description = <<-EOT
     Pull Azure Monitor metrics for the Materialize database and persist storage account, the
-    monitoring stack's own storage account and Grafana database, and the AKS cluster's autoscaler and
-    node VMs into the monitoring stack. Creates an identity for the Alloy gateway with Monitoring
-    Reader on those resources and the cluster's node resource group only.
+    monitoring stack's own storage account and Grafana database, the AKS cluster's autoscaler, node
+    VMs and load balancers, and the NAT gateway into the monitoring stack. Creates an identity for
+    the Alloy gateway with Monitoring Reader on those resources and the cluster's node resource
+    group only.
   EOT
   type        = bool
   default     = false

@@ -550,6 +550,8 @@ module "monitoring" {
   project_id = var.project_id
   region     = var.region
 
+  cluster_name = module.gke.cluster_name
+
   # Matches what these examples already pass to `module.storage`. Loki and
   # Thanos start writing immediately, and neither S3 nor GCS will delete a
   # non-empty bucket, so without this `terraform destroy` wedges on the
@@ -615,6 +617,18 @@ module "monitoring" {
 
   materialize_instance_namespace = local.materialize_instance_namespace
   materialize_operator_namespace = local.materialize_operator_namespace
+
+  # The metadata database, which the postgres-exporter watches as `consensus`
+  # beside Grafana's, and whose provider metrics the recording rules read when
+  # the provider pull is on. The exporter connects as the user Materialize does;
+  # see `enable_postgres_exporter` for a role that can only read statistics.
+  metadata_database = {
+    resource_id = module.database.instance_name
+    host        = module.database.private_ip
+    database    = local.database_config.database.name
+    user        = local.database_config.user_name
+  }
+  metadata_database_password = module.database.users[0].password
 
   # A dedicated Cloud SQL instance for Grafana's own state, separate from
   # `module.database` so Grafana's blast radius stays away from Materialize's
@@ -735,6 +749,8 @@ module "materialize_instance" {
   # system_parameters can also set any of the parameters listed at
   # https://materialize.com/docs/sql/alter-system-set/#key-configuration-parameters
   system_parameters = local.materialize_oidc_parameters
+
+  balancerd_parameters = var.balancerd_parameters
 
   # Wire the materialize -> ory NetworkPolicy.
   ory_namespace = local.ory_namespace

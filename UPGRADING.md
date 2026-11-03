@@ -8,6 +8,134 @@ We follow semantic versioning with our tags. If a particular version requires ad
 
 <!-- scriv-insert-here -->
 
+## v18.0.0
+
+Kubernetes version 1.35 on AWS and Azure.
+
+On Azure, the `aks` module and the migration example now also set the default node pool's version. Before, changing `kubernetes_version` upgraded only the control plane, so on an existing cluster this apply also upgrades the default pool's nodes.
+
+Pools created by the `nodepool` module, including the Materialize pools, are not upgraded and stay on their current version. Each `kubernetes_version` bump widens their skew from the control plane, and AKS blocks control plane upgrades once a pool falls too far behind. Upgrade them yourself with `az aks nodepool upgrade --resource-group <rg> --cluster-name <cluster> --name <pool> --kubernetes-version <version>`. This drains and replaces their nodes, so expect Materialize clusters on them to restart.
+
+The GCP simple example now uses the `REGULAR` GKE release channel (the module default) instead of `STABLE`. Applying this to an existing cluster switches its channel in place, and GKE will then upgrade it to the `REGULAR` channel's version.
+
+### Azure nodes come from Node Auto Provisioning
+
+The Azure modules now use AKS [Node Auto Provisioning](https://learn.microsoft.com/en-us/azure/aks/node-auto-provisioning) (NAP), Azure's managed Karpenter, instead of the cluster autoscaler. The `simple` and `enterprise` examples replace the `materialize_nodepool` module with two NodePools from the new `nap-nodepool` module: `generic`, for generic workloads that don't fit on the default node pool, and `materialize`. The `materialize` nodes use managed OS disks, so swap can use all of their local NVMe disks.
+
+The `aks` module changes in two ways:
+
+- **`enable_node_auto_provisioning` is a new variable, and defaults to `true`.**
+- **`default_node_pool_enable_auto_scaling` now defaults to `false`.** AKS refuses NAP while any VMSS node pool autoscales, so the default node pool has a fixed size of `default_node_pool_node_count` (default `1`).
+
+The `nodepool` module is deprecated, and kept only for this migration. You can't apply the new modules in one step: AKS rejects NAP until every VMSS pool stops autoscaling, and the Materialize pods have to move to the new nodes. Plan a maintenance window: enabling NAP updates the AKS cluster in place, with SQL through the load balancer stalling for some seconds.
+
+1. Bump `ref=<tag>` on all modules, but keep your `materialize_nodepool` module.
+2. Note how many nodes each pool has:
+
+   ```bash
+   kubectl get nodes -L kubernetes.azure.com/agentpool
+   ```
+3. In the `aks` module, set `enable_node_auto_provisioning = false`, `default_node_pool_enable_auto_scaling = false`, and `default_node_pool_node_count` to the default pool's current node count. Remove `default_node_pool_min_count` and `default_node_pool_max_count`.
+4. In the `materialize_nodepool` module, set `autoscaling_config = { enabled = false, node_count = <current node count> }`.
+5. `terraform apply` to stop autoscaling on the VMSS pools. The plan updates both node pools in place, and no nodes are added or removed. It also updates the AKS cluster once, to set `node_provisioning_profile.default_node_pools = "None"`. This change has no effect until NAP is on.
+6. Remove `enable_node_auto_provisioning = false` from the `aks` module.
+7. Copy the `nodepool_generic` and `nodepool_materialize` modules and their `generic_vm_sizes` and `materialize_vm_sizes` locals from the example into your root.
+8. Add `module.nodepool_generic` to the `depends_on` of every module that runs on generic nodes, as the examples do: `coredns`, `cert_manager`, `operator` and `monitoring`, and `ory` in `enterprise`. Without it, `terraform destroy` can delete the `generic` NodePool, and its nodes, while those modules are still being uninstalled, and the destroy fails.
+9. `terraform init && terraform apply` to enable NAP and create the NodePools. The new NodePools have no nodes yet. NAP adds a `generic` node only when a generic pod doesn't fit on the default node pool.
+10. Cordon the old Materialize nodes so the rollout can't schedule new pods onto them. Cordoning doesn't affect pods that are already running:
+
+    ```bash
+    kubectl cordon -l 'workload=materialize-instance,!karpenter.sh/nodepool'
+    ```
+
+    If your root uses different Materialize node labels, select the old pool with `kubernetes.azure.com/agentpool=<pool name>` instead.
+11. Prepare a rollout of your Materialize instances by setting `force_rollout` to a new UUID.
+12. `terraform apply` to perform the rollout. NAP provisions `materialize` nodes for the new environmentd and clusterd pods.
+13. Verify the new pods are running on nodes labeled `karpenter.sh/nodepool=materialize`, and that the `materialize-disk-setup` pods on those nodes are `Running`:
+
+    ```bash
+    kubectl get pods -A -o wide --field-selector spec.nodeName=<node>
+    ```
+14. Restart balancerd and console, which the rollout doesn't move, and wait for their new pods to be ready. Otherwise SQL connections fail for several seconds when step 17 removes the old nodes:
+
+    ```bash
+    kubectl get deployments -n <instance namespace> -o name | grep -E -- '-(balancerd|console)$' |
+      xargs kubectl rollout restart -n <instance namespace>
+    kubectl get deployments -n <instance namespace> -o name | grep -E -- '-(balancerd|console)$' |
+      xargs -n1 kubectl rollout status -n <instance namespace>
+    ```
+15. Once no environmentd, clusterd, balancerd or console pods are left on the old nodes, remove the `materialize_nodepool` module and any outputs that reference it.
+16. In the `depends_on` of `materialize_instance`, replace `module.materialize_nodepool` with `module.nodepool_materialize`, as the examples do.
+17. `terraform apply` to delete the VMSS pool and its `disk-setup` resources.
+
+You can lower `default_node_pool_node_count` afterwards. Pods evicted from the removed nodes reschedule onto `generic` NAP nodes. Keep at least two nodes so that AKS's system pods stay available.
+
+If your root declares its own AKS cluster, as `azure/examples/migration` does, it's unaffected. To use NAP there, set `node_provisioning_profile { mode = "Auto", default_node_pools = "None" }` once no node pool autoscales.
+
+### Kubernetes example allows the operator through its own NetworkPolicy
+
+The operator chart's `egress-to-environmentd` NetworkPolicy selects the operator pods and has only egress rules, so on a CNI that enforces NetworkPolicy it cuts the operator off from the API server and DNS and blocks its conversion webhook and health probes. The operator crash-loops and the Materialize instance never becomes ready. `kubernetes/examples/simple` now adds an `allow-materialize-operator` policy that gives the operator back egress and ingress on 8001 and 3100, and creates the `materialize` namespace itself so the policy exists before the chart is installed.
+
+**Impact on existing roots copied from `kubernetes/examples/simple`:**
+
+- **The `materialize` namespace is now a `kubernetes_namespace` resource**, where the Helm release used to create it. Import it before applying, or the apply fails because the namespace already exists:
+  ```sh
+  terraform import kubernetes_namespace.materialize_operator materialize
+  ```
+
+## v17.0.0
+
+### AWS EBS volume tags move from the StorageClass to the CSI driver
+
+The `ebs-csi-driver` module now passes `tags` to the driver's controller as `controller.extraVolumeTags` instead of the `gp3` StorageClass's `tagSpecification_N` parameters. New volumes get the same tags as before. Kubernetes doesn't allow StorageClass parameters to change, so before this change every tag change replaced the StorageClass. Tag changes now update the Helm release in place.
+
+On v9.0.0 or later with non-empty `tags`, this upgrade replaces the `gp3` StorageClass one last time to remove the old parameters. The `simple` and `enterprise` examples make Terraform create the replacement before deleting the old one, and the apply fails with:
+
+```
+Error: storageclasses.storage.k8s.io "gp3" already exists
+```
+
+**Before applying, delete the StorageClass**, then apply:
+
+```bash
+kubectl delete storageclass gp3
+```
+
+An apply that has already failed this way recovers the same way. Existing PersistentVolumes and PersistentVolumeClaims aren't affected. New volumes can't be provisioned between the delete and the apply.
+
+Neither the old tags nor the new ones are applied to volumes that already exist. If you're changing tags as part of this upgrade, retag existing volumes yourself, for example with `aws ec2 create-tags`.
+
+### The monitoring stack can label its data with the Kubernetes cluster's name
+
+The AWS, GCP, and Azure `monitoring` modules take a new `cluster_name` input.
+The monitoring stack stamps it as the `cluster` label on every log line, metric sample, and alert, and the `simple` and `enterprise` examples now pass it the EKS, GKE, or AKS cluster's name.
+Without it, every install labels its data `cluster="default"`, so two installs that share a Thanos, a Grafana, a Cloud Monitoring project, or a notification channel can't be told apart.
+
+Nothing changes until `cluster_name` is set.
+To set it in a root you copied from an example, add the line the examples now have to its `monitoring` module:
+
+```hcl
+cluster_name = module.eks.cluster_name # module.gke on GCP, module.aks on Azure
+```
+
+The first apply with it set changes `cluster` from `default` to the cluster's name:
+
+- **Metrics start new series** in Thanos and in every other metrics destination, such as Cloud Monitoring or Datadog.
+  The old series stop receiving samples, so a query that selects `cluster="default"` stops returning new data.
+- **Logs start new streams** in Loki, and `{cluster="default"}` stops matching new lines.
+- **Every alert's `cluster` label changes.**
+  Alertmanager groups alerts by `cluster`, and PagerDuty and Opsgenie deduplicate on the group, so an alert that's firing when you apply opens a second incident.
+  The incident under the old label resolves once Alertmanager stops receiving its alerts.
+  Update any silences, inhibition rules, or routes of your own that match `cluster="default"`.
+
+If you already set `clusterName` through `additional_values`, that value still wins; move it to `cluster_name`.
+
+### GCP modules require google provider 8
+
+The GCP modules now need `hashicorp/google` and `hashicorp/google-beta` `>= 8.0, < 9` (previously `>= 7.22, < 8`). Raise both providers' constraints in your root, then run `terraform init -upgrade`.
+
+The modules don't use anything changed in 8.0. If your root manages other GCP resources, check them against the [google provider 8.0 upgrade guide](https://registry.terraform.io/providers/hashicorp/google/latest/docs/guides/version_8_upgrade). In particular, `google_compute_backend_service` and `google_compute_global_forwarding_rule` now default `load_balancing_scheme` to `EXTERNAL_MANAGED`.
+
 ## v16.0.0
 
 ### Azure modules require azurerm 5

@@ -41,6 +41,27 @@ variable "create_namespace" {
 }
 
 # ==============================================================================
+# Cluster identity
+# ==============================================================================
+
+variable "cluster_name" {
+  description = <<-EOT
+    Name of the GKE cluster, from the `gke` module. The monitoring stack stamps it as the `cluster`
+    label on every log line, metric sample, and alert it produces.
+
+    Set it whenever more than one cluster writes to the same log or metrics store, or notifies the
+    same channel or incident tool: the label is the only thing that tells them apart. Null leaves
+    the label at `default`.
+
+    With `enable_google_cloud_metrics`, it is also the `cluster` label on this stack's series in
+    Cloud Monitoring. GKE's own managed collection labels its series with the cluster's name, so
+    the GKE name is what lets you join the two.
+  EOT
+  type        = string
+  default     = null
+}
+
+# ==============================================================================
 # Buckets
 # ==============================================================================
 
@@ -208,8 +229,9 @@ variable "google_cloud_metrics_prefix" {
 
 variable "provider_metrics" {
   description = <<-EOT
-    Pull Cloud Monitoring metrics for the listed Cloud SQL instances, GCS buckets and Compute Engine
-    regions into the Alloy gateway, beside everything else it collects. Null disables it. Thanos is where they land; the
+    Pull Cloud Monitoring metrics for the listed Cloud SQL instances, GCS buckets, Compute Engine
+    regions, load balancer forwarding rules and Cloud NAT gateways into the Alloy gateway, beside
+    everything else it collects. Null disables it. Thanos is where they land; the
     `enable_google_cloud_metrics` export is unaffected and, at its default tier, does not write them
     back.
 
@@ -225,6 +247,15 @@ variable "provider_metrics" {
     the GKE node pools run in: the CPUs and local SSD each machine family uses against its quota,
     and every request a quota refused. `roles/monitoring.viewer` already reads it.
 
+    `load_balancer_networks` pulls every passthrough load balancer whose backends are in a listed VPC
+    network, external or internal: packets and bytes in each direction. GKE names a forwarding rule
+    only once it makes it, so the network is how to reach Grafana's, whose Service this module's
+    release creates, and Materialize's without waiting for the instance. `forwarding_rules` names
+    rules instead; `modules/load_balancers` outputs the Materialize Services' rules as
+    `forwarding_rule_names`, a map by Service whose values this takes. `cloud_nat_gateways` pulls each Cloud NAT gateway's allocation
+    failures, per-VM port use, open connections and drops; `modules/networking` outputs the name
+    as `nat_name`. `roles/monitoring.viewer` already reads both.
+
     `importance` is the tier the chart assigns these families, and decides which filtered
     destinations receive them. Null keeps the chart's default, `extended`.
   EOT
@@ -232,6 +263,9 @@ variable "provider_metrics" {
     cloud_sql_instances          = optional(list(string), [])
     gcs_buckets                  = optional(list(string), [])
     compute_regions              = optional(list(string), [])
+    forwarding_rules             = optional(list(string), [])
+    load_balancer_networks       = optional(list(string), [])
+    cloud_nat_gateways           = optional(list(string), [])
     include_monitoring_resources = optional(bool, true)
     scrape_interval              = optional(string)
     importance                   = optional(string)
@@ -248,9 +282,18 @@ variable "provider_metrics" {
   validation {
     condition = var.provider_metrics == null ? true : (
       var.provider_metrics.include_monitoring_resources ||
-      length(var.provider_metrics.cloud_sql_instances) + length(var.provider_metrics.gcs_buckets) + length(var.provider_metrics.compute_regions) > 0
+      length(var.provider_metrics.cloud_sql_instances) + length(var.provider_metrics.gcs_buckets) + length(var.provider_metrics.compute_regions) +
+      length(var.provider_metrics.forwarding_rules) + length(var.provider_metrics.load_balancer_networks) + length(var.provider_metrics.cloud_nat_gateways) > 0
     )
-    error_message = "provider_metrics names no resources. List cloud_sql_instances, gcs_buckets or compute_regions, or leave include_monitoring_resources on — the chart refuses a pull with nothing to watch."
+    error_message = "provider_metrics names no resources. List cloud_sql_instances, gcs_buckets, compute_regions, forwarding_rules, load_balancer_networks or cloud_nat_gateways, or leave include_monitoring_resources on — the chart refuses a pull with nothing to watch."
+  }
+
+  validation {
+    condition = var.provider_metrics == null ? true : alltrue([
+      for name in concat(var.provider_metrics.forwarding_rules, var.provider_metrics.load_balancer_networks, var.provider_metrics.cloud_nat_gateways) :
+      can(regex("^[a-z]([-a-z0-9]{0,61}[a-z0-9])?$", name))
+    ])
+    error_message = "provider_metrics.forwarding_rules, load_balancer_networks and cloud_nat_gateways take resource names, such as values(module.load_balancers.forwarding_rule_names), module.networking.network_name and module.networking.nat_name, not URLs or IP addresses."
   }
 
   validation {
@@ -752,4 +795,61 @@ variable "grafana_load_balancer" {
       chart: additional_values = [yamlencode({ connections = { grafana = { allowPublicAccess = true } } })].
     EOT
   }
+}
+
+variable "metadata_database" {
+  description = <<-EOT
+    The Materialize metadata database, for the monitoring stack to watch. Null leaves it out.
+
+    `resource_id` is the provider's name for it: The Cloud SQL instance name, without the project (`module.database.instance_name` in the examples). When `provider_metrics` is set, it is
+    declared the metadata database for the `cloudsql` recording-rule adapter, which then reads it
+    and no other database the pull watches. The pull still has to watch it, through
+    `provider_metrics.cloud_sql_instances`.
+
+    The rest is how the postgres-exporter reaches it when `enable_postgres_exporter` is on, as a
+    target named `consensus`. `database` is the one the connection opens, which is where
+    per-table statistics such as the consensus table's dead rows come from, so it is
+    Materialize's own database rather than `postgres`.
+  EOT
+  type = object({
+    resource_id = string
+    host        = string
+    port        = optional(number, 5432)
+    database    = string
+    user        = string
+  })
+  default = null
+}
+
+variable "metadata_database_password" {
+  description = <<-EOT
+    The password for `metadata_database.user`. Written into the postgres-exporter's Secret and
+    nowhere else. Required when the exporter watches the metadata database.
+  EOT
+  type        = string
+  default     = null
+  sensitive   = true
+
+  validation {
+    condition     = var.metadata_database == null || !var.enable_postgres_exporter || var.metadata_database_password != null
+    error_message = "metadata_database_password is required when metadata_database is set and enable_postgres_exporter is on: the exporter refuses a target without a password."
+  }
+}
+
+variable "enable_postgres_exporter" {
+  description = <<-EOT
+    Run the chart's postgres-exporter, which reads the metadata database and Grafana's database
+    from the inside: connections against the ceiling, transaction-ID age, vacuum on the
+    consensus table, and the size of every database on each instance.
+
+    It connects as the users this configuration already holds: `metadata_database.user` and
+    Grafana's database owner. Those can write as well as read; for a role that can only read
+    statistics, create one with `pg_monitor` and pass it as `metadata_database.user`.
+
+    Runs only when there is a database to watch: `metadata_database`, or a Grafana database with
+    a password.
+  EOT
+  type        = bool
+  default     = true
+  nullable    = false
 }

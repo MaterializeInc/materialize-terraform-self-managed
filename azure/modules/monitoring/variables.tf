@@ -44,6 +44,19 @@ variable "create_namespace" {
 # Cluster identity
 # ==============================================================================
 
+variable "cluster_name" {
+  description = <<-EOT
+    Name of the AKS cluster, from the `aks` module. The monitoring stack stamps it as the `cluster`
+    label on every log line, metric sample, and alert it produces.
+
+    Set it whenever more than one cluster writes to the same log or metrics store, or notifies the
+    same channel or incident tool: the label is the only thing that tells them apart. Null leaves
+    the label at `default`.
+  EOT
+  type        = string
+  default     = null
+}
+
 variable "oidc_issuer_url" {
   description = "The AKS cluster's OIDC issuer URL, from the `aks` module. Requires `oidc_issuer_enabled` and `workload_identity_enabled` on the cluster."
   type        = string
@@ -186,8 +199,9 @@ variable "min_zones" {
 
 variable "provider_metrics" {
   description = <<-EOT
-    Pull Azure Monitor metrics for the listed PostgreSQL Flexible Servers, storage accounts and AKS
-    clusters into the Alloy gateway, beside everything else it collects. Null disables it.
+    Pull Azure Monitor metrics for the listed PostgreSQL Flexible Servers, storage accounts, AKS
+    clusters, AKS load balancers and NAT gateways into the Alloy gateway, beside everything else it
+    collects. Null disables it.
 
     Creates a user-assigned identity for the gateway, federated to its ServiceAccount, and grants it
     Monitoring Reader on each listed resource and nothing wider. Resource Graph returns only what the
@@ -204,6 +218,12 @@ variable "provider_metrics" {
     is up. The pull finds the node pools' scale sets through the cluster's node resource group, so
     each entry takes that group's name beside the cluster's ID, and both get Monitoring Reader.
 
+    `load_balancer_clusters` pulls the load balancers AKS makes for a cluster's LoadBalancer
+    Services, `kubernetes` and `kubernetes-internal`, for data path availability, backend health
+    probes and traffic. They are in the node resource group, so each entry takes the same shape as
+    `aks_clusters`, and the same two grants, which are made once for a cluster in both lists.
+    `nat_gateway_ids` pulls each NAT gateway's data path availability, SNAT connections and drops.
+
     `importance` is the tier the chart assigns these families, and decides which filtered
     destinations receive them. Null keeps the chart's default, `extended`. On a sovereign cloud, set
     the chart's `pipeline.metrics.provider.azure.cloudEnvironment` through `additional_values`.
@@ -215,6 +235,11 @@ variable "provider_metrics" {
       id                  = string
       node_resource_group = string
     })), [])
+    load_balancer_clusters = optional(list(object({
+      id                  = string
+      node_resource_group = string
+    })), [])
+    nat_gateway_ids              = optional(list(string), [])
     include_monitoring_resources = optional(bool, true)
     scrape_interval              = optional(string)
     importance                   = optional(string)
@@ -231,9 +256,10 @@ variable "provider_metrics" {
   validation {
     condition = var.provider_metrics == null ? true : (
       var.provider_metrics.include_monitoring_resources ||
-      length(var.provider_metrics.postgres_server_ids) + length(var.provider_metrics.storage_account_ids) + length(var.provider_metrics.aks_clusters) > 0
+      length(var.provider_metrics.postgres_server_ids) + length(var.provider_metrics.storage_account_ids) + length(var.provider_metrics.aks_clusters) +
+      length(var.provider_metrics.load_balancer_clusters) + length(var.provider_metrics.nat_gateway_ids) > 0
     )
-    error_message = "provider_metrics names no resources. List postgres_server_ids, storage_account_ids or aks_clusters, or leave include_monitoring_resources on — the chart refuses a pull with nothing to watch."
+    error_message = "provider_metrics names no resources. List postgres_server_ids, storage_account_ids, aks_clusters, load_balancer_clusters or nat_gateway_ids, or leave include_monitoring_resources on — the chart refuses a pull with nothing to watch."
   }
 
   validation {
@@ -254,17 +280,25 @@ variable "provider_metrics" {
 
   validation {
     condition = var.provider_metrics == null ? true : alltrue([
-      for c in var.provider_metrics.aks_clusters :
+      for c in concat(var.provider_metrics.aks_clusters, var.provider_metrics.load_balancer_clusters) :
       can(regex("(?i)^/subscriptions/[^/]+/resourceGroups/[^/]+/providers/Microsoft\\.ContainerService/managedClusters/[^/]+$", c.id))
     ])
-    error_message = "provider_metrics.aks_clusters[*].id takes the cluster's resource ID, such as module.aks.cluster_id, not its name."
+    error_message = "provider_metrics.aks_clusters[*].id and load_balancer_clusters[*].id take the cluster's resource ID, such as module.aks.cluster_id, not its name."
   }
 
   validation {
     condition = var.provider_metrics == null ? true : alltrue([
-      for c in var.provider_metrics.aks_clusters : can(regex("^[^/]+$", c.node_resource_group))
+      for c in concat(var.provider_metrics.aks_clusters, var.provider_metrics.load_balancer_clusters) : can(regex("^[^/]+$", c.node_resource_group))
     ])
-    error_message = "provider_metrics.aks_clusters[*].node_resource_group takes the group's name, such as module.aks.cluster_node_resource_group, not its ID."
+    error_message = "provider_metrics.aks_clusters[*].node_resource_group and load_balancer_clusters[*].node_resource_group take the group's name, such as module.aks.cluster_node_resource_group, not its ID."
+  }
+
+  validation {
+    condition = var.provider_metrics == null ? true : alltrue([
+      for id in var.provider_metrics.nat_gateway_ids :
+      can(regex("(?i)^/subscriptions/[^/]+/resourceGroups/[^/]+/providers/Microsoft\\.Network/natGateways/[^/]+$", id))
+    ])
+    error_message = "provider_metrics.nat_gateway_ids takes NAT gateway resource IDs, such as module.networking.nat_gateway_id, not names or public IPs."
   }
 }
 
@@ -753,4 +787,61 @@ variable "grafana_load_balancer" {
       chart: additional_values = [yamlencode({ connections = { grafana = { allowPublicAccess = true } } })].
     EOT
   }
+}
+
+variable "metadata_database" {
+  description = <<-EOT
+    The Materialize metadata database, for the monitoring stack to watch. Null leaves it out.
+
+    `resource_id` is the provider's name for it: The flexible server name (`module.database.server_name` in the examples). When `provider_metrics` is set, it is
+    declared the metadata database for the `azure-postgres` recording-rule adapter, which then reads it
+    and no other database the pull watches. The pull still has to watch it, through
+    `provider_metrics.postgres_server_ids`.
+
+    The rest is how the postgres-exporter reaches it when `enable_postgres_exporter` is on, as a
+    target named `consensus`. `database` is the one the connection opens, which is where
+    per-table statistics such as the consensus table's dead rows come from, so it is
+    Materialize's own database rather than `postgres`.
+  EOT
+  type = object({
+    resource_id = string
+    host        = string
+    port        = optional(number, 5432)
+    database    = string
+    user        = string
+  })
+  default = null
+}
+
+variable "metadata_database_password" {
+  description = <<-EOT
+    The password for `metadata_database.user`. Written into the postgres-exporter's Secret and
+    nowhere else. Required when the exporter watches the metadata database.
+  EOT
+  type        = string
+  default     = null
+  sensitive   = true
+
+  validation {
+    condition     = var.metadata_database == null || !var.enable_postgres_exporter || var.metadata_database_password != null
+    error_message = "metadata_database_password is required when metadata_database is set and enable_postgres_exporter is on: the exporter refuses a target without a password."
+  }
+}
+
+variable "enable_postgres_exporter" {
+  description = <<-EOT
+    Run the chart's postgres-exporter, which reads the metadata database and Grafana's database
+    from the inside: connections against the ceiling, transaction-ID age, vacuum on the
+    consensus table, and the size of every database on each instance.
+
+    It connects as the users this configuration already holds: `metadata_database.user` and
+    Grafana's database owner. Those can write as well as read; for a role that can only read
+    statistics, create one with `pg_monitor` and pass it as `metadata_database.user`.
+
+    Runs only when there is a database to watch: `metadata_database`, or a Grafana database with
+    a password.
+  EOT
+  type        = bool
+  default     = true
+  nullable    = false
 }

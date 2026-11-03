@@ -80,3 +80,9 @@ variable "materialize_balancerd_https_port" {
   default     = 6876
   nullable    = false
 }
+
+variable "region" {
+  description = "Region the load balancers are in, used to find their forwarding rules for `forwarding_rule_names`. Null uses the provider's region."
+  type        = string
+  default     = null
+}

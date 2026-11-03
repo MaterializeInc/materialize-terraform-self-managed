@@ -1,3 +1,9 @@
+/**
+ * # Deprecated
+ *
+ * This module is deprecated, and kept only to migrate to AKS Node Auto Provisioning. Use the `nap-nodepool` module instead. See the v18.0.0 upgrade notes in the root README.
+ */
+
 locals {
   # Azure has 12-character limit for node pool names
   nodepool_name = substr(replace(var.prefix, "-", ""), 0, 12)
@@ -282,5 +288,15 @@ resource "kubernetes_cluster_role_binding" "disk_setup" {
     kind      = "ServiceAccount"
     name      = kubernetes_service_account.disk_setup[0].metadata[0].name
     namespace = kubernetes_namespace.disk_setup[0].metadata[0].name
+  }
+}
+
+# A warning rather than an error, so roots mid-migration to NAP keep applying.
+# Terraform rejects a constant condition, and `prefix` is never null, so this
+# always fails.
+check "deprecated" {
+  assert {
+    condition     = var.prefix == null
+    error_message = "The nodepool module is deprecated, and kept only to migrate to AKS Node Auto Provisioning. Use the nap-nodepool module instead. See the v18.0.0 upgrade notes in the root README."
   }
 }

@@ -72,21 +72,14 @@ locals {
   }
 
   aks_config = {
-    kubernetes_version         = "1.34"
+    kubernetes_version         = "1.35"
     service_cidr               = "10.1.0.0/16"
     enable_azure_monitor       = false
     log_analytics_workspace_id = null
   }
 
-  node_pool_config = {
-    vm_size              = "Standard_E4pds_v6"
-    auto_scaling_enabled = true
-    min_nodes            = 2
-    max_nodes            = 5
-    node_count           = null
-    disk_size_gb         = 100
-    swap_enabled         = true
-  }
+  materialize_vm_sizes = ["Standard_E4pds_v6"]
+  generic_vm_sizes     = ["Standard_D4ps_v6"]
 
   database_config = {
     sku_name         = "GP_Standard_D2ds_v5"
@@ -189,7 +182,8 @@ module "networking" {
   depends_on = [azurerm_resource_group.materialize]
 }
 
-# AKS Cluster with Default Node Pool
+# AKS Cluster with a fixed-size default node pool. Node Auto Provisioning adds
+# the rest of the nodes from the NodePools below.
 module "aks" {
   source = "../../modules/aks"
 
@@ -206,12 +200,11 @@ module "aks" {
   k8s_apiserver_authorized_networks  = concat(var.k8s_apiserver_authorized_networks, ["${module.networking.nat_gateway_public_ip}/32"])
   api_server_subnet_id               = module.networking.api_server_subnet_id
 
-  # Default node pool with autoscaling (runs all workloads except Materialize)
-  default_node_pool_vm_size             = "Standard_D4ps_v6"
-  default_node_pool_enable_auto_scaling = true
-  default_node_pool_min_count           = 2
-  default_node_pool_max_count           = 5
-  default_node_pool_node_labels         = local.generic_node_labels
+  # Default node pool (runs all workloads except Materialize). It can't
+  # autoscale under Node Auto Provisioning; nodepool_generic takes the overflow.
+  default_node_pool_vm_size     = "Standard_D4ps_v6"
+  default_node_pool_node_count  = 2
+  default_node_pool_node_labels = local.generic_node_labels
 
   # Optional: Enable monitoring
   enable_azure_monitor       = local.aks_config.enable_azure_monitor
@@ -251,36 +244,44 @@ moved {
   to   = module.monitoring_crds.helm_release.crds[0]
 }
 
-# Materialize-dedicated node pool with taints
-module "materialize_nodepool" {
-  source = "../../modules/nodepool"
+# Node Auto Provisioning NodePool for generic workloads that don't fit on the
+# default node pool.
+module "nodepool_generic" {
+  source = "../../modules/nap-nodepool"
 
-  prefix     = var.name_prefix
-  cluster_id = module.aks.cluster_id
-  subnet_id  = module.networking.aks_subnet_id
+  name        = "generic"
+  location    = var.location
+  vm_sizes    = local.generic_vm_sizes
+  node_labels = local.generic_node_labels
+  tags        = var.tags
 
-  # Workload-specific configuration
-  autoscaling_config = {
-    enabled    = local.node_pool_config.auto_scaling_enabled
-    min_nodes  = local.node_pool_config.min_nodes
-    max_nodes  = local.node_pool_config.max_nodes
-    node_count = local.node_pool_config.node_count
-  }
+  expire_after = "168h"
+  # Generic workloads can tolerate eviction, so cap how long draining
+  # pods can delay node replacement.
+  termination_grace_period = "300s"
 
-  vm_size      = local.node_pool_config.vm_size
-  disk_size_gb = local.node_pool_config.disk_size_gb
-  swap_enabled = local.node_pool_config.swap_enabled
+  depends_on = [module.aks]
+}
 
-  labels = local.materialize_node_labels
+# Node Auto Provisioning NodePool dedicated to Materialize, with swap on the
+# local NVMe disks.
+module "nodepool_materialize" {
+  source = "../../modules/nap-nodepool"
 
-  # Materialize-specific taint to isolate workloads
-  # https://github.com/Azure/AKS/issues/2934
-  # Note: Once applied, these cannot be manually removed due to AKS webhook restrictions
-  node_taints = local.materialize_node_taints
+  name         = "materialize"
+  location     = var.location
+  vm_sizes     = local.materialize_vm_sizes
+  swap_enabled = true
+  node_labels  = local.materialize_node_labels
+  node_taints  = local.materialize_node_taints
+  tags         = var.tags
 
-  tags = var.tags
+  # WARNING: leave expire_after at "Never" and termination_grace_period unset.
+  # Otherwise Karpenter removes nodes even though Materialize pods carry the
+  # karpenter.sh/do-not-disrupt annotation. Roll nodes gracefully instead:
+  # cordon them, then roll out every Materialize instance on them.
 
-  depends_on = [azurerm_resource_group.materialize]
+  depends_on = [module.aks]
 }
 
 
@@ -358,6 +359,7 @@ module "coredns" {
   depends_on = [
     module.aks,
     module.networking,
+    module.nodepool_generic,
   ]
 }
 
@@ -372,6 +374,7 @@ module "cert_manager" {
     module.aks,
     module.networking,
     module.coredns,
+    module.nodepool_generic,
   ]
 }
 
@@ -424,6 +427,7 @@ module "operator" {
     module.storage,
     module.coredns,
     module.cert_manager,
+    module.nodepool_generic,
   ]
 }
 
@@ -441,15 +445,16 @@ module "monitoring" {
   create_namespace       = false
   enable_monitoring_crds = false
 
+  cluster_name    = module.aks.cluster_name
   oidc_issuer_url = module.aks.cluster_oidc_issuer_url
 
   node_selector = local.generic_node_labels
   storage_class = local.storage_class
 
-  # The AKS node pools here are non-zonal (the aks module's `availability_zones`
-  # and the nodepool's `zones` are left at their null defaults), so the chart's
-  # hard zone spread on Thanos Receive and Loki's ingesters has a single domain
-  # to place into. Below its floor of two zones
+  # The AKS node pools here aren't pinned to zones (the aks module's
+  # `availability_zones` and the NodePools' `zones` are left at their null
+  # defaults), so the chart's hard zone spread on Thanos Receive and Loki's
+  # ingesters can have a single domain to place into. Below its floor of two zones
   # those pods stay Pending forever rather than merely unbalanced, so relax
   # `minDomains` to 1. Raise this to the real count, and it becomes real
   # protection, if you give the node pools zones.
@@ -501,6 +506,18 @@ module "monitoring" {
   materialize_instance_namespace = local.materialize_instance_namespace
   materialize_operator_namespace = local.materialize_operator_namespace
 
+  # The metadata database, which the postgres-exporter watches as `consensus`
+  # beside Grafana's, and whose provider metrics the recording rules read when
+  # the provider pull is on. The exporter connects as the user Materialize does;
+  # see `enable_postgres_exporter` for a role that can only read statistics.
+  metadata_database = {
+    resource_id = module.database.server_name
+    host        = module.database.server_fqdn
+    database    = local.database_config.database_name
+    user        = module.database.administrator_login
+  }
+  metadata_database_password = module.database.administrator_password
+
   # Azure Monitor's view of the dependencies Materialize cannot run without —
   # the metadata database's CPU, memory, storage, connections, disk throttling
   # and transaction-ID use, and the persist account's size, availability and
@@ -511,6 +528,12 @@ module "monitoring" {
   # scale sets in its node resource group, which AKS creates and replaces, so
   # the pull finds them there. The gateway's identity can read only these
   # resources and that group, so nothing else in the subscription is pulled.
+  #
+  # The cluster's load balancers are in the same group: AKS puts every
+  # LoadBalancer Service, Materialize's and Grafana's, behind them. The NAT
+  # gateway is the nodes' way out of the virtual network, so its port
+  # exhaustion is why a Materialize source can stall with no cause in the
+  # cluster.
   provider_metrics = var.enable_provider_metrics ? {
     postgres_server_ids = [module.database.server_id]
     storage_account_ids = [module.storage.storage_account_id]
@@ -518,6 +541,11 @@ module "monitoring" {
       id                  = module.aks.cluster_id
       node_resource_group = module.aks.cluster_node_resource_group
     }]
+    load_balancer_clusters = [{
+      id                  = module.aks.cluster_id
+      node_resource_group = module.aks.cluster_node_resource_group
+    }]
+    nat_gateway_ids = [module.networking.nat_gateway_id]
   } : null
 
   # A dedicated Flexible Server for Grafana's own state, so dashboards and API
@@ -573,6 +601,7 @@ module "monitoring" {
     module.operator,
     module.aks,
     module.coredns,
+    module.nodepool_generic,
   ]
 }
 
@@ -625,7 +654,7 @@ module "materialize_instance" {
     module.networking,
     module.self_signed_cluster_issuer,
     module.operator,
-    module.materialize_nodepool,
+    module.nodepool_materialize,
     module.coredns,
   ]
 }

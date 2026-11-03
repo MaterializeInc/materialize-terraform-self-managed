@@ -2,7 +2,6 @@ version: 2
 updates:
   - package-ecosystem: "terraform"
     directories:
-      - "/.github/setup/aws"
       - "/.github/setup/azure"
       - "/aws/examples/migration"
       - "/aws/examples/simple"
@@ -70,7 +69,8 @@ updates:
         patterns:
           - "*"
     ignore:
-      # @stable is a toolchain selector, not a version tag.
+      # Hash-pinned to master (the stable branch is rewritten, which orphans
+      # pinned commits). No release tags to track; bump by hand.
       - dependency-name: "dtolnay/rust-toolchain"
 
   - package-ecosystem: "cargo"

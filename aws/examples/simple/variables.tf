@@ -76,12 +76,14 @@ variable "enable_observability" {
 variable "enable_provider_metrics" {
   description = <<-EOT
     Pull CloudWatch metrics for the Materialize database and persist bucket, the monitoring stack's
-    own buckets and Grafana database, and the EKS cluster's nodes and node groups into the
-    monitoring stack. Creates a read-only IRSA role for the Alloy gateway.
+    own buckets, Grafana database and Grafana load balancer, the EKS cluster's nodes and node groups,
+    and the VPC's NAT gateways into the monitoring stack. Creates a read-only IRSA role for the Alloy
+    gateway.
 
-    Off by default: CloudWatch bills each `GetMetricStatistics` call, about 30 every five minutes for
-    this example. The cluster's pull adds one more for the account's vCPU usage, seven `ListMetrics`
-    calls, and `GetMetricData` billed per metric: three per node and four per managed node group.
+    Off by default: CloudWatch bills each `GetMetricStatistics` call, about 44 every five minutes for
+    this example with its one NAT gateway: 6 per NAT gateway and 8 for Grafana's load balancer among
+    them. The cluster's pull adds one more for the account's vCPU usage, seven `ListMetrics` calls,
+    and `GetMetricData` billed per metric: three per node and four per managed node group.
   EOT
   type        = bool
   default     = false

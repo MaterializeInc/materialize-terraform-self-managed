@@ -14,6 +14,7 @@
 | <a name="provider_aws"></a> [aws](#provider\_aws) | ~> 6.0 |
 | <a name="provider_helm"></a> [helm](#provider\_helm) | >= 2.5.0, < 2.18.0 |
 | <a name="provider_kubernetes"></a> [kubernetes](#provider\_kubernetes) | >= 2.10.0, < 2.39.0 |
+| <a name="provider_terraform"></a> [terraform](#provider\_terraform) | n/a |
 
 ## Modules
 
@@ -28,6 +29,7 @@ No modules.
 | [aws_iam_role_policy_attachment.ebs_csi_driver](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role_policy_attachment) | resource |
 | [helm_release.ebs_csi_driver](https://registry.terraform.io/providers/hashicorp/helm/latest/docs/resources/release) | resource |
 | [kubernetes_storage_class.gp3](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/storage_class) | resource |
+| [terraform_data.volume_drain](https://registry.terraform.io/providers/hashicorp/terraform/latest/docs/resources/data) | resource |
 
 ## Inputs
 
@@ -37,6 +39,7 @@ No modules.
 | <a name="input_enable_service_monitor"></a> [enable\_service\_monitor](#input\_enable\_service\_monitor) | Expose the controller's and nodes' metrics, with a ServiceMonitor for each. The prometheus-operator CRDs must be installed before this module, or the chart leaves the ServiceMonitors out. | `bool` | `false` | no |
 | <a name="input_iam_permissions_boundary"></a> [iam\_permissions\_boundary](#input\_iam\_permissions\_boundary) | ARN of the IAM permissions boundary to attach to all IAM roles created by this module. Required for BYOC deployments. | `string` | `null` | no |
 | <a name="input_kms_key_id"></a> [kms\_key\_id](#input\_kms\_key\_id) | The ARN of a KMS key to use for EBS volume encryption. If not specified, volumes will use AWS managed encryption. | `string` | `null` | no |
+| <a name="input_kubeconfig_data"></a> [kubeconfig\_data](#input\_kubeconfig\_data) | Contents of a kubeconfig for the cluster. When set, destroy waits for the driver to release its volumes before uninstalling it, so a VolumeAttachment cannot be stranded on a node Karpenter then never terminates. Requires kubectl where Terraform runs. | `string` | `null` | no |
 | <a name="input_name_prefix"></a> [name\_prefix](#input\_name\_prefix) | Prefix for all resource names | `string` | n/a | yes |
 | <a name="input_namespace"></a> [namespace](#input\_namespace) | Namespace to install the EBS CSI driver | `string` | `"kube-system"` | no |
 | <a name="input_node_selector"></a> [node\_selector](#input\_node\_selector) | Node selector for EBS CSI driver pods | `map(string)` | `{}` | no |
@@ -44,6 +47,7 @@ No modules.
 | <a name="input_oidc_provider_arn"></a> [oidc\_provider\_arn](#input\_oidc\_provider\_arn) | ARN of the EKS cluster OIDC provider | `string` | n/a | yes |
 | <a name="input_service_account_name"></a> [service\_account\_name](#input\_service\_account\_name) | Name of the Kubernetes service account | `string` | `"ebs-csi-controller-sa"` | no |
 | <a name="input_tags"></a> [tags](#input\_tags) | Tags to apply to all resources | `map(string)` | `{}` | no |
+| <a name="input_volume_release_timeout_seconds"></a> [volume\_release\_timeout\_seconds](#input\_volume\_release\_timeout\_seconds) | How long destroy waits for the driver to release its volumes before failing with the ones it still holds. Only used when `kubeconfig_data` is set. | `number` | `600` | no |
 
 ## Outputs
 

@@ -1,12 +1,15 @@
 name: Kind Tests
 
 # Self-managed Materialize on a local kind cluster. Needs no cloud
-# credentials, only the MATERIALIZE_LICENSE_KEY secret. Manually
-# dispatchable for now; wiring into the merge queue is deferred until the
-# workflow has proven reliable.
+# credentials, only the MATERIALIZE_LICENSE_KEY secret. Called by
+# pr-kind.yml on pull requests that touch kubernetes/ or test/, and
+# manually dispatchable.
 
 on:
   workflow_call:
+    secrets:
+      MATERIALIZE_LICENSE_KEY:
+        required: true
   workflow_dispatch:
 
 permissions:
@@ -23,11 +26,13 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
         with:
-          terraform_version: "v1.16.5"
+          terraform_version: "v1.17.1"
 
       - name: Install kind
         uses: helm/kind-action@1544676c07bb3570fcb70166beaa07c4528fd4aa # v1.15.1
@@ -35,7 +40,9 @@ jobs:
           install_only: true
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
+        with:
+          toolchain: stable
 
       - name: Cache Rust build artifacts
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0

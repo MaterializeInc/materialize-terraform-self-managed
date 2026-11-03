@@ -84,7 +84,7 @@ Complete support for deploying Materialize on Microsoft Azure with AKS, Azure Da
 - Azure Load Balancer for service exposure
 - Multi-zone deployment support
 
-**Autoscaling:** Uses Azure's native cluster autoscaler that integrates directly with Azure Virtual Machine Scale Sets for automated node scaling. In future we are planning to enhance this by making use of [karpenter-provider-azure](https://github.com/Azure/karpenter-provider-azure)
+**Autoscaling:** Uses AKS [Node Auto Provisioning](https://learn.microsoft.com/en-us/azure/aks/node-auto-provisioning), Azure's managed [Karpenter](https://github.com/Azure/karpenter-provider-azure), to provision right-sized nodes based on pending pod requirements.
 
 **Get Started:** See [azure/examples/simple/README.md](./azure/examples/simple/README.md) for detailed deployment instructions and architecture.
 

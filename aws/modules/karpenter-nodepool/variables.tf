@@ -28,6 +28,13 @@ variable "kubeconfig_data" {
   nullable    = false
 }
 
+variable "nodeclaim_delete_timeout" {
+  description = "How long destroy waits for this pool's nodeclaims to go away, as a kubectl duration such as \"15m\". On expiry destroy fails and names what each remaining nodeclaim is waiting on, rather than hanging."
+  type        = string
+  default     = "15m"
+  nullable    = false
+}
+
 variable "disruption" {
   description = "Configuration for node disruption."
   type        = any

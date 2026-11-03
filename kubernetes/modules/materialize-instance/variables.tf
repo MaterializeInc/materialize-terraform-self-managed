@@ -23,6 +23,13 @@ variable "create_namespace" {
   nullable    = false
 }
 
+variable "pod_security_enforce" {
+  description = "Enforce the restricted Pod Security Standard on the instance namespace, so Kubernetes rejects pods that don't meet it. The namespace always warns and audits against restricted. Only applies when create_namespace is true."
+  type        = bool
+  default     = true
+  nullable    = false
+}
+
 variable "instance_namespace" {
   description = "Kubernetes namespace for the instance."
   type        = string
@@ -53,7 +60,7 @@ variable "license_key" {
 variable "environmentd_version" {
   description = "Version of environmentd to use"
   type        = string
-  default     = "v26.44.1" # META: mz version
+  default     = "v26.48.2" # META: mz version
   nullable    = false
 }
 
@@ -237,6 +244,39 @@ variable "balancerd_parameters" {
   validation {
     condition     = var.balancerd_parameters == null || can(keys(var.balancerd_parameters))
     error_message = "balancerd_parameters must be an object (map) of settings"
+  }
+}
+
+variable "environmentd_readiness_probe" {
+  description = "Overrides for the environmentd readiness probe, as a Kubernetes Probe object in camelCase (sets spec.environmentdReadinessProbe), e.g. { periodSeconds = 5 }. Only the fields set here change: the rest, including the operator's TCP check against the SQL port, are kept from the operator default. Setting a handler (exec, grpc, httpGet or tcpSocket) replaces the default handler. On the v1 CRD, changing this triggers a rollout. Requires operator and instance v26.49 or later. Set to null to use the operator default."
+  type        = any
+  default     = null
+
+  validation {
+    condition     = var.environmentd_readiness_probe == null || try(length(setintersection(keys(var.environmentd_readiness_probe), ["exec", "grpc", "httpGet", "tcpSocket"])) <= 1, false)
+    error_message = "environmentd_readiness_probe must be an object that sets at most one of exec, grpc, httpGet or tcpSocket"
+  }
+}
+
+variable "environmentd_liveness_probe" {
+  description = "Overrides for the environmentd liveness probe (sets spec.environmentdLivenessProbe), e.g. { failureThreshold = 60 }. Same semantics as environmentd_readiness_probe."
+  type        = any
+  default     = null
+
+  validation {
+    condition     = var.environmentd_liveness_probe == null || try(length(setintersection(keys(var.environmentd_liveness_probe), ["exec", "grpc", "httpGet", "tcpSocket"])) <= 1, false)
+    error_message = "environmentd_liveness_probe must be an object that sets at most one of exec, grpc, httpGet or tcpSocket"
+  }
+}
+
+variable "environmentd_startup_probe" {
+  description = "Startup probe for environmentd (sets spec.environmentdStartupProbe), e.g. { failureThreshold = 360 }. Same semantics as environmentd_readiness_probe, except that there is no startup probe unless this or the operator default sets one."
+  type        = any
+  default     = null
+
+  validation {
+    condition     = var.environmentd_startup_probe == null || try(length(setintersection(keys(var.environmentd_startup_probe), ["exec", "grpc", "httpGet", "tcpSocket"])) <= 1, false)
+    error_message = "environmentd_startup_probe must be an object that sets at most one of exec, grpc, httpGet or tcpSocket"
   }
 }
 

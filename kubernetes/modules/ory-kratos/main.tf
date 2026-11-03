@@ -173,8 +173,9 @@ locals {
     }
   } : {}
 
-  # Standard OIDC claim mapper. Maps the upstream IdP's email and groups claims
-  # onto the Kratos identity's traits, shared by the OIDC and SAML methods.
+  # Standard OIDC claim mapper, shared by the OIDC and SAML methods. Email goes
+  # to traits; groups go to metadata_public, which users cannot write through
+  # any self-service flow, so only the IdP can set the groups Hydra issues.
   # Encoded as a base64:// data URI so Kratos can read it inline, no ConfigMap
   # needed.
   upstream_oidc_mapper_jsonnet = <<-EOT
@@ -185,6 +186,8 @@ locals {
       identity: {
         traits: {
           email: claims.email,
+        },
+        metadata_public: {
           // Kratos exposes standard OIDC fields (email, sub, aud, ...) flat on
           // claims and everything else under claims.raw_claims. SAML-derived
           // group memberships come in as a non-standard claim, so check both.
@@ -208,7 +211,7 @@ locals {
         issuer_url    = p.issuer_url
         scope         = p.scope
         mapper_url    = local.upstream_oidc_mapper_data_uri
-        # Same as the SAML providers: refresh traits (groups) on every login.
+        # Same as the SAML providers: refresh traits and groups on every login.
         update_identity_on_login = "automatic"
       },
       p.label != null ? { label = p.label } : {},

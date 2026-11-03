@@ -321,6 +321,24 @@ resource "kubernetes_deployment" "coredns" {
 }
 
 
+# Stops a drain (a node pool upgrade or scale-down) from evicting every replica
+# at once, which takes cluster DNS down until the replacements are ready.
+resource "kubernetes_pod_disruption_budget_v1" "coredns" {
+  metadata {
+    name      = "coredns-custom"
+    namespace = local.namespace
+  }
+
+  spec {
+    max_unavailable = "1"
+
+    selector {
+      match_labels = local.labels
+    }
+  }
+}
+
+
 # Scale down the default kube-dns deployment (and its autoscaler) so only
 # the custom CoreDNS serves DNS.
 #

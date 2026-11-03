@@ -218,6 +218,21 @@ locals {
     { for i, c in var.provider_metrics.aks_clusters : "aks-${i}-nodes" => "/subscriptions/${split("/", c.id)[2]}/resourceGroups/${c.node_resource_group}" },
   ) : {}
 
+  # The load balancers are in the node resource group, which the pull reaches
+  # through the cluster, so they need the same two grants as `aks_clusters`.
+  # Azure refuses a second identical role assignment, so a cluster in both lists
+  # is granted once, under its `aks_clusters` key.
+  provider_metrics_load_balancers = local.provider_metrics_enabled ? {
+    for key, scope in merge(
+      { for i, c in var.provider_metrics.load_balancer_clusters : "lb-${i}" => c.id },
+      { for i, c in var.provider_metrics.load_balancer_clusters : "lb-${i}-nodes" => "/subscriptions/${split("/", c.id)[2]}/resourceGroups/${c.node_resource_group}" },
+    ) : key => scope if !contains([for s in values(local.provider_metrics_aks) : lower(s)], lower(scope))
+  } : {}
+
+  provider_metrics_nat_gateways = local.provider_metrics_enabled ? {
+    for i, id in var.provider_metrics.nat_gateway_ids : "nat-${i}" => id
+  } : {}
+
   # The subscription this module deploys into. The chart queries one, so every
   # listed resource has to be in it; the grants below refuse any that is not.
   subscription_id = split("/", azurerm_storage_account.telemetry.id)[2]
@@ -235,6 +250,8 @@ locals {
               postgres       = { servers = [for id in values(local.provider_metrics_postgres) : split("/", id)[8]] }
               blob           = { storageAccounts = [for id in values(local.provider_metrics_storage) : split("/", id)[8]] }
               aks            = { clusters = [for c in var.provider_metrics.aks_clusters : split("/", c.id)[8]] }
+              loadBalancer   = { clusters = distinct([for c in var.provider_metrics.load_balancer_clusters : split("/", c.id)[8]]) }
+              natGateway     = { names = distinct([for id in values(local.provider_metrics_nat_gateways) : split("/", id)[8]]) }
             },
             var.provider_metrics.scrape_interval == null ? {} : { scrapeInterval = var.provider_metrics.scrape_interval },
             var.provider_metrics.importance == null ? {} : { metricImportance = var.provider_metrics.importance },
@@ -252,11 +269,18 @@ locals {
 # scope to a resource, so nothing wider is granted.
 #
 # The one exception is an AKS cluster's node resource group, which the grant
-# covers whole: the node scale sets are created and replaced by AKS, so there is
-# nothing narrower to name. The group holds only what AKS manages for the
-# cluster, and the same limits apply: configuration and metrics, no keys.
+# covers whole: the node scale sets and load balancers are created and replaced
+# by AKS, so there is nothing narrower to name. The group holds only what AKS
+# manages for the cluster, and the same limits apply: configuration and
+# metrics, no keys.
 resource "azurerm_role_assignment" "gateway_monitoring_reader" {
-  for_each = merge(local.provider_metrics_postgres, local.provider_metrics_storage, local.provider_metrics_aks)
+  for_each = merge(
+    local.provider_metrics_postgres,
+    local.provider_metrics_storage,
+    local.provider_metrics_aks,
+    local.provider_metrics_load_balancers,
+    local.provider_metrics_nat_gateways,
+  )
 
   scope                = each.value
   role_definition_name = "Monitoring Reader"
@@ -268,6 +292,46 @@ resource "azurerm_role_assignment" "gateway_monitoring_reader" {
       error_message = "provider_metrics lists ${each.value}, which is outside the subscription this module deploys into. The chart queries one subscription, so the pull would never find it."
     }
   }
+}
+
+# ==============================================================================
+# External dependencies: what the stack watches from the inside
+# ==============================================================================
+# The metadata database is a sibling of this module, so the caller passes it.
+# The monitoring module creates the exporter's Secret from these passwords, and
+# adds Grafana's own database as a target whenever it configures one with a
+# password; nothing here repeats that.
+
+locals {
+  # Mirrors the monitoring module's own gate on Grafana's target: a database it
+  # points Grafana at, with a password it manages. Plan-known either way.
+  postgres_exporter_watches_grafana = local.create_grafana_database || (
+    var.grafana_database_host != null && var.grafana_database_password != null
+  )
+
+  postgres_exporter_enabled = var.enable_postgres_exporter && (
+    var.metadata_database != null || local.postgres_exporter_watches_grafana
+  )
+
+  postgres_exporter_targets = var.enable_postgres_exporter && var.metadata_database != null ? [{
+    name              = "consensus"
+    host              = var.metadata_database.host
+    port              = var.metadata_database.port
+    database          = var.metadata_database.database
+    user              = var.metadata_database.user
+    metadata_database = true
+  }] : []
+
+  postgres_exporter_passwords = length(local.postgres_exporter_targets) == 0 ? {} : {
+    consensus = var.metadata_database_password
+  }
+
+  # Declared only where the pull runs: the `azure-postgres` adapter reads nothing else,
+  # and a declaration with no pull behind it is a render-time warning.
+  metadata_databases = local.provider_metrics_enabled && var.metadata_database != null ? [{
+    flavor      = "azure-postgres"
+    resource_id = var.metadata_database.resource_id
+  }] : []
 }
 
 # ==============================================================================
@@ -292,10 +356,15 @@ module "monitoring" {
   #
   # v0.13.0 is where `grafana_database_*` and the chart's `grafana.ingress` /
   # `grafana.service` values land.
-  source = "github.com/MaterializeInc/materialize-monitoring//terraform/modules/materialize-monitoring?ref=materialize-monitoring/v1.1.0"
+  #
+  # v1.3.0 is where `enable_postgres_exporter`, `postgres_exporter_*` and
+  # `metadata_databases` land.
+  source = "github.com/MaterializeInc/materialize-monitoring//terraform/modules/materialize-monitoring?ref=materialize-monitoring/v1.6.0"
 
   namespace        = var.namespace
   create_namespace = var.create_namespace
+
+  cluster_name = var.cluster_name
 
   chart_version = var.chart_version
 
@@ -397,6 +466,13 @@ module "monitoring" {
   alerting                  = var.alerting
   alerting_receiver_secrets = var.alerting_receiver_secrets
   alertmanager_namespace    = var.alertmanager_namespace
+
+  # The metadata database, for the postgres-exporter and the recording rules.
+  # Credentials reach the exporter's Secret, never the Helm values.
+  enable_postgres_exporter    = local.postgres_exporter_enabled
+  postgres_exporter_targets   = local.postgres_exporter_targets
+  postgres_exporter_passwords = local.postgres_exporter_passwords
+  metadata_databases          = local.metadata_databases
 
   # Load-balancer and provider values ahead of the caller's, so
   # `additional_values` still overrides anything computed here.
