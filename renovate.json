@@ -1,45 +1,87 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
-    "config:recommended"
+    "config:recommended",
+    "helpers:pinGitHubActionDigests"
   ],
-  "gitIgnoredAuthors": [
-    "49001892+materialize-bot@users.noreply.github.com",
-    "41898282+github-actions[bot]@users.noreply.github.com"
-  ],
-  "rangeStrategy": "widen",
   "labels": [
     "regenerate-docs",
     "dependencies"
   ],
-  "customManagers": [
+  "minimumReleaseAge": "3 days",
+  "minimumReleaseAgeBehaviour": "timestamp-optional",
+  "lockFileMaintenance": {
+    "enabled": true
+  },
+  "osvVulnerabilityAlerts": true,
+  "packageRules": [
     {
-      "customType": "regex",
-      "description": "Keep the Terraform CLI that hashicorp/setup-terraform installs in sync with the latest release. Every workflow pins the same exact version, and nothing else updates it — the github-actions manager only maintains the `uses:` ref, not the action's inputs, so without this the CLI silently ages while the actions around it stay current. Matched by key name rather than by a `# renovate:` annotation so that a newly added workflow is covered without anyone remembering to annotate it.",
-      "managerFilePatterns": [
-        "/^\\.github/workflows/[^/]+\\.ya?ml$/"
+      "description": "One PR per manager for non-breaking updates. Breaking is decided by each versioning (Cargo semver for crates, so 0.x minors are breaking). matchUpdateTypes keeps majors out regardless, since github-actions versioning reports every upgrade as non-breaking.",
+      "matchIsBreaking": false,
+      "matchUpdateTypes": [
+        "minor",
+        "patch",
+        "digest",
+        "pin",
+        "pinDigest"
       ],
-      "matchStrings": [
-        "terraform_version:\\s*[\"'](?<currentValue>[^\"'\\s]+)[\"']"
-      ],
-      "depNameTemplate": "terraform",
-      "packageNameTemplate": "hashicorp/terraform",
-      "datasourceTemplate": "github-releases",
-      "extractVersionTemplate": "^v(?<version>.+)$",
-      "versioningTemplate": "semver"
+      "groupName": "{{manager}} non-breaking"
     },
     {
-      "customType": "regex",
-      "description": "Generic `# renovate:` annotation for pinned values in Terraform, e.g. image tags in variable defaults or locals. Put the comment on the line directly above the assignment: `# renovate: datasource=docker depName=<image> registryUrl=<registry>` (packageName, registryUrl and versioning are optional).",
-      "managerFilePatterns": [
-        "/\\.tf$/"
+      "description": "Skip crate releases whose rust-version is newer than constraints.rust.",
+      "matchDatasources": [
+        "crate"
       ],
-      "matchStrings": [
-        "#\\s*renovate:\\s*datasource=(?<datasource>\\S+)\\s+depName=(?<depName>\\S+)(?:\\s+packageName=(?<packageName>\\S+))?(?:\\s+registryUrl=(?<registryUrl>\\S+))?(?:\\s+versioning=(?<versioning>\\S+))?\\s*\\n\\s*[\\w.-]+\\s*=\\s*\"(?<currentValue>[^\"]+)\""
-      ]
-    }
-  ],
-  "packageRules": [
+      "constraintsFiltering": "strict"
+    },
+    {
+      "description": "Move every Rust toolchain reference (rust image, rust-toolchain.toml, rust-version, CI toolchain, constraints.rust) together. All resolve against the Docker Hub rust tags so only versions the builder image has are proposed. Must come after the non-breaking rule so this groupName wins.",
+      "matchDatasources": [
+        "docker"
+      ],
+      "matchPackageNames": [
+        "rust"
+      ],
+      "groupName": "Rust toolchain"
+    },
+    {
+      "description": "dtolnay/rust-toolchain version refs are branches, not tags; the custom manager below tracks them.",
+      "matchManagers": [
+        "github-actions"
+      ],
+      "matchPackageNames": [
+        "dtolnay/rust-toolchain"
+      ],
+      "matchCurrentValue": "/^\\d+\\.\\d+/",
+      "enabled": false
+    },
+    {
+      "description": "The built-in rust-toolchain manager tracks Rust releases, which land before the rust Docker image.",
+      "matchManagers": [
+        "rust-toolchain"
+      ],
+      "enabled": false
+    },
+    {
+      "description": "The renovate-config manager tracks constraints.rust against Rust releases; the custom manager below tracks it with the rest of the toolchain instead.",
+      "matchManagers": [
+        "renovate-config"
+      ],
+      "matchDepTypes": [
+        "tool-constraint"
+      ],
+      "matchPackageNames": [
+        "rust"
+      ],
+      "enabled": false
+    },
+    {
+      "description": "widen only acts on out-of-range versions, so in-range Cargo.lock updates would never happen.",
+      "matchManagers": [
+        "cargo"
+      ],
+      "rangeStrategy": "update-lockfile"
+    },
     {
       "description": [
         "The monitoring module is pinned to a monorepo tag (`materialize-monitoring/vX.Y.Z`), and without",
@@ -100,6 +142,61 @@
       "groupName": "Ory OEL images"
     }
   ],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Rust toolchain version in rust-toolchain.toml, Cargo.toml rust-version, CI toolchain refs/inputs, and constraints.rust in renovate.json.",
+      "managerFilePatterns": [
+        "/(^|/)rust-toolchain\\.toml$/",
+        "/(^|/)Cargo\\.toml$/",
+        "/^\\.github/workflows/[^/]+\\.ya?ml$/",
+        "/^renovate\\.json$/"
+      ],
+      "matchStrings": [
+        "channel\\s*=\\s*\"(?<currentValue>\\d+\\.\\d+\\.\\d+)\"",
+        "rust-version\\s*=\\s*\"(?<currentValue>\\d+\\.\\d+\\.\\d+)\"",
+        "uses:\\s*dtolnay/rust-toolchain@(?<currentValue>\\d+\\.\\d+\\.\\d+)",
+        "toolchain:\\s*[\"']?(?<currentValue>\\d+\\.\\d+\\.\\d+)",
+        "\"rust\"\\s*:\\s*\"(?<currentValue>\\d+\\.\\d+\\.\\d+)\""
+      ],
+      "depNameTemplate": "rust",
+      "datasourceTemplate": "docker",
+      "versioningTemplate": "docker"
+    },
+    {
+      "customType": "regex",
+      "description": "Keep the Terraform CLI that hashicorp/setup-terraform installs in sync with the latest release. Every workflow pins the same exact version, and nothing else updates it — the github-actions manager only maintains the `uses:` ref, not the action's inputs, so without this the CLI silently ages while the actions around it stay current. Matched by key name rather than by a `# renovate:` annotation so that a newly added workflow is covered without anyone remembering to annotate it.",
+      "managerFilePatterns": [
+        "/^\\.github/workflows/[^/]+\\.ya?ml$/"
+      ],
+      "matchStrings": [
+        "terraform_version:\\s*[\"'](?<currentValue>[^\"'\\s]+)[\"']"
+      ],
+      "depNameTemplate": "terraform",
+      "packageNameTemplate": "hashicorp/terraform",
+      "datasourceTemplate": "github-releases",
+      "extractVersionTemplate": "^v(?<version>.+)$",
+      "versioningTemplate": "semver"
+    },
+    {
+      "customType": "regex",
+      "description": "Generic `# renovate:` annotation for pinned values in Terraform, e.g. image tags in variable defaults or locals. Put the comment on the line directly above the assignment: `# renovate: datasource=docker depName=<image> registryUrl=<registry>` (packageName, registryUrl and versioning are optional).",
+      "managerFilePatterns": [
+        "/\\.tf$/"
+      ],
+      "matchStrings": [
+        "#\\s*renovate:\\s*datasource=(?<datasource>\\S+)\\s+depName=(?<depName>\\S+)(?:\\s+packageName=(?<packageName>\\S+))?(?:\\s+registryUrl=(?<registryUrl>\\S+))?(?:\\s+versioning=(?<versioning>\\S+))?\\s*\\n\\s*[\\w.-]+\\s*=\\s*\"(?<currentValue>[^\"]+)\""
+      ]
+    }
+  ],
+  "gitIgnoredAuthors": [
+    "49001892+materialize-bot@users.noreply.github.com",
+    "41898282+github-actions[bot]@users.noreply.github.com"
+  ],
+  "rangeStrategy": "widen",
+  "constraints": {
+    "rust": "1.99.1"
+  },
   "hostRules": [
     {
       "description": "The Materialize registry proxy authenticates with a license key JWT that carries the `ory` entitlement (any username). ORY_OEL_LICENSE_KEY is a Mend app secret, set in the Renovate developer portal.",
@@ -108,5 +205,6 @@
       "username": "renovate",
       "password": "{{ secrets.ORY_OEL_LICENSE_KEY }}"
     }
-  ]
+  ],
+  "ignorePaths": []
 }
