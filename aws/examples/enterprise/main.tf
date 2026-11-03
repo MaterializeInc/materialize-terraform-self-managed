@@ -443,7 +443,8 @@ moved {
 }
 
 resource "random_password" "ory_kratos_database_password" {
-  length           = 24
+  # Kept at the shared password's length: changing it would regenerate it.
+  length           = 16
   special          = true
   override_special = "!#$%&*()-_=+[]{}<>:?"
 }

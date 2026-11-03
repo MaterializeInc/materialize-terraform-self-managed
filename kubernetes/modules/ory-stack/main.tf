@@ -757,9 +757,10 @@ data "kubernetes_secret_v1" "oauth2_client" {
 
 locals {
   # Pod labels the policies select on, as set by the charts and modules.
-  kratos_pod_labels        = { "app.kubernetes.io/name" = "kratos", "app.kubernetes.io/instance" = "kratos" }
-  hydra_pod_labels         = { "app.kubernetes.io/name" = "hydra", "app.kubernetes.io/instance" = "hydra" }
-  hydra_maester_pod_labels = module.ory_hydra.maester_pod_labels
+  kratos_pod_labels         = { "app.kubernetes.io/name" = "kratos", "app.kubernetes.io/instance" = "kratos" }
+  hydra_pod_labels          = { "app.kubernetes.io/name" = "hydra", "app.kubernetes.io/instance" = "hydra" }
+  kratos_courier_pod_labels = { "app.kubernetes.io/name" = "kratos-courier", "app.kubernetes.io/instance" = "kratos" }
+  hydra_maester_pod_labels  = module.ory_hydra.maester_pod_labels
   ui_pod_labels = var.deploy_selfservice_ui ? {
     "app.kubernetes.io/name"     = "kratos-selfservice-ui-node"
     "app.kubernetes.io/instance" = module.ory_selfservice_ui[0].service_name
@@ -801,6 +802,13 @@ locals {
         var.enable_service_monitors ? [local.metrics_proxy_pod_labels] : [],
       )
     }
+    # The courier serves only metrics on 4434, but the chart's ServiceMonitor
+    # for it shares Kratos's relabelings, so it is scraped through the proxy too.
+    kratos-courier = {
+      pod_labels = local.kratos_courier_pod_labels
+      port       = 4434
+      clients    = var.enable_service_monitors ? [local.metrics_proxy_pod_labels] : []
+    }
     hydra = {
       pod_labels = local.hydra_pod_labels
       port       = 4445
@@ -815,7 +823,7 @@ locals {
   }
 }
 
-# Pods no policy below admits (jobs, Maester, the courier) take no ingress.
+# Pods no policy below admits (jobs, Maester) take no ingress.
 resource "kubernetes_network_policy_v1" "ory_default_deny_ingress" {
   metadata {
     name      = "default-deny-ingress"
@@ -1187,7 +1195,8 @@ resource "kubernetes_service_v1" "single_domain_proxy_lb" {
 # Ory serves its prometheus metrics only on the admin listener, beside the
 # unauthenticated admin API (Hydra's includes its private signing keys). The
 # scraper reaches this nginx instead, which forwards GET /admin/metrics/prometheus
-# to one Kratos or Hydra pod and refuses everything else.
+# to one Kratos or Hydra pod (or /metrics/prometheus to the Kratos courier) and
+# refuses everything else.
 
 locals {
   metrics_proxy_name       = "ory-metrics-proxy"
@@ -1196,17 +1205,19 @@ locals {
 
   # The chart ServiceMonitors keep one target per Kratos/Hydra pod, so every
   # replica is scraped. These relabelings keep the pod as the instance label
-  # but send the scrape to the proxy, naming the pod's IP in the path.
+  # but send the scrape to the proxy, naming the pod's app and IP in the path.
+  # The Kratos chart applies them to the courier's ServiceMonitor too, which
+  # is why the app comes from the pod label (kratos or kratos-courier).
   metrics_proxy_relabelings = {
     for app in ["kratos", "hydra"] : app => var.enable_service_monitors ? [
       { sourceLabels = ["__address__"], targetLabel = "instance", replacement = "$1" },
-      { sourceLabels = ["__meta_kubernetes_pod_ip"], targetLabel = "__metrics_path__", replacement = "/${app}/$1/metrics" },
+      { sourceLabels = ["__meta_kubernetes_pod_label_app_kubernetes_io_name", "__meta_kubernetes_pod_ip"], separator = ";", regex = "(.+);(.+)", targetLabel = "__metrics_path__", replacement = "/$1/$2/metrics" },
       { sourceLabels = ["__address__"], targetLabel = "__address__", replacement = "${local.metrics_proxy_name}.${var.namespace}.svc.cluster.local:${local.metrics_proxy_port}" },
     ] : []
   }
 
-  # Only IPv4 pod addresses match, and only the admin ports' metrics path is
-  # ever requested upstream. Temp files and the pid go to the /tmp emptyDir.
+  # Only IPv4 pod addresses match, and only the metrics paths are ever
+  # requested upstream. Temp files and the pid go to the /tmp emptyDir.
   metrics_proxy_nginx_conf = <<-EOT
     worker_processes 1;
     pid /tmp/nginx.pid;
@@ -1235,6 +1246,11 @@ locals {
         location ~ "^/kratos/(?<pod_ip>[0-9]{1,3}(\.[0-9]{1,3}){3})/metrics$" {
           limit_except GET { deny all; }
           proxy_pass http://$pod_ip:4434/admin/metrics/prometheus;
+        }
+
+        location ~ "^/kratos-courier/(?<pod_ip>[0-9]{1,3}(\.[0-9]{1,3}){3})/metrics$" {
+          limit_except GET { deny all; }
+          proxy_pass http://$pod_ip:4434/metrics/prometheus;
         }
 
         location ~ "^/hydra/(?<pod_ip>[0-9]{1,3}(\.[0-9]{1,3}){3})/metrics$" {
@@ -1437,7 +1453,8 @@ resource "kubernetes_network_policy_v1" "metrics_proxy_ingress" {
 }
 
 # The proxy takes its upstream address from the request path, so pin where it
-# can connect: the Kratos and Hydra admin ports, nowhere else.
+# can connect: the Kratos and Hydra admin ports and the courier's metrics port,
+# nowhere else.
 resource "kubernetes_network_policy_v1" "metrics_proxy_egress" {
   count = var.enable_service_monitors ? 1 : 0
 
@@ -1456,6 +1473,18 @@ resource "kubernetes_network_policy_v1" "metrics_proxy_egress" {
       to {
         pod_selector {
           match_labels = local.kratos_pod_labels
+        }
+      }
+      ports {
+        protocol = "TCP"
+        port     = 4434
+      }
+    }
+
+    egress {
+      to {
+        pod_selector {
+          match_labels = local.kratos_courier_pod_labels
         }
       }
       ports {

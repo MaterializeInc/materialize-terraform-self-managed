@@ -348,7 +348,9 @@ The modules don't use anything changed in 8.0. If your root manages other GCP re
    - `allowed_email_domains` on every entry in `upstream_identity_providers` and `saml_providers`. Sign-in with any other email domain fails.
    - `require_email_verified = false` on OIDC providers that don't send `email_verified`, such as Microsoft Entra ID.
    - `kratos_cookie_domain` (`ory_kratos_cookie_domain` in the examples). It was derived from the Kratos hostname before. Use the narrowest domain that covers Kratos and the UI.
-2. **Expect the AWS example to rotate the Hydra and Polis database passwords.** Each RDS instance now has its own password. The pods restart with the new DSNs during the apply.
+2. **Expect database changes in the examples.**
+   - AWS rotates the Hydra and Polis database passwords, since each RDS instance now has its own. The Kratos password is kept. The pods restart with the new DSNs during the apply.
+   - GCP moves the Ory Cloud SQL instance from `db-f1-micro` to `db-custom-1-3840`, which restarts it (a short Kratos, Hydra and Polis outage) and costs more. To keep the old tier, set `tier = "db-f1-micro"` in `ory_database_config` in your root.
 3. **Make everyone sign in through the IdP once after the apply.** Tokens now take `email` and `groups` from the identity's `metadata_public`, which the IdP mapper writes at sign-in. Until a user signs in through the IdP again, consent and token refreshes are refused. Remove the old `groups` trait, which the schema no longer allows, and end every session so the next sign-in goes to the IdP:
 
    ```bash
