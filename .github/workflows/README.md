@@ -16,7 +16,7 @@ merge_queue.yml (merge_group)
   └── test-azure.yml
   └── ci-success (gates on all above)
 
-tag.yml (manual, workflow_dispatch on main)
+tag.yml (manual, workflow_dispatch on main; also on merging an upgrade notes PR)
   └── opens a PR batching pending upgrade notes, or creates the tag and GitHub release
 ```
 
@@ -39,7 +39,8 @@ Infrastructure tests **integrate with GitHub's merge queue** to ensure only appr
 |-------|----------|-----------|---------------------|
 | `pull_request` | `pr.yml` | Lint + version label + upgrade notes checks | Lint + version label + upgrade notes |
 | `merge_group` | `merge_queue.yml` | Lint + all cloud tests | Lint + AWS + GCP + Azure |
-| `workflow_dispatch` | `tag.yml` | Tag and GitHub release | N/A |
+| `workflow_dispatch` | `tag.yml` | Tag and GitHub release, or the upgrade notes PR | N/A |
+| `pull_request` (closed) | `tag.yml` | Tag and GitHub release when an upgrade notes PR merges | N/A |
 | `workflow_dispatch` | `test-*.yml` | Individual cloud test | N/A |
 
 ### Releases
@@ -70,13 +71,17 @@ in `pr.yml` requires one on PRs labeled `breaking-change`.
 When notes are pending, `tag.yml` doesn't release. It runs
 `scriv collect --version <version>` and opens or updates an "Upgrade notes for
 <version>" PR labeled `ignore-for-release`, pushed with `MATERIALIZE_BOT_TOKEN`
-so that CI runs on it. Merge that PR, then run `tag.yml` again. The release
-notes start with that version's upgrade notes (`scriv print`), followed by the
-generated list of PRs.
+so that CI runs on it. Merging that PR runs `tag.yml` again, which releases
+from the merge commit, so nothing merged later is included. The release notes
+start with that version's upgrade notes (`scriv print`), followed by the
+generated list of PRs. If `UPGRADING.md` has a section for the version and
+`scriv print` fails, the release stops.
 
-PRs merged in between are part of the release. If one adds a note, the next run
-opens another notes PR instead of releasing. If one raises the bump, the run
-stops and asks to rename the version heading in `UPGRADING.md`.
+While the notes PR is open, running `tag.yml` again rebuilds it from `main`, so
+it picks up notes merged since. If a PR raises the bump, the next run opens a
+notes PR for the new version and closes the old one. If the bump changes after
+the notes PR was opened and it's merged anyway, the release stops and asks for
+another run on `main`.
 
 ### What Gets Tested (Merge Queue Only)
 

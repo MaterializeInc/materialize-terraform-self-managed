@@ -7,20 +7,34 @@ on:
         description: Confirm a major version bump
         type: boolean
         default: false
+  # Merging an upgrade notes PR releases its version from the merge commit, so
+  # nothing merged afterwards can slip into the release.
+  pull_request:
+    types: [closed]
+    branches: [main]
+    paths: [UPGRADING.md]
 
 permissions:
   contents: write
   pull-requests: read
 
-# Serialize runs so concurrent runs cannot race on computing the next version.
-concurrency:
-  group: tag-main
-
 jobs:
   tag:
     name: Tag and Release
-    if: github.ref == 'refs/heads/main'
+    # Serialize runs so concurrent runs cannot race on computing the next
+    # version. On the job, so skipped runs for other merged PRs don't queue.
+    concurrency:
+      group: tag-main
+    if: >-
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
+      (github.event.pull_request.merged == true &&
+       github.event.pull_request.head.repo.full_name == github.repository &&
+       github.event.pull_request.user.login == 'materialize-bot' &&
+       startsWith(github.event.pull_request.head.ref, 'upgrade-notes-v'))
     runs-on: ubuntu-latest
+    env:
+      TARGET_SHA: ${{ github.event.pull_request.merge_commit_sha || github.sha }}
+      NOTES_BRANCH: ${{ github.event.pull_request.head.ref }}
     steps:
       - name: Compute the next version
         id: version
@@ -43,7 +57,7 @@ jobs:
 
           # Everything merged since the latest release is part of this
           # release.
-          prs=$(gh api "repos/$GITHUB_REPOSITORY/compare/$latest...$GITHUB_SHA" --jq '.commits[].sha' \
+          prs=$(gh api "repos/$GITHUB_REPOSITORY/compare/$latest...$TARGET_SHA" --jq '.commits[].sha' \
             | while read -r sha; do
                 gh api "repos/$GITHUB_REPOSITORY/commits/$sha/pulls" \
                   --jq '.[] | select(.merged_at != null) | .number'
@@ -76,6 +90,18 @@ jobs:
             patch) version="v$major.$minor.$((patch + 1))" ;;
           esac
 
+          # A merged notes PR names the version it was opened for, after any
+          # major bump was confirmed. Anything else means the bump changed
+          # after it was opened.
+          if [ -n "$NOTES_BRANCH" ]; then
+            expected="${NOTES_BRANCH#upgrade-notes-}"
+            if [ "$version" != "$expected" ]; then
+              echo "::error::The notes PR was for $expected, but the merge commit releases $version. Run this workflow on main to rebuild the notes PR."
+              exit 1
+            fi
+            CONFIRM_MAJOR=true
+          fi
+
           if [ "$bump" = major ] && [ "$CONFIRM_MAJOR" != true ]; then
             echo "::error::$version would be a major bump from $latest (breaking-change:$breaking), rerun with confirm_major=true to confirm"
             exit 1
@@ -89,7 +115,7 @@ jobs:
         if: steps.version.outputs.version != ''
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.sha }}
+          ref: ${{ env.TARGET_SHA }}
           # The bot token's pushes trigger CI on the upgrade notes PR, the
           # default GITHUB_TOKEN's don't.
           token: ${{ secrets.MATERIALIZE_BOT_TOKEN }}
@@ -98,8 +124,8 @@ jobs:
         if: steps.version.outputs.version != ''
         run: pipx install scriv==1.8.0
 
-      # Pending upgrade notes go into UPGRADING.md through a PR. Once it merges,
-      # the next run finds none and releases.
+      # Pending upgrade notes go into UPGRADING.md through a PR. Merging it
+      # runs this workflow again, which finds none and releases.
       - name: Collect upgrade notes
         id: notes
         if: steps.version.outputs.version != ''
@@ -125,7 +151,8 @@ jobs:
             echo "pending=true" >> "$GITHUB_OUTPUT"
           fi
 
-      # Each run rebuilds the PR from main, so it picks up notes merged since.
+      # Each run rebuilds the PR from main and force-pushes it, so an open notes
+      # PR picks up notes merged since it was opened.
       - name: Open the upgrade notes PR
         if: steps.notes.outputs.pending == 'true'
         env:
@@ -141,13 +168,23 @@ jobs:
           git commit -m "Upgrade notes for $VERSION"
           git push --force origin "$branch"
 
+          # A bigger bump renames the version, so close notes PRs for any other
+          # version: merging one would release the wrong version.
+          BRANCH="$branch" gh pr list --repo "$GITHUB_REPOSITORY" --state open --limit 200 \
+            --json number,headRefName \
+            --jq '.[] | select((.headRefName | startswith("upgrade-notes-v")) and .headRefName != env.BRANCH) | .number' \
+            | while read -r stale; do
+                gh pr close "$stale" --repo "$GITHUB_REPOSITORY" --delete-branch \
+                  --comment "Superseded by the upgrade notes PR for $VERSION."
+              done
+
           pr=$(gh pr list --head "$branch" --state open --json url --jq '.[].url')
           if [ -z "$pr" ]; then
             pr=$(gh pr create --base main --head "$branch" --label ignore-for-release \
               --title "Upgrade notes for $VERSION" \
-              --body "Moves the pending upgrade notes into UPGRADING.md. Merge this, then run the Tag workflow again to release $VERSION.")
+              --body "Moves the pending upgrade notes into UPGRADING.md. Merging this releases $VERSION from the merge commit.")
           fi
-          echo "::notice::Merge $pr, then run this workflow again to release $VERSION."
+          echo "::notice::Merge $pr to release $VERSION."
 
       - name: Create release
         if: steps.version.outputs.version != '' && steps.notes.outputs.pending != 'true'
@@ -156,14 +193,22 @@ jobs:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
           set -euo pipefail
-          notes=$(scriv print --version "$VERSION" 2>/dev/null || true)
+          # Only a release with a section in UPGRADING.md has notes, and then
+          # scriv must print them: a failure stops the release.
           args=()
-          if [ -n "$notes" ]; then args=(--notes "$(printf '## Upgrade notes\n\n%s' "$notes")"); fi
+          if grep -qxF "## $VERSION" UPGRADING.md; then
+            notes=$(scriv print --version "$VERSION")
+            if [ -z "$notes" ]; then
+              echo "::error::scriv printed nothing for the $VERSION section of UPGRADING.md"
+              exit 1
+            fi
+            args=(--notes "$(printf '## Upgrade notes\n\n%s' "$notes")")
+          fi
 
           echo "Creating release $VERSION"
           gh release create "$VERSION" \
             --repo "$GITHUB_REPOSITORY" \
-            --target "$GITHUB_SHA" \
+            --target "$TARGET_SHA" \
             --title "$VERSION" \
             --generate-notes \
             "${args[@]}"
