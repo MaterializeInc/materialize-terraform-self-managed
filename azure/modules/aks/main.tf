@@ -39,6 +39,7 @@ resource "azurerm_kubernetes_cluster" "aks" {
     temporary_name_for_rotation  = "default2"
     name                         = "default"
     vm_size                      = var.default_node_pool_vm_size
+    orchestrator_version         = var.kubernetes_version
     auto_scaling_enabled         = var.default_node_pool_enable_auto_scaling
     node_count                   = var.default_node_pool_enable_auto_scaling ? null : var.default_node_pool_node_count
     min_count                    = var.default_node_pool_enable_auto_scaling ? var.default_node_pool_min_count : null
@@ -73,10 +74,11 @@ resource "azurerm_kubernetes_cluster" "aks" {
   oidc_issuer_enabled       = true
   workload_identity_enabled = true
 
-  # Required from azurerm 5. Manual is the API's default: node pools are the
-  # ones declared here and in the nodepool module, not Node Auto Provisioning.
+  # Node Auto Provisioning (managed Karpenter). Nodes come from the NodePools
+  # the nap-nodepool module declares, not AKS's default ones.
   node_provisioning_profile {
-    mode = "Manual"
+    mode               = var.enable_node_auto_provisioning ? "Auto" : "Manual"
+    default_node_pools = "None"
   }
 
   dynamic "azure_active_directory_role_based_access_control" {
@@ -117,11 +119,6 @@ resource "azurerm_kubernetes_cluster" "aks" {
   ]
 
   lifecycle {
-    # default_node_pools has no effect unless mode is Auto. The provider defaults
-    # it to Auto, so without this every cluster created before azurerm 5 would get
-    # an in-place cluster update on upgrade that changes nothing.
-    ignore_changes = [node_provisioning_profile[0].default_node_pools]
-
     precondition {
       condition     = !var.enable_azure_monitor || var.log_analytics_workspace_id != null
       error_message = "log_analytics_workspace_id must be provided when enable_azure_monitor is true."

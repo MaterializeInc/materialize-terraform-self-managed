@@ -236,11 +236,6 @@ module "gke" {
   # Publish upgrade notifications to Pub/Sub for the node upgrade rollout
   # trigger (see the operator module below).
   enable_upgrade_notifications = var.enable_node_upgrade_rollout_trigger
-
-  # Pinned to STABLE: REGULAR's 1.35.x line regressed cleanup of the per-cluster
-  # k8s-<cluster-uid>-node-http-hc firewall on cluster destroy, leaving the VPC
-  # un-deletable. STABLE is still on 1.34.x which doesn't have the regression.
-  release_channel = "STABLE"
 }
 
 # Install the monitoring namespace and CRDs before anything that ships a

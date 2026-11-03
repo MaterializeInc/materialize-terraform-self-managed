@@ -24,7 +24,8 @@ Azure Specific Modules:
 |---------------------------------------------|------------------------------------------------------------------|
 | [`modules/networking`](./modules/networking) | VNet, subnets, NAT gateway, and networking resources            |
 | [`modules/aks`](./modules/aks)              | AKS cluster with Cilium networking and workload identity        |
-| [`modules/nodepool`](./modules/nodepool)    | Additional AKS node pools with autoscaling                      |
+| [`modules/nap-nodepool`](./modules/nap-nodepool) | Node Auto Provisioning (managed Karpenter) NodePool, with optional swap |
+| [`modules/nodepool`](./modules/nodepool)    | Deprecated VMSS node pool, kept for migrating to `nap-nodepool` |
 | [`modules/database`](./modules/database)    | PostgreSQL Flexible Server for Materialize metadata            |
 | [`modules/storage`](./modules/storage)      | Azure Storage Account with workload identity federation         |
 | [`modules/load_balancers`](./modules/load_balancers) | Azure Load Balancers for Materialize instance access |
@@ -171,7 +172,7 @@ Reference: [Azure Virtual Network FAQ](https://learn.microsoft.com/en-us/azure/v
 #### AKS Node Pools
 
 Configure availability zones via the `availability_zones` variable on the AKS
-module and the `zones` variable on node pool modules:
+module and the `zones` variable on NodePool modules:
 
 ```hcl
 module "aks" {
@@ -180,8 +181,8 @@ module "aks" {
   availability_zones = ["1", "2", "3"]  # Production HA
 }
 
-module "materialize_nodepool" {
-  source = "../../modules/nodepool"
+module "nodepool_materialize" {
+  source = "../../modules/nap-nodepool"
   # ...
   zones = ["1", "2", "3"]  # Match AKS default pool zones
 }

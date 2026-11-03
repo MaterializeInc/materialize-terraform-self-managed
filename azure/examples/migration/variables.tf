@@ -269,7 +269,7 @@ variable "operator_version" {
 variable "disk_setup_image" {
   description = "Docker image for the disk setup daemonset. Old module default: v0.4.0. Set to match your existing daemonset to avoid unnecessary updates. Run: kubectl get daemonset disk-setup -n disk-setup -o jsonpath='{.spec.template.spec.initContainers[0].image}'"
   type        = string
-  default     = "materialize/ephemeral-storage-setup-image:v0.4.0"
+  default     = "materialize/ephemeral-storage-setup-image:v0.6.0"
 }
 
 # -----------------------------------------------------------------------------

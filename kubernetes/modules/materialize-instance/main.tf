@@ -1,9 +1,26 @@
+# The restricted Pod Security Standard for the instance namespace. warn and
+# audit are always on; enforce is gated so existing deployments can opt out.
+# The version is pinned so a cluster upgrade can't tighten the policy under a
+# running instance.
+# See https://kubernetes.io/docs/concepts/security/pod-security-standards/#restricted
+locals {
+  pod_security_version = "v1.35"
+  pod_security_modes   = var.pod_security_enforce ? ["enforce", "warn", "audit"] : ["warn", "audit"]
+  pod_security_labels = merge([
+    for mode in local.pod_security_modes : {
+      "pod-security.kubernetes.io/${mode}"         = "restricted"
+      "pod-security.kubernetes.io/${mode}-version" = local.pod_security_version
+    }
+  ]...)
+}
+
 # Create a namespace for this Materialize instance
 resource "kubernetes_namespace" "instance" {
   count = var.create_namespace ? 1 : 0
 
   metadata {
-    name = var.instance_namespace
+    name   = var.instance_namespace
+    labels = local.pod_security_labels
   }
 }
 
@@ -132,6 +149,17 @@ resource "kubectl_manifest" "materialize_instance" {
       # don't reject the manifest.
       var.balancerd_parameters != null ? {
         balancerdConfigmapName = kubernetes_config_map.balancerd_params[0].metadata[0].name
+      } : {},
+      # Only present in operator >= v26.49; omit unset probes so older CRDs
+      # don't reject the manifest and the v1 rollout hash is unchanged.
+      var.environmentd_readiness_probe != null ? {
+        environmentdReadinessProbe = var.environmentd_readiness_probe
+      } : {},
+      var.environmentd_liveness_probe != null ? {
+        environmentdLivenessProbe = var.environmentd_liveness_probe
+      } : {},
+      var.environmentd_startup_probe != null ? {
+        environmentdStartupProbe = var.environmentd_startup_probe
       } : {}
     )
   })

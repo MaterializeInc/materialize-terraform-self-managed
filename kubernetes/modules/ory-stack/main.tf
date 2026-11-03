@@ -1210,9 +1210,9 @@ locals {
   # is why the app comes from the pod label (kratos or kratos-courier).
   metrics_proxy_relabelings = {
     for app in ["kratos", "hydra"] : app => var.enable_service_monitors ? [
-      { sourceLabels = ["__address__"], targetLabel = "instance", replacement = "$1" },
+      { sourceLabels = ["__address__"], separator = ";", regex = "(.*)", targetLabel = "instance", replacement = "$1" },
       { sourceLabels = ["__meta_kubernetes_pod_label_app_kubernetes_io_name", "__meta_kubernetes_pod_ip"], separator = ";", regex = "(.+);(.+)", targetLabel = "__metrics_path__", replacement = "/$1/$2/metrics" },
-      { sourceLabels = ["__address__"], targetLabel = "__address__", replacement = "${local.metrics_proxy_name}.${var.namespace}.svc.cluster.local:${local.metrics_proxy_port}" },
+      { sourceLabels = ["__address__"], separator = ";", regex = "(.*)", targetLabel = "__address__", replacement = "${local.metrics_proxy_name}.${var.namespace}.svc.cluster.local:${local.metrics_proxy_port}" },
     ] : []
   }
 
