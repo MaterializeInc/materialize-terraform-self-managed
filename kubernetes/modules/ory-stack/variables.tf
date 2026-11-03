@@ -58,10 +58,18 @@ variable "polis_extra_dns_names" {
   nullable    = false
 }
 
-variable "cookie_parent_domain" {
-  description = "Cookie domain for Kratos session and CSRF cookies, so they are shared across the Ory hostnames. Defaults to the parent domain of the primary FQDN: the single-domain host in single-domain mode, otherwise kratos_fqdn (e.g. kratos.example.com -> example.com). The selfservice UI keeps its own sibling hostname even in single-domain mode, so the shared parent is required or the login flow loops. Falls back to the FQDN itself when it has no '.' separator. Set explicitly to override."
+variable "kratos_cookie_domain" {
+  description = "Domain Kratos scopes its session, CSRF and SSO continuity cookies to, e.g. auth.example.com. Required whenever a page that serves Kratos flows (the selfservice UI, or login_url in consent-only mode) is on a different host than Kratos, which with the selfservice UI on its own ui_fqdn is always. Every host under this domain receives the Kratos session cookie, so use the narrowest domain that covers Kratos (or the single-domain host) and those pages, ideally one that holds only the Ory hostnames. Null keeps the cookies host-only, which only works when those pages share Kratos's host."
   type        = string
   default     = null
+
+  validation {
+    condition = var.kratos_cookie_domain == null || (
+      can(regex("^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\\.)+[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$", coalesce(var.kratos_cookie_domain, "-"))) &&
+      !can(regex("^[0-9.]+$", coalesce(var.kratos_cookie_domain, "-")))
+    )
+    error_message = "kratos_cookie_domain must be a lowercase domain with at least two labels, e.g. auth.example.com (no scheme, leading dot, port, path, wildcard or IP address)."
+  }
 }
 
 variable "single_domain_fqdn" {
@@ -71,9 +79,11 @@ variable "single_domain_fqdn" {
 }
 
 variable "single_domain_proxy_image" {
-  description = "Container image for the single-domain reverse proxy. Defaults to the public pingap image. Point this at a hardened build pulled through the OEL registry proxy for production; the proxy pod uses the same OEL registry pull secret, so an image under the OEL proxy authenticates with the license key."
+  description = "Container image for the single-domain reverse proxy. Defaults to the public pingap image, pinned by digest. Point this at a hardened build pulled through the OEL registry proxy for production; the proxy pod uses the same OEL registry pull secret, so an image under the OEL proxy authenticates with the license key. The pod runs as UID 65532 with a read-only root filesystem and a writable /tmp."
   type        = string
-  default     = "vicanso/pingap:0.12.1-full"
+  # renovate: datasource=docker depName=vicanso/pingap
+  default  = "vicanso/pingap:0.12.1-full@sha256:88aaf15f953e64450162f19041952c65dfe43102d103d77198142b1a91ad7492"
+  nullable = false
 }
 
 # Databases -------------------------------------------------------------------
@@ -148,7 +158,7 @@ variable "cert_issuer_signs_cluster_local" {
 # Materialize integration (optional) ------------------------------------------
 
 variable "materialize_namespace" {
-  description = "Namespace of the Materialize instance to wire up. When set, the module creates an OAuth2Client CRD in Hydra and NetworkPolicies bridging the two namespaces. Set to null to deploy Ory without Materialize integration. The Materialize console HTTPS LoadBalancer itself is owned by the materialize-instance module."
+  description = "Namespace of the Materialize instance to wire up. When set, the module creates an OAuth2Client CRD in Hydra and admits that namespace to Hydra's public port (or the single-domain proxy). Set to null to deploy Ory without Materialize integration. The Materialize console HTTPS LoadBalancer itself is owned by the materialize-instance module."
   type        = string
   default     = null
 }
@@ -204,7 +214,7 @@ variable "lb_external_traffic_policy" {
 }
 
 variable "lb_source_cidrs" {
-  description = "CIDR blocks allowed to reach the Ory public ports (Hydra 4444, Kratos 4433, selfservice UI 3000) via the NetworkPolicy. Defaults to all sources; tighten to your LB or office CIDR ranges to restrict ingress. NOTE: NetworkPolicy only takes effect on clusters whose datapath enforces it (GKE Dataplane V2, or a NetworkPolicy provider like Calico); on other clusters this input is silently ignored. For firewall-level enforcement that works everywhere, set source_ranges in lb_overrides instead."
+  description = "CIDR blocks allowed to reach the Ory public listeners behind the load balancers (Hydra 4444 and Kratos 4433, or the single-domain proxy, plus the selfservice UI and Polis) via the NetworkPolicy, each on its own pods only. Defaults to all sources; tighten to your LB or office CIDR ranges to restrict ingress. NOTE: NetworkPolicy only takes effect on clusters whose datapath enforces it (GKE Dataplane V2, or a NetworkPolicy provider like Calico); on other clusters this input is silently ignored. For firewall-level enforcement that works everywhere, set source_ranges in lb_overrides instead."
   type        = list(string)
   default     = ["0.0.0.0/0"]
   nullable    = false
@@ -222,15 +232,26 @@ variable "node_selector" {
 # Upstream identity providers -------------------------------------------------
 
 variable "upstream_identity_providers" {
-  description = "Optional upstream identity providers exposed as social sign-in buttons on the selfservice UI. Most entries (Okta, Entra, Auth0, Google, etc.) use provider = \"generic\" and register their redirect URI at the upstream IdP as https://<kratos_fqdn>/self-service/methods/oidc/callback/<id>. The exception is Ory Polis, the SAML-to-OIDC bridge: set its entry to provider = \"jackson\", whose callback Kratos registers under the SAML method base, https://<kratos_fqdn>/self-service/methods/saml/callback/<id>, not the oidc one. Using generic for Polis sends the code to the wrong path and the flow dies at the redirect."
+  description = <<-EOT
+    Optional upstream identity providers exposed as social sign-in buttons on the selfservice UI. Most entries (Okta, Entra, Auth0, Google, etc.) use provider = "generic" and register their redirect URI at the upstream IdP as https://<kratos_fqdn>/self-service/methods/oidc/callback/<id>. Ory Polis goes in saml_providers instead.
+
+    Each provider gets its own claim mapper (see the ory-kratos module):
+    - allowed_email_domains (required): email domains this provider may sign in, matched exactly against the lowercased email (list subdomains separately).
+    - allowed_groups / group_prefix: keep only these groups, or only groups starting with the prefix, from the provider's groups claim.
+    - require_email_verified (default true): refuse emails the provider does not mark verified. Microsoft Entra ID does not send email_verified by default; set false there and rely on allowed_email_domains.
+  EOT
   type = list(object({
-    id            = string
-    provider      = optional(string, "generic")
-    client_id     = string
-    client_secret = string
-    issuer_url    = string
-    scope         = optional(list(string), ["openid", "email", "profile"])
-    label         = optional(string)
+    id                     = string
+    provider               = optional(string, "generic")
+    client_id              = string
+    client_secret          = string
+    issuer_url             = string
+    scope                  = optional(list(string), ["openid", "email", "profile"])
+    label                  = optional(string)
+    allowed_email_domains  = list(string)
+    allowed_groups         = optional(list(string))
+    group_prefix           = optional(string)
+    require_email_verified = optional(bool, true)
   }))
   default   = []
   nullable  = false
@@ -238,16 +259,20 @@ variable "upstream_identity_providers" {
 }
 
 variable "saml_providers" {
-  description = "SAML sign-in providers exposed via the Kratos SAML method (selfservice.methods.saml), used for Ory Polis (the jackson SAML-to-OIDC bridge). Each entry renders as a 'Sign in with X' button whose SAML callback is https://<kratos_fqdn>/self-service/methods/saml/callback/<id>. Leave as [] when no SAML sign-in is configured. Use this instead of upstream_identity_providers for Polis, since jackson is a SAML method rather than an OIDC provider."
+  description = "SAML sign-in providers exposed via the Kratos SAML method (selfservice.methods.saml), used for Ory Polis (the jackson SAML-to-OIDC bridge). Each entry renders as a 'Sign in with X' button whose SAML callback is https://<kratos_fqdn>/self-service/methods/saml/callback/<id>. Leave as [] when no SAML sign-in is configured. allowed_email_domains, allowed_groups and group_prefix work as in upstream_identity_providers; require_email_verified defaults to false, since SAML assertions carry no email_verified claim."
   type = list(object({
-    id                   = string
-    label                = optional(string)
-    client_id            = string
-    client_secret        = string
-    issuer_url           = string
-    auth_url             = string
-    token_url            = string
-    raw_idp_metadata_xml = string
+    id                     = string
+    label                  = optional(string)
+    client_id              = string
+    client_secret          = string
+    issuer_url             = string
+    auth_url               = string
+    token_url              = string
+    raw_idp_metadata_xml   = string
+    allowed_email_domains  = list(string)
+    allowed_groups         = optional(list(string))
+    group_prefix           = optional(string)
+    require_email_verified = optional(bool, false)
   }))
   default   = []
   nullable  = false
@@ -266,6 +291,129 @@ variable "hydra_helm_values" {
   description = "Additional helm_values merged on top of the Hydra defaults. Use sparingly; the module already wires the values that the enterprise setup requires."
   type        = any
   default     = {}
+}
+
+variable "selfservice_ui_mode" {
+  description = "How much of the selfservice UI to serve. \"full\" serves every Kratos self-service screen (login, registration, recovery, verification, settings, error) plus Hydra's consent screen. \"consent-only\" serves only the consent endpoint, the health endpoints and (when enabled) the token hook, leaving the user-facing flows to another app - typically the Materialize console; login_url is then required."
+  type        = string
+  default     = "full"
+  nullable    = false
+
+  validation {
+    condition     = contains(["full", "consent-only"], var.selfservice_ui_mode)
+    error_message = "selfservice_ui_mode must be one of: full, consent-only."
+  }
+}
+
+variable "login_url" {
+  description = "Full URL Hydra sends users to for login when the selfservice UI runs in consent-only mode, e.g. the Materialize console's https://console.example.com/account/login. Also becomes Kratos's login flow ui_url so Kratos redirects to the same page. Required when selfservice_ui_mode is \"consent-only\"; ignored otherwise (the UI's own /login is used)."
+  type        = string
+  default     = null
+
+  validation {
+    condition     = var.selfservice_ui_mode != "consent-only" || var.login_url != null
+    error_message = "login_url must be set when selfservice_ui_mode is \"consent-only\": nothing else serves the login page in that mode."
+  }
+}
+
+variable "selfservice_ui_token_hook_enabled" {
+  description = "Serve Hydra's OAuth2 token hook from the selfservice UI and point Hydra at it. Hydra then calls the hook on every token issuance, so refresh tokens stop working for deactivated users and pick up groups refreshed at sign-in, instead of keeping what was granted at consent. Null (the default) turns it on whenever deploy_selfservice_ui is true. Hydra calls the UI's in-cluster service when cert_issuer_signs_cluster_local is true; otherwise the UI's cert only covers ui_fqdn, so Hydra calls https://<ui_fqdn> through the UI's load balancer, and token issuance fails unless that LB admits the cluster's own addresses (lb_overrides source_ranges) and Hydra trusts its CA."
+  type        = bool
+  default     = null
+  nullable    = true
+
+  validation {
+    condition     = var.selfservice_ui_token_hook_enabled != true || var.deploy_selfservice_ui
+    error_message = "selfservice_ui_token_hook_enabled requires deploy_selfservice_ui: the hook is served by the selfservice UI."
+  }
+}
+
+variable "selfservice_ui_token_hook_max_auth_age_seconds" {
+  description = "The token hook refuses user tokens once the user hasn't signed in through the IdP for this long. groups and email only change when the IdP mapper runs at sign-in, so this bounds how long a refresh-token chain can keep ones the IdP has since removed. 0 disables the check."
+  type        = number
+  default     = 604800
+  nullable    = false
+
+  validation {
+    condition     = var.selfservice_ui_token_hook_max_auth_age_seconds >= 0
+    error_message = "selfservice_ui_token_hook_max_auth_age_seconds must be 0 or more."
+  }
+}
+
+variable "kratos_session_lifespan_seconds" {
+  description = "How long a Kratos session lasts, in seconds. Hydra remembers a sign-in for as long, so this bounds how long a user removed at the IdP can keep authorizing new clients without going back to the IdP. Must not exceed selfservice_ui_token_hook_max_auth_age_seconds when that is above 0."
+  type        = number
+  default     = 28800
+  nullable    = false
+
+  validation {
+    condition = var.kratos_session_lifespan_seconds >= 60 && (
+      var.selfservice_ui_token_hook_max_auth_age_seconds == 0 ||
+      var.kratos_session_lifespan_seconds <= var.selfservice_ui_token_hook_max_auth_age_seconds
+    )
+    error_message = "kratos_session_lifespan_seconds must be at least 60 and no more than selfservice_ui_token_hook_max_auth_age_seconds (when that is above 0)."
+  }
+}
+
+variable "selfservice_ui_claim_metadata_public" {
+  description = "Kratos metadata_public keys copied onto the issued tokens (both the id_token and the access token). The Kratos claim mapper writes the IdP's groups there, where users cannot change them. Materialize reads groups off the access token, so this pairs with Hydra's allowed_top_level_claims."
+  type        = list(string)
+  default     = ["groups"]
+  nullable    = false
+}
+
+variable "selfservice_ui_claim_traits" {
+  description = "Kratos identity trait names copied onto the issued tokens (both tokens). Empty by default: groups come from metadata_public, and a name may not appear in both lists."
+  type        = list(string)
+  default     = []
+  nullable    = false
+
+  validation {
+    condition     = length(setintersection(var.selfservice_ui_claim_traits, var.selfservice_ui_claim_metadata_public)) == 0
+    error_message = "A claim can't be in both selfservice_ui_claim_traits and selfservice_ui_claim_metadata_public: a user-editable trait would stand in for the IdP-sourced value."
+  }
+}
+
+variable "kratos_recovery_enabled" {
+  description = "Enable Kratos account recovery (selfservice.flows.recovery.enabled) and the matching link on the login screen. Off by default: identities come from the upstream IdP, which owns password resets."
+  type        = bool
+  default     = false
+  nullable    = false
+}
+
+variable "kratos_verification_enabled" {
+  description = "Enable Kratos address verification (selfservice.flows.verification.enabled) and the matching links on the screens. Off by default: addresses are asserted by the upstream IdP."
+  type        = bool
+  default     = false
+  nullable    = false
+}
+
+variable "screens_registration_link_enabled" {
+  description = "Whether the login screen links to registration. Kratos registration stays enabled for IdP just-in-time provisioning, but with password sign-up off the registration screen only repeats the SSO buttons, so the link is hidden by default."
+  type        = bool
+  default     = false
+  nullable    = false
+}
+
+variable "dcr_audience_allowlist" {
+  description = "Audience allow-list for OAuth2 clients that register themselves through dynamic client registration, such as MCP clients like Claude Code. A client asking for an RFC 8707 resource under one of these https URIs is granted that entry as its audience. Set it to the Materialize MCP resource URL(s), which must also be in Materialize's oidc_audience. Registration (POST /oauth2/register, enabled through hydra_helm_values) is unauthenticated and not rate limited by this module, so put a rate limit in front of Hydra's public endpoint if it is reachable from the internet."
+  type        = list(string)
+  default     = []
+  nullable    = false
+}
+
+variable "dcr_default_audience" {
+  description = "Audience granted to self-registered OAuth2 clients that have none and requested no resource. Empty leaves those clients without an audience, so Materialize rejects their tokens."
+  type        = list(string)
+  default     = []
+  nullable    = false
+}
+
+variable "selfservice_ui_log_redact_pii" {
+  description = "Redact personally identifiable information (email addresses, group names) from the selfservice UI's logs by hashing them. Set false temporarily while debugging sign-in issues."
+  type        = bool
+  default     = true
+  nullable    = false
 }
 
 variable "selfservice_ui_extra_env" {
@@ -288,13 +436,6 @@ variable "oauth2_client_audience" {
   description = "Audience value(s) the OAuth2 client embeds in issued JWTs. Materialize validates this against its OIDC_AUDIENCE setting."
   type        = list(string)
   default     = ["materialize"]
-  nullable    = false
-}
-
-variable "dcr_default_audience" {
-  description = "Audience given to OAuth2 clients that register themselves without one through dynamic client registration, such as MCP clients like Claude Code. Set it to the Materialize MCP resource URL(s), which must also be in Materialize's OIDC audience. Empty leaves those clients without an audience, so Materialize rejects their tokens."
-  type        = list(string)
-  default     = []
   nullable    = false
 }
 
@@ -397,6 +538,12 @@ variable "polis_nextauth_secret" {
   sensitive   = true
 }
 
+variable "polis_saml_audience" {
+  description = "SAML audience (Polis's SP entity ID). The IdP's SAML app must use the same value as its Audience URI (SP Entity ID). Null keeps Polis's default, https://saml.boxyhq.com, which every Polis install shares; setting it to the Polis URL ties assertions to this deployment."
+  type        = string
+  default     = null
+}
+
 variable "polis_helm_values" {
   description = "Additional helm_values merged on top of the Polis defaults."
   type        = any
@@ -430,22 +577,30 @@ variable "polis_chart_oci_password" {
 }
 
 variable "enable_service_monitors" {
-  description = "Create ServiceMonitors for Kratos and Hydra, and admit the metrics scraper to their admin ports. Ory serves metrics only on the admin listener, so this admits the scraper to the whole admin API, not just `/admin/metrics/prometheus`: Kratos's identities, sessions and recovery links, and Hydra's OAuth2 clients and login and consent. That API has no authentication of its own, so anything that can run a pod matching `metrics_scraper_pod_labels` in `monitoring_namespace` could sign in to Materialize as anyone. The prometheus-operator CRDs must be installed before this module, or the charts leave the monitors out."
+  description = "Create ServiceMonitors for Kratos and Hydra. Ory serves metrics only on its unauthenticated admin listener, so the scraper never reaches it: it scrapes a small nginx proxy in the Ory namespace that serves only `GET /admin/metrics/prometheus` from each Kratos and Hydra pod. The prometheus-operator CRDs must be installed before this module, or the charts leave the monitors out."
   type        = bool
   default     = false
   nullable    = false
 }
 
 variable "monitoring_namespace" {
-  description = "Namespace the metrics scraper runs in, admitted to the Kratos and Hydra admin ports when `enable_service_monitors` is set."
+  description = "Namespace the metrics scraper runs in, admitted to the metrics proxy when `enable_service_monitors` is set."
   type        = string
   default     = "monitoring"
   nullable    = false
 }
 
 variable "metrics_scraper_pod_labels" {
-  description = "Labels of the pods admitted to the Kratos and Hydra admin ports when `enable_service_monitors` is set. The default matches the materialize-monitoring gateway, which is what scrapes ServiceMonitors. Labels are not an identity: anything that can create pods in `monitoring_namespace` can match them."
+  description = "Labels of the pods in `monitoring_namespace` admitted to the metrics proxy when `enable_service_monitors` is set. The default matches the materialize-monitoring gateway, which is what scrapes ServiceMonitors."
   type        = map(string)
   default     = { "app.kubernetes.io/name" = "alloy-gateway" }
   nullable    = false
+}
+
+variable "metrics_proxy_image" {
+  description = "Container image for the metrics proxy deployed when `enable_service_monitors` is set. Must be an nginx-unprivileged build: the pod runs as UID 101 with a read-only root filesystem. Pinned by digest by default."
+  type        = string
+  # renovate: datasource=docker depName=nginxinc/nginx-unprivileged
+  default  = "docker.io/nginxinc/nginx-unprivileged:1.30.6-alpine@sha256:f5116ed4606f3eb015dd4a8e28cb9b351476dc0ad4bc6e9f93b19cec130cdf03"
+  nullable = false
 }

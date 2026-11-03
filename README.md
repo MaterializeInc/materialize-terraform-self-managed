@@ -177,6 +177,35 @@ We follow semantic versioning with our tags. If a particular version requires ad
 
 ### Upgrade Notes
 
+#### v19.0.0
+
+##### The Ory stack runs ory-selfservice and enforces stricter sign-in rules
+
+`ory-stack` replaces `oryd/kratos-selfservice-ui-node` with `materialize/ory-selfservice` v0.3.0 and tightens what an IdP can assert. [`kubernetes/modules/ory-selfservice-ui/UPGRADING.md`](kubernetes/modules/ory-selfservice-ui/UPGRADING.md) lists every change. If you already run the Ory stack:
+
+1. **Set the new inputs before applying.**
+   - `allowed_email_domains` on every entry in `upstream_identity_providers` and `saml_providers`. Sign-in with any other email domain fails.
+   - `require_email_verified = false` on OIDC providers that don't send `email_verified`, such as Microsoft Entra ID.
+   - `kratos_cookie_domain` (`ory_kratos_cookie_domain` in the examples). It was derived from the Kratos hostname before. Use the narrowest domain that covers Kratos and the UI.
+2. **Expect database changes in the examples.**
+   - AWS rotates the Hydra and Polis database passwords, since each RDS instance now has its own. The Kratos password is kept. The pods restart with the new DSNs during the apply.
+   - GCP moves the Ory Cloud SQL instance from `db-f1-micro` to `db-custom-1-3840`, which restarts it (a short Kratos, Hydra and Polis outage) and costs more. To keep the old tier, set `tier = "db-f1-micro"` in `ory_database_config` in your root.
+3. **Make everyone sign in through the IdP once after the apply.** Tokens now take `email` and `groups` from the identity's `metadata_public`, which the IdP mapper writes at sign-in. Until a user signs in through the IdP again, consent and token refreshes are refused. Remove the old `groups` trait, which the schema no longer allows, and end every session so the next sign-in goes to the IdP:
+
+   ```bash
+   kubectl -n ory port-forward svc/kratos-admin 4434 &
+   kubectl -n ory port-forward svc/hydra-admin 4445 &
+   # Past 500 identities, repeat with the page_token from the Link header.
+   for id in $(curl -s 'localhost:4434/admin/identities?page_size=500' | jq -r '.[].id'); do
+     curl -s -X PATCH "localhost:4434/admin/identities/$id" -H 'content-type: application/json' \
+       -d '[{"op":"remove","path":"/traits/groups"}]' >/dev/null
+     curl -s -X DELETE "localhost:4434/admin/identities/$id/sessions"
+     curl -s -X DELETE "localhost:4445/admin/oauth2/auth/sessions/login?subject=$id"
+   done
+   ```
+
+   The PATCH fails harmlessly for identities without a `groups` trait.
+
 #### v18.0.0
 
 Kubernetes version 1.35 on AWS and Azure.
@@ -366,7 +395,7 @@ If the cluster gets these CRDs from elsewhere, such as kube-prometheus-stack, se
 With `internal_load_balancer = false`, Hydra, Kratos, the selfservice UI and Polis now admit only `ingress_cidr_blocks` (plus the cluster's own addresses), like the Materialize load balancers already did. If your root sets a narrower `ingress_cidr_blocks` than `0.0.0.0/0`, the next apply locks them down. Before applying:
 
 - **Add every address that reaches Ory:** where your users sign in from, and any server that calls Hydra on its own, such as an MCP connector in claude.ai or ChatGPT. Anthropic's outbound range is `160.79.104.0/21`; use the published egress ranges of any other connector.
-- **If Okta pushes SCIM to Polis, generate Okta's ranges first:** `./scripts/update-okta-ip-ranges.sh <cloud>/examples/enterprise <okta-cell>`. Without `okta-scim-source-ranges.json`, Polis no longer admits Okta and provisioning stops. On GCP, that file and `ory_polis_source_ranges` replace `ingress_cidr_blocks` for Polis, as before, so add your users' addresses to `ory_polis_source_ranges`.
+- **If Okta pushes SCIM to Polis, generate Okta's ranges first:** `./scripts/update-okta-ip-ranges.sh <cloud>/examples/enterprise <okta-cell>`. Without `okta-scim-source-ranges.json`, Polis no longer admits Okta and provisioning stops. That file and `ory_polis_source_ranges` replace `ingress_cidr_blocks` for Polis, so add your users' addresses to `ory_polis_source_ranges`.
 
 ##### The examples use Premium SSD v2 for the metadata database
 

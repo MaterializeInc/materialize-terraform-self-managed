@@ -127,7 +127,7 @@ variable "nextauth_acl" {
 }
 
 variable "saml_audience" {
-  description = "Optional SAML audience identifier (Polis's SAML entity ID). When set, injected as the SAML_AUDIENCE env var on the Polis container. Must match the audience configured on the upstream IdP. Leave null to inherit Polis's built-in default."
+  description = "SAML audience (Polis's SP entity ID), set as SAML_AUDIENCE. The upstream IdP's SAML app must use the same value as its audience (Okta: Audience URI (SP Entity ID)). Null keeps Polis's default, https://saml.boxyhq.com, which every Polis install shares; setting it to the Polis URL ties assertions to this deployment."
   type        = string
   default     = null
 }
@@ -268,6 +268,22 @@ variable "tls_key_file" {
   type        = string
   default     = "tls.key"
   nullable    = false
+}
+
+variable "tls_sidecar_image" {
+  description = "Image for the TLS sidecar. The chart joins these as <registry>/<repository>:<tag>, so tag can carry a digest (<tag>@sha256:...). Pinned by digest by default."
+  type = object({
+    registry   = string
+    repository = string
+    tag        = string
+  })
+  default = {
+    registry   = "docker.io"
+    repository = "nginxinc/nginx-unprivileged"
+    # renovate: datasource=docker depName=nginxinc/nginx-unprivileged
+    tag = "1.30.6-alpine@sha256:f5116ed4606f3eb015dd4a8e28cb9b351476dc0ad4bc6e9f93b19cec130cdf03"
+  }
+  nullable = false
 }
 
 variable "tls_sidecar_port" {

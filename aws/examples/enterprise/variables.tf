@@ -101,6 +101,12 @@ variable "ory_kratos_fqdn" {
   type        = string
 }
 
+variable "ory_kratos_cookie_domain" {
+  description = "Domain Kratos scopes its session cookie to. It must cover both ory_kratos_fqdn and ory_ui_fqdn, and every host under it receives the session cookie, so pick the narrowest such domain, ideally one that holds only these hostnames. Example: mz.example.com for kratos.mz.example.com and auth.mz.example.com."
+  type        = string
+  nullable    = false
+}
+
 variable "enable_polis" {
   description = "Deploy Ory Polis (SAML-to-OIDC bridge) alongside Kratos and Hydra. When true, ory_polis_fqdn must be set and a dedicated RDS instance is provisioned for the polis database."
   type        = bool
@@ -118,6 +124,13 @@ variable "polis_helm_values" {
   description = "Additional Helm values deep-merged into the Polis chart. Escape hatch for overriding resources, node selectors, tolerations, etc."
   type        = any
   default     = {}
+}
+
+variable "ory_polis_source_ranges" {
+  description = "Extra CIDRs, besides Okta's SCIM egress ranges from okta-scim-source-ranges.json, allowed to reach the public Polis LoadBalancer. The browser reaches Polis directly for the SAML and OIDC hops, so set these to the public egress addresses your browsers appear as (VPN/NAT egress, office range). loadBalancerSourceRanges is a cloud firewall rule matched against the source IP as the cloud sees the packet, so a private VPC or tailnet CIDR (e.g. 100.64.0.0/10 or 10.x) will not match a browser coming over the internet and will lock those hops out. Combined with the Okta ranges and applied as loadBalancerSourceRanges. Leave empty to keep Polis unrestricted."
+  type        = list(string)
+  default     = []
+  nullable    = false
 }
 
 variable "materialize_console_fqdn" {
@@ -140,15 +153,23 @@ variable "cert_issuer_ref" {
 }
 
 variable "upstream_identity_providers" {
-  description = "Upstream OIDC providers to expose as social sign-in methods on the Kratos selfservice UI. Each entry renders as a 'Sign in with X' button on the login page. Leave as [] for password-only login. Register the redirect URI https://<ory_kratos_fqdn>/self-service/methods/oidc/callback/<id> at the upstream IdP."
+  description = <<-EOT
+    Upstream OIDC providers to expose as social sign-in methods on the Kratos selfservice UI. Each entry renders as a 'Sign in with X' button on the login page. Register the redirect URI https://<ory_kratos_fqdn>/self-service/methods/oidc/callback/<id> at the upstream IdP.
+
+    Each provider only signs in emails under its allowed_email_domains (exact, lowercase domains; list subdomains separately). allowed_groups and group_prefix limit which of its groups reach Materialize. require_email_verified (default true) refuses emails the provider does not mark verified; Microsoft Entra ID does not send email_verified by default, so set it false there and rely on allowed_email_domains.
+  EOT
   type = list(object({
-    id            = string
-    provider      = optional(string, "generic")
-    client_id     = string
-    client_secret = string
-    issuer_url    = string
-    scope         = optional(list(string), ["openid", "email", "profile"])
-    label         = optional(string)
+    id                     = string
+    provider               = optional(string, "generic")
+    client_id              = string
+    client_secret          = string
+    issuer_url             = string
+    scope                  = optional(list(string), ["openid", "email", "profile"])
+    label                  = optional(string)
+    allowed_email_domains  = list(string)
+    allowed_groups         = optional(list(string))
+    group_prefix           = optional(string)
+    require_email_verified = optional(bool, true)
   }))
   default   = []
   nullable  = false
@@ -156,17 +177,21 @@ variable "upstream_identity_providers" {
 }
 
 variable "saml_providers" {
-  description = "SAML sign-in providers exposed via the Kratos SAML method, for Ory Polis (the jackson SAML-to-OIDC bridge). Each entry renders a 'Sign in with X' button whose SAML callback is https://<ory_kratos_fqdn>/self-service/methods/saml/callback/<id>. Leave as [] for none. Use this instead of upstream_identity_providers for Polis, since jackson is a SAML method rather than an OIDC provider."
+  description = "SAML sign-in providers exposed via the Kratos SAML method, for Ory Polis (the jackson SAML-to-OIDC bridge). Each entry renders a 'Sign in with X' button whose SAML callback is https://<ory_kratos_fqdn>/self-service/methods/saml/callback/<id>. Leave as [] for none. allowed_email_domains, allowed_groups and group_prefix work as in upstream_identity_providers; require_email_verified defaults to false, since SAML assertions carry no email_verified claim."
   # raw_idp_metadata_xml is not set here: main.tf reads it from idp-metadata.xml
   # in this directory and injects it, so the large XML stays out of tfvars.
   type = list(object({
-    id            = string
-    label         = optional(string)
-    client_id     = string
-    client_secret = string
-    issuer_url    = string
-    auth_url      = string
-    token_url     = string
+    id                     = string
+    label                  = optional(string)
+    client_id              = string
+    client_secret          = string
+    issuer_url             = string
+    auth_url               = string
+    token_url              = string
+    allowed_email_domains  = list(string)
+    allowed_groups         = optional(list(string))
+    group_prefix           = optional(string)
+    require_email_verified = optional(bool, false)
   }))
   default   = []
   nullable  = false
@@ -239,10 +264,9 @@ variable "direct_oidc" {
 
 variable "enable_ory_service_monitors" {
   description = <<-EOT
-    Scrape Kratos's and Hydra's metrics into the monitoring stack. Ory serves them only on its admin
-    listener, so this admits the monitoring gateway to the whole Kratos and Hydra admin API, which
-    has no authentication of its own and can sign anyone in to Materialize. Set it to false where
-    the monitoring namespace is not trusted as much as the Ory one.
+    Scrape Kratos's and Hydra's metrics into the monitoring stack. Ory serves them only on its
+    unauthenticated admin listener, so the monitoring gateway scrapes a proxy in the Ory namespace
+    that serves only the metrics path, and is never admitted to the admin API itself.
   EOT
   type        = bool
   default     = true
