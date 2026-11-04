@@ -229,7 +229,7 @@ provider "registry.terraform.io/hashicorp/tls" {
 
 provider "registry.terraform.io/isometry/deepmerge" {
   version     = "1.3.1"
-  constraints = "~> 1.0, < 1.4.0, < 1.4.0"
+  constraints = "~> 1.0, < 1.4.0"
   hashes = [
     "h1:2qlRaGTnpPl4p8WyKYWcU6p4ut+IlWg8a9mlHmDsxLY=",
     "h1:5AnoehSjfyqxv7kdkrgytHf69p0rGgYrye9t9icX0f0=",

@@ -146,7 +146,7 @@ provider "registry.terraform.io/hashicorp/kubernetes" {
 
 provider "registry.terraform.io/hashicorp/random" {
   version     = "3.9.1"
-  constraints = "~> 3.1, >= 3.5.0, ~> 3.5, < 3.10.0, < 3.10.0"
+  constraints = "~> 3.1, >= 3.5.0, ~> 3.5, < 3.10.0"
   hashes = [
     "h1:0rmWNCsP90oLS9KtLiqcNmkRzsaOZD95THXyuGYUfOM=",
     "h1:4AN630toDK+4Is2MQcbGA37yR56nIEDPO0qv8ivZD2M=",
@@ -178,7 +178,7 @@ provider "registry.terraform.io/hashicorp/random" {
 
 provider "registry.terraform.io/isometry/deepmerge" {
   version     = "1.3.1"
-  constraints = "~> 1.0, < 1.4.0, < 1.4.0"
+  constraints = "~> 1.0, < 1.4.0"
   hashes = [
     "h1:2qlRaGTnpPl4p8WyKYWcU6p4ut+IlWg8a9mlHmDsxLY=",
     "h1:5AnoehSjfyqxv7kdkrgytHf69p0rGgYrye9t9icX0f0=",
