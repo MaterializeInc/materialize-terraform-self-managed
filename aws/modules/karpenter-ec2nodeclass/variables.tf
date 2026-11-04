@@ -47,6 +47,13 @@ variable "swap_enabled" {
   nullable    = false
 }
 
+variable "enable_user_namespaces" {
+  description = "Whether to let Kubernetes run pods in user namespaces (`hostUsers: false`) on these nodes, by setting the `user.max_user_namespaces` sysctl, which Bottlerocket sets to 0. Required if the Materialize operator chart's `operator.args.enableUserNamespaces` is enabled. Changing this replaces the nodes."
+  type        = bool
+  default     = false
+  nullable    = false
+}
+
 variable "disk_setup_image" {
   description = "Docker image for disk bootstraping when swap is enabled."
   type        = string

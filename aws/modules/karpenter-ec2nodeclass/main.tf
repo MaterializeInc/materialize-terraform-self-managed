@@ -93,7 +93,17 @@ locals {
     "vm.watermark_scale_factor" = "100"
   EOF
 
-  userdata = var.swap_enabled ? "${local.default_userdata}\n${local.swap_bootstrap_args}" : local.default_userdata
+  # Bottlerocket sets user.max_user_namespaces to 0, so containerd can't create
+  # the user namespace for a pod with hostUsers: false and its sandbox fails
+  # with "no space left on device". With swap, the line goes at the end of the
+  # swap block's [settings.kernel.sysctl] table; TOML forbids defining a table
+  # twice.
+  user_namespaces_sysctl = "\"user.max_user_namespaces\" = \"65536\"\n"
+  user_namespaces_userdata = var.enable_user_namespaces ? (
+    var.swap_enabled ? local.user_namespaces_sysctl : "\n[settings.kernel.sysctl]\n${local.user_namespaces_sysctl}"
+  ) : ""
+
+  userdata = "${var.swap_enabled ? "${local.default_userdata}\n${local.swap_bootstrap_args}" : local.default_userdata}${local.user_namespaces_userdata}"
 }
 
 resource "kubectl_manifest" "ec2nodeclass" {
