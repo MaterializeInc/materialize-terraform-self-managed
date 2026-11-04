@@ -97,9 +97,9 @@ variable "swap_enabled" {
 }
 
 variable "enable_user_namespaces" {
-  description = "Whether to let Kubernetes run pods in user namespaces (`hostUsers: false`) on these nodes, by setting the `user.max_user_namespaces` sysctl, which Bottlerocket sets to 0. Required if the Materialize operator chart's `operator.args.enableUserNamespaces` is enabled. Changing this replaces the nodes."
+  description = "Whether to let Kubernetes run pods in user namespaces (`hostUsers: false`) on these nodes, by setting the `user.max_user_namespaces` sysctl, which Bottlerocket sets to 0. Needed for the operator module's `enable_user_namespaces`. Changing this replaces the nodes."
   type        = bool
-  default     = false
+  default     = true
   nullable    = false
 }
 

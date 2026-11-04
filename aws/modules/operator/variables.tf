@@ -120,6 +120,13 @@ variable "install_v1_crd" {
   nullable    = false
 }
 
+variable "enable_user_namespaces" {
+  description = "Whether to run the operator, environmentd, clusterd, balancerd and console pods in Kubernetes user namespaces (`hostUsers: false`), so root in a container maps to an unprivileged user on the node. Nodes must allow user namespaces; the AWS node modules set the sysctl Bottlerocket needs. Changing this for an existing Materialize instance takes effect on its next rollout."
+  type        = bool
+  default     = true
+  nullable    = false
+}
+
 variable "swap_enabled" {
   description = "Whether to enable swap on the local NVMe disks."
   type        = bool
