@@ -63,7 +63,7 @@ resource "kubernetes_config_map" "balancerd_params" {
 
 # Create the Materialize instance using the kubectl_manifest resource
 resource "kubectl_manifest" "materialize_instance" {
-  field_manager   = "terraform"
+  field_manager = "terraform"
   # Client-side apply (the default). If server_side_apply is ever enabled,
   # decide whether Terraform should force field ownership (force_conflicts).
 
