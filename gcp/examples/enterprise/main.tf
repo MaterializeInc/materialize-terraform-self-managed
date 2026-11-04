@@ -572,6 +572,33 @@ module "monitoring" {
   enable_google_cloud_metrics         = false
   google_cloud_metrics_min_importance = "recommended"
 
+  # The other direction: Cloud Monitoring's view of the dependencies Materialize
+  # cannot run without — Materialize and other supporting databases, and the
+  # persist bucket's size, split into live, noncurrent and soft-deleted bytes.
+  # The module adds its own buckets and Grafana's database. Those are named here
+  # rather than discovered, so no other instance or bucket in the project is
+  # pulled.
+  #
+  # Compute Engine quota is the project's, per region: the CPUs and local SSD
+  # each machine family uses against its limit, across every node pool and VM
+  # in the region, since that is what a node pool runs into when it cannot grow.
+  #
+  # The load balancers are found by the network rather than named: GKE names a
+  # forwarding rule only once it makes it, so Grafana's, whose Service the
+  # monitoring release creates, cannot be named at all, and naming
+  # Materialize's would make this module wait for the instance. The network
+  # holds only this deployment, so its load balancers are the ones pulled.
+  #
+  # Cloud NAT is the path pods take out of the VPC, so its port exhaustion is
+  # why a Materialize source can stall with no cause in the cluster.
+  provider_metrics = var.enable_provider_metrics ? {
+    cloud_sql_instances    = [module.database.instance_name, module.ory_database.instance_name]
+    gcs_buckets            = [module.storage.bucket_name]
+    compute_regions        = [var.region]
+    load_balancer_networks = [module.networking.network_name]
+    cloud_nat_gateways     = [module.networking.nat_name]
+  } : null
+
   # Datadog and generic OTLP (Honeycomb, Grafana Cloud, your own collector) fan
   # out the same way, and need no cloud resources — so they are set here rather
   # than behind an `enable_*` toggle. Commented out because both need a

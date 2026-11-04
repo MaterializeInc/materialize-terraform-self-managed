@@ -72,6 +72,21 @@ variable "enable_observability" {
   default     = true
 }
 
+variable "enable_provider_metrics" {
+  description = <<-EOT
+    Pull CloudWatch metrics for Materialize and other supporting databases, the persist bucket, the
+    monitoring stack's own buckets and Grafana load balancer, the EKS cluster's nodes and node
+    groups, and the VPC's NAT gateways into the monitoring stack. Creates a read-only IRSA role for
+    the Alloy gateway.
+
+    Off by default: CloudWatch bills each call. This example makes fewer than 100
+    `GetMetricStatistics` calls every five minutes; the cluster's pull adds `GetMetricData`, billed
+    per metric, which grows with the number of nodes and node groups.
+  EOT
+  type        = bool
+  default     = false
+}
+
 # Ory variables
 variable "ory_oel_registry" {
   description = "Base registry URL for Ory Enterprise License images. Defaults to the production Materialize-hosted registry proxy. Override for staging (ory.registry.staging.cloud.materialize.com/ory-artifacts) or a dev stack."
