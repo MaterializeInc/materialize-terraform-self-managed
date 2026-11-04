@@ -6,8 +6,8 @@ use tokio::process::Command;
 
 use crate::cli::InitProvider;
 use crate::helpers::{
-    ci_log_group, example_dir, generate_test_run_id, project_root, run_cmd, runs_dir,
-    upload_tfvars_to_backend, write_lifecycle,
+    ci_log_group, example_dir, generate_test_run_id, project_root, run_cmd, run_cmd_output,
+    runs_dir, upload_tfvars_to_backend, write_lifecycle,
 };
 use crate::types::{CloudProvider, CommonTfVars, TfVars};
 
@@ -484,6 +484,8 @@ async fn create_kind_cluster(test_run_id: &str, dest: &Path) -> Result<()> {
     .await
     .context("kind create cluster failed")?;
 
+    mount_userns_sysfs(test_run_id).await?;
+
     run_cmd(
         crate::helpers::kubectl(&kubeconfig)
             .arg("apply")
@@ -492,4 +494,32 @@ async fn create_kind_cluster(test_run_id: &str, dest: &Path) -> Result<()> {
     )
     .await
     .context("failed to deploy the kind test backends")
+}
+
+/// Mounts a fresh, unobstructed sysfs inside each kind node. The operator
+/// chart runs Materialize pods with `hostUsers: false` by default, and the
+/// kernel only lets a container in a user namespace mount sysfs when the node
+/// already has a fully visible sysfs mount; kind's /sys has submounts over it,
+/// so pod creation fails without this. Harmless when user namespaces are off.
+///
+/// TODO: Remove when https://github.com/kubernetes-sigs/kind/issues/3436 is fixed.
+async fn mount_userns_sysfs(test_run_id: &str) -> Result<()> {
+    let nodes = run_cmd_output(Command::new("kind").args(["get", "nodes", "--name", test_run_id]))
+        .await
+        .context("kind get nodes failed")?;
+    for node in nodes.split_whitespace() {
+        run_cmd(Command::new("docker").args([
+            "exec",
+            node,
+            "sh",
+            "-c",
+            "mkdir -p /run/userns-sysfs && \
+             mount -t sysfs -o ro,nosuid,nodev,noexec sysfs /run/userns-sysfs",
+        ]))
+        .await
+        .with_context(|| {
+            format!("failed to mount sysfs for user namespaces on kind node {node}")
+        })?;
+    }
+    Ok(())
 }
