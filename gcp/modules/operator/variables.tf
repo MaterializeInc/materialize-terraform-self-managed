@@ -113,9 +113,9 @@ variable "install_v1_crd" {
 }
 
 variable "enable_user_namespaces" {
-  description = "Whether to run the operator, environmentd, clusterd, balancerd and console pods in Kubernetes user namespaces (`hostUsers: false`), so root in a container maps to an unprivileged user on the node. Nodes must allow user namespaces; the AWS node modules set the sysctl Bottlerocket needs. Changing this for an existing Materialize instance takes effect on its next rollout."
+  description = "Whether to run the operator, environmentd, clusterd, balancerd and console pods in Kubernetes user namespaces (`hostUsers: false`), so root in a container maps to an unprivileged user on the node. Nodes must allow user namespaces; the AWS node modules set the sysctl Bottlerocket needs. On AWS, apply the node module change and let every node be replaced before turning this on, or pods scheduled on old nodes fail to start. Changing this for an existing Materialize instance takes effect on its next rollout."
   type        = bool
-  default     = true
+  default     = false
   nullable    = false
 }
 

@@ -98,7 +98,9 @@ locals {
     ] : [],
     # Bottlerocket sets this to 0, so containerd can't create the user
     # namespace for a pod with hostUsers: false and its sandbox fails with
-    # "no space left on device".
+    # "no space left on device". Raising it relies on Bottlerocket's kubelet
+    # default of seccompDefault: true: pods without a seccompProfile run
+    # RuntimeDefault, which stops them creating their own user namespaces.
     var.enable_user_namespaces ? [
       { name = "user.max_user_namespaces", value = "65536" },
     ] : [],
