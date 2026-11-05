@@ -122,7 +122,7 @@ variable "ory_oel_image_tag" {
   description = "Image tag for OEL images."
   type        = string
   # renovate: datasource=docker depName=ory-artifacts/ory-enterprise/hydra-oel registryUrl=https://ory.registry.cloud.materialize.com
-  default = "26.4.13"
+  default = "26.4.14"
 }
 
 variable "ory_hydra_fqdn" {
