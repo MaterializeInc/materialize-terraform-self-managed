@@ -171,7 +171,7 @@ Set the `ref=` portion to point at the latest tagged version of this repository.
 
 The tooling for migrating from the legacy modules ([terraform-aws-materialize](https://github.com/MaterializeInc/terraform-aws-materialize), [terraform-google-materialize](https://github.com/MaterializeInc/terraform-google-materialize) and [terraform-azurerm-materialize](https://github.com/MaterializeInc/terraform-azurerm-materialize)) has been removed and is no longer supported. You can still find it under `<cloud>/examples/migration` in [earlier releases](https://github.com/MaterializeInc/materialize-terraform-self-managed/tree/v18.0.0) for reference, but we no longer maintain it.
 
-If you're still on the legacy modules, we recommend deploying a new stack with these modules instead of migrating state in place. To keep your existing data, you can [import](https://developer.hashicorp.com/terraform/language/import) the metadata database and the storage bucket into the new configuration rather than creating new ones.
+If you're still on the legacy modules, we recommend deploying a new stack with these modules instead of migrating state in place. To keep your existing data, deploy it into your existing network by passing your VPC/VNet and subnet IDs to the modules instead of using the `networking` module, and [import](https://developer.hashicorp.com/terraform/language/import) the metadata database and the storage bucket. Review the plan before applying: replacing either one loses data.
 
 ## Upgrading
 
