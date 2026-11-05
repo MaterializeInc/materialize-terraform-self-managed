@@ -167,6 +167,12 @@ module "materialize_instance" {
 
 Set the `ref=` portion to point at the latest tagged version of this repository.
 
+## Migrating from the legacy modules
+
+The tooling for migrating from the legacy modules ([terraform-aws-materialize](https://github.com/MaterializeInc/terraform-aws-materialize), [terraform-google-materialize](https://github.com/MaterializeInc/terraform-google-materialize) and [terraform-azurerm-materialize](https://github.com/MaterializeInc/terraform-azurerm-materialize)) has been removed and is no longer supported. It is still available in [v18.0.0](https://github.com/MaterializeInc/materialize-terraform-self-managed/tree/v18.0.0) under `<cloud>/examples/migration`, but it targets the v18.0.0 modules and won't be updated.
+
+If you're still on the legacy modules, we recommend deploying a new stack with these modules instead of migrating state in place. To keep your existing data, you can [import](https://developer.hashicorp.com/terraform/language/import) the metadata database and the storage bucket into the new configuration rather than creating new ones.
+
 ## Upgrading
 
 Most of the time, you just need to bump the `ref=<tag>` in all modules. We recommend that you bump all modules to the same version in the same `terraform apply`. We frequently make changes that assume related changes in dependent modules.
