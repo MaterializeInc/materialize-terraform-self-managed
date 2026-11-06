@@ -96,6 +96,13 @@ variable "swap_enabled" {
   nullable    = false
 }
 
+variable "enable_user_namespaces" {
+  description = "Whether to let Kubernetes run pods in user namespaces (`hostUsers: false`) on these nodes, by setting the `user.max_user_namespaces` sysctl, which Bottlerocket sets to 0. Needed for the operator module's `enable_user_namespaces`. Changing this replaces the nodes."
+  type        = bool
+  default     = true
+  nullable    = false
+}
+
 variable "disk_setup_image" {
   description = "Docker image for the disk setup script"
   type        = string

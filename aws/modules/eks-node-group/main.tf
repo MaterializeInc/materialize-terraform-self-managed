@@ -13,12 +13,29 @@ locals {
     mode = "always"
     essential = true
     user-data = "${base64encode(jsonencode(["swap", "--cloud-provider", "aws", "--bottlerocket-enable-swap"]))}"
-
-    [settings.kernel.sysctl]
-    "vm.swappiness" = "100"
-    "vm.min_free_kbytes" = "1048576"
-    "vm.watermark_scale_factor" = "100"
   EOF
+
+  # Kept as a list rather than a map so the swap sysctls render in the same
+  # order as before and existing nodes don't drift.
+  sysctls = concat(
+    var.swap_enabled ? [
+      { name = "vm.swappiness", value = "100" },
+      { name = "vm.min_free_kbytes", value = "1048576" },
+      { name = "vm.watermark_scale_factor", value = "100" },
+    ] : [],
+    # Bottlerocket sets this to 0, so containerd can't create the user
+    # namespace for a pod with hostUsers: false and its sandbox fails with
+    # "no space left on device". Raising it relies on Bottlerocket's kubelet
+    # default of seccompDefault: true: pods without a seccompProfile run
+    # RuntimeDefault, which stops them creating their own user namespaces.
+    var.enable_user_namespaces ? [
+      { name = "user.max_user_namespaces", value = "65536" },
+    ] : [],
+  )
+  sysctl_userdata = length(local.sysctls) == 0 ? "" : join("", concat(
+    ["[settings.kernel.sysctl]\n"],
+    [for sysctl in local.sysctls : "\"${sysctl.name}\" = \"${sysctl.value}\"\n"],
+  ))
 }
 
 # Clean up orphaned ENIs associated with this node group's security group.
@@ -107,7 +124,10 @@ module "node_group" {
     http_put_response_hop_limit = 2
   }
 
-  bootstrap_extra_args = var.swap_enabled ? local.swap_bootstrap_args : ""
+  bootstrap_extra_args = join("\n", compact([
+    var.swap_enabled ? local.swap_bootstrap_args : "",
+    local.sysctl_userdata,
+  ]))
 
   cluster_service_cidr              = var.cluster_service_cidr
   cluster_primary_security_group_id = var.cluster_primary_security_group_id
