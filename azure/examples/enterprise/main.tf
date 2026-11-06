@@ -129,10 +129,10 @@ locals {
   )
 
   materialize_instance_namespace = "materialize-environment"
-  # Named here rather than left to each module's default, and passed to both
-  # the operator and monitoring modules, so the two cannot drift apart: the
-  # operator creates these namespaces and monitoring scopes its scrape targets
-  # to them.
+  # Named here rather than left to each module's default, and passed to the
+  # operator, monitoring_crds and monitoring modules, so they cannot drift apart:
+  # the operator and monitoring_crds create these namespaces and monitoring
+  # scopes its scrape targets to them.
   materialize_operator_namespace = "materialize"
   monitoring_namespace           = "monitoring"
   materialize_instance_name      = "main"
@@ -627,6 +627,35 @@ module "monitoring" {
     user        = module.database.administrator_login
   }
   metadata_database_password = module.database.administrator_password
+
+  # Azure Monitor's view of the dependencies Materialize cannot run without —
+  # Materialize and other supporting databases, and the persist account's size,
+  # availability and latency. The module adds its own storage account and
+  # Grafana's database. Those are named here rather than discovered.
+  #
+  # The cluster's autoscaler is read from the cluster, and its node VMs from the
+  # scale sets in its node resource group, which AKS creates and replaces, so
+  # the pull finds them there. The gateway's identity can read only these
+  # resources and that group, so nothing else in the subscription is pulled.
+  #
+  # The cluster's load balancers are in the same group: AKS puts every
+  # LoadBalancer Service, Materialize's and Grafana's, behind them. The NAT
+  # gateway is the nodes' way out of the virtual network, so its port
+  # exhaustion is why a Materialize source can stall with no cause in the
+  # cluster.
+  provider_metrics = var.enable_provider_metrics ? {
+    postgres_server_ids = [module.database.server_id, module.ory_database.server_id]
+    storage_account_ids = [module.storage.storage_account_id]
+    aks_clusters = [{
+      id                  = module.aks.cluster_id
+      node_resource_group = module.aks.cluster_node_resource_group
+    }]
+    load_balancer_clusters = [{
+      id                  = module.aks.cluster_id
+      node_resource_group = module.aks.cluster_node_resource_group
+    }]
+    nat_gateway_ids = [module.networking.nat_gateway_id]
+  } : null
 
   # A dedicated Flexible Server for Grafana's own state. Separate from
   # `module.database` because a Flexible Server has one administrator login and

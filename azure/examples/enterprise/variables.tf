@@ -82,6 +82,17 @@ variable "enable_observability" {
   default     = true
 }
 
+variable "enable_provider_metrics" {
+  description = <<-EOT
+    Pull Azure Monitor metrics for Materialize and other supporting databases, the persist storage
+    account, the monitoring stack's own storage account, the AKS cluster's autoscaler, node VMs and
+    load balancers, and the NAT gateway into the monitoring stack. Creates an identity for the Alloy
+    gateway with Monitoring Reader on those resources and the cluster's node resource group only.
+  EOT
+  type        = bool
+  default     = false
+}
+
 # Ory variables
 variable "ory_oel_registry" {
   description = "Base registry URL for Ory Enterprise License images. Defaults to the production Materialize-hosted registry proxy. Override for staging (ory.registry.staging.cloud.materialize.com/ory-artifacts) or a dev stack."
