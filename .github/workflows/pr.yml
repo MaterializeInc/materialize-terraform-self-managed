@@ -7,6 +7,9 @@ on:
     # when labels change.
     types: [opened, reopened, synchronize, labeled, unlabeled]
 
+permissions:
+  contents: read
+
 jobs:
   lint:
     uses: ./.github/workflows/lint.yml
@@ -48,6 +51,7 @@ jobs:
         with:
           # HEAD is the merge commit, HEAD^1 the base branch.
           fetch-depth: 2
+          persist-credentials: false
 
       - name: Require an upgrade note on breaking changes
         if: contains(github.event.pull_request.labels.*.name, 'breaking-change')

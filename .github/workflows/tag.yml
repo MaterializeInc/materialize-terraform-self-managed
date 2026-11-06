@@ -116,9 +116,9 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ env.TARGET_SHA }}
-          # The bot token's pushes trigger CI on the upgrade notes PR, the
-          # default GITHUB_TOKEN's don't.
-          token: ${{ secrets.MATERIALIZE_BOT_TOKEN }}
+          # No token in .git/config while scriv runs. The push step passes the
+          # bot token itself.
+          persist-credentials: false
 
       - name: Install scriv
         if: steps.version.outputs.version != ''
@@ -166,7 +166,12 @@ jobs:
           git switch -c "$branch"
           git add -A changelog.d UPGRADING.md
           git commit -m "Upgrade notes for $VERSION"
-          git push --force origin "$branch"
+          # The bot token's pushes trigger CI on the upgrade notes PR, the
+          # default GITHUB_TOKEN's don't.
+          auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
+          echo "::add-mask::$auth"
+          git -c http.https://github.com/.extraheader="AUTHORIZATION: basic $auth" \
+            push --force origin "$branch"
 
           # A bigger bump renames the version, so close notes PRs for any other
           # version: merging one would release the wrong version.
