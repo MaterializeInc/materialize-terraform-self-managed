@@ -26,7 +26,7 @@ terraform {
     # version the `nlb` module uses.
     kubectl = {
       source  = "alekc/kubectl"
-      version = "3.0.0"
+      version = "3.0.1"
     }
     random = {
       source  = "hashicorp/random"
