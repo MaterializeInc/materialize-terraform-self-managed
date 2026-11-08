@@ -35,6 +35,10 @@ module "virtual_network" {
   source  = "Azure/avm-res-network-virtualnetwork/azurerm"
   version = "0.22.3"
 
+  # From 0.23.0 AVM telemetry creates subscription-scope deployments on every
+  # apply, which needs extra permissions and never leaves a clean plan.
+  enable_telemetry = false
+
   name          = "${var.prefix}-vnet"
   location      = var.location
   parent_id     = "/subscriptions/${data.azurerm_client_config.current.subscription_id}/resourceGroups/${var.resource_group_name}"
