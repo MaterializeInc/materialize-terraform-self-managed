@@ -153,7 +153,7 @@ provider "registry.terraform.io/hashicorp/random" {
 
 provider "registry.terraform.io/hashicorp/time" {
   version     = "0.14.2"
-  constraints = "~> 0.13, < 0.15.0"
+  constraints = ">= 0.13.0, < 0.15.0"
   hashes = [
     "h1:BsFRZaoiLNBLpHmdDDgNW59wTAQl7KNbdlLgu9l5+ag=",
     "h1:Ehc5ZhntyhBJ0yiRlvZjr8AaSTvZaN10qDpbIupgWn0=",
