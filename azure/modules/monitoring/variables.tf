@@ -325,6 +325,8 @@ variable "datadog_metrics" {
 
     `min_importance` is the cost lever — Datadog bills per custom metric, so it defaults to
     `essential` rather than the `recommended` the other destinations use.
+
+    `logs_endpoint` has no effect: this exports metrics only.
   EOT
   type = object({
     site            = optional(string, "datadoghq.com")
@@ -602,6 +604,25 @@ variable "certificate_renew_before" {
   description = "How long before expiry cert-manager renews, as a Go duration. Null uses the chart's default. See the warning on `certificate_duration`."
   type        = string
   default     = null
+}
+
+variable "secret_filter" {
+  description = <<-EOT
+    What the Alloy gateway's secret filter does with log lines: `off`, `shadow`, or `on`. Null uses
+    the monitoring module's default, which leaves the filter off.
+
+    `on` replaces each credential the filter finds with `<redacted:RULE_ID>` before the line is
+    stored. `shadow` stores every line as it arrives, plus a redacted copy of each line the filter
+    would have changed, labeled `secretfilter="shadow"`. Run `shadow` first to see what `on` would
+    replace in your logs. Both scan every log line the gateway handles, which costs gateway CPU.
+
+    The filter is an extra layer of protection, not the control: configure each component not to
+    log credentials in the first place. A mode set through `additional_values` overrides this. See
+    https://materializeinc.github.io/materialize-monitoring/operating/production-best-practices/secret-filtering/.
+  EOT
+  # TODO(DEP-313): the monitoring module's default moves to `on`; restate it here on that bump.
+  type    = string
+  default = null
 }
 
 variable "additional_values" {

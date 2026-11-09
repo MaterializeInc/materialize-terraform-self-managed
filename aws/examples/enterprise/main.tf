@@ -664,6 +664,15 @@ module "monitoring" {
   node_selector = local.generic_node_labels
   storage_class = module.ebs_csi_driver.storage_class_name
 
+  # The gateway's secret filter, which replaces each credential it finds in a
+  # log line with `<redacted:RULE_ID>` before the line is stored. Off unless set
+  # here, because it scans every log line the gateway handles. `shadow` costs
+  # the same scan and leaves every line as it was, adding a redacted copy of
+  # each line `on` would have changed, labeled `secretfilter="shadow"`. Run it
+  # first to see what the filter catches in your logs.
+  #
+  # secret_filter = "shadow"
+
   # Datadog and generic OTLP (Honeycomb, Grafana Cloud, your own collector) fan
   # out the same way, and need no cloud resources — so they are set here rather
   # than behind an `enable_*` toggle. Commented out because both need a

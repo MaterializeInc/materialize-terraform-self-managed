@@ -177,6 +177,40 @@ We follow semantic versioning with our tags. If a particular version requires ad
 
 ### Upgrade Notes
 
+#### v18.1.0
+
+##### Monitoring stack moves to materialize-monitoring v1.7.0
+
+The `monitoring` modules now pin `materialize-monitoring/v1.7.0`, up from v1.6.0.
+Nothing needs to change before you apply.
+If your `additional_values` sets chart values, check the last item below.
+
+- **The gateway's secret filter can be turned on.**
+  The AWS, GCP, and Azure `monitoring` modules take a new `secret_filter` input: `off` (the default), `shadow`, or `on`.
+  `on` replaces each credential the filter finds in a log line with `<redacted:RULE_ID>` before the line is stored.
+  `shadow` leaves every line as it was and adds a redacted copy of each line `on` would have changed, labeled `secretfilter="shadow"`, so you can see what the filter catches before you turn it on.
+  Both scan every log line the gateway handles, which costs gateway CPU.
+  The examples show the input commented out.
+  See [Secret filtering](https://materializeinc.github.io/materialize-monitoring/operating/production-best-practices/secret-filtering/).
+- **A Materialize Ingress dashboard** (`env-ingress`) shows rate, errors, and latency for each hop into an environment: the cloud load balancer, balancerd, the console, and environmentd's SQL and HTTP APIs.
+  Its Load Balancer tab draws the load balancer metrics that `provider_metrics` pulls.
+  On GCP and Azure, the `simple` examples' pull finds Materialize's load balancer when `enable_provider_metrics` is on.
+  On AWS, also uncomment `network_load_balancers` in the `simple` example's `provider_metrics`.
+  balancerd's latency and server-side error panels need Materialize v26.50.0, and say so on older versions.
+- **New alerts in the default set** fire on nodes that are cordoned or marked for removal: `materialize-node-draining`, `materialize-node-drain-slow`, and `materialize-node-drain-stuck` for nodes running environmentd or clusterd, and `node-drain-stuck` for the rest.
+  They link to the [Node drains](https://materializeinc.github.io/materialize-monitoring/operating/runbooks/node-drains/) runbook.
+- **Most of the stack's pods restart once** during the apply, including the Alloy gateway and every Loki pod, because most of its images and subcharts move.
+- **Metrics sent to a Datadog site outside the US** go to that site's own intake.
+  Before, they went to the US intake.
+  `datadog_metrics.logs_endpoint` has no effect.
+- **If `additional_values` sets chart values**, check them against the new release:
+  - `pipeline.logging.gateway.destination.loki`, `pipeline.metrics.gateway.destination.prometheusRemoteWrite`, and both `pipeline.*.gateway.destination.otel` blocks are deprecated.
+    They still apply, and the render warns.
+    Move each to `pipeline.destinations`; see [Where the gateway writes logs](https://materializeinc.github.io/materialize-monitoring/logs-and-events/storing/#destinations), [Upgrading from `prometheusRemoteWrite`](https://materializeinc.github.io/materialize-monitoring/metrics/storing/#upgrading-from-prometheusremotewrite), and [Move off the deprecated `otel` block](https://materializeinc.github.io/materialize-monitoring/metrics/storing/#otel-migration).
+  - The Loki chart refuses `loki.minio`, and any other top-level `loki.*` key it doesn't define.
+
+The full list is in the [v1.7.0 release notes](https://github.com/MaterializeInc/materialize-monitoring/releases/tag/materialize-monitoring/v1.7.0).
+
 #### v18.0.0
 
 Kubernetes version 1.35 on AWS and Azure.
