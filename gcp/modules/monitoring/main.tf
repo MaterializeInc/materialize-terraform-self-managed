@@ -366,7 +366,9 @@ module "monitoring" {
   #
   # v1.3.0 is where `enable_postgres_exporter`, `postgres_exporter_*` and
   # `metadata_databases` land.
-  source = "github.com/MaterializeInc/materialize-monitoring//terraform/modules/materialize-monitoring?ref=materialize-monitoring/v1.6.0"
+  #
+  # v1.7.0 is where `secret_filter` lands.
+  source = "github.com/MaterializeInc/materialize-monitoring//terraform/modules/materialize-monitoring?ref=materialize-monitoring/v1.7.1"
 
   namespace        = var.namespace
   create_namespace = var.create_namespace
@@ -482,6 +484,10 @@ module "monitoring" {
   postgres_exporter_targets   = local.postgres_exporter_targets
   postgres_exporter_passwords = local.postgres_exporter_passwords
   metadata_databases          = local.metadata_databases
+
+  # Straight pass-through; the monitoring module validates the mode. Null keeps
+  # that module's default.
+  secret_filter = var.secret_filter
 
   # Computed values ahead of the caller's, so `additional_values` still
   # overrides anything computed here.
