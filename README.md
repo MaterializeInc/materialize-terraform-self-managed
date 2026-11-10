@@ -179,9 +179,9 @@ We follow semantic versioning with our tags. If a particular version requires ad
 
 #### v18.1.0
 
-##### Monitoring stack moves to materialize-monitoring v1.7.0
+##### Monitoring stack moves to materialize-monitoring v1.7.1
 
-The `monitoring` modules now pin `materialize-monitoring/v1.7.0`, up from v1.6.0.
+The `monitoring` modules now pin `materialize-monitoring/v1.7.1`, up from v1.6.0.
 Nothing needs to change before you apply.
 If your `additional_values` sets chart values, check the last item below.
 
@@ -210,6 +210,7 @@ If your `additional_values` sets chart values, check the last item below.
   - The Loki chart refuses `loki.minio`, and any other top-level `loki.*` key it doesn't define.
 
 The full list is in the [v1.7.0 release notes](https://github.com/MaterializeInc/materialize-monitoring/releases/tag/materialize-monitoring/v1.7.0).
+[v1.7.1](https://github.com/MaterializeInc/materialize-monitoring/releases/tag/materialize-monitoring/v1.7.1) changes only Alertmanager's config reloader image, which arm64 nodes can't pull in v1.7.0.
 
 #### v18.0.0
 

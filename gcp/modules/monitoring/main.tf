@@ -368,7 +368,7 @@ module "monitoring" {
   # `metadata_databases` land.
   #
   # v1.7.0 is where `secret_filter` lands.
-  source = "github.com/MaterializeInc/materialize-monitoring//terraform/modules/materialize-monitoring?ref=materialize-monitoring/v1.7.0"
+  source = "github.com/MaterializeInc/materialize-monitoring//terraform/modules/materialize-monitoring?ref=materialize-monitoring/v1.7.1"
 
   namespace        = var.namespace
   create_namespace = var.create_namespace
