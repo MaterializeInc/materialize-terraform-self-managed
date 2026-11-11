@@ -19,6 +19,14 @@ resource "aws_lb_target_group" "target_group" {
     timeout             = 10
   }
 
+  # balancerd fails /api/readyz on purpose near its connection limit, and must
+  # keep the sessions it already holds. By default the NLB closes established
+  # connections to a target that fails its health check. Leave
+  # unhealthy_draining_interval unset: once it elapses, those connections close.
+  target_health_state {
+    enable_unhealthy_connection_termination = false
+  }
+
   stickiness {
     enabled = true
     type    = "source_ip"
