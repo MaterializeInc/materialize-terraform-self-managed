@@ -32,6 +32,7 @@
 | ---- | ---- |
 | [kubectl_manifest.materialize_oauth2_client](https://registry.terraform.io/providers/alekc/kubectl/3.0.1/docs/resources/manifest) | resource |
 | [kubectl_manifest.ory_certificate](https://registry.terraform.io/providers/alekc/kubectl/3.0.1/docs/resources/manifest) | resource |
+| [kubernetes_config_map_v1.metrics_proxy](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/config_map_v1) | resource |
 | [kubernetes_config_map_v1.single_domain_proxy](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/config_map_v1) | resource |
 | [kubernetes_deployment_v1.metrics_proxy](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/deployment_v1) | resource |
 | [kubernetes_deployment_v1.single_domain_proxy](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/deployment_v1) | resource |
