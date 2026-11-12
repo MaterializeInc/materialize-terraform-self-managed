@@ -103,9 +103,9 @@ locals {
     backup_retained_backups = 35
   }
 
-  # Ory database configuration (separate Cloud SQL instance)
+  # Ory database (separate Cloud SQL instance). Shared-core tiers have no SLA.
   ory_database_config = {
-    tier                    = "db-f1-micro"
+    tier                    = "db-custom-1-3840"
     user_name               = "oryadmin"
     db_version              = "POSTGRES_18"
     backup_retained_backups = 35
