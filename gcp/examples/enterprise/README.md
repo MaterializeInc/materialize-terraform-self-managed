@@ -12,8 +12,8 @@ Everything from the [simple example](../simple/README.md), plus:
 
 ### Ory Database
 - **Cloud SQL for PostgreSQL** (separate instance from Materialize): Version 18
-- **Tier**: db-custom-1-3840 (1 vCPU, 3.75 GB). Shared-core tiers such as db-f1-micro have no SLA and throttle under three services' connection pools.
-- **Databases**: `kratos` and `hydra` on the same instance (plus `polis` when `enable_polis = true`), each reached with its own user and password. Cloud SQL makes every built-in user a member of `cloudsqlsuperuser`, so this limits credential reuse but does not isolate the databases from each other.
+- **Tier**: db-f1-micro (suitable for Ory workloads)
+- **Databases**: `kratos` and `hydra` on the same instance (plus `polis` when `enable_polis = true`)
 - **Network Access**: Private IP only, same VPC as the Materialize database
 
 ### Ory Kratos (Identity Management)
@@ -323,7 +323,7 @@ Things to know:
          │                           │
     ┌────┴────┐                ┌─────┴─────┐
     │ Ory DB  │                │   MZ DB   │
-    │(custom-1│                │(custom-2) │
+    │(f1-micro│                │(custom-2) │
     │ kratos  │                │materialize│
     │ hydra   │                │           │
     └─────────┘                └───────────┘
@@ -334,7 +334,7 @@ Things to know:
 ## Notes
 
 - Ory Kratos and Hydra share a namespace (`ory`) but use separate databases on the same Cloud SQL instance
-- The Ory Cloud SQL instance uses a small dedicated-core tier (`db-custom-1-3840`) since Ory workloads are lightweight
+- The Ory Cloud SQL instance uses a smaller tier (`db-f1-micro`) since Ory workloads are lightweight
 - Both Ory components are scheduled on generic nodes (not the Materialize-dedicated node pool)
 - Cloud SQL on GCP has PostgreSQL extensions (pg_trgm, btree_gin, uuid-ossp) available by default, no allowlisting needed
 - For production, override Kratos and Hydra chart values via `kratos_helm_values` and `hydra_helm_values` on the `module.ory` call (they deep-merge on top of the baked-in defaults), and register additional OAuth2 clients via Hydra Maester CRDs (Maester is enabled by default)

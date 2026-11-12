@@ -103,11 +103,9 @@ locals {
     backup_retained_backups = 35
   }
 
-  # Ory database configuration (separate Cloud SQL instance). 1 vCPU and
-  # 3.75 GB: shared-core tiers (db-f1-micro, db-g1-small) have no SLA and
-  # throttle under three services' connection pools.
+  # Ory database configuration (separate Cloud SQL instance)
   ory_database_config = {
-    tier                    = "db-custom-1-3840"
+    tier                    = "db-f1-micro"
     user_name               = "oryadmin"
     db_version              = "POSTGRES_18"
     backup_retained_backups = 35
