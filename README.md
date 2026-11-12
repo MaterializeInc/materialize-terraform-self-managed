@@ -177,6 +177,35 @@ We follow semantic versioning with our tags. If a particular version requires ad
 
 ### Upgrade Notes
 
+#### v19.0.0
+
+##### The Ory stack runs ory-selfservice and enforces stricter sign-in rules
+
+`ory-stack` replaces `oryd/kratos-selfservice-ui-node` with `materialize/ory-selfservice` v0.3.0 and tightens what an IdP can assert. [`kubernetes/modules/ory-selfservice-ui/UPGRADING.md`](kubernetes/modules/ory-selfservice-ui/UPGRADING.md) lists every change. If you already run the Ory stack:
+
+1. **Set the new inputs before applying.**
+   - `allowed_email_domains` on every entry in `upstream_identity_providers` and `saml_providers`. Sign-in with any other email domain fails.
+   - `require_email_verified = false` on OIDC providers that don't send `email_verified`, such as Microsoft Entra ID.
+   - `kratos_cookie_domain` (`ory_kratos_cookie_domain` in the examples). It was derived from the Kratos hostname before. Use the narrowest domain that covers Kratos and the UI.
+2. **Expect database changes in the examples.**
+   - AWS rotates the Hydra and Polis database passwords, since each RDS instance now has its own. The Kratos password is kept. The pods restart with the new DSNs during the apply.
+   - GCP moves the Ory Cloud SQL instance from `db-f1-micro` to `db-custom-1-3840`, which restarts it (a short Kratos, Hydra and Polis outage) and costs more. To keep the old tier, set `tier = "db-f1-micro"` in `ory_database_config` in your root.
+3. **Make everyone sign in through the IdP once after the apply.** Tokens now take `email` and `groups` from the identity's `metadata_public`, which the IdP mapper writes at sign-in. Until a user signs in through the IdP again, consent and token refreshes are refused. Remove the old `groups` trait, which the schema no longer allows, and end every session so the next sign-in goes to the IdP:
+
+   ```bash
+   kubectl -n ory port-forward svc/kratos-admin 4434 &
+   kubectl -n ory port-forward svc/hydra-admin 4445 &
+   # Past 500 identities, repeat with the page_token from the Link header.
+   for id in $(curl -s 'localhost:4434/admin/identities?page_size=500' | jq -r '.[].id'); do
+     curl -s -X PATCH "localhost:4434/admin/identities/$id" -H 'content-type: application/json' \
+       -d '[{"op":"remove","path":"/traits/groups"}]' >/dev/null
+     curl -s -X DELETE "localhost:4434/admin/identities/$id/sessions"
+     curl -s -X DELETE "localhost:4445/admin/oauth2/auth/sessions/login?subject=$id"
+   done
+   ```
+
+   The PATCH fails harmlessly for identities without a `groups` trait.
+
 #### v18.1.0
 
 ##### Monitoring stack moves to materialize-monitoring v1.7.1
@@ -339,33 +368,6 @@ If you already set `clusterName` through `additional_values`, that value still w
 The GCP modules now need `hashicorp/google` and `hashicorp/google-beta` `>= 8.0, < 9` (previously `>= 7.22, < 8`). Raise both providers' constraints in your root, then run `terraform init -upgrade`.
 
 The modules don't use anything changed in 8.0. If your root manages other GCP resources, check them against the [google provider 8.0 upgrade guide](https://registry.terraform.io/providers/hashicorp/google/latest/docs/guides/version_8_upgrade). In particular, `google_compute_backend_service` and `google_compute_global_forwarding_rule` now default `load_balancing_scheme` to `EXTERNAL_MANAGED`.
-
-##### The Ory stack runs ory-selfservice and enforces stricter sign-in rules
-
-`ory-stack` replaces `oryd/kratos-selfservice-ui-node` with `materialize/ory-selfservice` v0.3.0 and tightens what an IdP can assert. [`kubernetes/modules/ory-selfservice-ui/UPGRADING.md`](kubernetes/modules/ory-selfservice-ui/UPGRADING.md) lists every change. If you already run the Ory stack:
-
-1. **Set the new inputs before applying.**
-   - `allowed_email_domains` on every entry in `upstream_identity_providers` and `saml_providers`. Sign-in with any other email domain fails.
-   - `require_email_verified = false` on OIDC providers that don't send `email_verified`, such as Microsoft Entra ID.
-   - `kratos_cookie_domain` (`ory_kratos_cookie_domain` in the examples). It was derived from the Kratos hostname before. Use the narrowest domain that covers Kratos and the UI.
-2. **Expect database changes in the examples.**
-   - AWS rotates the Hydra and Polis database passwords, since each RDS instance now has its own. The Kratos password is kept. The pods restart with the new DSNs during the apply.
-   - GCP moves the Ory Cloud SQL instance from `db-f1-micro` to `db-custom-1-3840`, which restarts it (a short Kratos, Hydra and Polis outage) and costs more. To keep the old tier, set `tier = "db-f1-micro"` in `ory_database_config` in your root.
-3. **Make everyone sign in through the IdP once after the apply.** Tokens now take `email` and `groups` from the identity's `metadata_public`, which the IdP mapper writes at sign-in. Until a user signs in through the IdP again, consent and token refreshes are refused. Remove the old `groups` trait, which the schema no longer allows, and end every session so the next sign-in goes to the IdP:
-
-   ```bash
-   kubectl -n ory port-forward svc/kratos-admin 4434 &
-   kubectl -n ory port-forward svc/hydra-admin 4445 &
-   # Past 500 identities, repeat with the page_token from the Link header.
-   for id in $(curl -s 'localhost:4434/admin/identities?page_size=500' | jq -r '.[].id'); do
-     curl -s -X PATCH "localhost:4434/admin/identities/$id" -H 'content-type: application/json' \
-       -d '[{"op":"remove","path":"/traits/groups"}]' >/dev/null
-     curl -s -X DELETE "localhost:4434/admin/identities/$id/sessions"
-     curl -s -X DELETE "localhost:4445/admin/oauth2/auth/sessions/login?subject=$id"
-   done
-   ```
-
-   The PATCH fails harmlessly for identities without a `groups` trait.
 
 #### v16.0.0
 
