@@ -238,9 +238,9 @@ locals {
     }
   }
 
-  # JWT access tokens so Materialize can validate locally against the JWKS.
-  # Dynamic client registration for MCP clients. `enabled` alone is inert: the
-  # webfinger URL is what makes Hydra advertise and serve the endpoint.
+  # Dynamic client registration for MCP clients. `enabled` serves
+  # POST /oauth2/register. The webfinger URL advertises that endpoint as
+  # registration_endpoint in discovery, so MCP clients can find it.
   hydra_dcr_values = var.enable_dynamic_client_registration ? {
     hydra = {
       config = {
@@ -258,6 +258,7 @@ locals {
     }
   } : {}
 
+  # JWT access tokens so Materialize can validate locally against the JWKS.
   hydra_helm_values_baseline = {
     hydra = {
       config = {

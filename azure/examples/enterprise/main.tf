@@ -699,13 +699,13 @@ module "monitoring" {
 }
 
 locals {
-  # Which provider Materialize trusts. var.direct_oidc wins when set, so an
-  # existing provider stays authoritative while Ory runs beside it; clearing it
-  # is the cutover.
   # Materialize's MCP endpoint, which self-registered MCP clients are granted as
   # their audience when dynamic client registration is on.
   mcp_audience = var.ory_enable_dynamic_client_registration ? ["https://${var.materialize_console_fqdn}/api/mcp"] : []
 
+  # Which provider Materialize trusts. var.direct_oidc wins when set, so an
+  # existing provider stays authoritative while Ory runs beside it; clearing it
+  # is the cutover.
   materialize_oidc_parameters = var.direct_oidc != null ? {
     oidc_issuer               = var.direct_oidc.issuer
     oidc_audience             = jsonencode(var.direct_oidc.audience)
