@@ -33,7 +33,7 @@ data "azurerm_client_config" "current" {}
 # Virtual Network using Azure Verified Module
 module "virtual_network" {
   source  = "Azure/avm-res-network-virtualnetwork/azurerm"
-  version = "0.22.3"
+  version = "0.23.0"
 
   # From 0.23.0 AVM telemetry creates subscription-scope deployments on every
   # apply, which needs extra permissions and never leaves a clean plan.
