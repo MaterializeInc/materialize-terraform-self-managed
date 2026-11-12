@@ -9,7 +9,7 @@ upstream `oryd/kratos-selfservice-ui-node` reference UI:
 | | before | after |
 |---|---|---|
 | `image_repository` | `oryd/kratos-selfservice-ui-node` | `materialize/ory-selfservice` |
-| `image_tag` | `v25.4.0` | `v0.3.1` |
+| `image_tag` | `v25.4.0` | `v0.3.2` |
 
 The image is public on Docker Hub. Air-gapped installs mirror it into their own registry
 and point `image_repository` at the mirror.
@@ -63,7 +63,7 @@ To roll back, revert the module version (or pin `image_repository` /`image_tag` 
 initContainer along with the old image. Sessions are cookie-based and the cookie secrets
 are unchanged, so users stay signed in across the roll in both directions.
 
-## Security defaults that come with ory-selfservice v0.3.0
+## Security defaults that come with ory-selfservice
 
 What the image, `ory-kratos` and `ory-stack` enforce together:
 
@@ -100,7 +100,7 @@ Existing deployments have a few steps to take; see the v19.0.0 upgrade notes in 
   (`additionalProperties: false`).
 - **The token hook is on by default** wherever the selfservice UI is deployed. Hydra
   checks every token issuance with it, so refresh tokens stop working for deactivated
-  users, and it only counts active Kratos sessions that signed in through OIDC or SAML.
+  users, and it only counts sign-ins through OIDC or SAML.
 - **Refresh chains are bounded.** The hook refuses user tokens once the user hasn't
   signed in through the IdP for `selfservice_ui_token_hook_max_auth_age_seconds`
   (default 7 days), so groups the IdP removed don't live on through refresh tokens.
@@ -122,7 +122,15 @@ Existing deployments have a few steps to take; see the v19.0.0 upgrade notes in 
 - **Logs hash emails and groups by default** (`selfservice_ui_log_redact_pii`). Set it to
   false temporarily while debugging sign-in issues.
 - **Logout works in consent-only mode.** Hydra's logout endpoint is served whether or
-  not the screens are on.
+  not the screens are on. With the screens on, an accepted logout also ends the
+  browser's Kratos session when it belongs to the same user.
+- **Self-registered clients only get audiences from `dcr_audience_allowlist`.** When it
+  is set, one that asks for any other audience or resource is refused with
+  `invalid_target`. A client registered before the allow-list changed has to register
+  again.
+- **Profile claims come from `metadata_public` too.** `preferred_username`, `name` and
+  `website` are no longer read from traits. The identity schema here defines none of
+  them, so tokens don't change.
 - **Hydra restarts when the token hook key changes**, instead of failing every token
   request until its pods happen to restart.
 - **The claim inputs are split:** `claim_metadata_public_*` (default `groups`) and

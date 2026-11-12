@@ -181,7 +181,7 @@ We follow semantic versioning with our tags. If a particular version requires ad
 
 ##### The Ory stack runs ory-selfservice and enforces stricter sign-in rules
 
-`ory-stack` replaces `oryd/kratos-selfservice-ui-node` with `materialize/ory-selfservice` v0.3.0 and tightens what an IdP can assert. [`kubernetes/modules/ory-selfservice-ui/UPGRADING.md`](kubernetes/modules/ory-selfservice-ui/UPGRADING.md) lists every change. If you already run the Ory stack:
+`ory-stack` replaces `oryd/kratos-selfservice-ui-node` with `materialize/ory-selfservice` v0.3.2 and tightens what an IdP can assert. [`kubernetes/modules/ory-selfservice-ui/UPGRADING.md`](kubernetes/modules/ory-selfservice-ui/UPGRADING.md) lists every change. If you already run the Ory stack:
 
 1. **Set the new inputs before applying.**
    - `allowed_email_domains` on every entry in `upstream_identity_providers` and `saml_providers`. Sign-in with any other email domain fails.
