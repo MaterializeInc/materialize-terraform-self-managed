@@ -125,6 +125,23 @@ variable "release_channel" {
   }
 }
 
+variable "autoscaling_profile" {
+  description = <<-EOT
+    Cluster autoscaling profile. OPTIMIZE_UTILIZATION makes the GKE scheduler
+    score nodes with MostAllocated (pack pods onto the fullest node that fits)
+    and lets the cluster autoscaler remove underused nodes sooner. BALANCED is
+    the GKE default: upstream LeastAllocated scoring, which spreads pods across
+    nodes, and more conservative scale-down.
+  EOT
+  type        = string
+  default     = "OPTIMIZE_UTILIZATION"
+  nullable    = false
+  validation {
+    condition     = contains(["BALANCED", "OPTIMIZE_UTILIZATION"], var.autoscaling_profile)
+    error_message = "autoscaling_profile must be BALANCED or OPTIMIZE_UTILIZATION."
+  }
+}
+
 variable "horizontal_pod_autoscaling_disabled" {
   description = "Whether to disable horizontal pod autoscaling"
   type        = bool
