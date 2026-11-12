@@ -166,7 +166,9 @@ locals {
   # https://learn.microsoft.com/en-us/azure/aks/concepts-storage#storage-classes
   storage_class = "managed-csi"
 
-  # Ory database DSNs
+  # Ory database DSNs. All three share the server's admin login: azurerm cannot
+  # create Postgres roles, so per-service users need a Postgres connection
+  # (the postgresql provider or a bootstrap job) that this example does not set up.
   ory_kratos_dsn = format(
     "postgres://%s:%s@%s/%s?sslmode=require",
     module.ory_database.administrator_login,
@@ -203,9 +205,10 @@ locals {
     ["${module.networking.nat_gateway_public_ip}/32", local.vnet_config.address_space],
   )
 
-  # Okta's SCIM egress ranges, written by scripts/update-okta-ip-ranges.sh.
-  # Okta pushes SCIM to Polis from its own cloud, so Polis admits them too.
+  # Okta's SCIM egress ranges (generate with scripts/update-okta-ip-ranges.sh),
+  # plus any operator ranges, applied as the Polis LB allowlist.
   okta_scim_source_ranges = fileexists("${path.module}/okta-scim-source-ranges.json") ? jsondecode(file("${path.module}/okta-scim-source-ranges.json")) : []
+  polis_lb_source_ranges  = concat(local.okta_scim_source_ranges, var.ory_polis_source_ranges)
 
   # cert-manager ClusterIssuer for browser-facing TLS. Defaults to the built-in
   # self-signed issuer; override via var.cert_issuer_ref to plug in a real one.
@@ -696,6 +699,10 @@ module "monitoring" {
 }
 
 locals {
+  # Materialize's MCP endpoint, which self-registered MCP clients are granted as
+  # their audience when dynamic client registration is on.
+  mcp_audience = var.ory_enable_dynamic_client_registration ? ["https://${var.materialize_console_fqdn}/api/mcp"] : []
+
   # Which provider Materialize trusts. var.direct_oidc wins when set, so an
   # existing provider stays authoritative while Ory runs beside it; clearing it
   # is the cutover.
@@ -707,7 +714,7 @@ locals {
     console_oidc_scopes       = var.direct_oidc.scopes
     } : {
     oidc_issuer                  = module.ory.hydra_external_url
-    oidc_audience                = jsonencode([module.ory.oauth2_client_id])
+    oidc_audience                = jsonencode(concat([module.ory.oauth2_client_id], local.mcp_audience))
     oidc_authentication_claim    = "email"
     console_oidc_client_id       = module.ory.oauth2_client_id
     console_oidc_scopes          = "openid email"
@@ -805,6 +812,10 @@ module "ory" {
   kratos_fqdn = var.ory_kratos_fqdn
   ui_fqdn     = var.ory_ui_fqdn
 
+  # Kratos and the selfservice UI are on separate hostnames, so the session
+  # cookie needs a domain covering both.
+  kratos_cookie_domain = var.ory_kratos_cookie_domain
+
   kratos_dsn = local.ory_kratos_dsn
   hydra_dsn  = local.ory_hydra_dsn
 
@@ -825,9 +836,14 @@ module "ory" {
   cert_issuer_ref                 = local.cert_issuer
   cert_issuer_signs_cluster_local = var.cert_issuer_ref == null
 
-  # Materialize integration: OAuth2 client CRD + ory-side ingress NetworkPolicy.
+  # Materialize integration: OAuth2 client CRD + ingress from Materialize to Hydra.
   materialize_namespace    = local.materialize_instance_namespace
   materialize_console_fqdn = var.materialize_console_fqdn
+
+  # MCP clients such as Claude Code register themselves and get the MCP endpoint
+  # as their audience.
+  enable_dynamic_client_registration = var.ory_enable_dynamic_client_registration
+  dcr_audience_allowlist             = local.mcp_audience
 
   # externalTrafficPolicy=Local makes Azure probe the kubelet's healthCheckNodePort
   # (always HTTP) instead of the TLS-only app port, which otherwise flaps backends
@@ -835,12 +851,19 @@ module "ory" {
   lb_external_traffic_policy = "Local"
 
   # Firewall the public Ory LoadBalancers like the Materialize ones, through
-  # loadBalancerSourceRanges, which Azure enforces in the LB's NSG.
-  lb_overrides = var.internal_load_balancer ? {} : {
-    for role in ["hydra", "kratos", "ui", "polis"] : role => {
-      source_ranges = role == "polis" ? concat(local.ory_lb_source_ranges, local.okta_scim_source_ranges) : local.ory_lb_source_ranges
-    }
-  }
+  # loadBalancerSourceRanges, which Azure enforces in the LB's NSG. Polis keeps
+  # its own allowlist when ory_polis_source_ranges is set or
+  # okta-scim-source-ranges.json exists (Okta's SCIM egress plus your ranges),
+  # so a default ingress_cidr_blocks of 0.0.0.0/0 never reopens a Polis locked
+  # to Okta.
+  lb_overrides = merge(
+    var.internal_load_balancer ? {} : {
+      for role in ["hydra", "kratos", "ui", "polis"] : role => { source_ranges = local.ory_lb_source_ranges }
+    },
+    length(local.polis_lb_source_ranges) > 0 ? {
+      polis = { source_ranges = local.polis_lb_source_ranges }
+    } : {},
+  )
 
   # Azure Load Balancer annotations. Internal LB uses the AKS internal flag.
   lb_annotations = var.internal_load_balancer ? {

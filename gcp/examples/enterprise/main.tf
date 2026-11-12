@@ -422,6 +422,9 @@ module "ory_database" {
       { name = "polis", charset = "UTF8", collation = "en_US.UTF8" },
     ] : []
   )
+  # One user for all three databases: Cloud SQL makes every built-in user a
+  # member of cloudsqlsuperuser, so separate users would not isolate them
+  # (that needs per-database grants over a Postgres connection).
   users = [{ name = local.ory_database_config.user_name }]
 
   project_id = var.project_id
@@ -694,6 +697,10 @@ module "monitoring" {
 
 # Deploy Materialize instance with configured backend connections
 locals {
+  # Materialize's MCP endpoint, which self-registered MCP clients are granted as
+  # their audience when dynamic client registration is on.
+  mcp_audience = var.ory_enable_dynamic_client_registration ? ["https://${var.materialize_console_fqdn}/api/mcp"] : []
+
   # Which provider Materialize trusts. var.direct_oidc wins when set, so an
   # existing provider stays authoritative while Ory runs beside it; clearing it
   # is the cutover.
@@ -705,7 +712,7 @@ locals {
     console_oidc_scopes       = var.direct_oidc.scopes
     } : {
     oidc_issuer                  = module.ory.hydra_external_url
-    oidc_audience                = jsonencode([module.ory.oauth2_client_id])
+    oidc_audience                = jsonencode(concat([module.ory.oauth2_client_id], local.mcp_audience))
     oidc_authentication_claim    = "email"
     console_oidc_client_id       = module.ory.oauth2_client_id
     console_oidc_scopes          = "openid email"
@@ -806,6 +813,10 @@ module "ory" {
   kratos_fqdn = var.ory_kratos_fqdn
   ui_fqdn     = var.ory_ui_fqdn
 
+  # Kratos and the selfservice UI are on separate hostnames, so the session
+  # cookie needs a domain covering both.
+  kratos_cookie_domain = var.ory_kratos_cookie_domain
+
   # When set, Hydra and Kratos share one hostname behind a reverse proxy. The UI
   # and Polis keep their own hostnames.
   single_domain_fqdn = var.ory_single_domain_fqdn
@@ -827,9 +838,14 @@ module "ory" {
   cert_issuer_ref                 = local.cert_issuer
   cert_issuer_signs_cluster_local = var.cert_issuer_ref == null
 
-  # Materialize integration: OAuth2 client CRD + ory-side ingress NetworkPolicy.
+  # Materialize integration: OAuth2 client CRD + ingress from Materialize to Hydra.
   materialize_namespace    = local.materialize_instance_namespace
   materialize_console_fqdn = var.materialize_console_fqdn
+
+  # MCP clients such as Claude Code register themselves and get the MCP endpoint
+  # as their audience.
+  enable_dynamic_client_registration = var.ory_enable_dynamic_client_registration
+  dcr_audience_allowlist             = local.mcp_audience
 
   # GKE Internal TCP/UDP Network LB when var.internal_load_balancer = true,
   # external NLB otherwise.
