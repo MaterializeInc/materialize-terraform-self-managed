@@ -700,6 +700,10 @@ locals {
   # Which provider Materialize trusts. var.direct_oidc wins when set, so an
   # existing provider stays authoritative while Ory runs beside it; clearing it
   # is the cutover.
+  # Materialize's MCP endpoint, which self-registered MCP clients are granted as
+  # their audience when dynamic client registration is on.
+  mcp_audience = var.ory_enable_dynamic_client_registration ? ["https://${var.materialize_console_fqdn}/api/mcp"] : []
+
   materialize_oidc_parameters = var.direct_oidc != null ? {
     oidc_issuer               = var.direct_oidc.issuer
     oidc_audience             = jsonencode(var.direct_oidc.audience)
@@ -708,7 +712,7 @@ locals {
     console_oidc_scopes       = var.direct_oidc.scopes
     } : {
     oidc_issuer                  = module.ory.hydra_external_url
-    oidc_audience                = jsonencode([module.ory.oauth2_client_id])
+    oidc_audience                = jsonencode(concat([module.ory.oauth2_client_id], local.mcp_audience))
     oidc_authentication_claim    = "email"
     console_oidc_client_id       = module.ory.oauth2_client_id
     console_oidc_scopes          = "openid email"
@@ -837,6 +841,11 @@ module "ory" {
   # Materialize integration: OAuth2 client CRD + ingress from Materialize to Hydra.
   materialize_namespace    = local.materialize_instance_namespace
   materialize_console_fqdn = var.materialize_console_fqdn
+
+  # MCP clients such as Claude Code register themselves and get the MCP endpoint
+  # as their audience.
+  enable_dynamic_client_registration = var.ory_enable_dynamic_client_registration
+  dcr_audience_allowlist             = local.mcp_audience
 
   # GKE Internal TCP/UDP Network LB when var.internal_load_balancer = true,
   # external NLB otherwise.

@@ -239,6 +239,25 @@ locals {
   }
 
   # JWT access tokens so Materialize can validate locally against the JWKS.
+  # Dynamic client registration for MCP clients. `enabled` alone is inert: the
+  # webfinger URL is what makes Hydra advertise and serve the endpoint.
+  hydra_dcr_values = var.enable_dynamic_client_registration ? {
+    hydra = {
+      config = {
+        oidc = {
+          dynamic_client_registration = {
+            enabled = true
+          }
+        }
+        webfinger = {
+          oidc_discovery = {
+            client_registration_url = "${local.hydra_external_url}/oauth2/register"
+          }
+        }
+      }
+    }
+  } : {}
+
   hydra_helm_values_baseline = {
     hydra = {
       config = {
@@ -483,7 +502,7 @@ module "ory_hydra" {
     ca_secret_name = var.cert_issuer_signs_cluster_local ? "ory-selfservice-ui-tls" : null
   } : null
 
-  helm_values = provider::deepmerge::mergo(local.hydra_helm_values_baseline, var.hydra_helm_values)
+  helm_values = provider::deepmerge::mergo(local.hydra_helm_values_baseline, local.hydra_dcr_values, var.hydra_helm_values)
 
   node_selector = var.node_selector
 

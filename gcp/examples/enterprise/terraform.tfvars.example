@@ -32,6 +32,10 @@ materialize_balancerd_fqdn = "balancerd.mz.example.com"
 # session cookie, so keep it to a domain that holds only these hostnames.
 ory_kratos_cookie_domain = "mz.example.com"
 
+# Let MCP clients such as Claude Code register themselves and sign in to
+# https://<materialize_console_fqdn>/api/mcp.
+# ory_enable_dynamic_client_registration = true
+
 # Optional: deploy Ory Polis (SAML-to-OIDC bridge). When true, set
 # ory_polis_fqdn and point an A record at the polis LB IP after apply.
 # The Polis chart and image are pulled through the Materialize OEL

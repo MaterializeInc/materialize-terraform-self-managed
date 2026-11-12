@@ -236,6 +236,13 @@ variable "grafana_allow_public_access" {
   nullable    = false
 }
 
+variable "ory_enable_dynamic_client_registration" {
+  description = "Let MCP clients such as Claude Code register themselves with Hydra and sign in to Materialize's MCP endpoint at https://<materialize_console_fqdn>/api/mcp. Anyone who can reach Hydra can register a client, and those clients only get the MCP endpoint as their audience. Changing it updates Materialize's oidc_audience, which takes effect on the next rollout (change force_rollout)."
+  type        = bool
+  default     = false
+  nullable    = false
+}
+
 variable "direct_oidc" {
   description = <<-EOT
     Point Materialize at an OIDC provider other than this example's Ory stack.

@@ -396,9 +396,16 @@ variable "screens_registration_link_enabled" {
 }
 
 variable "dcr_audience_allowlist" {
-  description = "Audience allow-list for OAuth2 clients that register themselves through dynamic client registration, such as MCP clients like Claude Code. A client asking for an RFC 8707 resource under one of these https URIs is granted that entry as its audience. Set it to the Materialize MCP resource URL(s), which must also be in Materialize's oidc_audience. Registration (POST /oauth2/register, enabled through hydra_helm_values) is unauthenticated and not rate limited by this module, so put a rate limit in front of Hydra's public endpoint if it is reachable from the internet."
+  description = "Audience allow-list for OAuth2 clients that register themselves through dynamic client registration, such as MCP clients like Claude Code. A client asking for an RFC 8707 resource under one of these https URIs is granted that entry as its audience. Set it to the Materialize MCP resource URL(s), which must also be in Materialize's oidc_audience. Registration (POST /oauth2/register, turned on with enable_dynamic_client_registration) is unauthenticated and not rate limited by this module, so put a rate limit in front of Hydra's public endpoint if it is reachable from the internet."
   type        = list(string)
   default     = []
+  nullable    = false
+}
+
+variable "enable_dynamic_client_registration" {
+  description = "Turn on Hydra's dynamic client registration (RFC 7591) and advertise its registration_endpoint in discovery, so MCP clients such as Claude Code can register themselves. Set dcr_audience_allowlist with it, or self-registered clients get no audience Materialize accepts."
+  type        = bool
+  default     = false
   nullable    = false
 }
 
