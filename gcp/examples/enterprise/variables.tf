@@ -80,6 +80,17 @@ variable "enable_observability" {
   default     = true
 }
 
+variable "enable_provider_metrics" {
+  description = <<-EOT
+    Pull Cloud Monitoring metrics for Materialize and other supporting databases, the persist
+    bucket, the monitoring stack's own buckets, the region's Compute Engine quota, the load
+    balancers in the deployment's network, and the Cloud NAT gateway into the monitoring stack.
+    Grants the Alloy gateway's service account `roles/monitoring.viewer`.
+  EOT
+  type        = bool
+  default     = false
+}
+
 # Node pool sizing. Defaults are production-ish; override in tfvars for cheaper
 # multi-day testing (e.g. c4a-highmem-4-lssd / c4-standard-4, min_nodes = 1).
 

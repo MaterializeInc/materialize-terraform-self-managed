@@ -499,11 +499,11 @@ module "monitoring" {
   google_cloud_metrics_min_importance = "recommended"
 
   # The other direction: Cloud Monitoring's view of the dependencies Materialize
-  # cannot run without — the metadata database's CPU, memory, disk, connections
-  # and transaction-ID use, and the persist bucket's size, split into live,
-  # noncurrent and soft-deleted bytes. The module adds its own buckets and
-  # Grafana's database. Those are named here rather than discovered, so no
-  # other instance or bucket in the project is pulled.
+  # cannot run without — Materialize and other supporting databases, and the
+  # persist bucket's size, split into live, noncurrent and soft-deleted bytes.
+  # The module adds its own buckets and Grafana's database. Those are named here
+  # rather than discovered, so no other instance or bucket in the project is
+  # pulled.
   #
   # Compute Engine quota is the project's, per region: the CPUs and local SSD
   # each machine family uses against its limit, across every node pool and VM

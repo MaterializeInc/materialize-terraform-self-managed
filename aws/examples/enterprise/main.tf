@@ -716,6 +716,42 @@ module "monitoring" {
   #   "slack-url"     = var.platform_slack_webhook
   # }
 
+  # CloudWatch's view of the dependencies Materialize cannot run without:
+  # Materialize and other supporting databases, and the persist bucket's size.
+  # The module adds its own buckets and Grafana's database. Those are named
+  # here, so no other database or bucket in the account is pulled or billed.
+  #
+  # The cluster's nodes cannot be named, since they come and go, so they are
+  # found by the cluster's `aws:eks:cluster-name` tag, which keeps the pull to
+  # this cluster's nodes and node groups. The one account-wide series is
+  # On-Demand vCPU usage, which is what the vCPU quota counts.
+  #
+  # The NAT gateways are the path every pod takes out of the VPC, so their port
+  # exhaustion and idle timeouts are why a Materialize source can stall with no
+  # cause in the cluster. Grafana's load balancer joins on its own.
+  #
+  # Materialize's own load balancer is not listed by default: naming it makes
+  # this module wait for, and fail with, the Materialize instance, since the
+  # load balancer is only created once the instance exists. Uncomment to accept
+  # that and see its target health and resets.
+  provider_metrics = var.enable_provider_metrics ? {
+    rds_instance_ids = concat(
+      [
+        module.database.db_instance_id,
+        module.ory_kratos_database.db_instance_id,
+        module.ory_hydra_database.db_instance_id,
+      ],
+      module.ory_polis_database[*].db_instance_id,
+    )
+    s3_bucket_names   = [module.storage.bucket_name]
+    eks_cluster_names = [module.eks.cluster_name]
+    nat_gateway_ids   = values(module.networking.nat_gateway_ids)
+    # network_load_balancers = [{
+    #   arn               = module.materialize_nlb.nlb_arn
+    #   target_group_arns = values(module.materialize_nlb.target_group_arns)
+    # }]
+  } : null
+
   materialize_instance_namespace = local.materialize_instance_namespace
   materialize_operator_namespace = local.operator_namespace
 

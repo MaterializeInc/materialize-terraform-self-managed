@@ -706,11 +706,10 @@ module "monitoring" {
   #   "slack-url"     = var.platform_slack_webhook
   # }
 
-  # CloudWatch's view of the dependencies Materialize cannot run without: the
-  # metadata database's CPU, memory, storage, connections and burst balances,
-  # and the persist bucket's size. The module adds its own buckets and Grafana's
-  # database. Those are named here, so no other database or bucket in the
-  # account is pulled or billed.
+  # CloudWatch's view of the dependencies Materialize cannot run without:
+  # Materialize and other supporting databases, and the persist bucket's size.
+  # The module adds its own buckets and Grafana's database. Those are named
+  # here, so no other database or bucket in the account is pulled or billed.
   #
   # The cluster's nodes cannot be named, since they come and go, so they are
   # found by the cluster's `aws:eks:cluster-name` tag, which keeps the pull to

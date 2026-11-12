@@ -528,10 +528,9 @@ module "monitoring" {
   metadata_database_password = module.database.administrator_password
 
   # Azure Monitor's view of the dependencies Materialize cannot run without —
-  # the metadata database's CPU, memory, storage, connections, disk throttling
-  # and transaction-ID use, and the persist account's size, availability and
-  # latency. The module adds its own storage account and Grafana's database.
-  # Those are named here rather than discovered.
+  # Materialize and other supporting databases, and the persist account's size,
+  # availability and latency. The module adds its own storage account and
+  # Grafana's database. Those are named here rather than discovered.
   #
   # The cluster's autoscaler is read from the cluster, and its node VMs from the
   # scale sets in its node resource group, which AKS creates and replaces, so
