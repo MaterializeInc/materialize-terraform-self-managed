@@ -108,6 +108,13 @@ resource "google_container_cluster" "primary" {
     channel = var.release_channel
   }
 
+  # Only sets the profile; node auto-provisioning stays off. Node pools keep
+  # their own autoscaling limits.
+  # https://cloud.google.com/kubernetes-engine/docs/concepts/cluster-autoscaler#autoscaling_profiles
+  cluster_autoscaling {
+    autoscaling_profile = var.autoscaling_profile
+  }
+
   addons_config {
     horizontal_pod_autoscaling {
       disabled = var.horizontal_pod_autoscaling_disabled
