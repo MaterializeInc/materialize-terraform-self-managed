@@ -90,7 +90,7 @@ if [ -z "$KEY" ]; then
 fi
 
 echo "==> checking Polis is reachable"
-code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "$POLIS/" || true)
+code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "$POLIS/api/health" || true)
 if [ "$code" != "200" ]; then
     printf "%bPolis not reachable at %s (HTTP %s). Check DNS, the load balancer, and: kubectl -n %s get certificate polis-tls%b\n" \
         "$RED" "$POLIS" "$code" "$ORY_NAMESPACE" "$NC"
