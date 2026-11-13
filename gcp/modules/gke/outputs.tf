@@ -34,6 +34,11 @@ output "workload_identity_sa_email" {
   value       = google_service_account.workload_identity_sa.email
 }
 
+output "workload_identity_pool" {
+  description = "The cluster's Workload Identity pool, PROJECT_ID.svc.id.goog. GKE creates the pool with a project's first Workload Identity cluster, so an IAM binding whose member names the pool should take it from here, which orders the binding after the cluster."
+  value       = google_container_cluster.primary.workload_identity_config[0].workload_pool
+}
+
 output "upgrade_notification_subscription" {
   description = "The Pub/Sub subscription (projects/{project}/subscriptions/{name}) on which orchestratord receives GKE upgrade notifications. Null unless enable_upgrade_notifications is set."
   value       = var.enable_upgrade_notifications ? google_pubsub_subscription.orchestratord_upgrade_notifications[0].id : null

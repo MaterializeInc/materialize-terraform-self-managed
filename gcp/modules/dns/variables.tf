@@ -66,10 +66,11 @@ variable "records" {
 }
 
 variable "cert_manager_dns01" {
-  description = "Set to create the Google service account cert-manager's ACME DNS-01 solver acts as through GKE Workload Identity, with roles/dns.admin on the managed zone only, and to fill the cert_manager_service_account_annotations and acme_dns01_solver outputs. namespace and service_account_name are where cert-manager's controller runs. Null, the default, creates no identity."
+  description = "Set to create the Google service account cert-manager's ACME DNS-01 solver acts as through GKE Workload Identity, with roles/dns.admin on the managed zone only, and to fill the cert_manager_service_account_annotations and acme_dns01_solver outputs. namespace and service_account_name are where cert-manager's controller runs. workload_identity_pool is the cluster's pool, PROJECT_ID.svc.id.goog; pass the gke module's workload_identity_pool output, because GKE creates the pool with a project's first Workload Identity cluster and IAM rejects a binding to a pool that does not exist yet. It defaults to project_id's pool, with no ordering against the cluster. Null, the default, creates no identity."
   type = object({
-    namespace            = optional(string, "cert-manager")
-    service_account_name = optional(string, "cert-manager")
+    namespace              = optional(string, "cert-manager")
+    service_account_name   = optional(string, "cert-manager")
+    workload_identity_pool = optional(string)
   })
   default = null
 }

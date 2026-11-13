@@ -159,9 +159,21 @@ variable "ory_kratos_fqdn" {
 }
 
 variable "ory_single_domain_fqdn" {
-  description = "When set, serve Hydra and Kratos behind this one hostname under path prefixes (/hydra, /kratos) via a reverse proxy instead of their own hostnames above. The OIDC issuer becomes https://<fqdn>/hydra. The selfservice UI keeps its own hostname (ory_ui_fqdn) even in this mode, so still point that A record at lb_addresses.ui. Leave null for the per-service layout. Example: ory.internal.example.com"
+  description = "When set, serve Hydra and Kratos behind this one hostname under path prefixes (/hydra, /kratos) via a reverse proxy instead of their own hostnames above. The OIDC issuer becomes https://<fqdn>/hydra. The selfservice UI keeps its own hostname (ory_ui_fqdn) even in this mode, so still point that A record at lb_addresses.ui. Leave null for the per-service layout. With `dns.letsencrypt`, it must be `dns.stem_domain` or a name under it, since the Let's Encrypt solver answers only for names there, and `dns.stem_domain` must then be set. Example: ory.internal.example.com"
   type        = string
   default     = null
+
+  # Conditionals rather than ||: Terraform before 1.12 evaluates both sides of
+  # ||, so a null hostname or stem would still reach lower and trimsuffix.
+  validation {
+    condition = (
+      var.ory_single_domain_fqdn == null || try(var.dns.letsencrypt, null) == null ? true :
+      try(var.dns.stem_domain, null) == null ? false :
+      lower(trimsuffix(var.ory_single_domain_fqdn, ".")) == lower(trimsuffix(var.dns.stem_domain, ".")) ||
+      endswith(lower(trimsuffix(var.ory_single_domain_fqdn, ".")), ".${lower(trimsuffix(var.dns.stem_domain, "."))}")
+    )
+    error_message = "With dns.letsencrypt, ory_single_domain_fqdn must be dns.stem_domain or a name under it, and dns.stem_domain must be set, so that the Let's Encrypt solver can answer for its certificate."
+  }
 }
 
 variable "ory_kratos_cookie_domain" {

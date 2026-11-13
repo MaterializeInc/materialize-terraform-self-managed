@@ -896,7 +896,11 @@ module "dns" {
     var.enable_polis ? { polis = [module.ory.lb_addresses.polis.ip] } : {},
   )
 
-  cert_manager_dns01 = local.letsencrypt ? {} : null
+  # The pool comes from the cluster, which creates it on a project's first
+  # Workload Identity cluster, so the binding waits for the cluster.
+  cert_manager_dns01 = local.letsencrypt ? {
+    workload_identity_pool = module.gke.workload_identity_pool
+  } : null
 }
 
 # Ory stack (Kratos + Hydra + selfservice UI + Materialize bridge).

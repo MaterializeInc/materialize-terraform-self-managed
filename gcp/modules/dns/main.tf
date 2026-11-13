@@ -89,5 +89,5 @@ resource "google_service_account_iam_member" "cert_manager_workload_identity" {
 
   service_account_id = google_service_account.cert_manager[0].name
   role               = "roles/iam.workloadIdentityUser"
-  member             = "serviceAccount:${var.project_id}.svc.id.goog[${var.cert_manager_dns01.namespace}/${var.cert_manager_dns01.service_account_name}]"
+  member             = "serviceAccount:${coalesce(var.cert_manager_dns01.workload_identity_pool, "${var.project_id}.svc.id.goog")}[${var.cert_manager_dns01.namespace}/${var.cert_manager_dns01.service_account_name}]"
 }

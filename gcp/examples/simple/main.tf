@@ -778,5 +778,9 @@ module "dns" {
     balancerd = [module.load_balancers.balancerd_load_balancer_ip]
   }
 
-  cert_manager_dns01 = local.letsencrypt ? {} : null
+  # The pool comes from the cluster, which creates it on a project's first
+  # Workload Identity cluster, so the binding waits for the cluster.
+  cert_manager_dns01 = local.letsencrypt ? {
+    workload_identity_pool = module.gke.workload_identity_pool
+  } : null
 }
