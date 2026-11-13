@@ -132,6 +132,13 @@ variable "autoscaling_profile" {
     and lets the cluster autoscaler remove underused nodes sooner. BALANCED is
     the GKE default: upstream LeastAllocated scoring, which spreads pods across
     nodes, and more conservative scale-down.
+
+    The profile applies to the whole cluster. Materialize pods are annotated so
+    the autoscaler never evicts them, but other workloads in the cluster are
+    evicted and moved more often under OPTIMIZE_UTILIZATION. Protect any that
+    don't tolerate restarts with a PodDisruptionBudget or the
+    cluster-autoscaler.kubernetes.io/safe-to-evict: "false" annotation, or set
+    BALANCED.
   EOT
   type        = string
   default     = "OPTIMIZE_UTILIZATION"
