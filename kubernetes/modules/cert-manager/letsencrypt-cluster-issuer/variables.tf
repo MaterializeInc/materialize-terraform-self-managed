@@ -11,14 +11,14 @@ variable "acme_email" {
 }
 
 variable "acme_server_prod" {
-  description = "Issue from Let's Encrypt production instead of Let's Encrypt staging. Leave it false for the first apply, check that staging issues every certificate, then set it to true. Cannot be combined with acme_server."
+  description = "Issue from Let's Encrypt production, as `<name_prefix>-letsencrypt`, instead of Let's Encrypt staging, as `<name_prefix>-letsencrypt-staging`. Leave it false for the first apply, check that staging issues every certificate, then set it to true; certificates that reference issuer_name are then reissued from production. Cannot be combined with acme_server."
   type        = bool
   nullable    = false
   default     = false
 }
 
 variable "acme_server" {
-  description = "Directory URL of an ACME server other than Let's Encrypt. When null, the issuer uses Let's Encrypt staging, or production when acme_server_prod is true."
+  description = "Directory URL of an ACME server other than Let's Encrypt, for the issuer `<name_prefix>-letsencrypt`. When null, the issuer uses Let's Encrypt staging, or production when acme_server_prod is true."
   type        = string
   default     = null
 

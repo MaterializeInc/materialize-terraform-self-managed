@@ -1,8 +1,10 @@
-Creates a cert-manager ACME `ClusterIssuer` named `<name_prefix>-letsencrypt`.
-It issues from Let's Encrypt staging until `acme_server_prod` is set to true,
-and from Let's Encrypt production after that; `acme_server` points it at any
-other ACME server instead. The ACME account key is stored in the Secret
-`<name_prefix>-letsencrypt-account-key` in cert-manager's namespace.
+Creates a cert-manager ACME `ClusterIssuer`. Until `acme_server_prod` is set
+to true it is `<name_prefix>-letsencrypt-staging` and issues from Let's
+Encrypt staging; after that it is `<name_prefix>-letsencrypt` and issues from
+Let's Encrypt production. `acme_server` points `<name_prefix>-letsencrypt` at
+any other ACME server instead. Each issuer keeps its ACME account key in the
+Secret `<issuer name>-account-key` in cert-manager's namespace, and the
+`issuer_name` output always names the current issuer.
 
 The module does not choose a challenge type or a DNS provider. The `solvers`
 input is passed through unchanged as the issuer's `spec.acme.solvers`, so any
@@ -29,13 +31,16 @@ production is a separate apply after a person has reviewed the result:
 1. Apply with `acme_server_prod` unset, as in the examples below. Check that
    every Certificate using the issuer becomes ready, for example with
    `kubectl get certificates --all-namespaces`.
-2. Set `acme_server_prod = true` and apply. cert-manager registers the
-   existing account key with production.
-3. Renew the certificates staging issued, for example with
-   `cmctl renew --namespace <namespace> --all`. cert-manager reissues a
-   certificate when the Certificate or its issuer reference changes, not when
-   the issuer's server does, so staging certificates otherwise stay in place
-   until they near expiry.
+2. Set `acme_server_prod = true` and apply. Terraform replaces
+   `<name_prefix>-letsencrypt-staging` with `<name_prefix>-letsencrypt`, and
+   `issuer_name` changes with it. cert-manager reissues a Certificate as soon
+   as its issuerRef names the new issuer, so certificates whose issuerRef
+   comes from `issuer_name` move to production without a manual renewal. For
+   a Materialize instance, that happens when the operator applies the new
+   `issuer_ref`; on the `v1alpha1` CRD, that waits for a `request_rollout`.
+
+The staging account key Secret stays in cert-manager's namespace after the
+staging issuer is deleted, and can be deleted by hand.
 
 ## Example: Google Cloud DNS with GKE Workload Identity
 
@@ -237,8 +242,8 @@ No modules.
 | Name | Description | Type | Default | Required |
 | ---- | ----------- | ---- | ------- | :------: |
 | <a name="input_acme_email"></a> [acme\_email](#input\_acme\_email) | Email address the ACME account is registered with. The ACME server sends notices about the account to it. | `string` | n/a | yes |
-| <a name="input_acme_server"></a> [acme\_server](#input\_acme\_server) | Directory URL of an ACME server other than Let's Encrypt. When null, the issuer uses Let's Encrypt staging, or production when acme\_server\_prod is true. | `string` | `null` | no |
-| <a name="input_acme_server_prod"></a> [acme\_server\_prod](#input\_acme\_server\_prod) | Issue from Let's Encrypt production instead of Let's Encrypt staging. Leave it false for the first apply, check that staging issues every certificate, then set it to true. Cannot be combined with acme\_server. | `bool` | `false` | no |
+| <a name="input_acme_server"></a> [acme\_server](#input\_acme\_server) | Directory URL of an ACME server other than Let's Encrypt, for the issuer `<name_prefix>-letsencrypt`. When null, the issuer uses Let's Encrypt staging, or production when acme\_server\_prod is true. | `string` | `null` | no |
+| <a name="input_acme_server_prod"></a> [acme\_server\_prod](#input\_acme\_server\_prod) | Issue from Let's Encrypt production, as `<name_prefix>-letsencrypt`, instead of Let's Encrypt staging, as `<name_prefix>-letsencrypt-staging`. Leave it false for the first apply, check that staging issues every certificate, then set it to true; certificates that reference issuer\_name are then reissued from production. Cannot be combined with acme\_server. | `bool` | `false` | no |
 | <a name="input_name_prefix"></a> [name\_prefix](#input\_name\_prefix) | The name prefix to use for Kubernetes resources. | `string` | n/a | yes |
 | <a name="input_solvers"></a> [solvers](#input\_solvers) | cert-manager ACME solvers, passed verbatim as the ClusterIssuer's spec.acme.solvers. Each element is one solver object in cert-manager's schema: an http01 or dns01 block and an optional selector. See https://cert-manager.io/docs/configuration/acme/ for the solver fields. | `any` | n/a | yes |
 
@@ -246,4 +251,4 @@ No modules.
 
 | Name | Description |
 | ---- | ----------- |
-| <a name="output_issuer_name"></a> [issuer\_name](#output\_issuer\_name) | Name of the ClusterIssuer |
+| <a name="output_issuer_name"></a> [issuer\_name](#output\_issuer\_name) | Name of the ClusterIssuer: `<name_prefix>-letsencrypt-staging` while it uses Let's Encrypt staging, `<name_prefix>-letsencrypt` otherwise. |

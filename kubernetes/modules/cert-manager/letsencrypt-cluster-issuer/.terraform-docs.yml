@@ -14,11 +14,13 @@ sections:
   show-modules: true
 
 content: |-
-  Creates a cert-manager ACME `ClusterIssuer` named `<name_prefix>-letsencrypt`.
-  It issues from Let's Encrypt staging until `acme_server_prod` is set to true,
-  and from Let's Encrypt production after that; `acme_server` points it at any
-  other ACME server instead. The ACME account key is stored in the Secret
-  `<name_prefix>-letsencrypt-account-key` in cert-manager's namespace.
+  Creates a cert-manager ACME `ClusterIssuer`. Until `acme_server_prod` is set
+  to true it is `<name_prefix>-letsencrypt-staging` and issues from Let's
+  Encrypt staging; after that it is `<name_prefix>-letsencrypt` and issues from
+  Let's Encrypt production. `acme_server` points `<name_prefix>-letsencrypt` at
+  any other ACME server instead. Each issuer keeps its ACME account key in the
+  Secret `<issuer name>-account-key` in cert-manager's namespace, and the
+  `issuer_name` output always names the current issuer.
 
   The module does not choose a challenge type or a DNS provider. The `solvers`
   input is passed through unchanged as the issuer's `spec.acme.solvers`, so any
@@ -45,13 +47,16 @@ content: |-
   1. Apply with `acme_server_prod` unset, as in the examples below. Check that
      every Certificate using the issuer becomes ready, for example with
      `kubectl get certificates --all-namespaces`.
-  2. Set `acme_server_prod = true` and apply. cert-manager registers the
-     existing account key with production.
-  3. Renew the certificates staging issued, for example with
-     `cmctl renew --namespace <namespace> --all`. cert-manager reissues a
-     certificate when the Certificate or its issuer reference changes, not when
-     the issuer's server does, so staging certificates otherwise stay in place
-     until they near expiry.
+  2. Set `acme_server_prod = true` and apply. Terraform replaces
+     `<name_prefix>-letsencrypt-staging` with `<name_prefix>-letsencrypt`, and
+     `issuer_name` changes with it. cert-manager reissues a Certificate as soon
+     as its issuerRef names the new issuer, so certificates whose issuerRef
+     comes from `issuer_name` move to production without a manual renewal. For
+     a Materialize instance, that happens when the operator applies the new
+     `issuer_ref`; on the `v1alpha1` CRD, that waits for a `request_rollout`.
+
+  The staging account key Secret stays in cert-manager's namespace after the
+  staging issuer is deleted, and can be deleted by hand.
 
   ## Example: Google Cloud DNS with GKE Workload Identity
 

@@ -83,7 +83,8 @@ Creates a self-signed ClusterIssuer resource that cert-manager uses to issue sel
 Creates an ACME ClusterIssuer that cert-manager uses to issue publicly trusted TLS certificates from Let's Encrypt, or from another ACME server. It is nested under `cert-manager` with room for other cert-manager issuers beside it.
 
 **Key Features:**
-- Let's Encrypt staging by default, so production is a second apply with `acme_server_prod = true` after a person has reviewed the staging certificates; `acme_server` points it at another ACME server
+- Let's Encrypt staging by default, as a separately named `-staging` issuer, so production is a second apply with `acme_server_prod = true` after a person has reviewed the staging certificates; the name change makes cert-manager reissue them from production
+- `acme_server` points it at an ACME server other than Let's Encrypt
 - Solvers passed through verbatim, so any cert-manager HTTP-01 or DNS-01 solver works, including Google Cloud DNS, Route 53 and Azure DNS
 - README examples for DNS-01 on each cloud, with the cert-manager service account given a workload identity
 
