@@ -23,8 +23,9 @@ data "google_dns_managed_zone" "this" {
 
   lifecycle {
     postcondition {
-      condition = (
-        var.stem_domain == null ||
+      # A conditional rather than ||: Terraform before 1.12 evaluates both sides
+      # of ||, so a null stem_domain would still reach trimsuffix.
+      condition = var.stem_domain == null ? true : (
         lower(trimsuffix(var.stem_domain, ".")) == trimsuffix(self.dns_name, ".") ||
         endswith(lower(trimsuffix(var.stem_domain, ".")), ".${trimsuffix(self.dns_name, ".")}")
       )
