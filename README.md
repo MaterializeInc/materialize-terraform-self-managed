@@ -95,25 +95,13 @@ Complete support for deploying Materialize on Google Cloud Platform with GKE, Cl
 **Key Features:**
 - GKE cluster with Workload Identity
 - Cloud SQL PostgreSQL for metadata storage
-- Cloud Storage with HMAC keys for S3-compatible access
+- Cloud Storage, read natively through Workload Identity (or through the S3-compatible API with an HMAC key)
 - GCP Load Balancer for service exposure
 - Regional deployment support
 
 **Autoscaling:** Uses GKE's native cluster autoscaler that integrates with Google Compute Engine managed instance groups for automated node scaling.
 
 **Get Started:** See [gcp/examples/simple/README.md](./gcp/examples/simple/README.md) for detailed deployment instructions and architecture.
-
----
-
-## Unsupported Features & Known Limitations
-
-### GCP Storage Authentication
-
-**Limitation:** Materialize currently only supports HMAC key authentication for GCS access (S3-compatible API).
-
-**Current State:** The modules configure both HMAC keys and Workload Identity, but Materialize uses HMAC keys for actual storage access.
-
-**Future:** Native GCS access via Workload Identity Federation or Kubernetes service account impersonation will be supported in a future release, eliminating the need for static credentials.
 
 ---
 
@@ -176,6 +164,28 @@ Upgrades of the materialize version are included in our tagged releases. We do n
 We follow semantic versioning with our tags. If a particular version requires additional actions or contains breaking changes, we will list them below.
 
 ### Upgrade Notes
+
+#### v19.1.0
+
+##### GCP persist can read GCS natively, with no HMAC key
+
+Materialize v26.48.0 and later read GCS natively (`gcs://<bucket>/<path>`), with credentials from GKE Workload Identity. The GCP examples now run that way, and the modules support it:
+
+- `storage` takes `workload_identity = { namespace, service_account_name }`. It creates a Google service account with `roles/storage.objectAdmin` on the bucket and lets that Kubernetes service account impersonate it. environmentd and clusterd run as the service account named after the Materialize instance, in the instance namespace.
+- `storage` takes `create_hmac_key = false` to skip the HMAC key, and `service_account` becomes optional.
+- `storage` outputs `persist_backend_url` and `workload_identity_service_account_email`, for `materialize-instance`'s `persist_backend_url` and its `iam.gke.io/gcp-service-account` annotation.
+- `materialize-instance` takes `allow_metadata_server_egress`. Turn it on when network policies are enforced (Dataplane V2, the `gke` module's default), or the pods cannot fetch Workload Identity tokens.
+
+The defaults don't change, so existing installs keep their HMAC key. `moved` blocks keep the existing key and bucket grant in place. To switch an existing install:
+
+1. Set `workload_identity` on `storage` and apply. The HMAC key still serves persist.
+2. On `materialize-instance`, make three changes and apply:
+   - Set `persist_backend_url` to the storage module's `persist_backend_url`. Its `persist_path` defaults to `materialize`, the path the examples' `s3://` URL used; set it if yours differs.
+   - Set the `iam.gke.io/gcp-service-account` annotation to `workload_identity_service_account_email`.
+   - Set `allow_metadata_server_egress = true`.
+
+   The annotation change rolls out environmentd and clusterd onto the same bucket and path. Both blob implementations store objects at `<path>/<key>`, so the data is read as is. If you change only the URL, set a new `force_rollout`.
+3. Once the instance is healthy on `gcs://`, set `create_hmac_key = false` and apply to delete the key.
 
 #### v19.0.0
 

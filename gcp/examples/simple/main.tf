@@ -130,17 +130,9 @@ locals {
   )
 
 
-  encoded_endpoint = urlencode("https://storage.googleapis.com")
-  encoded_secret   = urlencode(module.storage.hmac_secret)
-
-  persist_backend_url = format(
-    "s3://%s:%s@%s/materialize?endpoint=%s&region=%s",
-    module.storage.hmac_access_id,
-    local.encoded_secret,
-    module.storage.bucket_name,
-    local.encoded_endpoint,
-    var.region
-  )
+  # Native GCS (gcs://), authenticated through Workload Identity rather than a
+  # static HMAC key. Needs Materialize v26.48.0 or later.
+  persist_backend_url = module.storage.persist_backend_url
 
   kubeconfig_data = jsonencode({
     apiVersion = "v1"
@@ -362,12 +354,19 @@ module "database" {
 module "storage" {
   source = "../../modules/storage"
 
-  project_id      = var.project_id
-  region          = var.region
-  prefix          = var.name_prefix
-  service_account = module.gke.workload_identity_sa_email
-  versioning      = false
-  version_ttl     = 7
+  project_id  = var.project_id
+  region      = var.region
+  prefix      = var.name_prefix
+  versioning  = false
+  version_ttl = 7
+
+  # environmentd and clusterd run as the Kubernetes service account named after
+  # the Materialize instance, and reach the bucket through Workload Identity.
+  create_hmac_key = false
+  workload_identity = {
+    namespace            = local.materialize_instance_namespace
+    service_account_name = local.materialize_instance_name
+  }
 
   labels = var.labels
 }
@@ -644,6 +643,9 @@ module "materialize_instance" {
   metadata_backend_url    = local.metadata_backend_url
   persist_backend_url     = local.persist_backend_url
   enable_network_policies = true
+  # Workload Identity tokens for native GCS come from the GKE metadata server,
+  # which the instance's network policies otherwise block.
+  allow_metadata_server_egress = true
 
   # Rollout configuration
   force_rollout   = var.force_rollout
@@ -653,10 +655,9 @@ module "materialize_instance" {
   external_login_password_mz_system = random_password.external_login_password_mz_system.result
   authenticator_kind                = "Password"
 
-  # GCP workload identity annotation for service account
-  # TODO: this needs a fix in Environmentd Client. KSA based access to storage doesn't work end to end
+  # The Google service account the instance impersonates for native GCS.
   service_account_annotations = {
-    "iam.gke.io/gcp-service-account" = module.gke.workload_identity_sa_email
+    "iam.gke.io/gcp-service-account" = module.storage.workload_identity_service_account_email
   }
 
   license_key = var.license_key

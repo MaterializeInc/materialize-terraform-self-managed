@@ -293,8 +293,7 @@ While these modules are cloud-agnostic, they integrate with cloud-specific compo
 - **Example**: See [azure/examples/simple](../azure/examples/simple)
 
 ### GCP
-- **Service Account Annotations**: GCP service account email (for future workload identity)
-- **Current**: Uses HMAC keys for GCS access
+- **Service Account Annotations**: the Google service account the instance impersonates through Workload Identity, for native GCS persist (`gcs://`, Materialize v26.48.0 and later). Enforced network policies also need `allow_metadata_server_egress`.
 - **Example**: See [gcp/examples/simple](../gcp/examples/simple)
 
 ---
