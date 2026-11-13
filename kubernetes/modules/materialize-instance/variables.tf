@@ -71,7 +71,7 @@ variable "environment_id" {
 variable "environmentd_version" {
   description = "Version of environmentd to use"
   type        = string
-  default     = "v26.49.1" # META: mz version
+  default     = "v26.50.0" # META: mz version
   nullable    = false
 }
 
