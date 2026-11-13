@@ -32,6 +32,18 @@ materialize_balancerd_fqdn = "balancerd.mz.example.com"
 # session cookie, so keep it to a domain that holds only these hostnames.
 ory_kratos_cookie_domain = "mz.example.com"
 
+# Or, with a Cloud DNS managed zone, drop the five hostnames and the cookie
+# domain above and take them all from one stem domain. The example creates the
+# records, and letsencrypt issues the browser-facing certificates, starting on
+# Let's Encrypt staging until acme_server_prod is true.
+# dns = {
+#   zone_name   = "example-com"
+#   stem_domain = "mz.example.com"
+#   letsencrypt = {
+#     acme_email = "platform-team@example.com"
+#   }
+# }
+
 # Let MCP clients such as Claude Code register themselves and sign in to
 # https://<materialize_console_fqdn>/api/mcp.
 # ory_enable_dynamic_client_registration = true

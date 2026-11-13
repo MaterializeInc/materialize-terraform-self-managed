@@ -136,6 +136,17 @@ locals {
     "workload" = "materialize-instance"
   }
 
+  # Hostnames under var.dns's stem domain, unless var.dns.subdomains names
+  # others. "@" is the stem itself.
+  dns_subdomains = merge({
+    console   = "@"
+    balancerd = "balancerd"
+    grafana   = "grafana"
+  }, try(var.dns.subdomains, {}))
+
+  letsencrypt  = try(var.dns.letsencrypt, null) != null
+  grafana_host = var.dns != null ? module.dns[0].fqdns.grafana : var.grafana_host
+
   materialize_node_taints = [
     {
       key    = "materialize.cloud/workload"
@@ -370,6 +381,11 @@ module "cert_manager" {
 
   node_selector = local.generic_node_labels
 
+  # The identity cert-manager answers DNS-01 challenges with, for the Let's
+  # Encrypt issuer when var.dns.letsencrypt is set.
+  service_account_annotations = local.letsencrypt ? module.dns[0].cert_manager_service_account_annotations : {}
+  pod_labels                  = local.letsencrypt ? module.dns[0].cert_manager_pod_labels : {}
+
   depends_on = [
     module.aks,
     module.networking,
@@ -382,6 +398,22 @@ module "self_signed_cluster_issuer" {
   source = "../../../kubernetes/modules/self-signed-cluster-issuer"
 
   name_prefix = var.name_prefix
+
+  depends_on = [
+    module.cert_manager,
+  ]
+}
+
+# Publicly trusted certificates for the console and balancerd hostnames, when
+# var.dns.letsencrypt is set. It answers DNS-01 challenges in var.dns's zone.
+module "letsencrypt_cluster_issuer" {
+  count  = local.letsencrypt ? 1 : 0
+  source = "../../../kubernetes/modules/cert-manager/letsencrypt-cluster-issuer"
+
+  name_prefix      = var.name_prefix
+  acme_email       = var.dns.letsencrypt.acme_email
+  acme_server_prod = var.dns.letsencrypt.acme_server_prod
+  solvers          = [module.dns[0].acme_dns01_solver]
 
   depends_on = [
     module.cert_manager,
@@ -580,7 +612,7 @@ module "monitoring" {
   grafana_load_balancer = {
     internal            = var.internal_load_balancer
     ingress_cidr_blocks = var.ingress_cidr_blocks
-    host                = var.grafana_host
+    host                = local.grafana_host
   }
 
   tags = var.tags
@@ -641,10 +673,23 @@ module "materialize_instance" {
 
   license_key = var.license_key
 
-  issuer_ref = {
+  # With var.dns.letsencrypt, Let's Encrypt signs the browser-facing console and
+  # balancerd certificates, and the self-signed issuer keeps the internal ones,
+  # whose cluster.local names a public CA cannot sign.
+  issuer_ref = local.letsencrypt ? {
+    name = module.letsencrypt_cluster_issuer[0].issuer_name
+    kind = "ClusterIssuer"
+    } : {
     name = module.self_signed_cluster_issuer.issuer_name
     kind = "ClusterIssuer"
   }
+  internal_issuer_ref = local.letsencrypt ? {
+    name = module.self_signed_cluster_issuer.issuer_name
+    kind = "ClusterIssuer"
+  } : null
+
+  console_extra_dns_names   = var.dns != null ? [module.dns[0].fqdns.console] : []
+  balancerd_extra_dns_names = var.dns != null ? [module.dns[0].fqdns.balancerd] : []
 
   # System parameters for the Materialize instance
   # See: https://materialize.com/docs/self-managed-deployments/configuration-system-parameters/
@@ -680,4 +725,36 @@ module "load_balancers" {
   depends_on = [
     module.materialize_instance,
   ]
+}
+
+# Records for the console and balancerd hostnames in an existing Azure DNS zone,
+# and cert-manager's DNS-01 identity when var.dns.letsencrypt is set. Only
+# names go into subdomains; the load balancer addresses go into records, so the
+# names can feed the instance these load balancers front without a cycle.
+module "dns" {
+  count  = var.dns != null ? 1 : 0
+  source = "../../modules/dns"
+
+  prefix                   = var.name_prefix
+  zone_name                = var.dns.zone_name
+  zone_resource_group_name = var.dns.zone_resource_group_name
+  stem_domain              = var.dns.stem_domain
+  tags                     = var.tags
+
+  subdomains = {
+    console   = { subdomain = local.dns_subdomains.console }
+    balancerd = { subdomain = local.dns_subdomains.balancerd }
+    # Grafana's load balancer address may not be known on the first apply.
+    grafana = { subdomain = local.dns_subdomains.grafana, create = false }
+  }
+  records = {
+    console   = [module.load_balancers.console_load_balancer_ip]
+    balancerd = [module.load_balancers.balancerd_load_balancer_ip]
+  }
+
+  cert_manager_dns01 = local.letsencrypt ? {
+    oidc_issuer_url     = module.aks.cluster_oidc_issuer_url
+    resource_group_name = azurerm_resource_group.materialize.name
+    location            = var.location
+  } : null
 }

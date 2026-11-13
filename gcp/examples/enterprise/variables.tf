@@ -126,18 +126,36 @@ variable "ory_oel_image_tag" {
 }
 
 variable "ory_hydra_fqdn" {
-  description = "External hostname for the Hydra OAuth2 public API. Used as the OIDC issuer URL. Example: hydra.internal.example.com"
+  description = "External hostname for the Hydra OAuth2 public API. Used as the OIDC issuer URL. Example: hydra.internal.example.com Set this or `dns`, not both."
   type        = string
+  default     = null
+
+  validation {
+    condition     = (var.ory_hydra_fqdn == null) != (var.dns == null)
+    error_message = "Set ory_hydra_fqdn or dns, not both: with dns, this hostname is dns.subdomains.hydra under the stem domain."
+  }
 }
 
 variable "ory_ui_fqdn" {
-  description = "External hostname for the Ory selfservice UI (login/consent pages). Example: auth.internal.example.com"
+  description = "External hostname for the Ory selfservice UI (login/consent pages). Example: auth.internal.example.com Set this or `dns`, not both."
   type        = string
+  default     = null
+
+  validation {
+    condition     = (var.ory_ui_fqdn == null) != (var.dns == null)
+    error_message = "Set ory_ui_fqdn or dns, not both: with dns, this hostname is dns.subdomains.ui under the stem domain."
+  }
 }
 
 variable "ory_kratos_fqdn" {
-  description = "External hostname for the Kratos public API. Kratos flows return browser-facing URLs using this hostname. Example: kratos.internal.example.com"
+  description = "External hostname for the Kratos public API. Kratos flows return browser-facing URLs using this hostname. Example: kratos.internal.example.com Set this or `dns`, not both."
   type        = string
+  default     = null
+
+  validation {
+    condition     = (var.ory_kratos_fqdn == null) != (var.dns == null)
+    error_message = "Set ory_kratos_fqdn or dns, not both: with dns, this hostname is dns.subdomains.kratos under the stem domain."
+  }
 }
 
 variable "ory_single_domain_fqdn" {
@@ -147,9 +165,14 @@ variable "ory_single_domain_fqdn" {
 }
 
 variable "ory_kratos_cookie_domain" {
-  description = "Domain Kratos scopes its session cookie to. It must cover ory_ui_fqdn and ory_kratos_fqdn (or ory_single_domain_fqdn when set), and every host under it receives the session cookie, so pick the narrowest such domain, ideally one that holds only these hostnames. Example: mz.example.com for kratos.mz.example.com and auth.mz.example.com."
+  description = "Domain Kratos scopes its session cookie to. It must cover ory_ui_fqdn and ory_kratos_fqdn (or ory_single_domain_fqdn when set), and every host under it receives the session cookie, so pick the narrowest such domain, ideally one that holds only these hostnames. Example: mz.example.com for kratos.mz.example.com and auth.mz.example.com. Defaults to the stem domain when `dns` is set, and is required otherwise."
   type        = string
-  nullable    = false
+  default     = null
+
+  validation {
+    condition     = var.ory_kratos_cookie_domain != null || var.dns != null
+    error_message = "Set ory_kratos_cookie_domain, or set dns to scope the cookie to its stem domain."
+  }
 }
 
 variable "enable_polis" {
@@ -160,9 +183,14 @@ variable "enable_polis" {
 }
 
 variable "ory_polis_fqdn" {
-  description = "External hostname for Ory Polis (SAML-to-OIDC bridge). Used as the NEXTAUTH_URL so SAML and OAuth callbacks redirect through it. Required when enable_polis is true. Example: polis.internal.example.com"
+  description = "External hostname for Ory Polis (SAML-to-OIDC bridge). Used as the NEXTAUTH_URL so SAML and OAuth callbacks redirect through it. Required when enable_polis is true, unless `dns` is set. Example: polis.internal.example.com"
   type        = string
   default     = null
+
+  validation {
+    condition     = var.ory_polis_fqdn == null || var.dns == null
+    error_message = "Set ory_polis_fqdn or dns, not both: with dns, Polis's hostname is dns.subdomains.polis under the stem domain."
+  }
 }
 
 variable "polis_helm_values" {
@@ -179,13 +207,25 @@ variable "ory_polis_source_ranges" {
 }
 
 variable "materialize_console_fqdn" {
-  description = "External hostname for the Materialize console. Used to construct the OAuth2 redirect URI. Example: materialize.internal.example.com"
+  description = "External hostname for the Materialize console. Used to construct the OAuth2 redirect URI. Example: materialize.internal.example.com Set this or `dns`, not both."
   type        = string
+  default     = null
+
+  validation {
+    condition     = (var.materialize_console_fqdn == null) != (var.dns == null)
+    error_message = "Set materialize_console_fqdn or dns, not both: with dns, this hostname is dns.subdomains.console under the stem domain."
+  }
 }
 
 variable "materialize_balancerd_fqdn" {
-  description = "External hostname for balancerd (the SQL-over-HTTP endpoint). The Materialize console's browser-side JS calls balancerd directly, so an externally-accessed console needs balancerd reachable too. Point an A record at the balancerd LB IP after apply. Example: balancerd.internal.example.com"
+  description = "External hostname for balancerd (the SQL-over-HTTP endpoint). The Materialize console's browser-side JS calls balancerd directly, so an externally-accessed console needs balancerd reachable too. Point an A record at the balancerd LB IP after apply. Example: balancerd.internal.example.com Set this or `dns`, not both."
   type        = string
+  default     = null
+
+  validation {
+    condition     = (var.materialize_balancerd_fqdn == null) != (var.dns == null)
+    error_message = "Set materialize_balancerd_fqdn or dns, not both: with dns, this hostname is dns.subdomains.balancerd under the stem domain."
+  }
 }
 
 variable "cert_issuer_ref" {
@@ -195,6 +235,11 @@ variable "cert_issuer_ref" {
     kind = string
   })
   default = null
+
+  validation {
+    condition     = var.cert_issuer_ref == null || try(var.dns.letsencrypt, null) == null
+    error_message = "Set cert_issuer_ref or dns.letsencrypt, not both."
+  }
 }
 
 variable "upstream_identity_providers" {
@@ -275,9 +320,14 @@ variable "balancerd_parameters" {
 }
 
 variable "grafana_host" {
-  description = "Optional hostname to reach Grafana on. The load balancer is created regardless and answers on an IP; setting this configures Grafana's `root_url` for share links, alert notifications, and OAuth redirects. DNS for this name is yours to create."
+  description = "Optional hostname to reach Grafana on. The load balancer is created regardless and answers on an IP; setting this configures Grafana's `root_url` for share links, alert notifications, and OAuth redirects. DNS for this name is yours to create. With `dns` set, leave this unset; Grafana's hostname comes from `dns`."
   type        = string
   default     = null
+
+  validation {
+    condition     = var.grafana_host == null || var.dns == null
+    error_message = "Set grafana_host or dns, not both: with dns, Grafana's hostname is dns.subdomains.grafana under the stem domain."
+  }
 }
 
 variable "grafana_allow_public_access" {
@@ -342,4 +392,46 @@ variable "enable_ory_service_monitors" {
   type        = bool
   default     = true
   nullable    = false
+}
+
+variable "dns" {
+  description = <<-EOT
+    An existing Cloud DNS managed zone to take every browser-facing hostname from, instead of
+    setting `materialize_console_fqdn`, `materialize_balancerd_fqdn`, `ory_hydra_fqdn`,
+    `ory_kratos_fqdn`, `ory_ui_fqdn`, `ory_polis_fqdn` and `grafana_host` one by one. The
+    hostnames sit under `stem_domain`, which defaults to the zone's domain: the console on
+    `stem_domain` itself, and the rest on the subdomains `balancerd`, `hydra`, `kratos`, `auth`
+    (the selfservice UI), `polis` and `grafana`. `subdomains` overrides any of them, keyed
+    `console`, `balancerd`, `hydra`, `kratos`, `ui`, `polis` and `grafana`, with `"@"` for the
+    stem itself. Kratos's session cookie is scoped to the stem domain unless
+    `ory_kratos_cookie_domain` is set.
+
+    The example creates the records for the console, balancerd, the selfservice UI, Hydra and
+    Kratos (unless `ory_single_domain_fqdn` puts those two behind one hostname, whose record
+    stays yours), and Polis when `enable_polis` is true. It does not create Grafana's, because
+    the address of Grafana's load balancer may not be known on the first apply; point that one
+    at the `grafana_load_balancer_address` output. The zone itself is never created or changed.
+
+    With `letsencrypt` set, cert-manager answers ACME DNS-01 challenges in the zone, and a Let's
+    Encrypt issuer signs the browser-facing certificates while the internal ones stay
+    self-signed. It replaces `cert_issuer_ref`, so set one or the other. The issuer starts on
+    Let's Encrypt staging, as `<name_prefix>-letsencrypt-staging`; once staging has issued every
+    certificate, set `acme_server_prod = true` and apply again.
+  EOT
+  type = object({
+    zone_name       = string
+    zone_project_id = optional(string)
+    stem_domain     = optional(string)
+    subdomains      = optional(map(string), {})
+    letsencrypt = optional(object({
+      acme_email       = string
+      acme_server_prod = optional(bool, false)
+    }))
+  })
+  default = null
+
+  validation {
+    condition     = alltrue([for key in keys(try(var.dns.subdomains, {})) : contains(["console", "balancerd", "hydra", "kratos", "ui", "polis", "grafana"], key)])
+    error_message = "dns.subdomains keys must be console, balancerd, hydra, kratos, ui, polis or grafana."
+  }
 }

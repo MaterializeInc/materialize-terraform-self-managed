@@ -146,6 +146,39 @@ To restrict Load Balancer access to specific IP ranges:
 ingress_cidr_blocks = ["203.0.113.0/24", "198.51.100.0/24"]
 ```
 
+### Hostnames and Let's Encrypt from a Cloud DNS zone
+
+With a Cloud DNS managed zone, the example can put the console and balancerd on hostnames in
+it and get publicly trusted certificates for them from Let's Encrypt:
+
+```hcl
+dns = {
+  zone_name   = "example-com"    # the managed zone's name, not its DNS name
+  stem_domain = "mz.example.com" # defaults to the zone's domain
+  letsencrypt = {
+    acme_email = "platform-team@example.com"
+  }
+}
+```
+
+The console answers on `mz.example.com` and balancerd on `balancerd.mz.example.com`, and
+`dns.subdomains` renames either of them or Grafana's `grafana.mz.example.com`. The example
+creates the console and balancerd records and never creates or changes the zone itself. It does
+not create Grafana's record, because the address of Grafana's load balancer may not be known on
+the first apply; point that record at the `grafana_load_balancer_address` output. The
+`dns_fqdns` output lists every hostname.
+
+With `letsencrypt` set, cert-manager answers DNS-01 challenges in the zone as a Google service
+account that may change records in that zone only. The console and balancerd certificates come
+from Let's Encrypt, and the internal ones stay self-signed. The issuer starts on Let's Encrypt
+staging, whose certificates browsers do not trust. Once `kubectl get certificates -A` shows
+every certificate ready, set `acme_server_prod = true` in `letsencrypt` and apply again. The
+issuer's name changes with it, so cert-manager reissues the certificates from production.
+
+With `internal_load_balancer = true`, the default, the records point at internal addresses, so
+the names resolve publicly but answer only inside the network. Let's Encrypt works either way,
+because DNS-01 never connects to the load balancers.
+
 ---
 
 ### Step 2: Deploy Materialize

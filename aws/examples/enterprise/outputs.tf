@@ -189,6 +189,11 @@ output "ory_lb_addresses" {
   value       = module.ory.lb_addresses
 }
 
+output "dns_fqdns" {
+  description = "Browser-facing hostnames from var.dns, keyed console, balancerd, hydra, kratos, ui, polis and grafana. Null when var.dns is unset."
+  value       = var.dns != null ? module.dns[0].fqdns : null
+}
+
 output "materialize_oidc" {
   description = "The OIDC provider Materialize trusts: Hydra by default, or var.direct_oidc when set. Useful for confirming which side is authoritative mid-migration."
   # The client ID is public (the console hands it to every browser), but the Ory

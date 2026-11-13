@@ -100,6 +100,41 @@ To restrict Load Balancer access to specific IP ranges:
 ingress_cidr_blocks = ["203.0.113.0/24", "198.51.100.0/24"]
 ```
 
+### Hostnames and Let's Encrypt from a Route 53 hosted zone
+
+With a Route 53 hosted zone, the example can put the console and balancerd on hostnames in it and get
+publicly trusted certificates for them from Let's Encrypt:
+
+```hcl
+dns = {
+  zone_id     = "Z0123456789ABCDEFGHIJ" # the Route 53 hosted zone's ID
+  stem_domain = "mz.example.com"        # defaults to the zone's domain
+  letsencrypt = {
+    acme_email = "platform-team@example.com"
+  }
+}
+```
+
+The console answers on `mz.example.com` and balancerd on `balancerd.mz.example.com`, and
+`dns.subdomains` renames either of them or Grafana's `grafana.mz.example.com`. The example
+creates the console and balancerd records and never creates or changes the zone itself.
+It also creates Grafana's record when the observability stack is on. The `dns_fqdns` output lists every hostname.
+
+The load balancers answer on DNS names, so every record is a CNAME, and a CNAME cannot sit at
+the zone's apex. Keep `stem_domain` below the apex, or move the console off `"@"` with
+`dns.subdomains`.
+
+With `letsencrypt` set, cert-manager answers DNS-01 challenges in the zone as
+an IAM role, assumed through IRSA, that may change only the `_acme-challenge` TXT records under the stem domain. The console and balancerd certificates come from Let's Encrypt, and the
+internal ones stay self-signed. The issuer starts on Let's Encrypt staging, whose certificates browsers do not trust. Once
+`kubectl get certificates -A` shows every certificate ready, set `acme_server_prod = true` in
+`letsencrypt` and apply again. The issuer's name changes with it, so cert-manager reissues the
+certificates from production.
+
+With `internal_load_balancer = true`, the default, the records point at internal load balancers, so the names resolve
+publicly but answer only inside the network. Let's Encrypt works either way, because DNS-01
+never connects to the load balancers.
+
 ---
 
 ### Step 2: Deploy Materialize
