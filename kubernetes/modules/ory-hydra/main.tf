@@ -156,6 +156,10 @@ locals {
     }
   }
 
+  # helm_values can turn singleNamespaceMode off; Maester then gets a
+  # ClusterRole and must watch every namespace, so NAMESPACE stays unset.
+  maester_single_namespace = try(var.helm_values["hydra-maester"]["singleNamespaceMode"], true)
+
   urls_config = merge(
     {
       self = {
@@ -215,9 +219,18 @@ locals {
     }
 
     # Maester only watches OAuth2Client resources and reads Secrets in Hydra's
-    # own namespace, through a Role instead of a ClusterRole.
+    # own namespace, through a Role instead of a ClusterRole. Maester scopes
+    # its cache by the NAMESPACE environment variable, not by the --namespace
+    # flag the chart passes, so NAMESPACE must match the Role or the cache
+    # lists cluster-wide, is forbidden, and never syncs.
     "hydra-maester" = {
       singleNamespaceMode = true
+      deployment = {
+        extraEnv = local.maester_single_namespace ? [{
+          name      = "NAMESPACE"
+          valueFrom = { fieldRef = { fieldPath = "metadata.namespace" } }
+        }] : []
+      }
     }
 
     # Janitor cleans stale rows the DB has no TTL for. cleanupRequests is the
