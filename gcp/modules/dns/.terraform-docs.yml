@@ -29,6 +29,11 @@ content: |-
   names under the same keys, so the rest of a configuration can take every
   hostname from one place instead of a variable per hostname. An entry with
   `create = false` only computes its name, for a record something else manages.
+
+  The values of each record come from `records`, keyed like `subdomains`, rather
+  than from the entry itself. `fqdns` depends only on `subdomains`, so a load
+  balancer configured with one of the names can hand its address back through
+  `records` without a dependency cycle.
   
   ```hcl
   module "dns" {
@@ -40,9 +45,13 @@ content: |-
     stem_domain = "mz.example.com"
   
     subdomains = {
-      console   = { subdomain = "@", records = [module.load_balancers.console_load_balancer_ip] }
-      balancerd = { records = [module.load_balancers.balancerd_load_balancer_ip] }
+      console   = { subdomain = "@" }
+      balancerd = {}
       grafana   = { create = false }
+    }
+    records = {
+      console   = [module.load_balancers.console_load_balancer_ip]
+      balancerd = [module.load_balancers.balancerd_load_balancer_ip]
     }
   
     cert_manager_dns01 = {}

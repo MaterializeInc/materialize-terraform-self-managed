@@ -7,8 +7,8 @@ locals {
     key => coalesce(entry.subdomain, key) == "@" ? local.stem_domain : "${coalesce(entry.subdomain, key)}.${local.stem_domain}"
   }
 
-  records = {
-    for key, entry in var.subdomains : key => merge(entry, { fqdn = local.fqdns[key] }) if entry.create
+  record_sets = {
+    for key, entry in var.subdomains : key => merge(entry, { fqdn = local.fqdns[key], values = lookup(var.records, key, []) }) if entry.create
   }
 
   cert_manager_dns01 = var.cert_manager_dns01 != null
@@ -37,15 +37,19 @@ data "aws_route53_zone" "this" {
 }
 
 resource "aws_route53_record" "subdomains" {
-  for_each = local.records
+  for_each = local.record_sets
 
   zone_id = var.zone_id
   name    = each.value.fqdn
   type    = each.value.type
   ttl     = each.value.ttl
-  records = each.value.records
+  records = each.value.values
 
   lifecycle {
+    precondition {
+      condition     = each.value.type == "CNAME" ? length(each.value.values) == 1 : length(each.value.values) > 0
+      error_message = "${each.key}: create = true needs records[\"${each.key}\"], with one target for a CNAME or at least one address for A and AAAA."
+    }
     precondition {
       condition     = !(each.value.type == "CNAME" && each.value.fqdn == local.zone_domain)
       error_message = "${each.key}: a CNAME cannot sit at the zone's apex, ${local.zone_domain}."

@@ -23,12 +23,11 @@ variable "stem_domain" {
 }
 
 variable "subdomains" {
-  description = "Hostnames under stem_domain, keyed by the name the fqdns output uses for each. subdomain defaults to the key, and \"@\" means stem_domain itself. When create is true, the default, the module creates a record of the given type (A, AAAA or CNAME; A by default) with records as its values. With create false it only computes the name, for a record managed elsewhere."
+  description = "Hostnames under stem_domain, keyed by the name the fqdns output uses for each. subdomain defaults to the key, and \"@\" means stem_domain itself. When create is true, the default, the module creates a record of the given type (A, AAAA or CNAME; A by default) whose values come from records under the same key. With create false it only computes the name, for a record managed elsewhere."
   type = map(object({
     subdomain = optional(string)
     create    = optional(bool, true)
     type      = optional(string, "A")
-    records   = optional(list(string), [])
     ttl       = optional(number, 300)
   }))
   default  = {}
@@ -46,13 +45,17 @@ variable "subdomains" {
     condition     = alltrue([for entry in values(var.subdomains) : contains(["A", "AAAA", "CNAME"], entry.type)])
     error_message = "type must be A, AAAA or CNAME."
   }
+}
+
+variable "records" {
+  description = "Values of the record for each subdomains entry with create = true, keyed like subdomains: addresses for A and AAAA, one target name for a CNAME. They are kept out of subdomains so that the fqdns output never depends on them, which lets a load balancer configured with one of those names hand its address back here without a dependency cycle."
+  type        = map(list(string))
+  default     = {}
+  nullable    = false
 
   validation {
-    condition = alltrue([
-      for entry in values(var.subdomains) :
-      !entry.create || (entry.type == "CNAME" ? length(entry.records) == 1 : length(entry.records) > 0)
-    ])
-    error_message = "A subdomain with create = true needs records: one for a CNAME, at least one for A or AAAA."
+    condition     = alltrue([for key in keys(var.records) : contains(keys(var.subdomains), key)])
+    error_message = "Every key in records must also be a key in subdomains."
   }
 }
 

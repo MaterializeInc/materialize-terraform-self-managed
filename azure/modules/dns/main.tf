@@ -8,10 +8,11 @@ locals {
   }
 
   # Azure DNS names a record relative to its zone, with "@" for the apex.
-  records = {
+  record_sets = {
     for key, entry in var.subdomains : key => merge(entry, {
-      fqdn = local.fqdns[key]
-      name = local.fqdns[key] == local.zone_domain ? "@" : trimsuffix(local.fqdns[key], ".${local.zone_domain}")
+      fqdn   = local.fqdns[key]
+      values = lookup(var.records, key, [])
+      name   = local.fqdns[key] == local.zone_domain ? "@" : trimsuffix(local.fqdns[key], ".${local.zone_domain}")
     }) if entry.create
   }
 
@@ -40,38 +41,56 @@ data "azurerm_dns_zone" "this" {
 }
 
 resource "azurerm_dns_a_record" "subdomains" {
-  for_each = { for key, entry in local.records : key => entry if entry.type == "A" }
+  for_each = { for key, entry in local.record_sets : key => entry if entry.type == "A" }
 
   name                = each.value.name
   zone_name           = data.azurerm_dns_zone.this.name
   resource_group_name = var.zone_resource_group_name
   ttl                 = each.value.ttl
-  records             = each.value.records
-  tags                = var.tags
-}
-
-resource "azurerm_dns_aaaa_record" "subdomains" {
-  for_each = { for key, entry in local.records : key => entry if entry.type == "AAAA" }
-
-  name                = each.value.name
-  zone_name           = data.azurerm_dns_zone.this.name
-  resource_group_name = var.zone_resource_group_name
-  ttl                 = each.value.ttl
-  records             = each.value.records
-  tags                = var.tags
-}
-
-resource "azurerm_dns_cname_record" "subdomains" {
-  for_each = { for key, entry in local.records : key => entry if entry.type == "CNAME" }
-
-  name                = each.value.name
-  zone_name           = data.azurerm_dns_zone.this.name
-  resource_group_name = var.zone_resource_group_name
-  ttl                 = each.value.ttl
-  record              = one(each.value.records)
+  records             = each.value.values
   tags                = var.tags
 
   lifecycle {
+    precondition {
+      condition     = each.value.type == "CNAME" ? length(each.value.values) == 1 : length(each.value.values) > 0
+      error_message = "${each.key}: create = true needs records[\"${each.key}\"], with one target for a CNAME or at least one address for A and AAAA."
+    }
+  }
+}
+
+resource "azurerm_dns_aaaa_record" "subdomains" {
+  for_each = { for key, entry in local.record_sets : key => entry if entry.type == "AAAA" }
+
+  name                = each.value.name
+  zone_name           = data.azurerm_dns_zone.this.name
+  resource_group_name = var.zone_resource_group_name
+  ttl                 = each.value.ttl
+  records             = each.value.values
+  tags                = var.tags
+
+  lifecycle {
+    precondition {
+      condition     = each.value.type == "CNAME" ? length(each.value.values) == 1 : length(each.value.values) > 0
+      error_message = "${each.key}: create = true needs records[\"${each.key}\"], with one target for a CNAME or at least one address for A and AAAA."
+    }
+  }
+}
+
+resource "azurerm_dns_cname_record" "subdomains" {
+  for_each = { for key, entry in local.record_sets : key => entry if entry.type == "CNAME" }
+
+  name                = each.value.name
+  zone_name           = data.azurerm_dns_zone.this.name
+  resource_group_name = var.zone_resource_group_name
+  ttl                 = each.value.ttl
+  record              = one(each.value.values)
+  tags                = var.tags
+
+  lifecycle {
+    precondition {
+      condition     = each.value.type == "CNAME" ? length(each.value.values) == 1 : length(each.value.values) > 0
+      error_message = "${each.key}: create = true needs records[\"${each.key}\"], with one target for a CNAME or at least one address for A and AAAA."
+    }
     precondition {
       condition     = each.value.name != "@"
       error_message = "${each.key}: a CNAME cannot sit at the zone's apex, ${local.zone_domain}."

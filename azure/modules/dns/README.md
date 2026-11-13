@@ -14,6 +14,11 @@ names under the same keys, so the rest of a configuration can take every
 hostname from one place instead of a variable per hostname. An entry with
 `create = false` only computes its name, for a record something else manages.
 
+The values of each record come from `records`, keyed like `subdomains`, rather
+than from the entry itself. `fqdns` depends only on `subdomains`, so a load
+balancer configured with one of the names can hand its address back through
+`records` without a dependency cycle.
+
 ```hcl
 module "dns" {
   source = "github.com/MaterializeInc/materialize-terraform-self-managed//azure/modules/dns?ref=<tag>"
@@ -24,9 +29,13 @@ module "dns" {
   stem_domain              = "mz.example.com"
 
   subdomains = {
-    console   = { subdomain = "@", records = [module.load_balancers.console_load_balancer_ip] }
-    balancerd = { records = [module.load_balancers.balancerd_load_balancer_ip] }
+    console   = { subdomain = "@" }
+    balancerd = {}
     grafana   = { create = false }
+  }
+  records = {
+    console   = [module.load_balancers.console_load_balancer_ip]
+    balancerd = [module.load_balancers.balancerd_load_balancer_ip]
   }
 
   cert_manager_dns01 = {
@@ -101,8 +110,9 @@ No modules.
 | ---- | ----------- | ---- | ------- | :------: |
 | <a name="input_cert_manager_dns01"></a> [cert\_manager\_dns01](#input\_cert\_manager\_dns01) | Set to create the user-assigned managed identity cert-manager's ACME DNS-01 solver acts as through Azure Workload Identity, with DNS Zone Contributor on this zone only, and to fill the cert\_manager\_pod\_labels and acme\_dns01\_solver outputs. oidc\_issuer\_url comes from the aks module, and the identity is created in resource\_group\_name and location. namespace and service\_account\_name are where cert-manager's controller runs, and environment is the Azure cloud cert-manager talks to. Null, the default, creates no identity. | <pre>object({<br/>    oidc_issuer_url      = string<br/>    resource_group_name  = string<br/>    location             = string<br/>    namespace            = optional(string, "cert-manager")<br/>    service_account_name = optional(string, "cert-manager")<br/>    environment          = optional(string, "AzurePublicCloud")<br/>  })</pre> | `null` | no |
 | <a name="input_prefix"></a> [prefix](#input\_prefix) | Prefix to be used for resource names | `string` | n/a | yes |
+| <a name="input_records"></a> [records](#input\_records) | Values of the record for each subdomains entry with create = true, keyed like subdomains: addresses for A and AAAA, one target name for a CNAME. They are kept out of subdomains so that the fqdns output never depends on them, which lets a load balancer configured with one of those names hand its address back here without a dependency cycle. | `map(list(string))` | `{}` | no |
 | <a name="input_stem_domain"></a> [stem\_domain](#input\_stem\_domain) | Domain the subdomains are created under, such as mz.example.com in the zone example.com. It must be the zone's domain or a name inside it. Defaults to the zone's domain. | `string` | `null` | no |
-| <a name="input_subdomains"></a> [subdomains](#input\_subdomains) | Hostnames under stem\_domain, keyed by the name the fqdns output uses for each. subdomain defaults to the key, and "@" means stem\_domain itself. When create is true, the default, the module creates a record of the given type (A, AAAA or CNAME; A by default) with records as its values. With create false it only computes the name, for a record managed elsewhere. | <pre>map(object({<br/>    subdomain = optional(string)<br/>    create    = optional(bool, true)<br/>    type      = optional(string, "A")<br/>    records   = optional(list(string), [])<br/>    ttl       = optional(number, 300)<br/>  }))</pre> | `{}` | no |
+| <a name="input_subdomains"></a> [subdomains](#input\_subdomains) | Hostnames under stem\_domain, keyed by the name the fqdns output uses for each. subdomain defaults to the key, and "@" means stem\_domain itself. When create is true, the default, the module creates a record of the given type (A, AAAA or CNAME; A by default) whose values come from records under the same key. With create false it only computes the name, for a record managed elsewhere. | <pre>map(object({<br/>    subdomain = optional(string)<br/>    create    = optional(bool, true)<br/>    type      = optional(string, "A")<br/>    ttl       = optional(number, 300)<br/>  }))</pre> | `{}` | no |
 | <a name="input_tags"></a> [tags](#input\_tags) | Tags to apply to resources created. | `map(string)` | `{}` | no |
 | <a name="input_zone_name"></a> [zone\_name](#input\_zone\_name) | Name of the existing Azure DNS zone, such as example.com. The module adds records to the zone and never creates, changes or deletes the zone itself. | `string` | n/a | yes |
 | <a name="input_zone_resource_group_name"></a> [zone\_resource\_group\_name](#input\_zone\_resource\_group\_name) | Resource group that holds the DNS zone, in the subscription the azurerm provider is configured for. | `string` | n/a | yes |

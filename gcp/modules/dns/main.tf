@@ -8,8 +8,8 @@ locals {
     key => coalesce(entry.subdomain, key) == "@" ? local.stem_domain : "${coalesce(entry.subdomain, key)}.${local.stem_domain}"
   }
 
-  records = {
-    for key, entry in var.subdomains : key => merge(entry, { fqdn = local.fqdns[key] }) if entry.create
+  record_sets = {
+    for key, entry in var.subdomains : key => merge(entry, { fqdn = local.fqdns[key], values = lookup(var.records, key, []) }) if entry.create
   }
 
   cert_manager_dns01 = var.cert_manager_dns01 != null
@@ -34,7 +34,7 @@ data "google_dns_managed_zone" "this" {
 }
 
 resource "google_dns_record_set" "subdomains" {
-  for_each = local.records
+  for_each = local.record_sets
 
   project      = local.zone_project_id
   managed_zone = var.zone_name
@@ -42,9 +42,13 @@ resource "google_dns_record_set" "subdomains" {
   type         = each.value.type
   ttl          = each.value.ttl
   # Cloud DNS takes a CNAME target as an absolute name.
-  rrdatas = each.value.type == "CNAME" ? [for target in each.value.records : endswith(target, ".") ? target : "${target}."] : each.value.records
+  rrdatas = each.value.type == "CNAME" ? [for target in each.value.values : endswith(target, ".") ? target : "${target}."] : each.value.values
 
   lifecycle {
+    precondition {
+      condition     = each.value.type == "CNAME" ? length(each.value.values) == 1 : length(each.value.values) > 0
+      error_message = "${each.key}: create = true needs records[\"${each.key}\"], with one target for a CNAME or at least one address for A and AAAA."
+    }
     precondition {
       condition     = !(each.value.type == "CNAME" && each.value.fqdn == local.zone_domain)
       error_message = "${each.key}: a CNAME cannot sit at the zone's apex, ${local.zone_domain}."

@@ -14,6 +14,11 @@ names under the same keys, so the rest of a configuration can take every
 hostname from one place instead of a variable per hostname. An entry with
 `create = false` only computes its name, for a record something else manages.
 
+The values of each record come from `records`, keyed like `subdomains`, rather
+than from the entry itself. `fqdns` depends only on `subdomains`, so a load
+balancer configured with one of the names can hand its address back through
+`records` without a dependency cycle.
+
 ```hcl
 module "dns" {
   source = "github.com/MaterializeInc/materialize-terraform-self-managed//gcp/modules/dns?ref=<tag>"
@@ -24,9 +29,13 @@ module "dns" {
   stem_domain = "mz.example.com"
 
   subdomains = {
-    console   = { subdomain = "@", records = [module.load_balancers.console_load_balancer_ip] }
-    balancerd = { records = [module.load_balancers.balancerd_load_balancer_ip] }
+    console   = { subdomain = "@" }
+    balancerd = {}
     grafana   = { create = false }
+  }
+  records = {
+    console   = [module.load_balancers.console_load_balancer_ip]
+    balancerd = [module.load_balancers.balancerd_load_balancer_ip]
   }
 
   cert_manager_dns01 = {}
@@ -96,8 +105,9 @@ No modules.
 | <a name="input_cert_manager_dns01"></a> [cert\_manager\_dns01](#input\_cert\_manager\_dns01) | Set to create the Google service account cert-manager's ACME DNS-01 solver acts as through GKE Workload Identity, with roles/dns.admin on the managed zone only, and to fill the cert\_manager\_service\_account\_annotations and acme\_dns01\_solver outputs. namespace and service\_account\_name are where cert-manager's controller runs. Null, the default, creates no identity. | <pre>object({<br/>    namespace            = optional(string, "cert-manager")<br/>    service_account_name = optional(string, "cert-manager")<br/>  })</pre> | `null` | no |
 | <a name="input_prefix"></a> [prefix](#input\_prefix) | Prefix to be used for resource names | `string` | n/a | yes |
 | <a name="input_project_id"></a> [project\_id](#input\_project\_id) | GCP project the GKE cluster runs in. The cert-manager Google service account is created here, and its Workload Identity binding uses this project's pool. | `string` | n/a | yes |
+| <a name="input_records"></a> [records](#input\_records) | Values of the record for each subdomains entry with create = true, keyed like subdomains: addresses for A and AAAA, one target name for a CNAME. They are kept out of subdomains so that the fqdns output never depends on them, which lets a load balancer configured with one of those names hand its address back here without a dependency cycle. | `map(list(string))` | `{}` | no |
 | <a name="input_stem_domain"></a> [stem\_domain](#input\_stem\_domain) | Domain the subdomains are created under, such as mz.example.com in the zone example.com. It must be the zone's domain or a name inside it. Defaults to the zone's domain. | `string` | `null` | no |
-| <a name="input_subdomains"></a> [subdomains](#input\_subdomains) | Hostnames under stem\_domain, keyed by the name the fqdns output uses for each. subdomain defaults to the key, and "@" means stem\_domain itself. When create is true, the default, the module creates a record of the given type (A, AAAA or CNAME; A by default) with records as its values. With create false it only computes the name, for a record managed elsewhere. | <pre>map(object({<br/>    subdomain = optional(string)<br/>    create    = optional(bool, true)<br/>    type      = optional(string, "A")<br/>    records   = optional(list(string), [])<br/>    ttl       = optional(number, 300)<br/>  }))</pre> | `{}` | no |
+| <a name="input_subdomains"></a> [subdomains](#input\_subdomains) | Hostnames under stem\_domain, keyed by the name the fqdns output uses for each. subdomain defaults to the key, and "@" means stem\_domain itself. When create is true, the default, the module creates a record of the given type (A, AAAA or CNAME; A by default) whose values come from records under the same key. With create false it only computes the name, for a record managed elsewhere. | <pre>map(object({<br/>    subdomain = optional(string)<br/>    create    = optional(bool, true)<br/>    type      = optional(string, "A")<br/>    ttl       = optional(number, 300)<br/>  }))</pre> | `{}` | no |
 | <a name="input_zone_name"></a> [zone\_name](#input\_zone\_name) | Name of the existing Cloud DNS managed zone, as Cloud DNS lists it, not its DNS name. The module adds records to the zone and never creates, changes or deletes the zone itself. | `string` | n/a | yes |
 | <a name="input_zone_project_id"></a> [zone\_project\_id](#input\_zone\_project\_id) | Project that holds the managed zone. Defaults to project\_id. | `string` | `null` | no |
 

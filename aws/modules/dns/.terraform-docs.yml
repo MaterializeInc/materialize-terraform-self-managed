@@ -29,6 +29,11 @@ content: |-
   names under the same keys, so the rest of a configuration can take every
   hostname from one place instead of a variable per hostname. An entry with
   `create = false` only computes its name, for a record something else manages.
+
+  The values of each record come from `records`, keyed like `subdomains`, rather
+  than from the entry itself. `fqdns` depends only on `subdomains`, so a load
+  balancer configured with one of the names can hand its address back through
+  `records` without a dependency cycle.
   
   ```hcl
   module "dns" {
@@ -41,9 +46,13 @@ content: |-
     # The NLB has a hostname rather than an IP, so its names are CNAMEs. A
     # CNAME cannot sit at the zone's apex, which "@" is not here.
     subdomains = {
-      console   = { subdomain = "@", type = "CNAME", records = [module.materialize_nlb.nlb_dns_name] }
-      balancerd = { type = "CNAME", records = [module.materialize_nlb.nlb_dns_name] }
+      console   = { subdomain = "@", type = "CNAME" }
+      balancerd = { type = "CNAME" }
       grafana   = { create = false }
+    }
+    records = {
+      console   = [module.materialize_nlb.nlb_dns_name]
+      balancerd = [module.materialize_nlb.nlb_dns_name]
     }
   
     cert_manager_dns01 = {
