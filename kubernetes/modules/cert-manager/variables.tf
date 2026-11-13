@@ -44,3 +44,17 @@ variable "enable_service_monitor" {
   default     = false
   nullable    = false
 }
+
+variable "service_account_annotations" {
+  description = "Annotations for cert-manager's Kubernetes service account. Use them to give the controller a cloud identity for DNS-01 challenges instead of static keys, for example iam.gke.io/gcp-service-account for GKE Workload Identity or eks.amazonaws.com/role-arn for IRSA."
+  type        = map(string)
+  default     = {}
+  nullable    = false
+}
+
+variable "pod_labels" {
+  description = "Labels for the cert-manager controller pods. Azure Workload Identity needs azure.workload.identity/use = \"true\" here before the controller can authenticate to Azure DNS."
+  type        = map(string)
+  default     = {}
+  nullable    = false
+}

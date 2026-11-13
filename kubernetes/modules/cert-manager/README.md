@@ -34,6 +34,8 @@ No modules.
 | <a name="input_install_timeout"></a> [install\_timeout](#input\_install\_timeout) | Timeout for installing the cert-manager helm chart, in seconds. | `number` | `300` | no |
 | <a name="input_namespace"></a> [namespace](#input\_namespace) | The name of the namespace in which cert-manager will be installed. | `string` | `"cert-manager"` | no |
 | <a name="input_node_selector"></a> [node\_selector](#input\_node\_selector) | Node selector for cert-manager pods. | `map(string)` | `{}` | no |
+| <a name="input_pod_labels"></a> [pod\_labels](#input\_pod\_labels) | Labels for the cert-manager controller pods. Azure Workload Identity needs azure.workload.identity/use = "true" here before the controller can authenticate to Azure DNS. | `map(string)` | `{}` | no |
+| <a name="input_service_account_annotations"></a> [service\_account\_annotations](#input\_service\_account\_annotations) | Annotations for cert-manager's Kubernetes service account. Use them to give the controller a cloud identity for DNS-01 challenges instead of static keys, for example iam.gke.io/gcp-service-account for GKE Workload Identity or eks.amazonaws.com/role-arn for IRSA. | `map(string)` | `{}` | no |
 | <a name="input_tolerations"></a> [tolerations](#input\_tolerations) | Tolerations for cert-manager pods. | <pre>list(object({<br/>    key      = string<br/>    value    = optional(string)<br/>    operator = optional(string, "Equal")<br/>    effect   = string<br/>  }))</pre> | `[]` | no |
 
 ## Outputs
