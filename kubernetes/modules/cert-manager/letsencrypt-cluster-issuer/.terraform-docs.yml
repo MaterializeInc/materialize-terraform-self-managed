@@ -14,9 +14,10 @@ sections:
   show-modules: true
 
 content: |-
-  Creates a cert-manager ACME `ClusterIssuer` named `<name_prefix>-letsencrypt`
-  that issues publicly trusted certificates from Let's Encrypt, or from any other
-  ACME server set in `acme_server`. The ACME account key is stored in the Secret
+  Creates a cert-manager ACME `ClusterIssuer` named `<name_prefix>-letsencrypt`.
+  It issues from Let's Encrypt staging until `acme_server_prod` is set to true,
+  and from Let's Encrypt production after that; `acme_server` points it at any
+  other ACME server instead. The ACME account key is stored in the Secret
   `<name_prefix>-letsencrypt-account-key` in cert-manager's namespace.
 
   The module does not choose a challenge type or a DNS provider. The `solvers`
@@ -30,8 +31,27 @@ content: |-
   A DNS-01 solver needs credentials for the DNS provider. The examples below
   give cert-manager's controller a cloud identity through its Kubernetes service
   account, using the `service_account_annotations` and `pod_labels` inputs of
-  the [`cert-manager`](../cert-manager) module, so no static keys are stored in
+  the [`cert-manager`](..) module, so no static keys are stored in
   the cluster. Set `ref=` to the latest tagged version of this repository.
+
+  ## Staging first, then production
+
+  Let's Encrypt production limits how many validations may fail for a hostname
+  each hour, so mistakes while a solver is being set up can hold up issuance.
+  Staging has far higher limits and signs from an untrusted test root, which
+  browsers warn about. The issuer starts on staging, and moving it to
+  production is a separate apply after a person has reviewed the result:
+
+  1. Apply with `acme_server_prod` unset, as in the examples below. Check that
+     every Certificate using the issuer becomes ready, for example with
+     `kubectl get certificates --all-namespaces`.
+  2. Set `acme_server_prod = true` and apply. cert-manager registers the
+     existing account key with production.
+  3. Renew the certificates staging issued, for example with
+     `cmctl renew --namespace <namespace> --all`. cert-manager reissues a
+     certificate when the Certificate or its issuer reference changes, not when
+     the issuer's server does, so staging certificates otherwise stay in place
+     until they near expiry.
 
   ## Example: Google Cloud DNS with GKE Workload Identity
 
@@ -70,7 +90,7 @@ content: |-
   }
 
   module "letsencrypt_cluster_issuer" {
-    source = "github.com/MaterializeInc/materialize-terraform-self-managed//kubernetes/modules/letsencrypt-cluster-issuer?ref=<tag>"
+    source = "github.com/MaterializeInc/materialize-terraform-self-managed//kubernetes/modules/cert-manager/letsencrypt-cluster-issuer?ref=<tag>"
 
     name_prefix = "my-mz"
     acme_email  = "platform-team@example.com"
@@ -109,7 +129,7 @@ content: |-
   }
 
   module "letsencrypt_cluster_issuer" {
-    source = "github.com/MaterializeInc/materialize-terraform-self-managed//kubernetes/modules/letsencrypt-cluster-issuer?ref=<tag>"
+    source = "github.com/MaterializeInc/materialize-terraform-self-managed//kubernetes/modules/cert-manager/letsencrypt-cluster-issuer?ref=<tag>"
 
     name_prefix = "my-mz"
     acme_email  = "platform-team@example.com"
@@ -152,7 +172,7 @@ content: |-
   }
 
   module "letsencrypt_cluster_issuer" {
-    source = "github.com/MaterializeInc/materialize-terraform-self-managed//kubernetes/modules/letsencrypt-cluster-issuer?ref=<tag>"
+    source = "github.com/MaterializeInc/materialize-terraform-self-managed//kubernetes/modules/cert-manager/letsencrypt-cluster-issuer?ref=<tag>"
 
     name_prefix = "my-mz"
     acme_email  = "platform-team@example.com"
@@ -180,10 +200,10 @@ content: |-
 
   A public CA cannot sign the `cluster.local` names on Materialize's internal
   certificates, so pair this issuer with a private one. In the
-  [`materialize-instance`](../materialize-instance) module, set `issuer_ref` to
+  [`materialize-instance`](../../materialize-instance) module, set `issuer_ref` to
   this issuer for the balancer and console certificates, `internal_issuer_ref`
   to a private issuer such as the one from
-  [`self-signed-cluster-issuer`](../self-signed-cluster-issuer), and list the
+  [`self-signed-cluster-issuer`](../../self-signed-cluster-issuer), and list the
   public hostnames in `balancerd_extra_dns_names` and `console_extra_dns_names`:
 
   ```hcl

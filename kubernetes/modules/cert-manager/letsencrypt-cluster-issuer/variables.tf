@@ -10,11 +10,22 @@ variable "acme_email" {
   nullable    = false
 }
 
-variable "acme_server" {
-  description = "Directory URL of the ACME server. Defaults to Let's Encrypt production; use https://acme-staging-v02.api.letsencrypt.org/directory to test without counting against production rate limits."
-  type        = string
+variable "acme_server_prod" {
+  description = "Issue from Let's Encrypt production instead of Let's Encrypt staging. Leave it false for the first apply, check that staging issues every certificate, then set it to true. Cannot be combined with acme_server."
+  type        = bool
   nullable    = false
-  default     = "https://acme-v02.api.letsencrypt.org/directory"
+  default     = false
+}
+
+variable "acme_server" {
+  description = "Directory URL of an ACME server other than Let's Encrypt. When null, the issuer uses Let's Encrypt staging, or production when acme_server_prod is true."
+  type        = string
+  default     = null
+
+  validation {
+    condition     = var.acme_server == null || !var.acme_server_prod
+    error_message = "Set acme_server or acme_server_prod, not both: acme_server_prod only chooses between the Let's Encrypt servers."
+  }
 }
 
 variable "solvers" {

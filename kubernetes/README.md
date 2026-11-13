@@ -23,7 +23,7 @@ For a complete deployment onto an existing cluster -- no cloud infrastructure, j
 |--------|-------------|
 | [`cert-manager`](./modules/cert-manager) | Installs cert-manager for automated TLS certificate management |
 | [`self-signed-cluster-issuer`](./modules/self-signed-cluster-issuer) | Creates a self-signed ClusterIssuer for internal TLS certificates |
-| [`letsencrypt-cluster-issuer`](./modules/letsencrypt-cluster-issuer) | Creates an ACME ClusterIssuer for publicly trusted certificates from Let's Encrypt |
+| [`cert-manager/letsencrypt-cluster-issuer`](./modules/cert-manager/letsencrypt-cluster-issuer) | Creates an ACME ClusterIssuer for publicly trusted certificates from Let's Encrypt, staging first |
 | [`materialize-instance`](./modules/materialize-instance) | Deploys and configures a Materialize instance |
 | [`monitoring-crds`](./modules/monitoring-crds) | Creates the monitoring namespace and installs the monitoring CRDs before the components whose ServiceMonitors need them |
 
@@ -78,18 +78,18 @@ Creates a self-signed ClusterIssuer resource that cert-manager uses to issue sel
 
 ---
 
-### letsencrypt-cluster-issuer
+### cert-manager/letsencrypt-cluster-issuer
 
-Creates an ACME ClusterIssuer that cert-manager uses to issue publicly trusted TLS certificates from Let's Encrypt, or from another ACME server.
+Creates an ACME ClusterIssuer that cert-manager uses to issue publicly trusted TLS certificates from Let's Encrypt, or from another ACME server. It is nested under `cert-manager` with room for other cert-manager issuers beside it.
 
 **Key Features:**
-- Let's Encrypt production by default; `acme_server` points it at Let's Encrypt staging or another ACME server
+- Let's Encrypt staging by default, so production is a second apply with `acme_server_prod = true` after a person has reviewed the staging certificates; `acme_server` points it at another ACME server
 - Solvers passed through verbatim, so any cert-manager HTTP-01 or DNS-01 solver works, including Google Cloud DNS, Route 53 and Azure DNS
 - README examples for DNS-01 on each cloud, with the cert-manager service account given a workload identity
 
 **Usage:** Optional convenience module for the balancer and console certificates that browsers and clients see. Pair it with a private issuer through the `materialize-instance` module's `internal_issuer_ref`, since a public CA cannot sign the instance's `cluster.local` names.
 
-**Documentation:** See [modules/letsencrypt-cluster-issuer/README.md](./modules/letsencrypt-cluster-issuer/README.md)
+**Documentation:** See [modules/cert-manager/letsencrypt-cluster-issuer/README.md](./modules/cert-manager/letsencrypt-cluster-issuer/README.md)
 
 ---
 
@@ -124,7 +124,7 @@ These modules are typically used together in a specific order:
 1. **cert-manager** - Install certificate management (required)
 2. **Certificate Issuer** - Create or configure an issuer:
    - Use the provided **self-signed-cluster-issuer** module for quick setup, OR
-   - Use the provided **letsencrypt-cluster-issuer** module for publicly trusted external certificates, alongside a private issuer for internal ones, OR
+   - Use the provided **cert-manager/letsencrypt-cluster-issuer** module for publicly trusted external certificates, alongside a private issuer for internal ones, OR
    - Configure your own issuer (organizational CA, etc.)
 3. **materialize-instance** - Deploy Materialize instance with issuer reference
 
@@ -321,7 +321,7 @@ While these modules are cloud-agnostic, they integrate with cloud-specific compo
 
 ### Certificates
 - The self-signed issuer is suitable for internal communication and development
-- For production external access, use the [letsencrypt-cluster-issuer](./modules/letsencrypt-cluster-issuer) module or your organization's CA
+- For production external access, use the [cert-manager/letsencrypt-cluster-issuer](./modules/cert-manager/letsencrypt-cluster-issuer) module or your organization's CA
 
 ### Secrets Management
 - Metadata and persist backend URLs contain credentials
