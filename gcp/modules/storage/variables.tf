@@ -17,7 +17,7 @@ variable "prefix" {
 }
 
 variable "service_account" {
-  description = "Email of a service account to grant roles/storage.admin on the bucket. Required when create_hmac_key is true, since the key belongs to it. Leave null when Materialize reads the bucket natively through workload_identity."
+  description = "Email of the service account the HMAC key belongs to, granted roles/storage.admin on the bucket. Required when create_hmac_key is true, and unused when it is false; Materialize then reads the bucket natively through workload_identity."
   type        = string
   default     = null
 }

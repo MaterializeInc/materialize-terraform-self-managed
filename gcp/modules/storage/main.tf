@@ -52,8 +52,12 @@ resource "google_storage_bucket" "materialize" {
   labels = var.labels
 }
 
+# The HMAC key's owner needs the bucket grant to use the key. Counted on
+# create_hmac_key, which is always known at plan time, rather than on
+# service_account, which a fresh install passes as an email known only after
+# apply (such as the gke module's workload_identity_sa_email).
 resource "google_storage_bucket_iam_member" "materialize_storage" {
-  count = var.service_account != null ? 1 : 0
+  count = var.create_hmac_key ? 1 : 0
 
   bucket = google_storage_bucket.materialize.name
   role   = "roles/storage.admin"

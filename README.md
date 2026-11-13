@@ -172,7 +172,7 @@ We follow semantic versioning with our tags. If a particular version requires ad
 Materialize v26.48.0 and later read GCS natively (`gcs://<bucket>/<path>`), with credentials from GKE Workload Identity. The GCP examples now run that way, and the modules support it:
 
 - `storage` takes `workload_identity = { namespace, service_account_name }`. It creates a Google service account with `roles/storage.objectAdmin` on the bucket and lets that Kubernetes service account impersonate it. environmentd and clusterd run as the service account named after the Materialize instance, in the instance namespace.
-- `storage` takes `create_hmac_key = false` to skip the HMAC key, and `service_account` becomes optional.
+- `storage` takes `create_hmac_key = false` to skip the HMAC key and `service_account`'s `roles/storage.admin` on the bucket, which only the key needs. `service_account` is then unused.
 - `storage` outputs `persist_backend_url` and `workload_identity_service_account_email`, for `materialize-instance`'s `persist_backend_url` and its `iam.gke.io/gcp-service-account` annotation.
 - `materialize-instance` takes `allow_metadata_server_egress`. Turn it on when network policies are enforced (Dataplane V2, the `gke` module's default), or the pods cannot fetch Workload Identity tokens.
 
@@ -185,7 +185,7 @@ The defaults don't change, so existing installs keep their HMAC key. `moved` blo
    - Set `allow_metadata_server_egress = true`.
 
    The annotation change rolls out environmentd and clusterd onto the same bucket and path. Both blob implementations store objects at `<path>/<key>`, so the data is read as is. If you change only the URL, set a new `force_rollout`.
-3. Once the instance is healthy on `gcs://`, set `create_hmac_key = false` and apply to delete the key.
+3. Once the instance is healthy on `gcs://`, set `create_hmac_key = false` and apply. This deletes the key and `service_account`'s bucket grant.
 
 #### v19.0.0
 
