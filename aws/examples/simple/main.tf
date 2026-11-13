@@ -435,12 +435,6 @@ module "cert_manager" {
 
   node_selector = local.generic_node_labels
 
-  # For module.letsencrypt_cluster_issuer below: the IAM role its
-  # DNS-01 solver assumes, through IRSA.
-  # service_account_annotations = {
-  #   "eks.amazonaws.com/role-arn" = aws_iam_role.cert_manager.arn
-  # }
-
   depends_on = [
     module.networking,
     module.eks,
@@ -459,92 +453,6 @@ module "self_signed_cluster_issuer" {
     module.cert_manager,
   ]
 }
-
-# Let's Encrypt ClusterIssuer for publicly trusted console and balancerd
-# certificates, solving ACME DNS-01 challenges in Amazon Route 53. To use it,
-# uncomment this section, service_account_annotations in module.cert_manager and
-# the Let's Encrypt settings in module.materialize_instance, and replace the
-# example.com placeholders. It starts on Let's Encrypt staging as
-# <name_prefix>-letsencrypt-staging; set acme_server_prod = true for production
-# once staging has issued every certificate.
-# See kubernetes/modules/cert-manager/letsencrypt-cluster-issuer/README.md.
-#
-# # The Route 53 hosted zone the public hostnames are in.
-# data "aws_route53_zone" "letsencrypt" {
-#   name = "mz.example.com"
-# }
-#
-# resource "aws_iam_role" "cert_manager" {
-#   name = "${var.name_prefix}-cert-manager"
-#
-#   assume_role_policy = jsonencode({
-#     Version = "2012-10-17"
-#     Statement = [
-#       {
-#         Effect = "Allow"
-#         Principal = {
-#           Federated = module.eks.oidc_provider_arn
-#         }
-#         Action = "sts:AssumeRoleWithWebIdentity"
-#         Condition = {
-#           StringEquals = {
-#             "${trimprefix(module.eks.cluster_oidc_issuer_url, "https://")}:sub" = "system:serviceaccount:cert-manager:cert-manager"
-#             "${trimprefix(module.eks.cluster_oidc_issuer_url, "https://")}:aud" = "sts.amazonaws.com"
-#           }
-#         }
-#       }
-#     ]
-#   })
-#
-#   tags = var.tags
-# }
-#
-# resource "aws_iam_role_policy" "cert_manager_route53" {
-#   name = "route53-dns01"
-#   role = aws_iam_role.cert_manager.id
-#
-#   policy = jsonencode({
-#     Version = "2012-10-17"
-#     Statement = [
-#       {
-#         Effect   = "Allow"
-#         Action   = "route53:GetChange"
-#         Resource = "arn:aws:route53:::change/*"
-#       },
-#       {
-#         Effect   = "Allow"
-#         Action   = ["route53:ChangeResourceRecordSets", "route53:ListResourceRecordSets"]
-#         Resource = data.aws_route53_zone.letsencrypt.arn
-#       }
-#     ]
-#   })
-# }
-#
-# module "letsencrypt_cluster_issuer" {
-#   source = "../../../kubernetes/modules/cert-manager/letsencrypt-cluster-issuer"
-#
-#   name_prefix = var.name_prefix
-#   # Where Let's Encrypt sends notices about the ACME account.
-#   acme_email = "platform-team@example.com"
-#   # Let's Encrypt staging until a person has checked that it issues every
-#   # certificate; then set to true and apply again.
-#   acme_server_prod = false
-#
-#   solvers = [
-#     {
-#       dns01 = {
-#         route53 = {
-#           region       = var.aws_region
-#           hostedZoneID = data.aws_route53_zone.letsencrypt.zone_id
-#         }
-#       }
-#     }
-#   ]
-#
-#   depends_on = [
-#     module.cert_manager,
-#   ]
-# }
 
 # 6. Install Materialize Operator
 module "operator" {
@@ -690,21 +598,6 @@ module "materialize_instance" {
     name = module.self_signed_cluster_issuer.issuer_name
     kind = "ClusterIssuer"
   }
-  # With module.letsencrypt_cluster_issuer uncommented, replace issuer_ref
-  # above with the settings below. The console and balancerd certificates
-  # then come from Let's Encrypt for these public hostnames, which must
-  # resolve to the console and balancerd, while the internal certificates
-  # stay self-signed, since a public CA cannot sign their cluster.local names.
-  # issuer_ref = {
-  #   name = module.letsencrypt_cluster_issuer.issuer_name
-  #   kind = "ClusterIssuer"
-  # }
-  # internal_issuer_ref = {
-  #   name = module.self_signed_cluster_issuer.issuer_name
-  #   kind = "ClusterIssuer"
-  # }
-  # console_extra_dns_names   = ["console.mz.example.com"]
-  # balancerd_extra_dns_names = ["balancerd.mz.example.com"]
 
   # System parameters for the Materialize instance
   # See: https://materialize.com/docs/self-managed-deployments/configuration-system-parameters/

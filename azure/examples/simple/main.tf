@@ -370,13 +370,6 @@ module "cert_manager" {
 
   node_selector = local.generic_node_labels
 
-  # For module.letsencrypt_cluster_issuer below: opts the controller
-  # into Azure Workload Identity, so its DNS-01 solver can act as the
-  # managed identity.
-  # pod_labels = {
-  #   "azure.workload.identity/use" = "true"
-  # }
-
   depends_on = [
     module.aks,
     module.networking,
@@ -394,74 +387,6 @@ module "self_signed_cluster_issuer" {
     module.cert_manager,
   ]
 }
-
-# Let's Encrypt ClusterIssuer for publicly trusted console and balancerd
-# certificates, solving ACME DNS-01 challenges in Azure DNS. To use it,
-# uncomment this section, pod_labels in module.cert_manager and the Let's
-# Encrypt settings in module.materialize_instance, and replace the example.com
-# placeholders. It starts on Let's Encrypt staging as
-# <name_prefix>-letsencrypt-staging; set acme_server_prod = true for production
-# once staging has issued every certificate.
-# See kubernetes/modules/cert-manager/letsencrypt-cluster-issuer/README.md.
-#
-# # The Azure DNS zone the public hostnames are in.
-# data "azurerm_dns_zone" "letsencrypt" {
-#   name                = "mz.example.com"
-#   resource_group_name = "dns-zones"
-# }
-#
-# resource "azurerm_user_assigned_identity" "cert_manager" {
-#   name                = "${var.name_prefix}-cert-manager"
-#   location            = var.location
-#   resource_group_name = azurerm_resource_group.materialize.name
-#   tags                = var.tags
-# }
-#
-# resource "azurerm_role_assignment" "cert_manager_dns" {
-#   scope                = data.azurerm_dns_zone.letsencrypt.id
-#   role_definition_name = "DNS Zone Contributor"
-#   principal_id         = azurerm_user_assigned_identity.cert_manager.principal_id
-# }
-#
-# resource "azurerm_federated_identity_credential" "cert_manager" {
-#   name                      = "${var.name_prefix}-cert-manager"
-#   user_assigned_identity_id = azurerm_user_assigned_identity.cert_manager.id
-#   audience                  = ["api://AzureADTokenExchange"]
-#   issuer                    = module.aks.cluster_oidc_issuer_url
-#   subject                   = "system:serviceaccount:cert-manager:cert-manager"
-# }
-#
-# module "letsencrypt_cluster_issuer" {
-#   source = "../../../kubernetes/modules/cert-manager/letsencrypt-cluster-issuer"
-#
-#   name_prefix = var.name_prefix
-#   # Where Let's Encrypt sends notices about the ACME account.
-#   acme_email = "platform-team@example.com"
-#   # Let's Encrypt staging until a person has checked that it issues every
-#   # certificate; then set to true and apply again.
-#   acme_server_prod = false
-#
-#   solvers = [
-#     {
-#       dns01 = {
-#         azureDNS = {
-#           # The subscription that holds the DNS zone.
-#           subscriptionID    = var.subscription_id
-#           resourceGroupName = data.azurerm_dns_zone.letsencrypt.resource_group_name
-#           hostedZoneName    = data.azurerm_dns_zone.letsencrypt.name
-#           environment       = "AzurePublicCloud"
-#           managedIdentity = {
-#             clientID = azurerm_user_assigned_identity.cert_manager.client_id
-#           }
-#         }
-#       }
-#     }
-#   ]
-#
-#   depends_on = [
-#     module.cert_manager,
-#   ]
-# }
 
 module "operator" {
   source = "../../modules/operator"
@@ -720,21 +645,6 @@ module "materialize_instance" {
     name = module.self_signed_cluster_issuer.issuer_name
     kind = "ClusterIssuer"
   }
-  # With module.letsencrypt_cluster_issuer uncommented, replace issuer_ref
-  # above with the settings below. The console and balancerd certificates
-  # then come from Let's Encrypt for these public hostnames, which must
-  # resolve to the console and balancerd, while the internal certificates
-  # stay self-signed, since a public CA cannot sign their cluster.local names.
-  # issuer_ref = {
-  #   name = module.letsencrypt_cluster_issuer.issuer_name
-  #   kind = "ClusterIssuer"
-  # }
-  # internal_issuer_ref = {
-  #   name = module.self_signed_cluster_issuer.issuer_name
-  #   kind = "ClusterIssuer"
-  # }
-  # console_extra_dns_names   = ["console.mz.example.com"]
-  # balancerd_extra_dns_names = ["balancerd.mz.example.com"]
 
   # System parameters for the Materialize instance
   # See: https://materialize.com/docs/self-managed-deployments/configuration-system-parameters/
