@@ -162,6 +162,11 @@ resource "kubectl_manifest" "materialize_instance" {
       } : {},
       var.environmentd_startup_probe != null ? {
         environmentdStartupProbe = var.environmentd_startup_probe
+      } : {},
+      # Omitted when unset, so the operator keeps choosing it and existing
+      # manifests are unchanged.
+      var.environment_id != null ? {
+        environmentId = var.environment_id
       } : {}
     )
   })
