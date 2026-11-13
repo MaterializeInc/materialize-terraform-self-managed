@@ -104,7 +104,7 @@ variable "ory_ui_fqdn" {
 
   validation {
     condition     = (var.ory_ui_fqdn == null) != (var.dns == null)
-    error_message = "Set ory_ui_fqdn or dns, not both: with dns, this hostname is dns.subdomains.ui under the stem domain."
+    error_message = "Set ory_ui_fqdn or dns, not both: with dns, this hostname is dns.subdomains.auth under the stem domain."
   }
 }
 
@@ -338,7 +338,7 @@ variable "dns" {
     hostnames sit under `stem_domain`, which defaults to the zone's domain: the console on
     `stem_domain` itself, and the rest on the subdomains `balancerd`, `hydra`, `kratos`, `auth`
     (the selfservice UI), `polis` and `grafana`. `subdomains` overrides any of them, keyed
-    `console`, `balancerd`, `hydra`, `kratos`, `ui`, `polis` and `grafana`, with `"@"` for the
+    `console`, `balancerd`, `hydra`, `kratos`, `auth`, `polis` and `grafana`, with `"@"` for the
     stem itself. Kratos's session cookie is scoped to the stem domain unless
     `ory_kratos_cookie_domain` is set.
 
@@ -367,7 +367,7 @@ variable "dns" {
   default = null
 
   validation {
-    condition     = alltrue([for key in keys(try(var.dns.subdomains, {})) : contains(["console", "balancerd", "hydra", "kratos", "ui", "polis", "grafana"], key)])
-    error_message = "dns.subdomains keys must be console, balancerd, hydra, kratos, ui, polis or grafana."
+    condition     = alltrue([for key in keys(try(var.dns.subdomains, {})) : contains(["console", "balancerd", "hydra", "kratos", "auth", "polis", "grafana"], key)])
+    error_message = "dns.subdomains keys must be console, balancerd, hydra, kratos, auth, polis or grafana."
   }
 }

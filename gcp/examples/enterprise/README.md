@@ -120,7 +120,7 @@ dns = {
 That gives the console `mz.example.com`, and balancerd, Hydra, Kratos, the selfservice UI,
 Polis and Grafana `balancerd.`, `hydra.`, `kratos.`, `auth.`, `polis.` and `grafana.` under
 it; `dns.subdomains` renames any of them, keyed `console`, `balancerd`, `hydra`, `kratos`,
-`ui`, `polis` and `grafana`. Kratos's session cookie is scoped to the stem domain unless
+`auth`, `polis` and `grafana`. Kratos's session cookie is scoped to the stem domain unless
 `ory_kratos_cookie_domain` is set. The example never creates or changes the zone itself, and it
 does not create Grafana's record, because the address of Grafana's load balancer may not be
 known on the first apply; point that record at the `grafana_load_balancer_address` output. With

@@ -884,7 +884,7 @@ module "dns" {
   subdomains = {
     console   = { subdomain = local.dns_subdomains.console, type = "CNAME" }
     balancerd = { subdomain = local.dns_subdomains.balancerd, type = "CNAME" }
-    ui        = { subdomain = local.dns_subdomains.ui, type = "CNAME" }
+    auth      = { subdomain = local.dns_subdomains.auth, type = "CNAME" }
     hydra     = { subdomain = local.dns_subdomains.hydra, type = "CNAME" }
     kratos    = { subdomain = local.dns_subdomains.kratos, type = "CNAME" }
     polis     = { subdomain = local.dns_subdomains.polis, type = "CNAME", create = var.enable_polis }
@@ -895,7 +895,7 @@ module "dns" {
     {
       console   = [module.materialize_nlb.nlb_dns_name]
       balancerd = [module.materialize_nlb.nlb_dns_name]
-      ui        = [module.ory.lb_addresses.ui.hostname]
+      auth      = [module.ory.lb_addresses.ui.hostname]
       hydra     = [module.ory.lb_addresses.hydra.hostname]
       kratos    = [module.ory.lb_addresses.kratos.hostname]
     },
@@ -924,7 +924,7 @@ module "ory" {
 
   hydra_fqdn  = local.hostnames.hydra
   kratos_fqdn = local.hostnames.kratos
-  ui_fqdn     = local.hostnames.ui
+  ui_fqdn     = local.hostnames.auth
 
   # Kratos and the selfservice UI are on separate hostnames, so the session
   # cookie needs a domain covering both.
@@ -1161,7 +1161,7 @@ locals {
     balancerd = "balancerd"
     hydra     = "hydra"
     kratos    = "kratos"
-    ui        = "auth"
+    auth      = "auth"
     polis     = "polis"
     grafana   = "grafana"
   }, try(var.dns.subdomains, {}))
@@ -1176,7 +1176,7 @@ locals {
         balancerd = var.materialize_balancerd_fqdn
         hydra     = var.ory_hydra_fqdn
         kratos    = var.ory_kratos_fqdn
-        ui        = var.ory_ui_fqdn
+        auth      = var.ory_ui_fqdn
       } : key => name == null ? "" : name
     },
     {
