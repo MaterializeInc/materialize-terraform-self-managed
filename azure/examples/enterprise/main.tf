@@ -216,6 +216,13 @@ locals {
     name = module.self_signed_cluster_issuer.issuer_name
     kind = "ClusterIssuer"
   }
+  # With module.letsencrypt_cluster_issuer uncommented, use it for the
+  # browser-facing certificates instead, and set
+  # cert_issuer_signs_cluster_local = false in module.ory:
+  # cert_issuer = {
+  #   name = module.letsencrypt_cluster_issuer.issuer_name
+  #   kind = "ClusterIssuer"
+  # }
 
 }
 
@@ -484,6 +491,13 @@ module "cert_manager" {
 
   node_selector = local.generic_node_labels
 
+  # For module.letsencrypt_cluster_issuer below: opts the controller
+  # into Azure Workload Identity, so its DNS-01 solver can act as the
+  # managed identity.
+  # pod_labels = {
+  #   "azure.workload.identity/use" = "true"
+  # }
+
   depends_on = [
     module.aks,
     module.coredns,
@@ -502,6 +516,75 @@ module "self_signed_cluster_issuer" {
     module.cert_manager,
   ]
 }
+
+# Let's Encrypt ClusterIssuer for publicly trusted console and balancerd
+# certificates, solving ACME DNS-01 challenges in Azure DNS. To use it,
+# uncomment this section, pod_labels in module.cert_manager, the cert_issuer
+# override in locals and the cert_issuer_signs_cluster_local override in
+# module.ory, and replace the example.com placeholders. It starts on Let's
+# Encrypt staging as <name_prefix>-letsencrypt-staging; set
+# acme_server_prod = true for production once staging has issued every
+# certificate.
+# See kubernetes/modules/cert-manager/letsencrypt-cluster-issuer/README.md.
+#
+# # The Azure DNS zone the public hostnames are in.
+# data "azurerm_dns_zone" "letsencrypt" {
+#   name                = "mz.example.com"
+#   resource_group_name = "dns-zones"
+# }
+#
+# resource "azurerm_user_assigned_identity" "cert_manager" {
+#   name                = "${var.name_prefix}-cert-manager"
+#   location            = var.location
+#   resource_group_name = azurerm_resource_group.materialize.name
+#   tags                = var.tags
+# }
+#
+# resource "azurerm_role_assignment" "cert_manager_dns" {
+#   scope                = data.azurerm_dns_zone.letsencrypt.id
+#   role_definition_name = "DNS Zone Contributor"
+#   principal_id         = azurerm_user_assigned_identity.cert_manager.principal_id
+# }
+#
+# resource "azurerm_federated_identity_credential" "cert_manager" {
+#   name                      = "${var.name_prefix}-cert-manager"
+#   user_assigned_identity_id = azurerm_user_assigned_identity.cert_manager.id
+#   audience                  = ["api://AzureADTokenExchange"]
+#   issuer                    = module.aks.cluster_oidc_issuer_url
+#   subject                   = "system:serviceaccount:cert-manager:cert-manager"
+# }
+#
+# module "letsencrypt_cluster_issuer" {
+#   source = "../../../kubernetes/modules/cert-manager/letsencrypt-cluster-issuer"
+#
+#   name_prefix = var.name_prefix
+#   # Where Let's Encrypt sends notices about the ACME account.
+#   acme_email = "platform-team@example.com"
+#   # Let's Encrypt staging until a person has checked that it issues every
+#   # certificate; then set to true and apply again.
+#   acme_server_prod = false
+#
+#   solvers = [
+#     {
+#       dns01 = {
+#         azureDNS = {
+#           # The subscription that holds the DNS zone.
+#           subscriptionID    = var.subscription_id
+#           resourceGroupName = data.azurerm_dns_zone.letsencrypt.resource_group_name
+#           hostedZoneName    = data.azurerm_dns_zone.letsencrypt.name
+#           environment       = "AzurePublicCloud"
+#           managedIdentity = {
+#             clientID = azurerm_user_assigned_identity.cert_manager.client_id
+#           }
+#         }
+#       }
+#     }
+#   ]
+#
+#   depends_on = [
+#     module.cert_manager,
+#   ]
+# }
 
 module "operator" {
   source = "../../modules/operator"
@@ -835,6 +918,8 @@ module "ory" {
 
   cert_issuer_ref                 = local.cert_issuer
   cert_issuer_signs_cluster_local = var.cert_issuer_ref == null
+  # false when local.cert_issuer is module.letsencrypt_cluster_issuer:
+  # cert_issuer_signs_cluster_local = false
 
   # Materialize integration: OAuth2 client CRD + ingress from Materialize to Hydra.
   materialize_namespace    = local.materialize_instance_namespace

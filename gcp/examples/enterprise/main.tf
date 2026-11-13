@@ -213,6 +213,13 @@ locals {
     name = module.self_signed_cluster_issuer.issuer_name
     kind = "ClusterIssuer"
   }
+  # With module.letsencrypt_cluster_issuer uncommented, use it for the
+  # browser-facing certificates instead, and set
+  # cert_issuer_signs_cluster_local = false in module.ory:
+  # cert_issuer = {
+  #   name = module.letsencrypt_cluster_issuer.issuer_name
+  #   kind = "ClusterIssuer"
+  # }
 
 }
 
@@ -464,6 +471,12 @@ module "cert_manager" {
 
   node_selector = local.generic_node_labels
 
+  # For module.letsencrypt_cluster_issuer below: the Google service
+  # account its DNS-01 solver acts as, through Workload Identity.
+  # service_account_annotations = {
+  #   "iam.gke.io/gcp-service-account" = google_service_account.cert_manager.email
+  # }
+
   depends_on = [
     module.gke,
     module.coredns,
@@ -481,6 +494,60 @@ module "self_signed_cluster_issuer" {
     module.cert_manager,
   ]
 }
+
+# Let's Encrypt ClusterIssuer for publicly trusted console and balancerd
+# certificates, solving ACME DNS-01 challenges in Google Cloud DNS. To use it,
+# uncomment this section, service_account_annotations in module.cert_manager,
+# the cert_issuer override in locals and the cert_issuer_signs_cluster_local
+# override in module.ory, and replace the example.com placeholders. It starts on
+# Let's Encrypt staging as <name_prefix>-letsencrypt-staging; set
+# acme_server_prod = true for production once staging has issued every
+# certificate.
+# See kubernetes/modules/cert-manager/letsencrypt-cluster-issuer/README.md.
+#
+# resource "google_service_account" "cert_manager" {
+#   project      = var.project_id
+#   account_id   = "${var.name_prefix}-cert-manager"
+#   display_name = "cert-manager DNS-01 solver"
+# }
+#
+# # On the project that holds the Cloud DNS zone.
+# resource "google_project_iam_member" "cert_manager_dns" {
+#   project = var.project_id
+#   role    = "roles/dns.admin"
+#   member  = "serviceAccount:${google_service_account.cert_manager.email}"
+# }
+#
+# resource "google_service_account_iam_member" "cert_manager_workload_identity" {
+#   service_account_id = google_service_account.cert_manager.name
+#   role               = "roles/iam.workloadIdentityUser"
+#   member             = "serviceAccount:${var.project_id}.svc.id.goog[cert-manager/cert-manager]"
+# }
+#
+# module "letsencrypt_cluster_issuer" {
+#   source = "../../../kubernetes/modules/cert-manager/letsencrypt-cluster-issuer"
+#
+#   name_prefix = var.name_prefix
+#   # Where Let's Encrypt sends notices about the ACME account.
+#   acme_email = "platform-team@example.com"
+#   # Let's Encrypt staging until a person has checked that it issues every
+#   # certificate; then set to true and apply again.
+#   acme_server_prod = false
+#
+#   solvers = [
+#     {
+#       dns01 = {
+#         cloudDNS = {
+#           project = var.project_id
+#         }
+#       }
+#     }
+#   ]
+#
+#   depends_on = [
+#     module.cert_manager,
+#   ]
+# }
 
 # Install Materialize Kubernetes operator for managing Materialize instances
 module "operator" {
@@ -837,6 +904,8 @@ module "ory" {
 
   cert_issuer_ref                 = local.cert_issuer
   cert_issuer_signs_cluster_local = var.cert_issuer_ref == null
+  # false when local.cert_issuer is module.letsencrypt_cluster_issuer:
+  # cert_issuer_signs_cluster_local = false
 
   # Materialize integration: OAuth2 client CRD + ingress from Materialize to Hydra.
   materialize_namespace    = local.materialize_instance_namespace

@@ -17,6 +17,45 @@ module "self_signed_cluster_issuer" {
   depends_on = [module.cert_manager]
 }
 
+# Let's Encrypt ClusterIssuer for publicly trusted console and balancerd
+# certificates, solving ACME DNS-01 challenges in Cloudflare. To use it,
+# uncomment this module and the Let's Encrypt settings in
+# module.materialize_instance. The solver reads a Cloudflare API token with
+# Zone:Read and DNS:Edit from the Secret cloudflare-api-token, key api-token, in
+# the cert-manager namespace; any other cert-manager solver works in its place.
+# Replace the example.com placeholders. It starts on Let's Encrypt staging as
+# <name_prefix>-letsencrypt-staging; set acme_server_prod = true for production
+# once staging has issued every certificate.
+# See kubernetes/modules/cert-manager/letsencrypt-cluster-issuer/README.md.
+#
+# module "letsencrypt_cluster_issuer" {
+#   source = "../../modules/cert-manager/letsencrypt-cluster-issuer"
+#
+#   name_prefix = var.name_prefix
+#   # Where Let's Encrypt sends notices about the ACME account.
+#   acme_email = "platform-team@example.com"
+#   # Let's Encrypt staging until a person has checked that it issues every
+#   # certificate; then set to true and apply again.
+#   acme_server_prod = false
+#
+#   solvers = [
+#     {
+#       dns01 = {
+#         cloudflare = {
+#           apiTokenSecretRef = {
+#             name = "cloudflare-api-token"
+#             key  = "api-token"
+#           }
+#         }
+#       }
+#     }
+#   ]
+#
+#   depends_on = [
+#     module.cert_manager,
+#   ]
+# }
+
 resource "kubernetes_namespace" "materialize_operator" {
   metadata {
     name = "materialize"
@@ -122,6 +161,21 @@ module "materialize_instance" {
     name = module.self_signed_cluster_issuer.issuer_name
     kind = "ClusterIssuer"
   }
+  # With module.letsencrypt_cluster_issuer uncommented, replace issuer_ref
+  # above with the settings below. The console and balancerd certificates
+  # then come from Let's Encrypt for these public hostnames, which must
+  # resolve to the console and balancerd, while the internal certificates
+  # stay self-signed, since a public CA cannot sign their cluster.local names.
+  # issuer_ref = {
+  #   name = module.letsencrypt_cluster_issuer.issuer_name
+  #   kind = "ClusterIssuer"
+  # }
+  # internal_issuer_ref = {
+  #   name = module.self_signed_cluster_issuer.issuer_name
+  #   kind = "ClusterIssuer"
+  # }
+  # console_extra_dns_names   = ["console.mz.example.com"]
+  # balancerd_extra_dns_names = ["balancerd.mz.example.com"]
 
   depends_on = [
     helm_release.materialize_operator,
