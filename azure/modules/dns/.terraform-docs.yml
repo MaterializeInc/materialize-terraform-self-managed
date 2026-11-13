@@ -1,0 +1,95 @@
+formatter: markdown
+
+output-file: README.md
+output-mode: replace
+
+sections:
+  show-header: true
+  show-inputs: true
+  show-outputs: true
+  show-providers: true
+  show-requirements: true
+  show-resources: true
+  show-data-sources: true
+  show-modules: true
+
+content: |-
+  Adds records for a set of hostnames to an existing Azure DNS zone and, optionally,
+  gives cert-manager an identity that can answer ACME DNS-01 challenges in it. The
+  module looks the zone up and never creates, changes or deletes it.
+  A record that already exists in the zone must be imported or removed
+  before the module can create it.
+  
+  ## Hostnames
+  
+  `stem_domain` is the domain the hostnames sit under, such as `mz.example.com` in
+  the zone `example.com`, and defaults to the zone's own domain. Each entry in
+  `subdomains` becomes `<subdomain>.<stem_domain>`, or `stem_domain` itself for
+  `"@"`; `subdomain` defaults to the entry's key. The `fqdns` output returns the
+  names under the same keys, so the rest of a configuration can take every
+  hostname from one place instead of a variable per hostname. An entry with
+  `create = false` only computes its name, for a record something else manages.
+  
+  ```hcl
+  module "dns" {
+    source = "github.com/MaterializeInc/materialize-terraform-self-managed//azure/modules/dns?ref=<tag>"
+  
+    prefix                   = var.prefix
+    zone_name                = "example.com"
+    zone_resource_group_name = "dns-zones"
+    stem_domain              = "mz.example.com"
+  
+    subdomains = {
+      console   = { subdomain = "@", records = [module.load_balancers.console_load_balancer_ip] }
+      balancerd = { records = [module.load_balancers.balancerd_load_balancer_ip] }
+      grafana   = { create = false }
+    }
+  
+    cert_manager_dns01 = {
+      oidc_issuer_url     = module.aks.cluster_oidc_issuer_url
+      resource_group_name = azurerm_resource_group.materialize.name
+      location            = var.location
+    }
+  }
+  ```
+  
+  Here `module.dns.fqdns.console` is `mz.example.com`, and
+  `module.dns.fqdns.grafana` is `grafana.mz.example.com` with no record created.
+  
+  ## DNS-01 for cert-manager
+  
+  With `cert_manager_dns01` set, the module creates a user-assigned managed identity with DNS Zone Contributor on the zone only, and a federated credential that lets cert-manager's Kubernetes service account act as it through Azure Workload Identity. Its outputs
+  plug into the `cert-manager` and `letsencrypt-cluster-issuer` modules, so the
+  issuer can prove control of any name under `stem_domain` without the balancer
+  or console being reachable from the internet. Azure Workload Identity selects pods by label, so `cert_manager_pod_labels` carries the `azure.workload.identity/use` label and `cert_manager_service_account_annotations` is always empty.
+  
+  ```hcl
+  module "cert_manager" {
+    source = "github.com/MaterializeInc/materialize-terraform-self-managed//kubernetes/modules/cert-manager?ref=<tag>"
+  
+    service_account_annotations = module.dns.cert_manager_service_account_annotations
+    pod_labels                  = module.dns.cert_manager_pod_labels
+  }
+  
+  module "letsencrypt_cluster_issuer" {
+    source = "github.com/MaterializeInc/materialize-terraform-self-managed//kubernetes/modules/cert-manager/letsencrypt-cluster-issuer?ref=<tag>"
+  
+    name_prefix = var.prefix
+    acme_email  = "platform-team@example.com"
+    solvers     = [module.dns.acme_dns01_solver]
+  
+    depends_on = [module.cert_manager]
+  }
+  ```
+  
+  {{ .Requirements }}
+  
+  {{ .Providers }}
+  
+  {{ .Modules }}
+  
+  {{ .Resources }}
+  
+  {{ .Inputs }}
+  
+  {{ .Outputs }}

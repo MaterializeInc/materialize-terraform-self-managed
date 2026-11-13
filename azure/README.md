@@ -29,6 +29,7 @@ Azure Specific Modules:
 | [`modules/database`](./modules/database)    | PostgreSQL Flexible Server for Materialize metadata            |
 | [`modules/storage`](./modules/storage)      | Azure Storage Account with workload identity federation         |
 | [`modules/load_balancers`](./modules/load_balancers) | Azure Load Balancers for Materialize instance access |
+| [`modules/dns`](./modules/dns)              | Records under a stem domain in an existing Azure DNS zone, and cert-manager's DNS-01 identity |
 | [`modules/operator`](./modules/operator)    | Materialize Kubernetes operator installation                    |
 | [`modules/monitoring`](./modules/monitoring) | Observability stack (Loki, Thanos, Grafana, Alloy) with blob containers and Workload ID |
 
