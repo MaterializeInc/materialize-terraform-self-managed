@@ -207,12 +207,50 @@ locals {
     [for r in local.subnets[0].secondary_ranges : r.ip_cidr_range],
   )
 
-  # cert-manager ClusterIssuer for browser-facing TLS. Defaults to the built-in
-  # self-signed issuer; override via var.cert_issuer_ref to plug in a real one.
-  cert_issuer = var.cert_issuer_ref != null ? var.cert_issuer_ref : {
+  # cert-manager ClusterIssuer for browser-facing TLS: var.cert_issuer_ref when
+  # set, the Let's Encrypt issuer when var.dns.letsencrypt is set, and the
+  # built-in self-signed issuer otherwise.
+  letsencrypt = try(var.dns.letsencrypt, null) != null
+  cert_issuer = var.cert_issuer_ref != null ? var.cert_issuer_ref : local.letsencrypt ? {
+    name = module.letsencrypt_cluster_issuer[0].issuer_name
+    kind = "ClusterIssuer"
+    } : {
     name = module.self_signed_cluster_issuer.issuer_name
     kind = "ClusterIssuer"
   }
+
+  # Browser-facing hostnames: from var.dns when it is set, and from the
+  # per-hostname variables otherwise. "@" is the stem domain itself.
+  dns_subdomains = merge({
+    console   = "@"
+    balancerd = "balancerd"
+    hydra     = "hydra"
+    kratos    = "kratos"
+    auth      = "auth"
+    polis     = "polis"
+    grafana   = "grafana"
+  }, try(var.dns.subdomains, {}))
+
+  hostnames = var.dns != null ? module.dns[0].fqdns : merge(
+    # Validation requires these five when var.dns is unset, but static analysis
+    # evaluates their null defaults regardless, so a null becomes "" here rather
+    # than reaching the string templates that build Ory's and the console's URLs.
+    {
+      for key, name in {
+        console   = var.materialize_console_fqdn
+        balancerd = var.materialize_balancerd_fqdn
+        hydra     = var.ory_hydra_fqdn
+        kratos    = var.ory_kratos_fqdn
+        auth      = var.ory_ui_fqdn
+      } : key => name == null ? "" : name
+    },
+    {
+      polis   = var.ory_polis_fqdn
+      grafana = var.grafana_host
+    },
+  )
+
+  kratos_cookie_domain = var.ory_kratos_cookie_domain != null ? var.ory_kratos_cookie_domain : module.dns[0].stem_domain
 
 }
 
@@ -372,7 +410,7 @@ module "coredns" {
   # Resolve the Polis FQDN to its internal service in-cluster (hairpin fix).
   # Built here, not from module.ory, to avoid a cycle: ory depends_on coredns.
   extra_rewrites = var.enable_polis ? [{
-    from = var.ory_polis_fqdn
+    from = local.hostnames.polis
     to   = "polis-internal.${local.ory_namespace}.svc.cluster.local"
   }] : []
   depends_on = [module.generic_nodepool]
@@ -464,6 +502,11 @@ module "cert_manager" {
 
   node_selector = local.generic_node_labels
 
+  # The identity cert-manager answers DNS-01 challenges with, for the Let's
+  # Encrypt issuer when var.dns.letsencrypt is set.
+  service_account_annotations = local.letsencrypt ? module.dns[0].cert_manager_service_account_annotations : {}
+  pod_labels                  = local.letsencrypt ? module.dns[0].cert_manager_pod_labels : {}
+
   depends_on = [
     module.gke,
     module.coredns,
@@ -476,6 +519,22 @@ module "self_signed_cluster_issuer" {
   source = "../../../kubernetes/modules/self-signed-cluster-issuer"
 
   name_prefix = var.name_prefix
+
+  depends_on = [
+    module.cert_manager,
+  ]
+}
+
+# Publicly trusted certificates for the browser-facing hostnames, when
+# var.dns.letsencrypt is set. It answers DNS-01 challenges in var.dns's zone.
+module "letsencrypt_cluster_issuer" {
+  count  = local.letsencrypt ? 1 : 0
+  source = "../../../kubernetes/modules/cert-manager/letsencrypt-cluster-issuer"
+
+  name_prefix      = var.name_prefix
+  acme_email       = var.dns.letsencrypt.acme_email
+  acme_server_prod = var.dns.letsencrypt.acme_server_prod
+  solvers          = [module.dns[0].acme_dns01_solver]
 
   depends_on = [
     module.cert_manager,
@@ -663,7 +722,7 @@ module "monitoring" {
   grafana_load_balancer = {
     internal            = var.internal_load_balancer
     ingress_cidr_blocks = var.ingress_cidr_blocks
-    host                = var.grafana_host
+    host                = local.hostnames.grafana
   }
 
   # Certificates are on by default and no issuer is named here, so the chart
@@ -699,7 +758,7 @@ module "monitoring" {
 locals {
   # Materialize's MCP endpoint, which self-registered MCP clients are granted as
   # their audience when dynamic client registration is on.
-  mcp_audience = var.ory_enable_dynamic_client_registration ? ["https://${var.materialize_console_fqdn}/api/mcp"] : []
+  mcp_audience = var.ory_enable_dynamic_client_registration ? ["https://${local.hostnames.console}/api/mcp"] : []
 
   # Which provider Materialize trusts. var.direct_oidc wins when set, so an
   # existing provider stays authoritative while Ory runs beside it; clearing it
@@ -757,8 +816,8 @@ module "materialize_instance" {
 
   # Browser-facing SANs. balancerd is reached from the console JS in the
   # browser, so it also needs a publicly trusted cert + DNS record.
-  console_extra_dns_names   = [var.materialize_console_fqdn]
-  balancerd_extra_dns_names = [var.materialize_balancerd_fqdn]
+  console_extra_dns_names   = [local.hostnames.console]
+  balancerd_extra_dns_names = [local.hostnames.balancerd]
 
   # OIDC config; with Ory, client_id is the Hydra Maester-generated UUID read
   # from the OAuth2 client Secret (var.direct_oidc supplies its own).
@@ -798,6 +857,52 @@ module "load_balancers" {
   materialize_console_port = 443
 }
 
+# Records for the browser-facing hostnames in an existing Cloud DNS zone, and
+# cert-manager's DNS-01 identity when var.dns.letsencrypt is set. Only names go
+# into subdomains; the load balancer addresses go into records, so the names can
+# feed Materialize and Ory, whose load balancers answer on them, without a cycle.
+module "dns" {
+  count  = var.dns != null ? 1 : 0
+  source = "../../modules/dns"
+
+  project_id      = var.project_id
+  prefix          = var.name_prefix
+  zone_name       = var.dns.zone_name
+  zone_project_id = var.dns.zone_project_id
+  stem_domain     = var.dns.stem_domain
+
+  subdomains = {
+    console   = { subdomain = local.dns_subdomains.console }
+    balancerd = { subdomain = local.dns_subdomains.balancerd }
+    auth      = { subdomain = local.dns_subdomains.auth }
+    # In single-domain mode, Hydra and Kratos sit behind var.ory_single_domain_fqdn
+    # and have no load balancers of their own.
+    hydra  = { subdomain = local.dns_subdomains.hydra, create = var.ory_single_domain_fqdn == null }
+    kratos = { subdomain = local.dns_subdomains.kratos, create = var.ory_single_domain_fqdn == null }
+    polis  = { subdomain = local.dns_subdomains.polis, create = var.enable_polis }
+    # Grafana's load balancer address may not be known on the first apply.
+    grafana = { subdomain = local.dns_subdomains.grafana, create = false }
+  }
+  records = merge(
+    {
+      console   = [module.load_balancers.console_load_balancer_ip]
+      balancerd = [module.load_balancers.balancerd_load_balancer_ip]
+      auth      = [module.ory.lb_addresses.ui.ip]
+    },
+    var.ory_single_domain_fqdn == null ? {
+      hydra  = [module.ory.lb_addresses.hydra.ip]
+      kratos = [module.ory.lb_addresses.kratos.ip]
+    } : {},
+    var.enable_polis ? { polis = [module.ory.lb_addresses.polis.ip] } : {},
+  )
+
+  # The pool comes from the cluster, which creates it on a project's first
+  # Workload Identity cluster, so the binding waits for the cluster.
+  cert_manager_dns01 = local.letsencrypt ? {
+    workload_identity_pool = module.gke.workload_identity_pool
+  } : null
+}
+
 # Ory stack (Kratos + Hydra + selfservice UI + Materialize bridge).
 # Example feeds cloud-specific inputs (DSNs, LB annotations, cert issuer)
 # and reads back the OIDC issuer URL + OAuth2 client id from its outputs.
@@ -809,13 +914,13 @@ module "ory" {
 
   namespace = local.ory_namespace
 
-  hydra_fqdn  = var.ory_hydra_fqdn
-  kratos_fqdn = var.ory_kratos_fqdn
-  ui_fqdn     = var.ory_ui_fqdn
+  hydra_fqdn  = local.hostnames.hydra
+  kratos_fqdn = local.hostnames.kratos
+  ui_fqdn     = local.hostnames.auth
 
   # Kratos and the selfservice UI are on separate hostnames, so the session
   # cookie needs a domain covering both.
-  kratos_cookie_domain = var.ory_kratos_cookie_domain
+  kratos_cookie_domain = local.kratos_cookie_domain
 
   # When set, Hydra and Kratos share one hostname behind a reverse proxy. The UI
   # and Polis keep their own hostnames.
@@ -826,7 +931,7 @@ module "ory" {
 
   # Polis (SAML-to-OIDC bridge). Off by default.
   enable_polis = var.enable_polis
-  polis_fqdn   = var.enable_polis ? var.ory_polis_fqdn : null
+  polis_fqdn   = var.enable_polis ? local.hostnames.polis : null
   polis_dsn    = var.enable_polis ? local.ory_polis_dsn : null
 
   polis_helm_values = var.polis_helm_values
@@ -836,11 +941,11 @@ module "ory" {
   license_key_jwt = var.license_key
 
   cert_issuer_ref                 = local.cert_issuer
-  cert_issuer_signs_cluster_local = var.cert_issuer_ref == null
+  cert_issuer_signs_cluster_local = var.cert_issuer_ref == null && !local.letsencrypt
 
   # Materialize integration: OAuth2 client CRD + ingress from Materialize to Hydra.
   materialize_namespace    = local.materialize_instance_namespace
-  materialize_console_fqdn = var.materialize_console_fqdn
+  materialize_console_fqdn = local.hostnames.console
 
   # MCP clients such as Claude Code register themselves and get the MCP endpoint
   # as their audience.

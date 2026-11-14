@@ -435,6 +435,11 @@ module "cert_manager" {
 
   node_selector = local.generic_node_labels
 
+  # The identity cert-manager answers DNS-01 challenges with, for the Let's
+  # Encrypt issuer when var.dns.letsencrypt is set.
+  service_account_annotations = local.letsencrypt ? module.dns[0].cert_manager_service_account_annotations : {}
+  pod_labels                  = local.letsencrypt ? module.dns[0].cert_manager_pod_labels : {}
+
   depends_on = [
     module.networking,
     module.eks,
@@ -448,6 +453,22 @@ module "self_signed_cluster_issuer" {
   source = "../../../kubernetes/modules/self-signed-cluster-issuer"
 
   name_prefix = var.name_prefix
+
+  depends_on = [
+    module.cert_manager,
+  ]
+}
+
+# Publicly trusted certificates for the console and balancerd hostnames, when
+# var.dns.letsencrypt is set. It answers DNS-01 challenges in var.dns's zone.
+module "letsencrypt_cluster_issuer" {
+  count  = local.letsencrypt ? 1 : 0
+  source = "../../../kubernetes/modules/cert-manager/letsencrypt-cluster-issuer"
+
+  name_prefix      = var.name_prefix
+  acme_email       = var.dns.letsencrypt.acme_email
+  acme_server_prod = var.dns.letsencrypt.acme_server_prod
+  solvers          = [module.dns[0].acme_dns01_solver]
 
   depends_on = [
     module.cert_manager,
@@ -594,10 +615,23 @@ module "materialize_instance" {
 
   license_key = var.license_key
 
-  issuer_ref = {
+  # With var.dns.letsencrypt, Let's Encrypt signs the browser-facing console and
+  # balancerd certificates, and the self-signed issuer keeps the internal ones,
+  # whose cluster.local names a public CA cannot sign.
+  issuer_ref = local.letsencrypt ? {
+    name = module.letsencrypt_cluster_issuer[0].issuer_name
+    kind = "ClusterIssuer"
+    } : {
     name = module.self_signed_cluster_issuer.issuer_name
     kind = "ClusterIssuer"
   }
+  internal_issuer_ref = local.letsencrypt ? {
+    name = module.self_signed_cluster_issuer.issuer_name
+    kind = "ClusterIssuer"
+  } : null
+
+  console_extra_dns_names   = var.dns != null ? [module.dns[0].fqdns.console] : []
+  balancerd_extra_dns_names = var.dns != null ? [module.dns[0].fqdns.balancerd] : []
 
   # System parameters for the Materialize instance
   # See: https://materialize.com/docs/self-managed-deployments/configuration-system-parameters/
@@ -785,7 +819,7 @@ module "monitoring" {
     ingress_cidr_blocks    = var.ingress_cidr_blocks
 
     internal = var.internal_load_balancer
-    host     = var.grafana_host
+    host     = local.grafana_host
   }
 
   tags = var.tags
@@ -856,6 +890,41 @@ module "materialize_nlb" {
   ]
 }
 
+# Records for the console, balancerd and Grafana hostnames in an existing Route 53
+# zone, and cert-manager's DNS-01 identity when var.dns.letsencrypt is set. Only
+# names go into subdomains; the load balancer addresses go into records, so the
+# names can feed the instance these load balancers front without a cycle. The
+# load balancers answer on DNS names, so every record is a CNAME.
+module "dns" {
+  count  = var.dns != null ? 1 : 0
+  source = "../../modules/dns"
+
+  name_prefix = var.name_prefix
+  zone_id     = var.dns.zone_id
+  stem_domain = var.dns.stem_domain
+
+  subdomains = {
+    console   = { subdomain = local.dns_subdomains.console, type = "CNAME" }
+    balancerd = { subdomain = local.dns_subdomains.balancerd, type = "CNAME" }
+    # Grafana's NLB exists only with the observability stack.
+    grafana = { subdomain = local.dns_subdomains.grafana, type = "CNAME", create = var.enable_observability }
+  }
+  records = merge(
+    {
+      console   = [module.materialize_nlb.nlb_dns_name]
+      balancerd = [module.materialize_nlb.nlb_dns_name]
+    },
+    var.enable_observability ? { grafana = [module.monitoring[0].grafana_load_balancer_address] } : {},
+  )
+
+  cert_manager_dns01 = local.letsencrypt ? {
+    oidc_provider_arn       = module.eks.oidc_provider_arn
+    cluster_oidc_issuer_url = module.eks.cluster_oidc_issuer_url
+  } : null
+
+  tags = var.tags
+}
+
 locals {
   materialize_instance_namespace = "materialize-environment"
   operator_namespace             = "materialize"
@@ -876,6 +945,17 @@ locals {
     "materialize.cloud/swap" = "true"
     "workload"               = "materialize-instance"
   }
+
+  # Hostnames under var.dns's stem domain, unless var.dns.subdomains names
+  # others. "@" is the stem itself.
+  dns_subdomains = merge({
+    console   = "@"
+    balancerd = "balancerd"
+    grafana   = "grafana"
+  }, try(var.dns.subdomains, {}))
+
+  letsencrypt  = try(var.dns.letsencrypt, null) != null
+  grafana_host = var.dns != null ? module.dns[0].fqdns.grafana : var.grafana_host
 
   materialize_node_taints = [
     {

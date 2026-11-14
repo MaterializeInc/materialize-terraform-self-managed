@@ -1,0 +1,104 @@
+formatter: markdown
+
+output-file: README.md
+output-mode: replace
+
+sections:
+  show-header: true
+  show-inputs: true
+  show-outputs: true
+  show-providers: true
+  show-requirements: true
+  show-resources: true
+  show-data-sources: true
+  show-modules: true
+
+content: |-
+  Adds records for a set of hostnames to an existing Route 53 hosted zone and, optionally,
+  gives cert-manager an identity that can answer ACME DNS-01 challenges in it. The
+  module looks the hosted zone up and never creates, changes or deletes it.
+  A record that already exists in the hosted zone must be imported or removed
+  before the module can create it.
+  
+  ## Hostnames
+  
+  `stem_domain` is the domain the hostnames sit under, such as `mz.example.com` in
+  the zone `example.com`, and defaults to the zone's own domain. Each entry in
+  `subdomains` becomes `<subdomain>.<stem_domain>`, or `stem_domain` itself for
+  `"@"`; `subdomain` defaults to the entry's key. The `fqdns` output returns the
+  names under the same keys, so the rest of a configuration can take every
+  hostname from one place instead of a variable per hostname. An entry with
+  `create = false` only computes its name, for a record something else manages.
+
+  The values of each record come from `records`, keyed like `subdomains`, rather
+  than from the entry itself. `fqdns` depends only on `subdomains`, so a load
+  balancer configured with one of the names can hand its address back through
+  `records` without a dependency cycle.
+  
+  ```hcl
+  module "dns" {
+    source = "github.com/MaterializeInc/materialize-terraform-self-managed//aws/modules/dns?ref=<tag>"
+  
+    name_prefix = var.name_prefix
+    zone_id     = "Z0123456789ABCDEFGHIJ"
+    stem_domain = "mz.example.com"
+  
+    # The NLB has a hostname rather than an IP, so its names are CNAMEs. A
+    # CNAME cannot sit at the zone's apex, which "@" is not here.
+    subdomains = {
+      console   = { subdomain = "@", type = "CNAME" }
+      balancerd = { type = "CNAME" }
+      grafana   = { create = false }
+    }
+    records = {
+      console   = [module.materialize_nlb.nlb_dns_name]
+      balancerd = [module.materialize_nlb.nlb_dns_name]
+    }
+  
+    cert_manager_dns01 = {
+      oidc_provider_arn       = module.eks.oidc_provider_arn
+      cluster_oidc_issuer_url = module.eks.cluster_oidc_issuer_url
+    }
+  }
+  ```
+  
+  Here `module.dns.fqdns.console` is `mz.example.com`, and
+  `module.dns.fqdns.grafana` is `grafana.mz.example.com` with no record created.
+  
+  ## DNS-01 for cert-manager
+  
+  With `cert_manager_dns01` set, the module creates an IAM role that cert-manager's Kubernetes service account assumes through IRSA, allowed only to change TXT records named `_acme-challenge` under `stem_domain` in the hosted zone. Its outputs
+  plug into the `cert-manager` and `letsencrypt-cluster-issuer` modules, so the
+  issuer can prove control of any name under `stem_domain` without the balancer
+  or console being reachable from the internet. With IRSA, `cert_manager_pod_labels` is always empty; it is there so the wiring reads the same on every cloud.
+  
+  ```hcl
+  module "cert_manager" {
+    source = "github.com/MaterializeInc/materialize-terraform-self-managed//kubernetes/modules/cert-manager?ref=<tag>"
+  
+    service_account_annotations = module.dns.cert_manager_service_account_annotations
+    pod_labels                  = module.dns.cert_manager_pod_labels
+  }
+  
+  module "letsencrypt_cluster_issuer" {
+    source = "github.com/MaterializeInc/materialize-terraform-self-managed//kubernetes/modules/cert-manager/letsencrypt-cluster-issuer?ref=<tag>"
+  
+    name_prefix = var.name_prefix
+    acme_email  = "platform-team@example.com"
+    solvers     = [module.dns.acme_dns01_solver]
+  
+    depends_on = [module.cert_manager]
+  }
+  ```
+  
+  {{ .Requirements }}
+  
+  {{ .Providers }}
+  
+  {{ .Modules }}
+  
+  {{ .Resources }}
+  
+  {{ .Inputs }}
+  
+  {{ .Outputs }}

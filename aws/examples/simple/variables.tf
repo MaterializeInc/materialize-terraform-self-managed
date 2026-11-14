@@ -96,9 +96,14 @@ variable "materialize_version" {
 }
 
 variable "grafana_host" {
-  description = "Hostname to reach Grafana on. Optional: the load balancer answers on its own DNS name regardless, but Grafana builds share links, alert notification links, and OAuth redirect URIs from `root_url`, which is only correct once this is set. DNS for the name is yours to create."
+  description = "Hostname to reach Grafana on. Optional: the load balancer answers on its own DNS name regardless, but Grafana builds share links, alert notification links, and OAuth redirect URIs from `root_url`, which is only correct once this is set. DNS for the name is yours to create. With `dns` set, leave this unset; Grafana's hostname comes from `dns`."
   type        = string
   default     = null
+
+  validation {
+    condition     = var.grafana_host == null || var.dns == null
+    error_message = "Set grafana_host or dns, not both: with dns, Grafana's hostname is dns.subdomains.grafana under the stem domain."
+  }
 }
 
 variable "grafana_allow_public_access" {
@@ -119,4 +124,40 @@ variable "grafana_allow_public_access" {
   type        = bool
   default     = false
   nullable    = false
+}
+
+variable "dns" {
+  description = <<-EOT
+    An existing Route 53 hosted zone to put the console, balancerd and Grafana hostnames in.
+    They sit under `stem_domain`, which defaults to the zone's domain: the console on
+    `stem_domain` itself, and balancerd and Grafana on subdomains of those names. `subdomains`
+    overrides any of them, keyed `console`, `balancerd` and `grafana`, with `"@"` for the stem
+    itself. The example creates the console and balancerd records, and Grafana's when
+    `enable_observability` is true. The zone itself is never created or changed.
+
+    The load balancers answer on DNS names, so every record is a CNAME, and a CNAME cannot sit
+    at the zone's apex. With the console on `"@"`, set `stem_domain` below the apex, such as
+    `mz.example.com` in the zone `example.com`, or move the console off `"@"` with `subdomains`.
+
+    With `letsencrypt` set, cert-manager answers ACME DNS-01 challenges in the zone, and a Let's
+    Encrypt issuer signs the console and balancerd certificates while the internal ones stay
+    self-signed. The issuer starts on Let's Encrypt staging, as
+    `<name_prefix>-letsencrypt-staging`; once staging has issued every certificate, set
+    `acme_server_prod = true` and apply again.
+  EOT
+  type = object({
+    zone_id     = string
+    stem_domain = optional(string)
+    subdomains  = optional(map(string), {})
+    letsencrypt = optional(object({
+      acme_email       = string
+      acme_server_prod = optional(bool, false)
+    }))
+  })
+  default = null
+
+  validation {
+    condition     = alltrue([for key in keys(try(var.dns.subdomains, {})) : contains(["console", "balancerd", "grafana"], key)])
+    error_message = "dns.subdomains keys must be console, balancerd or grafana."
+  }
 }
