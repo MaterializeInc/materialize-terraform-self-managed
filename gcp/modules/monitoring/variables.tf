@@ -589,6 +589,11 @@ variable "grafana_external_dns_names" {
     balancer terminates with a cloud-managed certificate — ACM, Google
     Certificate Manager, Azure Key Vault — the wiring is an annotation carrying
     an ARN or resource ID on `grafana_load_balancer`, and this list stays empty.
+
+    With `issuer_ref` and `certificates_enabled`, Grafana serves HTTPS with
+    this certificate on Service port 443, and `root_url` defaults to the first
+    name. The issuer has to be one browsers and the monitoring stack's own
+    scrape of Grafana trust, such as a public ACME issuer.
   EOT
   type        = list(string)
   default     = []
@@ -765,6 +770,10 @@ variable "grafana_load_balancer" {
     `google_compute_address`: `INTERNAL` in the load balancer's subnetwork for an internal one,
     `EXTERNAL` and regional otherwise.
 
+    With `issuer_ref` and `grafana_external_dns_names`, Grafana serves HTTPS itself on port 443,
+    with the certificate issued for those names, and `host` has to be one of them. Without them it
+    serves plain HTTP on port 80.
+
     Null leaves Grafana on a ClusterIP Service, reachable only with `kubectl port-forward`.
   EOT
 
@@ -778,6 +787,18 @@ variable "grafana_load_balancer" {
   })
 
   default = null
+
+  # Conditionals rather than ||: Terraform before 1.12 evaluates both sides of
+  # ||, so a null load balancer or host would still be dereferenced.
+  validation {
+    condition = (
+      var.grafana_load_balancer == null ? true :
+      var.grafana_load_balancer.host == null ? true :
+      !(var.certificates_enabled && var.issuer_ref != null && length(var.grafana_external_dns_names) > 0) ? true :
+      contains([for name in var.grafana_external_dns_names : lower(name)], lower(var.grafana_load_balancer.host))
+    )
+    error_message = "grafana_load_balancer.host must be one of grafana_external_dns_names: Grafana serves the certificate issued for those names, so a browser reaching it at any other host rejects it."
+  }
 
   validation {
     condition = var.grafana_load_balancer == null ? true : (

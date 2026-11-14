@@ -139,7 +139,7 @@ output "logs_url" {
 }
 
 output "grafana_url" {
-  description = "Internal URL for Grafana. Reach it with `kubectl -n monitoring port-forward svc/grafana 3000:80`."
+  description = "Where Grafana answers: its hostname when one is set, over https with dns.letsencrypt, and otherwise its load balancer's address."
   value       = var.enable_observability ? module.monitoring[0].grafana_url : null
 }
 

@@ -41,7 +41,8 @@
 #     removes blocks the compactor still references.
 #   * Grafana is ClusterIP unless `grafana_load_balancer` is set. Without it,
 #     `grafana_url` is in-cluster: reach it with
-#     `kubectl -n monitoring port-forward svc/grafana 3000:80` and
+#     `kubectl -n monitoring port-forward svc/grafana 3000:80` (`3000:443`, over
+#     https, when Grafana serves HTTPS) and
 #     `terraform output -raw grafana_admin_password`.
 #   * `node_selector` reaches every centralized workload but deliberately not
 #     the Alloy agent DaemonSet, which must run on every node to collect from
@@ -368,7 +369,7 @@ module "monitoring" {
   # `metadata_databases` land.
   #
   # v1.7.0 is where `secret_filter` lands.
-  source = "github.com/MaterializeInc/materialize-monitoring//terraform/modules/materialize-monitoring?ref=materialize-monitoring/v1.7.1"
+  source = "github.com/MaterializeInc/materialize-monitoring//terraform/modules/materialize-monitoring?ref=materialize-monitoring/v1.10.0"
 
   namespace        = var.namespace
   create_namespace = var.create_namespace
@@ -578,15 +579,13 @@ locals {
 # ==============================================================================
 
 locals {
-  # Plain http, always. A GCP load balancer from a Service is L4 — it passes
-  # bytes through and terminates nothing — so claiming https here would only
-  # advertise a scheme that does not answer. Setting `security.cookie_secure`
-  # alongside it is worse than useless: the cookie is marked Secure, the browser
-  # stops sending it over the connection that does work, and nobody can log in.
-  #
-  # Put a terminator in front, or give Grafana its own certificate (DEP-195),
-  # and set `root_url` plus `security.cookie_secure` through `additional_values`.
-  grafana_scheme = "http"
+  # A GCP load balancer from a Service is L4 — it passes bytes through and
+  # terminates nothing — so the scheme is whatever Grafana itself serves. The
+  # monitoring module serves HTTPS, with the browser-facing certificate it
+  # issues, on Service port 443, under exactly this condition, and sets
+  # `security.cookie_secure` with it.
+  grafana_https  = var.certificates_enabled && var.issuer_ref != null && length(var.grafana_external_dns_names) > 0
+  grafana_scheme = local.grafana_https ? "https" : "http"
 
   grafana_service_annotations = var.grafana_load_balancer == null ? {} : merge(
     {

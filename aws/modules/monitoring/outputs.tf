@@ -5,16 +5,19 @@ output "namespace" {
 
 output "grafana_url" {
   description = <<-EOT
-    Where Grafana answers: the hostname you supplied, else the NLB's own DNS name, else the
+    Where Grafana answers: the hostname you supplied, else the first of
+    `grafana_external_dns_names` when Grafana serves HTTPS, else the NLB's own DNS name, else the
     in-cluster Service — which means a port-forward.
 
     Known at plan time, because the load balancer is a Terraform resource here rather than something
-    the load-balancer controller creates behind our back. Always `http`: the NLB terminates no TLS.
-    Nothing here publishes DNS for a hostname you supply.
+    the load-balancer controller creates behind our back. `https` when Grafana serves HTTPS, and
+    `http` otherwise. Nothing here publishes DNS for a hostname you supply.
   EOT
   value = (
     try(local.grafana_lb.host, null) != null
     ? "${local.grafana_scheme}://${local.grafana_lb.host}"
+    : local.grafana_lb != null && local.grafana_https
+    ? "https://${var.grafana_external_dns_names[0]}"
     : local.grafana_load_balancer_address != null
     ? "${local.grafana_scheme}://${local.grafana_load_balancer_address}"
     : module.monitoring.grafana_url

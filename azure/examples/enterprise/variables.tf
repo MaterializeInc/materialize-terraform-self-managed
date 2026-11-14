@@ -354,15 +354,15 @@ variable "dns" {
     cookie is scoped to the stem domain unless `ory_kratos_cookie_domain` is set.
 
     The example creates the records for the console, balancerd, the selfservice UI, Hydra and
-    Kratos, and Polis when `enable_polis` is true. It does not create Grafana's, because the
-    address of Grafana's load balancer may not be known on the first apply; point that one at
-    the `grafana_load_balancer_address` output. The zone itself is never created or changed.
+    Kratos, Polis when `enable_polis` is true, and Grafana when the observability stack is on.
+    The zone itself is never created or changed.
 
     With `letsencrypt` set, cert-manager answers ACME DNS-01 challenges in the zone, and a Let's
-    Encrypt issuer signs the browser-facing certificates while the internal ones stay
-    self-signed. It replaces `cert_issuer_ref`, so set one or the other. The issuer starts on
+    Encrypt issuer signs the browser-facing certificates, Grafana's among them, while the
+    internal ones stay self-signed, and Grafana serves HTTPS on port 443. It replaces `cert_issuer_ref`, so set one or the other. The issuer starts on
     Let's Encrypt staging, as `<name_prefix>-letsencrypt-staging`; once staging has issued every
-    certificate, set `acme_server_prod = true` and apply again.
+    certificate, set `acme_server_prod = true` and apply again. While the issuer is on staging, browsers do not
+    trust its certificates, and the monitoring stack's scrape of Grafana fails.
   EOT
   type = object({
     zone_name                = string

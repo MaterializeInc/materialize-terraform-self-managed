@@ -121,9 +121,8 @@ That gives the console `mz.example.com`, and balancerd, Hydra, Kratos, the selfs
 Polis and Grafana `balancerd.`, `hydra.`, `kratos.`, `auth.`, `polis.` and `grafana.` under
 it; `dns.subdomains` renames any of them, keyed `console`, `balancerd`, `hydra`, `kratos`,
 `auth`, `polis` and `grafana`. Kratos's session cookie is scoped to the stem domain unless
-`ory_kratos_cookie_domain` is set. The example never creates or changes the zone itself, and it
-does not create Grafana's record, because the address of Grafana's load balancer may not be
-known on the first apply; point that record at the `grafana_load_balancer_address` output. With
+`ory_kratos_cookie_domain` is set. The example creates Grafana's record when the observability
+stack is on, and never creates or changes the zone itself. With
 `ory_single_domain_fqdn` set, Hydra and Kratos share that hostname, which must then sit on
 `dns.stem_domain` or under it, and the example creates its record in place of theirs. The
 `dns_fqdns` output lists every hostname. `letsencrypt` is described under
@@ -213,11 +212,11 @@ dns = {
 ```
 
 cert-manager then answers ACME DNS-01 challenges in the zone as a Google service account that
-may change records in that zone only, and Let's Encrypt signs the browser-facing certs. It does
+may change records in that zone only, and Let's Encrypt signs the browser-facing certs, Grafana's among them, which Grafana serves itself over HTTPS on port 443. It does
 not need the load balancers to be reachable from the internet, so it works with
 `internal_load_balancer = true`. `letsencrypt` and `cert_issuer_ref` are alternatives; set one.
 
-The issuer starts on Let's Encrypt staging, whose certificates browsers do not trust. Once
+The issuer starts on Let's Encrypt staging, whose certificates neither browsers nor the monitoring stack's scrape of Grafana trust. Once
 `kubectl get certificates -A` shows every certificate ready, set `acme_server_prod = true` in
 `letsencrypt` and apply again. The issuer's name changes with it, so cert-manager reissues the
 certificates from production.

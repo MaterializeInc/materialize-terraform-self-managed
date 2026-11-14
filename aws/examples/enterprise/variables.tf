@@ -350,10 +350,11 @@ variable "dns" {
     or move the console off `"@"` with `subdomains`.
 
     With `letsencrypt` set, cert-manager answers ACME DNS-01 challenges in the zone, and a Let's
-    Encrypt issuer signs the browser-facing certificates while the internal ones stay
-    self-signed. It replaces `cert_issuer_ref`, so set one or the other. The issuer starts on
+    Encrypt issuer signs the browser-facing certificates, Grafana's among them, while the
+    internal ones stay self-signed, and Grafana serves HTTPS on port 443. It replaces `cert_issuer_ref`, so set one or the other. The issuer starts on
     Let's Encrypt staging, as `<name_prefix>-letsencrypt-staging`; once staging has issued every
-    certificate, set `acme_server_prod = true` and apply again.
+    certificate, set `acme_server_prod = true` and apply again. While the issuer is on staging, browsers do not
+    trust its certificates, and the monitoring stack's scrape of Grafana fails.
   EOT
   type = object({
     zone_id     = string

@@ -125,8 +125,8 @@ the zone's apex. Keep `stem_domain` below the apex, or move the console off `"@"
 `dns.subdomains`.
 
 With `letsencrypt` set, cert-manager answers DNS-01 challenges in the zone as
-an IAM role, assumed through IRSA, that may change only the `_acme-challenge` TXT records under the stem domain. The console and balancerd certificates come from Let's Encrypt, and the
-internal ones stay self-signed. The issuer starts on Let's Encrypt staging, whose certificates browsers do not trust. Once
+an IAM role, assumed through IRSA, that may change only the `_acme-challenge` TXT records under the stem domain. The console, balancerd and Grafana certificates come from Let's Encrypt, and the
+internal ones stay self-signed. Grafana serves its certificate itself, over HTTPS on port 443. The issuer starts on Let's Encrypt staging, whose certificates neither browsers nor the monitoring stack's scrape of Grafana trust. Once
 `kubectl get certificates -A` shows every certificate ready, set `acme_server_prod = true` in
 `letsencrypt` and apply again. The issuer's name changes with it, so cert-manager reissues the
 certificates from production.

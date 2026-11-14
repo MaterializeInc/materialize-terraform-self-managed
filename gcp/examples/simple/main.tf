@@ -638,7 +638,7 @@ module "monitoring" {
     host                = local.grafana_host
   }
 
-  # Certificates are on by default and no issuer is named here, so the chart
+  # Certificates are on by default and no internal issuer is named here, so the chart
   # bootstraps a self-signed root scoped to the monitoring release. That is
   # deliberate, and the reason this differs from `module.materialize_instance`
   # above: none of the components behind Grafana implements per-client
@@ -647,12 +647,17 @@ module "monitoring" {
   # that to "has any certificate". Set `internal_issuer_ref` to share one
   # knowingly.
   #
-  # `issuer_ref` stays unset for a second reason: it is the *browser-facing*
-  # issuer and only issues anything alongside `grafana_external_dns_names`,
-  # which is empty because `grafana_host` is unset by default. The load balancer
-  # answers on its own DNS name either way; set `grafana_host` and you have a
-  # name worth certifying, but browser-facing TLS also needs Grafana itself to
-  # serve HTTPS, which these examples do not yet do.
+  # `issuer_ref` is the *browser-facing* issuer, and issues only alongside
+  # `grafana_external_dns_names`. With `dns.letsencrypt`, Let's Encrypt signs a
+  # certificate for Grafana's hostname, and Grafana serves it over HTTPS on port
+  # 443. Otherwise Grafana serves plain HTTP: the monitoring stack's scrape of
+  # Grafana verifies its certificate against public roots, which a self-signed or
+  # private issuer does not chain to.
+  issuer_ref = local.letsencrypt ? {
+    name = module.letsencrypt_cluster_issuer[0].issuer_name
+    kind = "ClusterIssuer"
+  } : null
+  grafana_external_dns_names = local.letsencrypt ? [local.grafana_host] : []
 
   depends_on = [
     # cert-manager, because the monitoring stack issues Certificates by default
@@ -770,13 +775,17 @@ module "dns" {
   subdomains = {
     console   = { subdomain = local.dns_subdomains.console }
     balancerd = { subdomain = local.dns_subdomains.balancerd }
-    # Grafana's load balancer address may not be known on the first apply.
-    grafana = { subdomain = local.dns_subdomains.grafana, create = false }
+    # Its address is the one the monitoring module reads back from Grafana's
+    # Service, which the Helm release waits on.
+    grafana = { subdomain = local.dns_subdomains.grafana, create = var.enable_observability }
   }
-  records = {
-    console   = [module.load_balancers.console_load_balancer_ip]
-    balancerd = [module.load_balancers.balancerd_load_balancer_ip]
-  }
+  records = merge(
+    {
+      console   = [module.load_balancers.console_load_balancer_ip]
+      balancerd = [module.load_balancers.balancerd_load_balancer_ip]
+    },
+    var.enable_observability ? { grafana = compact([module.monitoring[0].grafana_load_balancer_address]) } : {},
+  )
 
   # The pool comes from the cluster, which creates it on a project's first
   # Workload Identity cluster, so the binding waits for the cluster.

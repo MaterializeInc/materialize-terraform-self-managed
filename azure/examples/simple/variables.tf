@@ -143,16 +143,15 @@ variable "dns" {
     azurerm provider uses. The hostnames sit under `stem_domain`, which defaults to the zone's
     domain: the console on `stem_domain` itself, and balancerd and Grafana on subdomains of
     those names. `subdomains` overrides any of them, keyed `console`, `balancerd` and `grafana`,
-    with `"@"` for the stem itself. The example creates the console and balancerd records. It
-    does not create Grafana's, because the address of Grafana's load balancer may not be known
-    on the first apply; point that one at the `grafana_load_balancer_address` output. The zone
-    itself is never created or changed.
+    with `"@"` for the stem itself. The example creates the console and balancerd records, and
+    Grafana's when the observability stack is on. The zone itself is never created or changed.
 
     With `letsencrypt` set, cert-manager answers ACME DNS-01 challenges in the zone, and a Let's
-    Encrypt issuer signs the console and balancerd certificates while the internal ones stay
-    self-signed. The issuer starts on Let's Encrypt staging, as
+    Encrypt issuer signs the console, balancerd and Grafana certificates while the internal
+    ones stay self-signed, and Grafana serves HTTPS on port 443. The issuer starts on Let's Encrypt staging, as
     `<name_prefix>-letsencrypt-staging`; once staging has issued every certificate, set
-    `acme_server_prod = true` and apply again.
+    `acme_server_prod = true` and apply again. While the issuer is on staging, browsers do not
+    trust its certificates, and the monitoring stack's scrape of Grafana fails.
   EOT
   type = object({
     zone_name                = string
