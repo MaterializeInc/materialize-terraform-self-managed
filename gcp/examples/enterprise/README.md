@@ -124,8 +124,9 @@ it; `dns.subdomains` renames any of them, keyed `console`, `balancerd`, `hydra`,
 `ory_kratos_cookie_domain` is set. The example never creates or changes the zone itself, and it
 does not create Grafana's record, because the address of Grafana's load balancer may not be
 known on the first apply; point that record at the `grafana_load_balancer_address` output. With
-`ory_single_domain_fqdn` set, Hydra and Kratos share that hostname, whose record also stays
-yours. The `dns_fqdns` output lists every hostname. `letsencrypt` is described under
+`ory_single_domain_fqdn` set, Hydra and Kratos share that hostname, which must then sit on
+`dns.stem_domain` or under it, and the example creates its record in place of theirs. The
+`dns_fqdns` output lists every hostname. `letsencrypt` is described under
 [TLS Certificates](#tls-certificates).
 
 **Required Variables:**

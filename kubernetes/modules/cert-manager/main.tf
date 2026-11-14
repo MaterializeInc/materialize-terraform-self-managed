@@ -39,6 +39,18 @@ resource "helm_release" "cert_manager" {
     }
   }
 
+  # IRSA and Azure Workload Identity inject credentials when a pod is admitted,
+  # and a ServiceAccount change alone rolls nothing, so the controller pods carry
+  # a checksum of the annotations and restart when they change.
+  dynamic "set" {
+    for_each = length(var.service_account_annotations) > 0 ? { "checksum/service-account-annotations" = sha256(jsonencode(var.service_account_annotations)) } : {}
+    content {
+      name  = "podAnnotations.${set.key}"
+      value = set.value
+      type  = "string"
+    }
+  }
+
   # Labels on the controller pods, the ones that solve ACME challenges. Azure
   # Workload Identity selects pods by the azure.workload.identity/use label.
   dynamic "set" {

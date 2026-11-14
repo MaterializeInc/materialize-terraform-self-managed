@@ -73,6 +73,11 @@ module "letsencrypt_cluster_issuer" {
 }
 ```
 
+`roles/dns.admin` is the only predefined Cloud DNS role that can write records, and it lets
+cert-manager change any record in the managed zone, not only the `_acme-challenge` TXT records it
+answers with. For a zone shared with other hosts, delegate `stem_domain` to a managed zone of its
+own and pass that zone, so the identity reaches only the names under it.
+
 ## Requirements
 
 | Name | Version |

@@ -60,7 +60,7 @@ variable "records" {
 }
 
 variable "cert_manager_dns01" {
-  description = "Set to create the user-assigned managed identity cert-manager's ACME DNS-01 solver acts as through Azure Workload Identity, with DNS Zone Contributor on this zone only, and to fill the cert_manager_pod_labels and acme_dns01_solver outputs. oidc_issuer_url comes from the aks module, and the identity is created in resource_group_name and location. namespace and service_account_name are where cert-manager's controller runs, and environment is the Azure cloud cert-manager talks to. Null, the default, creates no identity."
+  description = "Set to create the user-assigned managed identity cert-manager's ACME DNS-01 solver acts as through Azure Workload Identity, with DNS Zone Contributor on this zone only, or role_definition_id in its place, and to fill the cert_manager_pod_labels and acme_dns01_solver outputs. oidc_issuer_url comes from the aks module, and the identity is created in resource_group_name and location. namespace and service_account_name are where cert-manager's controller runs, and environment is the Azure cloud cert-manager talks to. role_definition_id is the resource ID of a role to bind on the zone instead of DNS Zone Contributor, such as one limited to TXT records. Null, the default, creates no identity."
   type = object({
     oidc_issuer_url      = string
     resource_group_name  = string
@@ -68,6 +68,7 @@ variable "cert_manager_dns01" {
     namespace            = optional(string, "cert-manager")
     service_account_name = optional(string, "cert-manager")
     environment          = optional(string, "AzurePublicCloud")
+    role_definition_id   = optional(string)
   })
   default = null
 

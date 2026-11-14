@@ -126,7 +126,7 @@ variable "ory_oel_image_tag" {
 }
 
 variable "ory_hydra_fqdn" {
-  description = "External hostname for the Hydra OAuth2 public API. Used as the OIDC issuer URL. Example: hydra.internal.example.com Set this or `dns`, not both."
+  description = "External hostname for the Hydra OAuth2 public API. Used as the OIDC issuer URL. Set this or `dns`, not both. Example: hydra.internal.example.com"
   type        = string
   default     = null
 
@@ -137,7 +137,7 @@ variable "ory_hydra_fqdn" {
 }
 
 variable "ory_ui_fqdn" {
-  description = "External hostname for the Ory selfservice UI (login/consent pages). Example: auth.internal.example.com Set this or `dns`, not both."
+  description = "External hostname for the Ory selfservice UI (login/consent pages). Set this or `dns`, not both. Example: auth.internal.example.com"
   type        = string
   default     = null
 
@@ -148,7 +148,7 @@ variable "ory_ui_fqdn" {
 }
 
 variable "ory_kratos_fqdn" {
-  description = "External hostname for the Kratos public API. Kratos flows return browser-facing URLs using this hostname. Example: kratos.internal.example.com Set this or `dns`, not both."
+  description = "External hostname for the Kratos public API. Kratos flows return browser-facing URLs using this hostname. Set this or `dns`, not both. Example: kratos.internal.example.com"
   type        = string
   default     = null
 
@@ -159,7 +159,7 @@ variable "ory_kratos_fqdn" {
 }
 
 variable "ory_single_domain_fqdn" {
-  description = "When set, serve Hydra and Kratos behind this one hostname under path prefixes (/hydra, /kratos) via a reverse proxy instead of their own hostnames above. The OIDC issuer becomes https://<fqdn>/hydra. The selfservice UI keeps its own hostname (ory_ui_fqdn) even in this mode, so still point that A record at lb_addresses.ui. Leave null for the per-service layout. With `dns.letsencrypt`, it must be `dns.stem_domain` or a name under it, since the Let's Encrypt solver answers only for names there, and `dns.stem_domain` must then be set. Example: ory.internal.example.com"
+  description = "When set, serve Hydra and Kratos behind this one hostname under path prefixes (/hydra, /kratos) via a reverse proxy instead of their own hostnames above. The OIDC issuer becomes https://<fqdn>/hydra. The selfservice UI keeps its own hostname (ory_ui_fqdn) even in this mode, so still point that A record at lb_addresses.ui. Leave null for the per-service layout. With `dns`, it must be `dns.stem_domain` or a name under it, and `dns.stem_domain` must then be set, so that the example can create its record and the Let's Encrypt solver, with `dns.letsencrypt`, can answer for it. Example: ory.internal.example.com"
   type        = string
   default     = null
 
@@ -167,12 +167,12 @@ variable "ory_single_domain_fqdn" {
   # ||, so a null hostname or stem would still reach lower and trimsuffix.
   validation {
     condition = (
-      var.ory_single_domain_fqdn == null || try(var.dns.letsencrypt, null) == null ? true :
+      var.ory_single_domain_fqdn == null || var.dns == null ? true :
       try(var.dns.stem_domain, null) == null ? false :
       lower(trimsuffix(var.ory_single_domain_fqdn, ".")) == lower(trimsuffix(var.dns.stem_domain, ".")) ||
       endswith(lower(trimsuffix(var.ory_single_domain_fqdn, ".")), ".${lower(trimsuffix(var.dns.stem_domain, "."))}")
     )
-    error_message = "With dns.letsencrypt, ory_single_domain_fqdn must be dns.stem_domain or a name under it, and dns.stem_domain must be set, so that the Let's Encrypt solver can answer for its certificate."
+    error_message = "With dns, ory_single_domain_fqdn must be dns.stem_domain or a name under it, and dns.stem_domain must be set, so that the example can create its record in the zone."
   }
 }
 
@@ -219,7 +219,7 @@ variable "ory_polis_source_ranges" {
 }
 
 variable "materialize_console_fqdn" {
-  description = "External hostname for the Materialize console. Used to construct the OAuth2 redirect URI. Example: materialize.internal.example.com Set this or `dns`, not both."
+  description = "External hostname for the Materialize console. Used to construct the OAuth2 redirect URI. Set this or `dns`, not both. Example: materialize.internal.example.com"
   type        = string
   default     = null
 
@@ -230,7 +230,7 @@ variable "materialize_console_fqdn" {
 }
 
 variable "materialize_balancerd_fqdn" {
-  description = "External hostname for balancerd (the SQL-over-HTTP endpoint). The Materialize console's browser-side JS calls balancerd directly, so an externally-accessed console needs balancerd reachable too. Point an A record at the balancerd LB IP after apply. Example: balancerd.internal.example.com Set this or `dns`, not both."
+  description = "External hostname for balancerd (the SQL-over-HTTP endpoint). The Materialize console's browser-side JS calls balancerd directly, so an externally-accessed console needs balancerd reachable too. Point an A record at the balancerd LB IP after apply. Set this or `dns`, not both. Example: balancerd.internal.example.com"
   type        = string
   default     = null
 
@@ -419,8 +419,8 @@ variable "dns" {
     `ory_kratos_cookie_domain` is set.
 
     The example creates the records for the console, balancerd, the selfservice UI, Hydra and
-    Kratos (unless `ory_single_domain_fqdn` puts those two behind one hostname, whose record
-    stays yours), and Polis when `enable_polis` is true. It does not create Grafana's, because
+    Kratos (or, when `ory_single_domain_fqdn` puts those two behind one hostname, that
+    hostname), and Polis when `enable_polis` is true. It does not create Grafana's, because
     the address of Grafana's load balancer may not be known on the first apply; point that one
     at the `grafana_load_balancer_address` output. The zone itself is never created or changed.
 

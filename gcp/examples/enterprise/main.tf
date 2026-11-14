@@ -231,6 +231,12 @@ locals {
     grafana   = "grafana"
   }, try(var.dns.subdomains, {}))
 
+  # The single-domain hostname relative to the stem domain, for its record.
+  ory_single_domain_subdomain = var.ory_single_domain_fqdn == null || var.dns == null ? null : (
+    lower(trimsuffix(var.ory_single_domain_fqdn, ".")) == lower(trimsuffix(var.dns.stem_domain, ".")) ? "@" :
+    trimsuffix(lower(trimsuffix(var.ory_single_domain_fqdn, ".")), ".${lower(trimsuffix(var.dns.stem_domain, "."))}")
+  )
+
   hostnames = var.dns != null ? module.dns[0].fqdns : merge(
     # Validation requires these five when var.dns is unset, but static analysis
     # evaluates their null defaults regardless, so a null becomes "" here rather
@@ -871,18 +877,23 @@ module "dns" {
   zone_project_id = var.dns.zone_project_id
   stem_domain     = var.dns.stem_domain
 
-  subdomains = {
-    console   = { subdomain = local.dns_subdomains.console }
-    balancerd = { subdomain = local.dns_subdomains.balancerd }
-    auth      = { subdomain = local.dns_subdomains.auth }
-    # In single-domain mode, Hydra and Kratos sit behind var.ory_single_domain_fqdn
-    # and have no load balancers of their own.
-    hydra  = { subdomain = local.dns_subdomains.hydra, create = var.ory_single_domain_fqdn == null }
-    kratos = { subdomain = local.dns_subdomains.kratos, create = var.ory_single_domain_fqdn == null }
-    polis  = { subdomain = local.dns_subdomains.polis, create = var.enable_polis }
-    # Grafana's load balancer address may not be known on the first apply.
-    grafana = { subdomain = local.dns_subdomains.grafana, create = false }
-  }
+  subdomains = merge(
+    {
+      console   = { subdomain = local.dns_subdomains.console }
+      balancerd = { subdomain = local.dns_subdomains.balancerd }
+      auth      = { subdomain = local.dns_subdomains.auth }
+      # In single-domain mode, Hydra and Kratos sit behind var.ory_single_domain_fqdn
+      # and have no load balancers of their own.
+      hydra  = { subdomain = local.dns_subdomains.hydra, create = var.ory_single_domain_fqdn == null }
+      kratos = { subdomain = local.dns_subdomains.kratos, create = var.ory_single_domain_fqdn == null }
+      polis  = { subdomain = local.dns_subdomains.polis, create = var.enable_polis }
+      # Grafana's load balancer address may not be known on the first apply.
+      grafana = { subdomain = local.dns_subdomains.grafana, create = false }
+    },
+    # Validation puts var.ory_single_domain_fqdn on var.dns.stem_domain or under
+    # it, so it is named relative to the stem like the rest.
+    var.ory_single_domain_fqdn != null ? { single_domain = { subdomain = local.ory_single_domain_subdomain } } : {},
+  )
   records = merge(
     {
       console   = [module.load_balancers.console_load_balancer_ip]
@@ -893,6 +904,7 @@ module "dns" {
       hydra  = [module.ory.lb_addresses.hydra.ip]
       kratos = [module.ory.lb_addresses.kratos.ip]
     } : {},
+    var.ory_single_domain_fqdn != null ? { single_domain = [module.ory.lb_addresses.single_domain.ip] } : {},
     var.enable_polis ? { polis = [module.ory.lb_addresses.polis.ip] } : {},
   )
 

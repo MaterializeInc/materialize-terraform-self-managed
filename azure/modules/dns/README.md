@@ -75,6 +75,16 @@ module "letsencrypt_cluster_issuer" {
 }
 ```
 
+DNS Zone Contributor lets cert-manager change any record in the zone, not only the
+`_acme-challenge` TXT records it answers with. For a zone shared with other hosts, delegate
+`stem_domain` to a zone of its own and pass that zone, or bind a role limited to TXT records:
+someone who can create role definitions makes one with the actions
+`Microsoft.Network/dnsZones/read`, `Microsoft.Network/dnsZones/TXT/read`,
+`Microsoft.Network/dnsZones/TXT/write` and `Microsoft.Network/dnsZones/TXT/delete`, and passes
+its resource ID as `cert_manager_dns01.role_definition_id`. The module does not create that role
+itself, because creating a role definition needs `Microsoft.Authorization/roleDefinitions/write`,
+which Contributor and Role Based Access Control Administrator do not grant.
+
 ## Requirements
 
 | Name | Version |
@@ -108,7 +118,7 @@ No modules.
 
 | Name | Description | Type | Default | Required |
 | ---- | ----------- | ---- | ------- | :------: |
-| <a name="input_cert_manager_dns01"></a> [cert\_manager\_dns01](#input\_cert\_manager\_dns01) | Set to create the user-assigned managed identity cert-manager's ACME DNS-01 solver acts as through Azure Workload Identity, with DNS Zone Contributor on this zone only, and to fill the cert\_manager\_pod\_labels and acme\_dns01\_solver outputs. oidc\_issuer\_url comes from the aks module, and the identity is created in resource\_group\_name and location. namespace and service\_account\_name are where cert-manager's controller runs, and environment is the Azure cloud cert-manager talks to. Null, the default, creates no identity. | <pre>object({<br/>    oidc_issuer_url      = string<br/>    resource_group_name  = string<br/>    location             = string<br/>    namespace            = optional(string, "cert-manager")<br/>    service_account_name = optional(string, "cert-manager")<br/>    environment          = optional(string, "AzurePublicCloud")<br/>  })</pre> | `null` | no |
+| <a name="input_cert_manager_dns01"></a> [cert\_manager\_dns01](#input\_cert\_manager\_dns01) | Set to create the user-assigned managed identity cert-manager's ACME DNS-01 solver acts as through Azure Workload Identity, with DNS Zone Contributor on this zone only, or role\_definition\_id in its place, and to fill the cert\_manager\_pod\_labels and acme\_dns01\_solver outputs. oidc\_issuer\_url comes from the aks module, and the identity is created in resource\_group\_name and location. namespace and service\_account\_name are where cert-manager's controller runs, and environment is the Azure cloud cert-manager talks to. role\_definition\_id is the resource ID of a role to bind on the zone instead of DNS Zone Contributor, such as one limited to TXT records. Null, the default, creates no identity. | <pre>object({<br/>    oidc_issuer_url      = string<br/>    resource_group_name  = string<br/>    location             = string<br/>    namespace            = optional(string, "cert-manager")<br/>    service_account_name = optional(string, "cert-manager")<br/>    environment          = optional(string, "AzurePublicCloud")<br/>    role_definition_id   = optional(string)<br/>  })</pre> | `null` | no |
 | <a name="input_prefix"></a> [prefix](#input\_prefix) | Prefix to be used for resource names | `string` | n/a | yes |
 | <a name="input_records"></a> [records](#input\_records) | Values of the record for each subdomains entry with create = true, keyed like subdomains: addresses for A and AAAA, one target name for a CNAME. They are kept out of subdomains so that the fqdns output never depends on them, which lets a load balancer configured with one of those names hand its address back here without a dependency cycle. | `map(list(string))` | `{}` | no |
 | <a name="input_stem_domain"></a> [stem\_domain](#input\_stem\_domain) | Domain the subdomains are created under, such as mz.example.com in the zone example.com. It must be the zone's domain or a name inside it. Defaults to the zone's domain. | `string` | `null` | no |

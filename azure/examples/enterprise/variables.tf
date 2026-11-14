@@ -97,7 +97,7 @@ variable "ory_oel_image_tag" {
 }
 
 variable "ory_hydra_fqdn" {
-  description = "External hostname for the Hydra OAuth2 public API. Used as the OIDC issuer URL. Example: hydra.internal.example.com Set this or `dns`, not both."
+  description = "External hostname for the Hydra OAuth2 public API. Used as the OIDC issuer URL. Set this or `dns`, not both. Example: hydra.internal.example.com"
   type        = string
   default     = null
 
@@ -108,7 +108,7 @@ variable "ory_hydra_fqdn" {
 }
 
 variable "ory_ui_fqdn" {
-  description = "External hostname for the Ory selfservice UI (login/consent pages). Example: auth.internal.example.com Set this or `dns`, not both."
+  description = "External hostname for the Ory selfservice UI (login/consent pages). Set this or `dns`, not both. Example: auth.internal.example.com"
   type        = string
   default     = null
 
@@ -119,7 +119,7 @@ variable "ory_ui_fqdn" {
 }
 
 variable "ory_kratos_fqdn" {
-  description = "External hostname for the Kratos public API. Kratos flows return browser-facing URLs using this hostname. Example: kratos.internal.example.com Set this or `dns`, not both."
+  description = "External hostname for the Kratos public API. Kratos flows return browser-facing URLs using this hostname. Set this or `dns`, not both. Example: kratos.internal.example.com"
   type        = string
   default     = null
 
@@ -172,7 +172,7 @@ variable "ory_polis_source_ranges" {
 }
 
 variable "materialize_console_fqdn" {
-  description = "External hostname for the Materialize console. Used to construct the OAuth2 redirect URI. Example: materialize.internal.example.com Set this or `dns`, not both."
+  description = "External hostname for the Materialize console. Used to construct the OAuth2 redirect URI. Set this or `dns`, not both. Example: materialize.internal.example.com"
   type        = string
   default     = null
 
@@ -183,7 +183,7 @@ variable "materialize_console_fqdn" {
 }
 
 variable "materialize_balancerd_fqdn" {
-  description = "External hostname for balancerd (the SQL wire-protocol endpoint). The Materialize console's browser-side JS calls balancerd directly, so an externally-accessed console needs balancerd reachable too. Point an A record at the balancerd LB IP after apply. Example: balancerd.internal.example.com Set this or `dns`, not both."
+  description = "External hostname for balancerd (the SQL wire-protocol endpoint). The Materialize console's browser-side JS calls balancerd directly, so an externally-accessed console needs balancerd reachable too. Point an A record at the balancerd LB IP after apply. Set this or `dns`, not both. Example: balancerd.internal.example.com"
   type        = string
   default     = null
 

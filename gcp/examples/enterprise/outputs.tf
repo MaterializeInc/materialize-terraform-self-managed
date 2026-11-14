@@ -181,7 +181,7 @@ output "grafana_load_balancer_address" {
 }
 
 output "dns_fqdns" {
-  description = "Browser-facing hostnames from var.dns, keyed console, balancerd, hydra, kratos, auth, polis and grafana. Null when var.dns is unset."
+  description = "Browser-facing hostnames from var.dns, keyed console, balancerd, hydra, kratos, auth, polis and grafana, and single_domain when var.ory_single_domain_fqdn is set. Null when var.dns is unset."
   value       = var.dns != null ? module.dns[0].fqdns : null
 }
 

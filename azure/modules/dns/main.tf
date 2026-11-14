@@ -53,8 +53,8 @@ resource "azurerm_dns_a_record" "subdomains" {
 
   lifecycle {
     precondition {
-      condition     = each.value.type == "CNAME" ? length(each.value.values) == 1 : length(each.value.values) > 0
-      error_message = "${each.key}: create = true needs records[\"${each.key}\"], with one target for a CNAME or at least one address for A and AAAA."
+      condition     = length(each.value.values) > 0
+      error_message = "${each.key}: create = true needs records[\"${each.key}\"], with at least one address."
     }
   }
 }
@@ -71,8 +71,8 @@ resource "azurerm_dns_aaaa_record" "subdomains" {
 
   lifecycle {
     precondition {
-      condition     = each.value.type == "CNAME" ? length(each.value.values) == 1 : length(each.value.values) > 0
-      error_message = "${each.key}: create = true needs records[\"${each.key}\"], with one target for a CNAME or at least one address for A and AAAA."
+      condition     = length(each.value.values) > 0
+      error_message = "${each.key}: create = true needs records[\"${each.key}\"], with at least one address."
     }
   }
 }
@@ -89,8 +89,8 @@ resource "azurerm_dns_cname_record" "subdomains" {
 
   lifecycle {
     precondition {
-      condition     = each.value.type == "CNAME" ? length(each.value.values) == 1 : length(each.value.values) > 0
-      error_message = "${each.key}: create = true needs records[\"${each.key}\"], with one target for a CNAME or at least one address for A and AAAA."
+      condition     = length(each.value.values) == 1
+      error_message = "${each.key}: create = true needs records[\"${each.key}\"], with one target."
     }
     precondition {
       condition     = each.value.name != "@"
@@ -101,7 +101,9 @@ resource "azurerm_dns_cname_record" "subdomains" {
 
 # cert-manager's DNS-01 identity: a user-assigned managed identity that may
 # change records in this zone only, which cert-manager's Kubernetes service
-# account acts as through Azure Workload Identity.
+# account acts as through Azure Workload Identity. DNS Zone Contributor covers
+# every record type; cert_manager_dns01.role_definition_id binds a narrower role
+# made outside this module instead.
 resource "azurerm_user_assigned_identity" "cert_manager" {
   count = local.cert_manager_dns01 ? 1 : 0
 
@@ -127,7 +129,8 @@ resource "azurerm_role_assignment" "cert_manager" {
   count = local.cert_manager_dns01 ? 1 : 0
 
   scope                = data.azurerm_dns_zone.this.id
-  role_definition_name = "DNS Zone Contributor"
+  role_definition_id   = var.cert_manager_dns01.role_definition_id
+  role_definition_name = var.cert_manager_dns01.role_definition_id == null ? "DNS Zone Contributor" : null
   principal_id         = azurerm_user_assigned_identity.cert_manager[0].principal_id
   principal_type       = "ServicePrincipal"
 }

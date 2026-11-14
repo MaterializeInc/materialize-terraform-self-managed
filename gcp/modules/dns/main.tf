@@ -1,6 +1,6 @@
 locals {
   zone_project_id = coalesce(var.zone_project_id, var.project_id)
-  zone_domain     = trimsuffix(data.google_dns_managed_zone.this.dns_name, ".")
+  zone_domain     = lower(trimsuffix(data.google_dns_managed_zone.this.dns_name, "."))
   stem_domain     = var.stem_domain != null ? lower(trimsuffix(var.stem_domain, ".")) : local.zone_domain
 
   fqdns = {
@@ -26,8 +26,8 @@ data "google_dns_managed_zone" "this" {
       # A conditional rather than ||: Terraform before 1.12 evaluates both sides
       # of ||, so a null stem_domain would still reach trimsuffix.
       condition = var.stem_domain == null ? true : (
-        lower(trimsuffix(var.stem_domain, ".")) == trimsuffix(self.dns_name, ".") ||
-        endswith(lower(trimsuffix(var.stem_domain, ".")), ".${trimsuffix(self.dns_name, ".")}")
+        lower(trimsuffix(var.stem_domain, ".")) == lower(trimsuffix(self.dns_name, ".")) ||
+        endswith(lower(trimsuffix(var.stem_domain, ".")), ".${lower(trimsuffix(self.dns_name, "."))}")
       )
       error_message = "stem_domain must be the managed zone's domain or a name inside it."
     }

@@ -1,5 +1,5 @@
 locals {
-  zone_domain = trimsuffix(data.aws_route53_zone.this.name, ".")
+  zone_domain = lower(trimsuffix(data.aws_route53_zone.this.name, "."))
   stem_domain = var.stem_domain != null ? lower(trimsuffix(var.stem_domain, ".")) : local.zone_domain
 
   fqdns = {
@@ -29,8 +29,8 @@ data "aws_route53_zone" "this" {
       # A conditional rather than ||: Terraform before 1.12 evaluates both sides
       # of ||, so a null stem_domain would still reach trimsuffix.
       condition = var.stem_domain == null ? true : (
-        lower(trimsuffix(var.stem_domain, ".")) == trimsuffix(self.name, ".") ||
-        endswith(lower(trimsuffix(var.stem_domain, ".")), ".${trimsuffix(self.name, ".")}")
+        lower(trimsuffix(var.stem_domain, ".")) == lower(trimsuffix(self.name, ".")) ||
+        endswith(lower(trimsuffix(var.stem_domain, ".")), ".${lower(trimsuffix(self.name, "."))}")
       )
       error_message = "stem_domain must be the hosted zone's domain or a name inside it."
     }
