@@ -171,7 +171,7 @@ output "logs_url" {
 }
 
 output "grafana_url" {
-  description = "Where Grafana answers: its hostname when one is set, over https with dns.letsencrypt, and otherwise its load balancer's address."
+  description = "Where Grafana answers: https at its hostname when one is set, and otherwise http at its load balancer's address."
   value       = var.enable_observability ? module.monitoring[0].grafana_url : null
 }
 

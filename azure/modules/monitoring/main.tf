@@ -482,7 +482,7 @@ module "monitoring" {
 
   # Load-balancer and provider values ahead of the caller's, so
   # `additional_values` still overrides anything computed here.
-  additional_values = concat(local.grafana_load_balancer_values, local.grafana_https_values, local.provider_metrics_values, var.additional_values)
+  additional_values = concat(local.grafana_load_balancer_values, local.grafana_https_values, local.internal_self_signed_values, local.provider_metrics_values, var.additional_values)
 
   depends_on = [
     azurerm_role_assignment.telemetry,
@@ -583,6 +583,16 @@ locals {
         }
       }
     }
+  })] : []
+
+  # The monitoring module signs the internal certificates with `issuer_ref` when
+  # `internal_issuer_ref` is null. Here `issuer_ref` is Grafana's browser-facing
+  # issuer only, so the chart bootstraps its own root for the internal
+  # certificates instead, as it does with no issuer at all. A public ACME issuer
+  # can't sign their in-cluster names. The null `issuerRef` removes the key the
+  # module composed, because the chart refuses an issuer and a root together.
+  internal_self_signed_values = var.certificates_enabled && var.issuer_ref != null && var.internal_issuer_ref == null ? [yamlencode({
+    certificates = { internal = { selfSigned = { enabled = true }, issuerRef = null } }
   })] : []
 
   grafana_service_annotations = var.grafana_load_balancer == null ? {} : merge(

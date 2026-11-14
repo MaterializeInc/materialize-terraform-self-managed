@@ -800,7 +800,8 @@ variable "issuer_ref" {
     operator configures certificates once: `issuer_ref` for names a browser
     resolves, `internal_issuer_ref` for in-cluster ones. A public ACME issuer
     can sign the first and cannot sign the second — nothing will issue a
-    certificate for `*.cluster.local`.
+    certificate for `*.cluster.local`. Unlike that module's `issuer_ref`, this one never signs
+    the internal certificates; see `internal_issuer_ref`.
   EOT
   type = object({
     name = string
@@ -838,10 +839,10 @@ variable "issuer_ca" {
 variable "internal_issuer_ref" {
   description = <<-EOT
     cert-manager (Cluster)Issuer for the **internal** certificates the stack's
-    components present to each other. Falls back to `issuer_ref`, then to the
-    chart bootstrapping a self-signed root scoped to this release.
+    components present to each other. When null, the chart bootstraps a
+    self-signed root scoped to this release, whether or not `issuer_ref` is set.
 
-    Leaving it null is the recommended shape rather than a fallback. None of the
+    Leaving it null is the recommended shape. None of the
     receiving components implements per-client authorization, so "signed by the
     CA we trust" is the entire authorization decision — pointing this at the
     cluster's general-purpose issuer reduces that to "has any certificate".
