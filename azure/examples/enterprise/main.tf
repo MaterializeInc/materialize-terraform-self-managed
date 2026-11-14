@@ -214,13 +214,20 @@ locals {
   # set, the Let's Encrypt issuer when var.dns.letsencrypt is set, and the
   # built-in self-signed issuer otherwise.
   letsencrypt = try(var.dns.letsencrypt, null) != null
-  cert_issuer = var.cert_issuer_ref != null ? var.cert_issuer_ref : local.letsencrypt ? {
+  cert_issuer = var.cert_issuer_ref != null ? {
+    name = var.cert_issuer_ref.name
+    kind = var.cert_issuer_ref.kind
+    } : local.letsencrypt ? {
     name = module.letsencrypt_cluster_issuer[0].issuer_name
     kind = "ClusterIssuer"
     } : {
     name = module.self_signed_cluster_issuer.issuer_name
     kind = "ClusterIssuer"
   }
+  # How the monitoring stack's scrape of Grafana trusts local.cert_issuer's
+  # certificates: the system roots for a public issuer, and for the self-signed
+  # issuer, the CA cert-manager writes into each certificate Secret's ca.crt.
+  cert_issuer_ca = var.cert_issuer_ref != null ? var.cert_issuer_ref.ca : local.letsencrypt ? "public" : "secret"
 
   # Browser-facing hostnames: from var.dns when it is set, and from the
   # per-hostname variables otherwise. "@" is the stem domain itself.
@@ -737,17 +744,14 @@ module "monitoring" {
   # that to "has any certificate". Set `internal_issuer_ref` to share one
   # knowingly.
   #
-  # `issuer_ref` is the *browser-facing* issuer, and issues only alongside
-  # `grafana_external_dns_names`. With `dns.letsencrypt`, Let's Encrypt signs a
-  # certificate for Grafana's hostname, and Grafana serves it over HTTPS on port
-  # 443. Otherwise Grafana serves plain HTTP: the monitoring stack's scrape of
-  # Grafana verifies its certificate against public roots, which a self-signed or
-  # private issuer does not chain to.
-  issuer_ref = local.letsencrypt ? {
-    name = module.letsencrypt_cluster_issuer[0].issuer_name
-    kind = "ClusterIssuer"
-  } : null
-  grafana_external_dns_names = local.letsencrypt ? [local.hostnames.grafana] : []
+  # `issuer_ref` is the *browser-facing* issuer, the console's, and issues only
+  # alongside `grafana_external_dns_names`. Whenever Grafana has a hostname, that
+  # issuer signs a certificate for it and Grafana serves HTTPS on port 443.
+  # `issuer_ca` says how the monitoring stack's own scrape of Grafana trusts the
+  # certificate.
+  issuer_ref                 = local.hostnames.grafana != null ? local.cert_issuer : null
+  issuer_ca                  = local.cert_issuer_ca
+  grafana_external_dns_names = local.hostnames.grafana != null ? [local.hostnames.grafana] : []
 
   depends_on = [
     # cert-manager, because the monitoring stack issues Certificates by default

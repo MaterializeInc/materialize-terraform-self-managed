@@ -143,7 +143,7 @@ stack is on, and never creates or changes the zone itself. With
 - `internal_load_balancer`: Whether to use internal LBs (defaults to `true`). Set to `false` for prod-like demos validated against real DNS.
 - `enable_observability`: Enable Prometheus and Grafana monitoring stack (defaults to `true`)
 - `enable_ory_service_monitors`: Scrape Kratos's and Hydra's metrics into the monitoring stack (defaults to `true`). Ory serves them only on its unauthenticated admin listener, so the monitoring gateway scrapes a proxy in the Ory namespace that serves only the metrics path, and is never admitted to the admin API itself.
-- `grafana_host`: Hostname to reach Grafana on (defaults to `null`). The GCP load balancer is created either way and answers on an IP; setting this is what makes Grafana's `root_url` — and so its share links, alert notification links, and OAuth redirect URIs — correct. DNS for the name is yours to create. With `dns` set, leave it unset; Grafana's hostname comes from `dns`. Exposure follows `internal_load_balancer` and `ingress_cidr_blocks`, the same as the Materialize load balancers.
+- `grafana_host`: Hostname to reach Grafana on (defaults to `null`). The GCP load balancer is created either way and answers on an IP; setting this is what makes Grafana's `root_url` — and so its share links, alert notification links, and OAuth redirect URIs — correct. DNS for the name is yours to create. With `dns` set, leave it unset; Grafana's hostname comes from `dns`. With a hostname either way, Grafana serves HTTPS on port 443 with a certificate from the console's issuer. Exposure follows `internal_load_balancer` and `ingress_cidr_blocks`, the same as the Materialize load balancers.
 - `enable_polis`: Deploy Ory Polis alongside Kratos and Hydra (defaults to `false`). When `true`, also set `ory_polis_fqdn` and create the corresponding DNS record, unless `dns` is set, which does both.
 - `ory_polis_fqdn`: Public hostname for Polis. Required when `enable_polis = true`, unless `dns` is set.
 - `dns`: An existing Cloud DNS managed zone to take every browser-facing hostname from, in place of the hostname variables above (defaults to `null`). See [Hostnames from a Cloud DNS zone](#hostnames-from-a-cloud-dns-zone).
@@ -229,10 +229,13 @@ Set:
 cert_issuer_ref = {
   name = "your-existing-cluster-issuer"
   kind = "ClusterIssuer"  # or "Issuer"
+  ca   = "secret"         # or "public", the default
 }
 ```
 
 The browser-facing certs use this issuer; the internal mTLS cert continues to use the self-signed cluster issuer. Customers typically bring a corporate CA, an existing trust-manager bundle, or an ACME issuer (Let's Encrypt) backed by their preferred DNS-01 / HTTP-01 solver.
+
+`ca` tells the monitoring stack's scrape of Grafana how to verify Grafana's certificate. Use `"public"`, the default, for a publicly trusted issuer such as Let's Encrypt, whose certificate Secrets carry no `ca.crt`. Use `"secret"` for an issuer that writes its CA into each certificate Secret's `ca.crt`, such as a corporate CA issuer, so the scrape verifies against that CA.
 
 #### Example: Let's Encrypt with Cloudflare DNS-01
 

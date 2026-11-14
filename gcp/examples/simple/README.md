@@ -240,7 +240,7 @@ Grafana is deployed in the `monitoring` namespace with pre-configured Materializ
 
 Its own state — users, service accounts and tokens, annotations, and dashboard versions created through the UI — is kept in a dedicated `db-f1-micro` Cloud SQL instance, provisioned whenever `enable_observability` is on. It is part of the `monitoring` module block; set `grafana_database = null` there to skip it and accept losing that state on every pod restart.
 
-Grafana also gets a GCP load balancer whenever `enable_observability` is on — internal by default, following the same `internal_load_balancer` and `ingress_cidr_blocks` variables as the Materialize load balancers. Read its address from the Service, or set `grafana_host` so Grafana's own links are correct too. The port-forward below works regardless.
+Grafana also gets a GCP load balancer whenever `enable_observability` is on — internal by default, following the same `internal_load_balancer` and `ingress_cidr_blocks` variables as the Materialize load balancers. Read its address from the Service, or set `grafana_host` so Grafana's own links are correct too. The port-forward below works regardless. With a hostname, from `grafana_host` or `dns`, Grafana serves HTTPS on port 443 with a certificate from the console's issuer.
 
 #### Port Forwarding
 
@@ -249,6 +249,8 @@ kubectl port-forward svc/grafana 3000:80 -n monitoring
 ```
 
 Then open [http://localhost:3000](http://localhost:3000) in your browser.
+
+With a hostname set, Grafana serves HTTPS: forward `3000:443` instead and open https://localhost:3000, accepting the certificate warning, because the certificate names Grafana's hostname rather than localhost.
 
 #### Login Credentials
 

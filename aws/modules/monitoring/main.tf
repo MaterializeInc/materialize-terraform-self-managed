@@ -610,6 +610,21 @@ locals {
   # An NLB terminates nothing, so the scheme is whatever Grafana itself serves.
   grafana_scheme = local.grafana_https ? "https" : "http"
 
+  # The module verifies Grafana's certificate on its own scrape against the
+  # scraper's system roots, which a publicly trusted issuer chains to. With
+  # `issuer_ca = "secret"` the scrape trusts the `ca.crt` cert-manager writes into
+  # the certificate's Secret instead. The chart pins `fullnameOverride`, so the
+  # Secret's name is static.
+  grafana_https_values = local.grafana_https && var.issuer_ca == "secret" ? [yamlencode({
+    grafana = {
+      serviceMonitor = {
+        tlsConfig = {
+          ca = { secret = { name = "mzmon-grafana-external-tls", key = "ca.crt" } }
+        }
+      }
+    }
+  })] : []
+
   grafana_load_balancer_address = one(aws_lb.grafana[*].dns_name)
 
   # The Service stays ClusterIP — the target group registers pods directly — so
@@ -1051,6 +1066,7 @@ module "monitoring" {
   # anything computed here.
   additional_values = concat(
     local.grafana_load_balancer_values,
+    local.grafana_https_values,
     local.provider_metrics_values,
     var.additional_values,
   )

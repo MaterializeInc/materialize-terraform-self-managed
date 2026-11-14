@@ -494,6 +494,7 @@ module "monitoring" {
   # overrides anything computed here.
   additional_values = concat(
     local.grafana_load_balancer_values,
+    local.grafana_https_values,
     local.provider_metrics_values,
     var.additional_values,
   )
@@ -586,6 +587,21 @@ locals {
   # `security.cookie_secure` with it.
   grafana_https  = var.certificates_enabled && var.issuer_ref != null && length(var.grafana_external_dns_names) > 0
   grafana_scheme = local.grafana_https ? "https" : "http"
+
+  # The module verifies Grafana's certificate on its own scrape against the
+  # scraper's system roots, which a publicly trusted issuer chains to. With
+  # `issuer_ca = "secret"` the scrape trusts the `ca.crt` cert-manager writes into
+  # the certificate's Secret instead. The chart pins `fullnameOverride`, so the
+  # Secret's name is static.
+  grafana_https_values = local.grafana_https && var.issuer_ca == "secret" ? [yamlencode({
+    grafana = {
+      serviceMonitor = {
+        tlsConfig = {
+          ca = { secret = { name = "mzmon-grafana-external-tls", key = "ca.crt" } }
+        }
+      }
+    }
+  })] : []
 
   grafana_service_annotations = var.grafana_load_balancer == null ? {} : merge(
     {

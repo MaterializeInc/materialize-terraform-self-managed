@@ -553,6 +553,26 @@ variable "issuer_ref" {
   default = null
 }
 
+variable "issuer_ca" {
+  description = <<-EOT
+    How the monitoring stack's scrape of Grafana verifies the certificate `issuer_ref` signs,
+    when Grafana serves HTTPS.
+
+    `"public"`, the default, verifies against the scraper's system roots, for a publicly trusted
+    issuer such as Let's Encrypt, whose certificate Secrets carry no `ca.crt`. `"secret"` verifies
+    against the `ca.crt` cert-manager writes into the certificate's Secret, for an issuer the
+    system roots do not cover: a self-signed or private CA issuer, or Vault.
+  EOT
+  type        = string
+  default     = "public"
+  nullable    = false
+
+  validation {
+    condition     = contains(["public", "secret"], var.issuer_ca)
+    error_message = "issuer_ca must be \"public\" or \"secret\"."
+  }
+}
+
 variable "internal_issuer_ref" {
   description = <<-EOT
     cert-manager (Cluster)Issuer for the **internal** certificates the stack's
@@ -592,8 +612,8 @@ variable "grafana_external_dns_names" {
 
     With `issuer_ref` and `certificates_enabled`, Grafana serves HTTPS with
     this certificate on Service port 443, and `root_url` defaults to the first
-    name. The issuer has to be one browsers and the monitoring stack's own
-    scrape of Grafana trust, such as a public ACME issuer.
+    name. `issuer_ca` says how the monitoring stack's own scrape of Grafana
+    trusts the issuer.
   EOT
   type        = list(string)
   default     = []

@@ -184,12 +184,18 @@ variable "materialize_balancerd_fqdn" {
 }
 
 variable "cert_issuer_ref" {
-  description = "Bring-your-own cert-manager (Cluster)Issuer used to sign the browser-facing TLS certs (Materialize console / balancerd, Hydra, Kratos, selfservice UI). When null, the example falls back to the built-in self-signed issuer for browser-facing certs (the demo path). The internal mTLS cert (with *.cluster.local SANs) always uses the self-signed cluster issuer because public ACME issuers like Let's Encrypt cannot sign cluster.local. See the README for an example of plugging in a Let's Encrypt + Cloudflare DNS-01 issuer."
+  description = "Bring-your-own cert-manager (Cluster)Issuer used to sign the browser-facing TLS certs (Materialize console / balancerd, Hydra, Kratos, selfservice UI). When null, the example falls back to the built-in self-signed issuer for browser-facing certs (the demo path). The internal mTLS cert (with *.cluster.local SANs) always uses the self-signed cluster issuer because public ACME issuers like Let's Encrypt cannot sign cluster.local. See the README for an example of plugging in a Let's Encrypt + Cloudflare DNS-01 issuer. `ca` says how the monitoring stack's scrape of Grafana trusts the issuer's certificates: `\"public\"`, the default, for a publicly trusted issuer such as Let's Encrypt, and `\"secret\"` for one that writes its CA into each certificate Secret's `ca.crt`, such as a private CA issuer."
   type = object({
     name = string
     kind = string
+    ca   = optional(string, "public")
   })
   default = null
+
+  validation {
+    condition     = var.cert_issuer_ref == null ? true : contains(["public", "secret"], var.cert_issuer_ref.ca)
+    error_message = "cert_issuer_ref.ca must be \"public\" or \"secret\"."
+  }
 
   validation {
     condition     = var.cert_issuer_ref == null || try(var.dns.letsencrypt, null) == null
@@ -256,7 +262,7 @@ variable "balancerd_parameters" {
 }
 
 variable "grafana_host" {
-  description = "Hostname to expose Grafana on. Null keeps it on a ClusterIP Service, reachable only with `kubectl port-forward`. Exposure follows `internal_load_balancer` and `ingress_cidr_blocks`, the same as the Materialize load balancer. DNS for this name is yours to create. With `dns` set, leave this unset; Grafana's hostname comes from `dns`."
+  description = "Hostname to expose Grafana on. Null keeps it on a ClusterIP Service, reachable only with `kubectl port-forward`. Exposure follows `internal_load_balancer` and `ingress_cidr_blocks`, the same as the Materialize load balancer. DNS for this name is yours to create. With `dns` set, leave this unset; Grafana's hostname comes from `dns`. With a hostname, Grafana serves HTTPS on port 443, with a certificate from the console's issuer."
   type        = string
   default     = null
 
@@ -351,7 +357,7 @@ variable "dns" {
 
     With `letsencrypt` set, cert-manager answers ACME DNS-01 challenges in the zone, and a Let's
     Encrypt issuer signs the browser-facing certificates, Grafana's among them, while the
-    internal ones stay self-signed, and Grafana serves HTTPS on port 443. It replaces `cert_issuer_ref`, so set one or the other. The issuer starts on
+    internal ones stay self-signed. It replaces `cert_issuer_ref`, so set one or the other. The issuer starts on
     Let's Encrypt staging, as `<name_prefix>-letsencrypt-staging`; once staging has issued every
     certificate, set `acme_server_prod = true` and apply again. While the issuer is on staging, browsers do not
     trust its certificates, and the monitoring stack's scrape of Grafana fails.
