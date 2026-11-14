@@ -44,7 +44,7 @@ variable "metadata_backend_url" {
 }
 
 variable "persist_backend_url" {
-  description = "S3 connection URL for persist backend"
+  description = "Persist blob URL: s3:// (S3, or S3-compatible such as GCS with an HMAC key), gcs:// (native GCS, Materialize v26.48.0 and later), or the Azure Blob URL"
   type        = string
   nullable    = false
 }
@@ -309,4 +309,11 @@ variable "ory_namespace" {
   description = "Namespace of the Ory stack. When set, creates a NetworkPolicy allowing pods in this instance's namespace to reach Hydra's public port (4444) and the ory-stack single-domain proxy (8443) in that namespace, for OIDC discovery and the JWKS. Set to null for non-enterprise deployments."
   type        = string
   default     = null
+}
+
+variable "allow_metadata_server_egress" {
+  description = "On GKE, allow the instance's pods to reach the metadata server (169.254.169.254:80 and 169.254.169.252:988) for Workload Identity tokens, which native GCS persist (gcs://) needs when network policies are enforced. Only applies when enable_network_policies is true."
+  type        = bool
+  default     = false
+  nullable    = false
 }

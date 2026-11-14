@@ -26,7 +26,7 @@ GCP Specific Modules:
 | [`modules/gke`](./modules/gke)                  | GKE cluster with workload identity                             |
 | [`modules/nodepool`](./modules/nodepool)        | Additional GKE node pools with autoscaling                     |
 | [`modules/database`](./modules/database)        | Cloud SQL PostgreSQL for Materialize metadata                 |
-| [`modules/storage`](./modules/storage)          | Cloud Storage bucket with HMAC keys for S3-compatible access   |
+| [`modules/storage`](./modules/storage)          | Cloud Storage bucket, with Workload Identity for native access or an HMAC key for S3-compatible access |
 | [`modules/load_balancers`](./modules/load_balancers) | GCP Load Balancers for Materialize instance access      |
 | [`modules/operator`](./modules/operator)        | Materialize Kubernetes operator installation                   |
 | [`modules/monitoring`](./modules/monitoring)     | Observability stack (Loki, Thanos, Grafana, Alloy) with GCS buckets and Workload Identity |
@@ -119,8 +119,8 @@ Enabling the APIs is not sufficient on its own: the identity that runs `terrafor
 | `roles/container.admin`               | GKE cluster and node pools, and in-cluster access for the Kubernetes and Helm providers | `gke`, `nodepool`, `operator` |
 | `roles/cloudsql.admin`                | Cloud SQL PostgreSQL instance                                                 | `database`                  |
 | `roles/storage.admin`                 | Cloud Storage buckets and objects                                             | `storage`, `monitoring`     |
-| `roles/storage.hmacKeyAdmin`          | HMAC key for S3-compatible bucket access                                      | `storage`                   |
-| `roles/iam.serviceAccountAdmin`       | Creating service accounts and their Workload Identity bindings                | `gke`, `monitoring`         |
+| `roles/storage.hmacKeyAdmin`          | HMAC key for S3-compatible bucket access, when `create_hmac_key` is true      | `storage`                   |
+| `roles/iam.serviceAccountAdmin`       | Creating service accounts and their Workload Identity bindings                | `gke`, `monitoring`, `storage` |
 | `roles/iam.serviceAccountUser`        | Attaching the node service account to the node pool (`actAs`)                 | `gke`, `nodepool`           |
 | `roles/serviceusage.serviceUsageAdmin`| Enabling the required APIs                                                    | —                           |
 
