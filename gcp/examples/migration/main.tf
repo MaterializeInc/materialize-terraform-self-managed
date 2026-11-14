@@ -419,8 +419,9 @@ module "materialize_nodepool" {
   swap_enabled    = true
   local_ssd_count = var.materialize_node_pool_local_ssd_count
 
-  # Pin to old version to avoid unintended daemonset image upgrade
-  disk_setup_image = "materialize/ephemeral-storage-setup-image:v0.6.0"
+  # MIGRATION: Set disk_setup_image to match your existing daemonset to avoid an
+  # unnecessary update, or to point the image at a mirror instead of Docker Hub.
+  disk_setup_image = var.disk_setup_image
 
   # MIGRATION: The old module used "${prefix}-disk-setup" for disk setup
   # resource names. The new module defaults to "<prefix>-disk-setup" too. We
