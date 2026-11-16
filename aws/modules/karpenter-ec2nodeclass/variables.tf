@@ -57,7 +57,7 @@ variable "enable_user_namespaces" {
 variable "disk_setup_image" {
   description = "Docker image for disk bootstraping when swap is enabled."
   type        = string
-  default     = "docker.io/materialize/ephemeral-storage-setup-image:v0.6.0"
+  default     = "docker.io/materialize/ephemeral-storage-setup-image:v0.6.3"
   nullable    = false
 }
 
