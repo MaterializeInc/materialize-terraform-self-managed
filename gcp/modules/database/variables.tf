@@ -148,6 +148,26 @@ variable "backup_retention_unit" {
   nullable    = false
 }
 
+variable "deletion_protection" {
+  description = "Whether to block deleting the instance, both in Terraform and in Cloud SQL itself (API, gcloud and the console). Set it to false before a planned destroy."
+  type        = bool
+  default     = false
+  nullable    = false
+}
+
+variable "retain_backups_on_delete" {
+  description = "Whether Cloud SQL keeps the instance's automated backups after the instance is deleted, for their normal retention. When false, deleting the instance deletes its backups."
+  type        = bool
+  default     = false
+  nullable    = false
+}
+
+variable "final_backup_retention_days" {
+  description = "When set, Cloud SQL takes a final backup when the instance is deleted and keeps it for this many days. Null takes no final backup."
+  type        = number
+  default     = null
+}
+
 variable "maintenance_window_day" {
   description = "Day of week for maintenance window (1-7)"
   type        = number

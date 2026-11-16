@@ -139,6 +139,20 @@ variable "skip_final_snapshot" {
   nullable    = false
 }
 
+variable "deletion_protection" {
+  description = "Whether to block deleting the database. While true, Terraform and the AWS API refuse to delete it, so set it to false before a planned destroy."
+  type        = bool
+  default     = false
+  nullable    = false
+}
+
+variable "copy_tags_to_snapshot" {
+  description = "Whether to copy the database's tags to its snapshots, including the final snapshot. Tag-scoped IAM policies need this to manage the snapshots."
+  type        = bool
+  default     = false
+  nullable    = false
+}
+
 variable "final_snapshot_identifier_prefix" {
   description = "Prefix for the final snapshot name taken when skip_final_snapshot is false. The RDS module appends the DB identifier and a random suffix to keep it unique. Ignored when skip_final_snapshot is true."
   type        = string
