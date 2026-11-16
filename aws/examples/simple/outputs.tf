@@ -111,6 +111,11 @@ output "nlb_dns_name" {
   value       = module.materialize_nlb.nlb_dns_name
 }
 
+output "dns_fqdns" {
+  description = "Hostnames from var.dns, keyed console, balancerd and grafana. Null when var.dns is unset."
+  value       = var.dns != null ? module.dns[0].fqdns : null
+}
+
 output "external_login_password_mz_system" {
   description = "Password for the external login to the Materialize instance"
   value       = random_password.external_login_password_mz_system.result

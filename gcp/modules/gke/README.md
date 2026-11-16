@@ -72,4 +72,5 @@ No modules.
 | <a name="output_node_locations"></a> [node\_locations](#output\_node\_locations) | The zones where cluster nodes are created |
 | <a name="output_service_account_email"></a> [service\_account\_email](#output\_service\_account\_email) | The email of the GKE service account |
 | <a name="output_upgrade_notification_subscription"></a> [upgrade\_notification\_subscription](#output\_upgrade\_notification\_subscription) | The Pub/Sub subscription (projects/{project}/subscriptions/{name}) on which orchestratord receives GKE upgrade notifications. Null unless enable\_upgrade\_notifications is set. |
+| <a name="output_workload_identity_pool"></a> [workload\_identity\_pool](#output\_workload\_identity\_pool) | The cluster's Workload Identity pool, PROJECT\_ID.svc.id.goog. GKE creates the pool with a project's first Workload Identity cluster, so an IAM binding whose member names the pool should take it from here, which orders the binding after the cluster. |
 | <a name="output_workload_identity_sa_email"></a> [workload\_identity\_sa\_email](#output\_workload\_identity\_sa\_email) | The email of the Workload Identity service account |

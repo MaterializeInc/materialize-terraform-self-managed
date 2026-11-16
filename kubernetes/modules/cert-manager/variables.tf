@@ -46,7 +46,7 @@ variable "enable_service_monitor" {
 }
 
 variable "service_account_annotations" {
-  description = "Annotations for cert-manager's Kubernetes service account. Use them to give the controller a cloud identity for DNS-01 challenges instead of static keys, for example iam.gke.io/gcp-service-account for GKE Workload Identity or eks.amazonaws.com/role-arn for IRSA."
+  description = "Annotations for cert-manager's Kubernetes service account. Use them to give the controller a cloud identity for DNS-01 challenges instead of static keys, for example iam.gke.io/gcp-service-account for GKE Workload Identity or eks.amazonaws.com/role-arn for IRSA. The controller pods restart whenever these change, so that a new identity takes effect."
   type        = map(string)
   default     = {}
   nullable    = false
