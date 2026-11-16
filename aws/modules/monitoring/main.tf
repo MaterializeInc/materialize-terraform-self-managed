@@ -50,11 +50,14 @@
 #     two only as a backstop above what the compactors already do.
 #   * Grafana is ClusterIP until `grafana_load_balancer` is set, so `grafana_url`
 #     is in-cluster by default: reach it with
-#     `kubectl -n monitoring port-forward svc/grafana 3000:80` and
+#     `kubectl -n monitoring port-forward svc/grafana 3000:80` (`3000:443`, over
+#     https, when Grafana serves HTTPS) and
 #     `terraform output -raw grafana_admin_password`. With a load balancer,
 #     `grafana_url` names its address, and DNS for any hostname is yours.
 #   * That load balancer is an L4 NLB, matching GCP, Azure, and the Materialize
-#     console. It terminates no TLS — see `grafana_load_balancer`.
+#     console. It terminates no TLS. With `issuer_ref` and
+#     `grafana_external_dns_names`, Grafana serves HTTPS itself, with the
+#     certificate issued for those names, and the NLB passes it through on 443.
 #   * `grafana_load_balancer` and `grafana_database` belong together. Exposing Grafana
 #     without a durable backend turns a bundled extra nobody depended on into the
 #     primary interface to the stack — one that discards every dashboard,
@@ -574,11 +577,19 @@ locals {
   # 6 characters exactly. Nothing may be appended: the cap is on the whole prefix.
   grafana_lb_name_prefix = substr(var.name_prefix, 0, min(6, length(var.name_prefix)))
 
-  # Grafana's container port. The chart's Service is 80 -> 3000; the target group
-  # registers pod IPs, so it is the container port that matters here.
+  # Grafana's container port. The chart's Service maps 80, or 443 under HTTPS, to
+  # 3000; the target group registers pod IPs, so it is the container port that
+  # matters here.
   grafana_pod_port = 3000
 
-  grafana_lb_listener_port = try(local.grafana_lb.listener_port, 80)
+  # The monitoring module serves Grafana over HTTPS, with the browser-facing
+  # certificate it issues, under exactly this condition, and moves the Service
+  # to 443 with it.
+  grafana_https = var.certificates_enabled && var.issuer_ref != null && length(var.grafana_external_dns_names) > 0
+
+  grafana_service_port = coalesce(var.grafana_service_port, local.grafana_https ? 443 : 80)
+
+  grafana_lb_listener_port = coalesce(try(local.grafana_lb.listener_port, null), local.grafana_https ? 443 : 80)
 
   # Pre-allocated addresses become `subnet_mapping` blocks, which are mutually
   # exclusive with `subnets` — hence the null when none were supplied.
@@ -596,8 +607,33 @@ locals {
     }
   ]
 
-  # Plain http: an NLB terminates nothing. See `grafana_load_balancer`.
-  grafana_scheme = "http"
+  # An NLB terminates nothing, so the scheme is whatever Grafana itself serves.
+  grafana_scheme = local.grafana_https ? "https" : "http"
+
+  # The module verifies Grafana's certificate on its own scrape against the
+  # scraper's system roots, which a publicly trusted issuer chains to. With
+  # `issuer_ca = "secret"` the scrape trusts the `ca.crt` cert-manager writes into
+  # the certificate's Secret instead. The chart pins `fullnameOverride`, so the
+  # Secret's name is static.
+  grafana_https_values = local.grafana_https && var.issuer_ca == "secret" ? [yamlencode({
+    grafana = {
+      serviceMonitor = {
+        tlsConfig = {
+          ca = { secret = { name = "mzmon-grafana-external-tls", key = "ca.crt" } }
+        }
+      }
+    }
+  })] : []
+
+  # The monitoring module signs the internal certificates with `issuer_ref` when
+  # `internal_issuer_ref` is null. Here `issuer_ref` is Grafana's browser-facing
+  # issuer only, so the chart bootstraps its own root for the internal
+  # certificates instead, as it does with no issuer at all. A public ACME issuer
+  # can't sign their in-cluster names. The null `issuerRef` removes the key the
+  # module composed, because the chart refuses an issuer and a root together.
+  internal_self_signed_values = var.certificates_enabled && var.issuer_ref != null && var.internal_issuer_ref == null ? [yamlencode({
+    certificates = { internal = { selfSigned = { enabled = true }, issuerRef = null } }
+  })] : []
 
   grafana_load_balancer_address = one(aws_lb.grafana[*].dns_name)
 
@@ -706,8 +742,10 @@ resource "aws_lb_target_group" "grafana" {
   preserve_client_ip = true
 
   health_check {
-    enabled  = true
-    protocol = "HTTP"
+    enabled = true
+    # Grafana answers TLS on its container port under HTTPS. The NLB does not
+    # verify the certificate, only that /api/health answers 200.
+    protocol = local.grafana_https ? "HTTPS" : "HTTP"
     # Follows whatever port a target is registered on, rather than hardcoding one
     # that only happens to match today.
     port                = "traffic-port"
@@ -780,7 +818,7 @@ resource "kubectl_manifest" "grafana_target_group_binding" {
       # Service's endpoints from it and registers pods on their target port.
       serviceRef = {
         name = "grafana"
-        port = var.grafana_service_port
+        port = local.grafana_service_port
       }
       targetGroupARN = aws_lb_target_group.grafana[0].arn
       targetType     = "ip"
@@ -923,7 +961,7 @@ module "monitoring" {
   # `metadata_databases` land.
   #
   # v1.7.0 is where `secret_filter` lands.
-  source = "github.com/MaterializeInc/materialize-monitoring//terraform/modules/materialize-monitoring?ref=materialize-monitoring/v1.7.1"
+  source = "github.com/MaterializeInc/materialize-monitoring//terraform/modules/materialize-monitoring?ref=materialize-monitoring/v1.10.0"
 
   namespace        = var.namespace
   create_namespace = var.create_namespace
@@ -973,17 +1011,10 @@ module "monitoring" {
   grafana_database_enabled                = local.create_grafana_database || var.grafana_database_host != null
   grafana_database_manage_password_secret = local.create_grafana_database || var.grafana_database_password != null
 
-  # TODO: pass the Grafana Service port through, once the monitoring module takes
-  # one. Today the chart decides it (`grafana.service.port`, 80) and nothing here
-  # states it, so the two agree only by coincidence.
-  #
-  # This becomes load-bearing with in-cluster TLS: Grafana stops serving plain
-  # HTTP, the Service port moves with it, and anything still assuming 80 points at
-  # a port that is no longer there. Deliberately not wired yet — it needs a
-  # variable on the monitoring module and a matching chart value, which is a
-  # change of its own.
-  #
-  # grafana_service_port = 80
+  # The monitoring module has no input for the Grafana Service port. The chart
+  # decides it, 80 or 443 when the module serves Grafana over HTTPS, and
+  # `local.grafana_service_port` follows the same rule, so the
+  # TargetGroupBinding names the port the Service has.
 
   grafana_database_host     = local.grafana_database_host
   grafana_database_port     = local.grafana_database_port
@@ -1045,6 +1076,8 @@ module "monitoring" {
   # anything computed here.
   additional_values = concat(
     local.grafana_load_balancer_values,
+    local.grafana_https_values,
+    local.internal_self_signed_values,
     local.provider_metrics_values,
     var.additional_values,
   )

@@ -361,7 +361,7 @@ module "monitoring" {
   # `metadata_databases` land.
   #
   # v1.7.0 is where `secret_filter` lands.
-  source = "github.com/MaterializeInc/materialize-monitoring//terraform/modules/materialize-monitoring?ref=materialize-monitoring/v1.7.1"
+  source = "github.com/MaterializeInc/materialize-monitoring//terraform/modules/materialize-monitoring?ref=materialize-monitoring/v1.10.0"
 
   namespace        = var.namespace
   create_namespace = var.create_namespace
@@ -482,7 +482,7 @@ module "monitoring" {
 
   # Load-balancer and provider values ahead of the caller's, so
   # `additional_values` still overrides anything computed here.
-  additional_values = concat(local.grafana_load_balancer_values, local.provider_metrics_values, var.additional_values)
+  additional_values = concat(local.grafana_load_balancer_values, local.grafana_https_values, local.internal_self_signed_values, local.provider_metrics_values, var.additional_values)
 
   depends_on = [
     azurerm_role_assignment.telemetry,
@@ -562,15 +562,38 @@ locals {
 # ==============================================================================
 
 locals {
-  # Plain http, always. A Azure load balancer from a Service is L4 — it passes
-  # bytes through and terminates nothing — so claiming https here would only
-  # advertise a scheme that does not answer. Setting `security.cookie_secure`
-  # alongside it is worse than useless: the cookie is marked Secure, the browser
-  # stops sending it over the connection that does work, and nobody can log in.
-  #
-  # Put a terminator in front, or give Grafana its own certificate (DEP-195),
-  # and set `root_url` plus `security.cookie_secure` through `additional_values`.
-  grafana_scheme = "http"
+  # An Azure load balancer from a Service is L4 — it passes bytes through and
+  # terminates nothing — so the scheme is whatever Grafana itself serves. The
+  # monitoring module serves HTTPS, with the browser-facing certificate it
+  # issues, on Service port 443, under exactly this condition, and sets
+  # `security.cookie_secure` with it.
+  grafana_https  = var.certificates_enabled && var.issuer_ref != null && length(var.grafana_external_dns_names) > 0
+  grafana_scheme = local.grafana_https ? "https" : "http"
+
+  # The module verifies Grafana's certificate on its own scrape against the
+  # scraper's system roots, which a publicly trusted issuer chains to. With
+  # `issuer_ca = "secret"` the scrape trusts the `ca.crt` cert-manager writes into
+  # the certificate's Secret instead. The chart pins `fullnameOverride`, so the
+  # Secret's name is static.
+  grafana_https_values = local.grafana_https && var.issuer_ca == "secret" ? [yamlencode({
+    grafana = {
+      serviceMonitor = {
+        tlsConfig = {
+          ca = { secret = { name = "mzmon-grafana-external-tls", key = "ca.crt" } }
+        }
+      }
+    }
+  })] : []
+
+  # The monitoring module signs the internal certificates with `issuer_ref` when
+  # `internal_issuer_ref` is null. Here `issuer_ref` is Grafana's browser-facing
+  # issuer only, so the chart bootstraps its own root for the internal
+  # certificates instead, as it does with no issuer at all. A public ACME issuer
+  # can't sign their in-cluster names. The null `issuerRef` removes the key the
+  # module composed, because the chart refuses an issuer and a root together.
+  internal_self_signed_values = var.certificates_enabled && var.issuer_ref != null && var.internal_issuer_ref == null ? [yamlencode({
+    certificates = { internal = { selfSigned = { enabled = true }, issuerRef = null } }
+  })] : []
 
   grafana_service_annotations = var.grafana_load_balancer == null ? {} : merge(
     var.grafana_load_balancer.internal ? {

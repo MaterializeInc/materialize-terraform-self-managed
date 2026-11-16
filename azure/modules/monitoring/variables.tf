@@ -529,7 +529,8 @@ variable "issuer_ref" {
     operator configures certificates once: `issuer_ref` for names a browser
     resolves, `internal_issuer_ref` for in-cluster ones. A public ACME issuer
     can sign the first and cannot sign the second — nothing will issue a
-    certificate for `*.cluster.local`.
+    certificate for `*.cluster.local`. Unlike that module's `issuer_ref`, this one never signs
+    the internal certificates; see `internal_issuer_ref`.
   EOT
   type = object({
     name = string
@@ -544,13 +545,33 @@ variable "issuer_ref" {
   default = null
 }
 
+variable "issuer_ca" {
+  description = <<-EOT
+    How the monitoring stack's scrape of Grafana verifies the certificate `issuer_ref` signs,
+    when Grafana serves HTTPS.
+
+    `"public"`, the default, verifies against the scraper's system roots, for a publicly trusted
+    issuer such as Let's Encrypt, whose certificate Secrets carry no `ca.crt`. `"secret"` verifies
+    against the `ca.crt` cert-manager writes into the certificate's Secret, for an issuer the
+    system roots do not cover: a self-signed or private CA issuer, or Vault.
+  EOT
+  type        = string
+  default     = "public"
+  nullable    = false
+
+  validation {
+    condition     = contains(["public", "secret"], var.issuer_ca)
+    error_message = "issuer_ca must be \"public\" or \"secret\"."
+  }
+}
+
 variable "internal_issuer_ref" {
   description = <<-EOT
     cert-manager (Cluster)Issuer for the **internal** certificates the stack's
-    components present to each other. Falls back to `issuer_ref`, then to the
-    chart bootstrapping a self-signed root scoped to this release.
+    components present to each other. When null, the chart bootstraps a
+    self-signed root scoped to this release, whether or not `issuer_ref` is set.
 
-    Leaving it null is the recommended shape rather than a fallback. None of the
+    Leaving it null is the recommended shape. None of the
     receiving components implements per-client authorization, so "signed by the
     CA we trust" is the entire authorization decision — pointing this at the
     cluster's general-purpose issuer reduces that to "has any certificate".
@@ -580,6 +601,11 @@ variable "grafana_external_dns_names" {
     balancer terminates with a cloud-managed certificate — ACM, Google
     Certificate Manager, Azure Key Vault — the wiring is an annotation carrying
     an ARN or resource ID on `grafana_load_balancer`, and this list stays empty.
+
+    With `issuer_ref` and `certificates_enabled`, Grafana serves HTTPS with
+    this certificate on Service port 443, and `root_url` defaults to the first
+    name. `issuer_ca` says how the monitoring stack's own scrape of Grafana
+    trusts the issuer.
   EOT
   type        = list(string)
   default     = []
@@ -757,6 +783,10 @@ variable "grafana_load_balancer" {
     balancer pass a free address from the AKS subnet; for a public one reserve an
     `azurerm_public_ip` in the node resource group.
 
+    With `issuer_ref` and `grafana_external_dns_names`, Grafana serves HTTPS itself on port 443,
+    with the certificate issued for those names, and `host` has to be one of them. Without them it
+    serves plain HTTP on port 80.
+
     Null leaves Grafana on a ClusterIP Service, reachable only with `kubectl port-forward`.
   EOT
 
@@ -770,6 +800,18 @@ variable "grafana_load_balancer" {
   })
 
   default = null
+
+  # Conditionals rather than ||: Terraform before 1.12 evaluates both sides of
+  # ||, so a null load balancer or host would still be dereferenced.
+  validation {
+    condition = (
+      var.grafana_load_balancer == null ? true :
+      var.grafana_load_balancer.host == null ? true :
+      !(var.certificates_enabled && var.issuer_ref != null && length(var.grafana_external_dns_names) > 0) ? true :
+      contains([for name in var.grafana_external_dns_names : lower(name)], lower(var.grafana_load_balancer.host))
+    )
+    error_message = "grafana_load_balancer.host must be one of grafana_external_dns_names: Grafana serves the certificate issued for those names, so a browser reaching it at any other host rejects it."
+  }
 
   validation {
     condition = var.grafana_load_balancer == null ? true : (

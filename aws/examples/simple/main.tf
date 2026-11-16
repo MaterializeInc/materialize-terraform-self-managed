@@ -618,13 +618,7 @@ module "materialize_instance" {
   # With var.dns.letsencrypt, Let's Encrypt signs the browser-facing console and
   # balancerd certificates, and the self-signed issuer keeps the internal ones,
   # whose cluster.local names a public CA cannot sign.
-  issuer_ref = local.letsencrypt ? {
-    name = module.letsencrypt_cluster_issuer[0].issuer_name
-    kind = "ClusterIssuer"
-    } : {
-    name = module.self_signed_cluster_issuer.issuer_name
-    kind = "ClusterIssuer"
-  }
+  issuer_ref = local.cert_issuer
   internal_issuer_ref = local.letsencrypt ? {
     name = module.self_signed_cluster_issuer.issuer_name
     kind = "ClusterIssuer"
@@ -824,7 +818,7 @@ module "monitoring" {
 
   tags = var.tags
 
-  # Certificates are on by default and no issuer is named here, so the chart
+  # Certificates are on by default and no internal issuer is named here, so the chart
   # bootstraps a self-signed root scoped to the monitoring release. That is
   # deliberate, and the reason this differs from `module.materialize_instance`
   # above: none of the components behind Grafana implements per-client
@@ -833,12 +827,14 @@ module "monitoring" {
   # that to "has any certificate". Set `internal_issuer_ref` to share one
   # knowingly.
   #
-  # `issuer_ref` stays unset for a second reason: it is the *browser-facing*
-  # issuer and only issues anything alongside `grafana_external_dns_names`,
-  # which is empty because `grafana_host` is unset by default. The load balancer
-  # answers on its own DNS name either way; set `grafana_host` and you have a
-  # name worth certifying, but browser-facing TLS also needs Grafana itself to
-  # serve HTTPS, which these examples do not yet do.
+  # `issuer_ref` is the *browser-facing* issuer, the console's, and issues only
+  # alongside `grafana_external_dns_names`. Whenever Grafana has a hostname, that
+  # issuer signs a certificate for it and Grafana serves HTTPS on port 443.
+  # `issuer_ca` says how the monitoring stack's own scrape of Grafana trusts the
+  # certificate.
+  issuer_ref                 = local.grafana_host != null ? local.cert_issuer : null
+  issuer_ca                  = local.cert_issuer_ca
+  grafana_external_dns_names = local.grafana_host != null ? [local.grafana_host] : []
 
   depends_on = [
     # cert-manager, because the monitoring stack issues Certificates by default
@@ -954,8 +950,22 @@ locals {
     grafana   = "grafana"
   }, try(var.dns.subdomains, {}))
 
-  letsencrypt  = try(var.dns.letsencrypt, null) != null
-  grafana_host = var.dns != null ? module.dns[0].fqdns.grafana : var.grafana_host
+  letsencrypt = try(var.dns.letsencrypt, null) != null
+
+  # cert-manager ClusterIssuer for the browser-facing certificates, the
+  # console's, balancerd's and Grafana's: Let's Encrypt with var.dns.letsencrypt,
+  # and the built-in self-signed issuer otherwise. That issuer signs from a CA,
+  # which cert-manager writes into each certificate Secret's ca.crt, so the
+  # monitoring stack's scrape of Grafana trusts it from there.
+  cert_issuer = local.letsencrypt ? {
+    name = module.letsencrypt_cluster_issuer[0].issuer_name
+    kind = "ClusterIssuer"
+    } : {
+    name = module.self_signed_cluster_issuer.issuer_name
+    kind = "ClusterIssuer"
+  }
+  cert_issuer_ca = local.letsencrypt ? "public" : "secret"
+  grafana_host   = var.dns != null ? module.dns[0].fqdns.grafana : var.grafana_host
 
   materialize_node_taints = [
     {

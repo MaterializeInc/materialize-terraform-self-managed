@@ -96,7 +96,7 @@ variable "materialize_version" {
 }
 
 variable "grafana_host" {
-  description = "Hostname to reach Grafana on. Optional: the load balancer answers on its own DNS name regardless, but Grafana builds share links, alert notification links, and OAuth redirect URIs from `root_url`, which is only correct once this is set. DNS for the name is yours to create. With `dns` set, leave this unset; Grafana's hostname comes from `dns`."
+  description = "Hostname to reach Grafana on. Optional: the load balancer answers on its own DNS name regardless, but Grafana builds share links, alert notification links, and OAuth redirect URIs from `root_url`, which is only correct once this is set. DNS for the name is yours to create. With `dns` set, leave this unset; Grafana's hostname comes from `dns`. With a hostname, Grafana serves HTTPS on port 443, with a certificate from the console's issuer."
   type        = string
   default     = null
 
@@ -140,10 +140,11 @@ variable "dns" {
     `mz.example.com` in the zone `example.com`, or move the console off `"@"` with `subdomains`.
 
     With `letsencrypt` set, cert-manager answers ACME DNS-01 challenges in the zone, and a Let's
-    Encrypt issuer signs the console and balancerd certificates while the internal ones stay
-    self-signed. The issuer starts on Let's Encrypt staging, as
+    Encrypt issuer signs the console, balancerd and Grafana certificates while the internal
+    ones stay self-signed. The issuer starts on Let's Encrypt staging, as
     `<name_prefix>-letsencrypt-staging`; once staging has issued every certificate, set
-    `acme_server_prod = true` and apply again.
+    `acme_server_prod = true` and apply again. While the issuer is on staging, browsers do not
+    trust its certificates, and the monitoring stack's scrape of Grafana fails.
   EOT
   type = object({
     zone_id     = string

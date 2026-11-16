@@ -11,11 +11,14 @@ output "grafana_url" {
 
     A load balancer's address is assigned asynchronously, so immediately after the first apply this
     can still report the in-cluster name; the next plan picks it up. Nothing here publishes DNS for a
-    hostname you supply. Always `http`: an L4 load balancer terminates no TLS.
+    hostname you supply. `https` when Grafana serves HTTPS, where the first of
+    `grafana_external_dns_names` stands in for a missing hostname, and `http` otherwise.
   EOT
   value = (
     try(var.grafana_load_balancer.host, null) != null
     ? "${local.grafana_scheme}://${var.grafana_load_balancer.host}"
+    : var.grafana_load_balancer != null && local.grafana_https
+    ? "https://${var.grafana_external_dns_names[0]}"
     : local.grafana_load_balancer_address != null
     ? "${local.grafana_scheme}://${local.grafana_load_balancer_address}"
     : module.monitoring.grafana_url

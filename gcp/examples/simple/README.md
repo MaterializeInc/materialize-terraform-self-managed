@@ -163,15 +163,13 @@ dns = {
 
 The console answers on `mz.example.com` and balancerd on `balancerd.mz.example.com`, and
 `dns.subdomains` renames either of them or Grafana's `grafana.mz.example.com`. The example
-creates the console and balancerd records and never creates or changes the zone itself. It does
-not create Grafana's record, because the address of Grafana's load balancer may not be known on
-the first apply; point that record at the `grafana_load_balancer_address` output. The
-`dns_fqdns` output lists every hostname.
+creates the console and balancerd records, and Grafana's when the observability stack is on, and
+never creates or changes the zone itself. The `dns_fqdns` output lists every hostname.
 
 With `letsencrypt` set, cert-manager answers DNS-01 challenges in the zone as a Google service
-account that may change records in that zone only. The console and balancerd certificates come
-from Let's Encrypt, and the internal ones stay self-signed. The issuer starts on Let's Encrypt
-staging, whose certificates browsers do not trust. Once `kubectl get certificates -A` shows
+account that may change records in that zone only. The console, balancerd and Grafana certificates come
+from Let's Encrypt, and the internal ones stay self-signed. Grafana serves its certificate itself, over HTTPS on port 443. The issuer starts on Let's Encrypt
+staging, whose certificates neither browsers nor the monitoring stack's scrape of Grafana trust. Once `kubectl get certificates -A` shows
 every certificate ready, set `acme_server_prod = true` in `letsencrypt` and apply again. The
 issuer's name changes with it, so cert-manager reissues the certificates from production.
 
@@ -242,7 +240,7 @@ Grafana is deployed in the `monitoring` namespace with pre-configured Materializ
 
 Its own state — users, service accounts and tokens, annotations, and dashboard versions created through the UI — is kept in a dedicated `db-f1-micro` Cloud SQL instance, provisioned whenever `enable_observability` is on. It is part of the `monitoring` module block; set `grafana_database = null` there to skip it and accept losing that state on every pod restart.
 
-Grafana also gets a GCP load balancer whenever `enable_observability` is on — internal by default, following the same `internal_load_balancer` and `ingress_cidr_blocks` variables as the Materialize load balancers. Read its address from the Service, or set `grafana_host` so Grafana's own links are correct too. The port-forward below works regardless.
+Grafana also gets a GCP load balancer whenever `enable_observability` is on — internal by default, following the same `internal_load_balancer` and `ingress_cidr_blocks` variables as the Materialize load balancers. Read its address from the Service, or set `grafana_host` so Grafana's own links are correct too. The port-forward below works regardless. With a hostname, from `grafana_host` or `dns`, Grafana serves HTTPS on port 443 with a certificate from the console's issuer.
 
 #### Port Forwarding
 
@@ -251,6 +249,8 @@ kubectl port-forward svc/grafana 3000:80 -n monitoring
 ```
 
 Then open [http://localhost:3000](http://localhost:3000) in your browser.
+
+With a hostname set, Grafana serves HTTPS: forward `3000:443` instead and open https://localhost:3000, accepting the certificate warning, because the certificate names Grafana's hostname rather than localhost.
 
 #### Login Credentials
 

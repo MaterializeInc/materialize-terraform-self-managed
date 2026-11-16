@@ -100,9 +100,9 @@ That gives the console `mz.example.com`, and balancerd, Hydra, Kratos, the selfs
 Polis and Grafana `balancerd.`, `hydra.`, `kratos.`, `auth.`, `polis.` and `grafana.` under
 it; `dns.subdomains` renames any of them, keyed `console`, `balancerd`, `hydra`, `kratos`,
 `auth`, `polis` and `grafana`. Kratos's session cookie is scoped to the stem domain unless
-`ory_kratos_cookie_domain` is set. The example never creates or changes the zone itself.
-It does not create Grafana's record, because the address of Grafana's load balancer may not
-be known on the first apply; point that record at the `grafana_load_balancer_address` output. The `dns_fqdns` output lists every hostname. `letsencrypt` is
+`ory_kratos_cookie_domain` is set. The example creates Grafana's record when the observability
+stack is on, and never creates or changes the zone itself. The `dns_fqdns` output lists every
+hostname. `letsencrypt` is
 described under [TLS Certificates](#tls-certificates).
 
 **Required Variables:**
@@ -122,7 +122,7 @@ described under [TLS Certificates](#tls-certificates).
 - `internal_load_balancer`: Whether to use an internal load balancer (defaults to `true`). Set to `false` for prod-like demos validated against real DNS.
 - `enable_observability`: Enable Prometheus and Grafana monitoring stack (defaults to `true`)
 - `enable_ory_service_monitors`: Scrape Kratos's and Hydra's metrics into the monitoring stack (defaults to `true`). Ory serves them only on its unauthenticated admin listener, so the monitoring gateway scrapes a proxy in the Ory namespace that serves only the metrics path, and is never admitted to the admin API itself.
-- `grafana_host`: Hostname to reach Grafana on (defaults to `null`). The Azure load balancer is created either way and answers on an IP; setting this is what makes Grafana's `root_url` — and so its share links, alert notification links, and OAuth redirect URIs — correct. DNS for the name is yours to create. With `dns` set, leave it unset; Grafana's hostname comes from `dns`. Exposure follows `internal_load_balancer` and `ingress_cidr_blocks`, the same as the Materialize load balancers.
+- `grafana_host`: Hostname to reach Grafana on (defaults to `null`). The Azure load balancer is created either way and answers on an IP; setting this is what makes Grafana's `root_url` — and so its share links, alert notification links, and OAuth redirect URIs — correct. DNS for the name is yours to create. With `dns` set, leave it unset; Grafana's hostname comes from `dns`. With a hostname either way, Grafana serves HTTPS on port 443 with a certificate from the console's issuer. Exposure follows `internal_load_balancer` and `ingress_cidr_blocks`, the same as the Materialize load balancers.
 - `dns`: An existing Azure DNS zone to take every browser-facing hostname from, in place of the hostname variables (defaults to `null`). See [Hostnames from an Azure DNS zone](#hostnames-from-an-azure-dns-zone).
 - `upstream_identity_providers`, `saml_providers`: The IdPs users sign in with. Every entry needs `allowed_email_domains`, the email domains that IdP may sign in (exact lowercase domains, subdomains listed separately); a sign-in from any other domain fails. `allowed_groups` and `group_prefix` limit which of its groups reach Materialize. OIDC entries refuse emails the IdP does not mark verified (`require_email_verified`, default `true`); Microsoft Entra ID does not send `email_verified` by default, so set it to `false` there and rely on `allowed_email_domains`.
 - TLS certificate options (`cert_issuer_ref`, …): see [TLS Certificates](#tls-certificates) below.
@@ -189,11 +189,11 @@ dns = {
 ```
 
 cert-manager then answers ACME DNS-01 challenges in the zone as a managed identity, through Azure Workload Identity, with DNS Zone Contributor on that zone only,
-and Let's Encrypt signs the browser-facing certs. It does not need the load balancers to be
+and Let's Encrypt signs the browser-facing certs, Grafana's among them, which Grafana serves itself over HTTPS on port 443. It does not need the load balancers to be
 reachable from the internet, so it works with `internal_load_balancer = true`. `letsencrypt`
 and `cert_issuer_ref` are alternatives; set one.
 
-The issuer starts on Let's Encrypt staging, whose certificates browsers do not trust. Once
+The issuer starts on Let's Encrypt staging, whose certificates neither browsers nor the monitoring stack's scrape of Grafana trust. Once
 `kubectl get certificates -A` shows every certificate ready, set `acme_server_prod = true` in
 `letsencrypt` and apply again. The issuer's name changes with it, so cert-manager reissues the
 certificates from production.
@@ -206,10 +206,13 @@ Set:
 cert_issuer_ref = {
   name = "your-existing-cluster-issuer"
   kind = "ClusterIssuer"  # or "Issuer"
+  ca   = "secret"         # or "public", the default
 }
 ```
 
 The browser-facing certs use this issuer; the internal mTLS cert continues to use the self-signed cluster issuer. Customers typically bring a corporate CA, an existing trust-manager bundle, or an ACME issuer (Let's Encrypt) backed by their preferred DNS-01 / HTTP-01 solver.
+
+`ca` tells the monitoring stack's scrape of Grafana how to verify Grafana's certificate. Use `"public"`, the default, for a publicly trusted issuer such as Let's Encrypt, whose certificate Secrets carry no `ca.crt`. Use `"secret"` for an issuer that writes its CA into each certificate Secret's `ca.crt`, such as a corporate CA issuer, so the scrape verifies against that CA.
 
 #### Example: Let's Encrypt with Cloudflare DNS-01
 
