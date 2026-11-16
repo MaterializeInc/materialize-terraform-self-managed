@@ -59,6 +59,7 @@ gcloud services enable iam.googleapis.com                     # Service accounts
 gcloud services enable iamcredentials.googleapis.com          # Short-lived credentials for Workload Identity
 gcloud services enable pubsub.googleapis.com                  # GKE upgrade notifications (enabled by default)
 gcloud services enable servicenetworking.googleapis.com       # Private services access for Cloud SQL
+gcloud services enable secretmanager.googleapis.com           # Tunnel token for gcp/modules/cloudflared-connector
 gcloud services enable serviceusage.googleapis.com            # Required in order to enable any of the above
 gcloud services enable sqladmin.googleapis.com                # Cloud SQL for PostgreSQL
 gcloud services enable storage.googleapis.com                 # Cloud Storage buckets and HMAC keys

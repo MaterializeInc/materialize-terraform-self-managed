@@ -1,0 +1,17 @@
+[Unit]
+Description=cloudflared tunnel connector
+Wants=network-online.target
+After=network-online.target docker.service
+Requires=docker.service
+
+[Service]
+Environment=HOME=/home/cloudservice
+ExecStartPre=/bin/sh /var/lib/cloudflared/fetch-tunnel-token.sh
+ExecStartPre=-/usr/bin/docker rm -f cloudflared
+ExecStart=/usr/bin/docker run --rm --name cloudflared --network host --env-file /run/cloudflared/env ${image} tunnel --no-autoupdate --metrics 127.0.0.1:2000 run
+ExecStop=/usr/bin/docker stop cloudflared
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

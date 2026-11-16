@@ -30,6 +30,7 @@ apis=(
   iamcredentials.googleapis.com       # Short-lived credentials for Workload Identity
   pubsub.googleapis.com               # GKE upgrade notifications (on by default)
   servicenetworking.googleapis.com    # Private services access for Cloud SQL
+  secretmanager.googleapis.com        # Tunnel token for gcp/modules/cloudflared-connector
   serviceusage.googleapis.com         # Required in order to enable any of the above
   sqladmin.googleapis.com             # Cloud SQL for PostgreSQL
   storage.googleapis.com              # Cloud Storage buckets and HMAC keys
