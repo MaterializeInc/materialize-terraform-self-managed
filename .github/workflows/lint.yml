@@ -85,7 +85,7 @@ jobs:
         uses: jaxxstorm/action-install-gh-release@b82b2052fdf822192f2119b7e289a6f63e668bc8 # v4.0.0
         with:
           repo: terraform-docs/terraform-docs
-          tag: v0.24.0
+          tag: v0.25.1
 
       - name: Generate docs
         run: .github/scripts/generate-docs.sh
