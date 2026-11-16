@@ -31,6 +31,9 @@ resource "kubernetes_service" "console_load_balancer" {
       metadata[0].name,
       spec[0].selector["materialize.cloud/name"],
       metadata[0].annotations["cloud.google.com/neg"],
+      # GKE's NEG controller writes this one too, once it has created the
+      # network endpoint groups.
+      metadata[0].annotations["cloud.google.com/neg-status"],
       metadata[0].annotations["networking.gke.io/target-pool"]
     ]
   }
@@ -76,6 +79,9 @@ resource "kubernetes_service" "balancerd_load_balancer" {
       metadata[0].name,
       spec[0].selector["materialize.cloud/name"],
       metadata[0].annotations["cloud.google.com/neg"],
+      # GKE's NEG controller writes this one too, once it has created the
+      # network endpoint groups.
+      metadata[0].annotations["cloud.google.com/neg-status"],
       metadata[0].annotations["networking.gke.io/target-pool"]
     ]
   }
