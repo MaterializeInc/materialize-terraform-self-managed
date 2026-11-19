@@ -86,7 +86,7 @@
         "docker"
       ],
       "matchPackageNames": [
-        "nginxinc/nginx-unprivileged"
+        "nginx/nginx-unprivileged"
       ],
       "minimumReleaseAge": null,
       "groupName": "nginx-unprivileged"

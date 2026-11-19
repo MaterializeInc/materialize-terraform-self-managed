@@ -607,7 +607,7 @@ variable "metrics_scraper_pod_labels" {
 variable "metrics_proxy_image" {
   description = "Container image for the metrics proxy deployed when `enable_service_monitors` is set. Must be an nginx-unprivileged build: the pod runs as UID 101 with a read-only root filesystem. Pinned by digest by default."
   type        = string
-  # renovate: datasource=docker depName=nginxinc/nginx-unprivileged
-  default  = "docker.io/nginxinc/nginx-unprivileged:1.30.6-alpine@sha256:f5116ed4606f3eb015dd4a8e28cb9b351476dc0ad4bc6e9f93b19cec130cdf03"
+  # renovate: datasource=docker depName=nginx/nginx-unprivileged
+  default  = "docker.io/nginx/nginx-unprivileged:1.30.7-alpine@sha256:0c53a1f2890c3526bfd201440f0fd3970e5b78f80630f58284aad0d34b5ec7bd"
   nullable = false
 }
