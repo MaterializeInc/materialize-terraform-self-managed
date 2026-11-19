@@ -435,6 +435,11 @@ module "cert_manager" {
 
   node_selector = local.generic_node_labels
 
+  # The identity cert-manager answers DNS-01 challenges with, for the Let's
+  # Encrypt issuer when var.dns.letsencrypt is set.
+  service_account_annotations = local.letsencrypt ? module.dns[0].cert_manager_service_account_annotations : {}
+  pod_labels                  = local.letsencrypt ? module.dns[0].cert_manager_pod_labels : {}
+
   depends_on = [
     module.networking,
     module.eks,
@@ -448,6 +453,22 @@ module "self_signed_cluster_issuer" {
   source = "../../../kubernetes/modules/self-signed-cluster-issuer"
 
   name_prefix = var.name_prefix
+
+  depends_on = [
+    module.cert_manager,
+  ]
+}
+
+# Publicly trusted certificates for the console and balancerd hostnames, when
+# var.dns.letsencrypt is set. It answers DNS-01 challenges in var.dns's zone.
+module "letsencrypt_cluster_issuer" {
+  count  = local.letsencrypt ? 1 : 0
+  source = "../../../kubernetes/modules/cert-manager/letsencrypt-cluster-issuer"
+
+  name_prefix      = var.name_prefix
+  acme_email       = var.dns.letsencrypt.acme_email
+  acme_server_prod = var.dns.letsencrypt.acme_server_prod
+  solvers          = [module.dns[0].acme_dns01_solver]
 
   depends_on = [
     module.cert_manager,
@@ -594,10 +615,17 @@ module "materialize_instance" {
 
   license_key = var.license_key
 
-  issuer_ref = {
+  # With var.dns.letsencrypt, Let's Encrypt signs the browser-facing console and
+  # balancerd certificates, and the self-signed issuer keeps the internal ones,
+  # whose cluster.local names a public CA cannot sign.
+  issuer_ref = local.cert_issuer
+  internal_issuer_ref = local.letsencrypt ? {
     name = module.self_signed_cluster_issuer.issuer_name
     kind = "ClusterIssuer"
-  }
+  } : null
+
+  console_extra_dns_names   = var.dns != null ? [module.dns[0].fqdns.console] : []
+  balancerd_extra_dns_names = var.dns != null ? [module.dns[0].fqdns.balancerd] : []
 
   # System parameters for the Materialize instance
   # See: https://materialize.com/docs/self-managed-deployments/configuration-system-parameters/
@@ -653,6 +681,15 @@ module "monitoring" {
 
   node_selector = local.generic_node_labels
   storage_class = module.ebs_csi_driver.storage_class_name
+
+  # The gateway's secret filter, which replaces each credential it finds in a
+  # log line with `<redacted:RULE_ID>` before the line is stored. Off unless set
+  # here, because it scans every log line the gateway handles. `shadow` costs
+  # the same scan and leaves every line as it was, adding a redacted copy of
+  # each line `on` would have changed, labeled `secretfilter="shadow"`. Run it
+  # first to see what the filter catches in your logs.
+  #
+  # secret_filter = "shadow"
 
   # Datadog and generic OTLP (Honeycomb, Grafana Cloud, your own collector) fan
   # out the same way, and need no cloud resources — so they are set here rather
@@ -776,12 +813,12 @@ module "monitoring" {
     ingress_cidr_blocks    = var.ingress_cidr_blocks
 
     internal = var.internal_load_balancer
-    host     = var.grafana_host
+    host     = local.grafana_host
   }
 
   tags = var.tags
 
-  # Certificates are on by default and no issuer is named here, so the chart
+  # Certificates are on by default and no internal issuer is named here, so the chart
   # bootstraps a self-signed root scoped to the monitoring release. That is
   # deliberate, and the reason this differs from `module.materialize_instance`
   # above: none of the components behind Grafana implements per-client
@@ -790,12 +827,14 @@ module "monitoring" {
   # that to "has any certificate". Set `internal_issuer_ref` to share one
   # knowingly.
   #
-  # `issuer_ref` stays unset for a second reason: it is the *browser-facing*
-  # issuer and only issues anything alongside `grafana_external_dns_names`,
-  # which is empty because `grafana_host` is unset by default. The load balancer
-  # answers on its own DNS name either way; set `grafana_host` and you have a
-  # name worth certifying, but browser-facing TLS also needs Grafana itself to
-  # serve HTTPS, which these examples do not yet do.
+  # `issuer_ref` is the *browser-facing* issuer, the console's, and issues only
+  # alongside `grafana_external_dns_names`. Whenever Grafana has a hostname, that
+  # issuer signs a certificate for it and Grafana serves HTTPS on port 443.
+  # `issuer_ca` says how the monitoring stack's own scrape of Grafana trusts the
+  # certificate.
+  issuer_ref                 = local.grafana_host != null ? local.cert_issuer : null
+  issuer_ca                  = local.cert_issuer_ca
+  grafana_external_dns_names = local.grafana_host != null ? [local.grafana_host] : []
 
   depends_on = [
     # cert-manager, because the monitoring stack issues Certificates by default
@@ -847,6 +886,41 @@ module "materialize_nlb" {
   ]
 }
 
+# Records for the console, balancerd and Grafana hostnames in an existing Route 53
+# zone, and cert-manager's DNS-01 identity when var.dns.letsencrypt is set. Only
+# names go into subdomains; the load balancer addresses go into records, so the
+# names can feed the instance these load balancers front without a cycle. The
+# load balancers answer on DNS names, so every record is a CNAME.
+module "dns" {
+  count  = var.dns != null ? 1 : 0
+  source = "../../modules/dns"
+
+  name_prefix = var.name_prefix
+  zone_id     = var.dns.zone_id
+  stem_domain = var.dns.stem_domain
+
+  subdomains = {
+    console   = { subdomain = local.dns_subdomains.console, type = "CNAME" }
+    balancerd = { subdomain = local.dns_subdomains.balancerd, type = "CNAME" }
+    # Grafana's NLB exists only with the observability stack.
+    grafana = { subdomain = local.dns_subdomains.grafana, type = "CNAME", create = var.enable_observability }
+  }
+  records = merge(
+    {
+      console   = [module.materialize_nlb.nlb_dns_name]
+      balancerd = [module.materialize_nlb.nlb_dns_name]
+    },
+    var.enable_observability ? { grafana = [module.monitoring[0].grafana_load_balancer_address] } : {},
+  )
+
+  cert_manager_dns01 = local.letsencrypt ? {
+    oidc_provider_arn       = module.eks.oidc_provider_arn
+    cluster_oidc_issuer_url = module.eks.cluster_oidc_issuer_url
+  } : null
+
+  tags = var.tags
+}
+
 locals {
   materialize_instance_namespace = "materialize-environment"
   operator_namespace             = "materialize"
@@ -867,6 +941,31 @@ locals {
     "materialize.cloud/swap" = "true"
     "workload"               = "materialize-instance"
   }
+
+  # Hostnames under var.dns's stem domain, unless var.dns.subdomains names
+  # others. "@" is the stem itself.
+  dns_subdomains = merge({
+    console   = "@"
+    balancerd = "balancerd"
+    grafana   = "grafana"
+  }, try(var.dns.subdomains, {}))
+
+  letsencrypt = try(var.dns.letsencrypt, null) != null
+
+  # cert-manager ClusterIssuer for the browser-facing certificates, the
+  # console's, balancerd's and Grafana's: Let's Encrypt with var.dns.letsencrypt,
+  # and the built-in self-signed issuer otherwise. That issuer signs from a CA,
+  # which cert-manager writes into each certificate Secret's ca.crt, so the
+  # monitoring stack's scrape of Grafana trusts it from there.
+  cert_issuer = local.letsencrypt ? {
+    name = module.letsencrypt_cluster_issuer[0].issuer_name
+    kind = "ClusterIssuer"
+    } : {
+    name = module.self_signed_cluster_issuer.issuer_name
+    kind = "ClusterIssuer"
+  }
+  cert_issuer_ca = local.letsencrypt ? "public" : "secret"
+  grafana_host   = var.dns != null ? module.dns[0].fqdns.grafana : var.grafana_host
 
   materialize_node_taints = [
     {

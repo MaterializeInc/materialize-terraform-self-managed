@@ -3,14 +3,14 @@
 | Name | Version |
 | ---- | ------- |
 | <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | >= 1.10 |
-| <a name="requirement_kubectl"></a> [kubectl](#requirement\_kubectl) | 2.4.1 |
+| <a name="requirement_kubectl"></a> [kubectl](#requirement\_kubectl) | 3.0.1 |
 | <a name="requirement_kubernetes"></a> [kubernetes](#requirement\_kubernetes) | >= 2.10.0, < 2.39.0 |
 
 ## Providers
 
 | Name | Version |
 | ---- | ------- |
-| <a name="provider_kubectl"></a> [kubectl](#provider\_kubectl) | 2.4.1 |
+| <a name="provider_kubectl"></a> [kubectl](#provider\_kubectl) | 3.0.1 |
 | <a name="provider_kubernetes"></a> [kubernetes](#provider\_kubernetes) | >= 2.10.0, < 2.39.0 |
 
 ## Modules
@@ -21,7 +21,7 @@ No modules.
 
 | Name | Type |
 | ---- | ---- |
-| [kubectl_manifest.materialize_instance](https://registry.terraform.io/providers/alekc/kubectl/2.4.1/docs/resources/manifest) | resource |
+| [kubectl_manifest.materialize_instance](https://registry.terraform.io/providers/alekc/kubectl/3.0.1/docs/resources/manifest) | resource |
 | [kubernetes_config_map.balancerd_params](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/config_map) | resource |
 | [kubernetes_config_map.system_params](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/config_map) | resource |
 | [kubernetes_namespace.instance](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/namespace) | resource |
@@ -48,12 +48,13 @@ No modules.
 | <a name="input_create_namespace"></a> [create\_namespace](#input\_create\_namespace) | Whether to create the Kubernetes namespace. Set to false if the namespace already exists. | `bool` | `true` | no |
 | <a name="input_enable_network_policies"></a> [enable\_network\_policies](#input\_enable\_network\_policies) | Enable default-deny-ingress network policy for the instance namespace. Helm chart creates specific allow policies. | `bool` | `true` | no |
 | <a name="input_enable_rbac"></a> [enable\_rbac](#input\_enable\_rbac) | Enable role-based access control (sets spec.enableRbac on the Materialize CR). Defaults to true for a secure-by-default posture. When false, the operator launches environmentd with enable\_rbac\_checks=false and privilege checks are not enforced. | `bool` | `true` | no |
+| <a name="input_environment_id"></a> [environment\_id](#input\_environment\_id) | UUID for the instance's spec.environmentId, which locates its catalog in the persist backend. Null lets the operator take it from the license key, or generate a random one when the key carries none. Set it to recreate an instance on existing data, for example in a new cluster or region, to the value the old instance runs with (`kubectl get materialize <name> -n <namespace> -o jsonpath='{.spec.environmentId}'`); a different UUID boots an empty environment next to that data. It must match the license key's environment ID when the key carries one. Never change it on a running instance. | `string` | `null` | no |
 | <a name="input_environmentd_extra_args"></a> [environmentd\_extra\_args](#input\_environmentd\_extra\_args) | Extra command line arguments for environmentd | `list(string)` | `[]` | no |
 | <a name="input_environmentd_extra_env"></a> [environmentd\_extra\_env](#input\_environmentd\_extra\_env) | Extra environment variables for environmentd | <pre>list(object({<br/>    name  = string<br/>    value = string<br/>  }))</pre> | `[]` | no |
 | <a name="input_environmentd_liveness_probe"></a> [environmentd\_liveness\_probe](#input\_environmentd\_liveness\_probe) | Overrides for the environmentd liveness probe (sets spec.environmentdLivenessProbe), e.g. { failureThreshold = 60 }. Same semantics as environmentd\_readiness\_probe. | `any` | `null` | no |
 | <a name="input_environmentd_readiness_probe"></a> [environmentd\_readiness\_probe](#input\_environmentd\_readiness\_probe) | Overrides for the environmentd readiness probe, as a Kubernetes Probe object in camelCase (sets spec.environmentdReadinessProbe), e.g. { periodSeconds = 5 }. Only the fields set here change: the rest, including the operator's TCP check against the SQL port, are kept from the operator default. Setting a handler (exec, grpc, httpGet or tcpSocket) replaces the default handler. On the v1 CRD, changing this triggers a rollout. Requires operator and instance v26.49 or later. Set to null to use the operator default. | `any` | `null` | no |
 | <a name="input_environmentd_startup_probe"></a> [environmentd\_startup\_probe](#input\_environmentd\_startup\_probe) | Startup probe for environmentd (sets spec.environmentdStartupProbe), e.g. { failureThreshold = 360 }. Same semantics as environmentd\_readiness\_probe, except that there is no startup probe unless this or the operator default sets one. | `any` | `null` | no |
-| <a name="input_environmentd_version"></a> [environmentd\_version](#input\_environmentd\_version) | Version of environmentd to use | `string` | `"v26.48.2"` | no |
+| <a name="input_environmentd_version"></a> [environmentd\_version](#input\_environmentd\_version) | Version of environmentd to use | `string` | `"v26.50.2"` | no |
 | <a name="input_external_login_password_mz_system"></a> [external\_login\_password\_mz\_system](#input\_external\_login\_password\_mz\_system) | Password for external login to mz\_system. Must be set if authenticator\_kind is 'Password', 'Sasl', or 'Oidc'. | `string` | `null` | no |
 | <a name="input_force_rollout"></a> [force\_rollout](#input\_force\_rollout) | UUID to force a rollout | `string` | `"00000000-0000-0000-0000-000000000001"` | no |
 | <a name="input_instance_name"></a> [instance\_name](#input\_instance\_name) | Name of the Materialize instance | `string` | n/a | yes |
@@ -65,7 +66,7 @@ No modules.
 | <a name="input_memory_request"></a> [memory\_request](#input\_memory\_request) | Memory request for environmentd | `string` | `"4095Mi"` | no |
 | <a name="input_metadata_backend_url"></a> [metadata\_backend\_url](#input\_metadata\_backend\_url) | PostgreSQL connection URL for metadata backend | `string` | n/a | yes |
 | <a name="input_monitoring_namespace"></a> [monitoring\_namespace](#input\_monitoring\_namespace) | Namespace where monitoring resources (Prometheus) are installed. Used for network policy to allow metrics scraping. | `string` | `"monitoring"` | no |
-| <a name="input_ory_namespace"></a> [ory\_namespace](#input\_ory\_namespace) | Namespace of the Ory stack. When set, creates a NetworkPolicy allowing pods in this instance's namespace to egress to the Ory namespace (used for OIDC flows against Hydra). Set to null for non-enterprise deployments. | `string` | `null` | no |
+| <a name="input_ory_namespace"></a> [ory\_namespace](#input\_ory\_namespace) | Namespace of the Ory stack. When set, creates a NetworkPolicy allowing pods in this instance's namespace to reach Hydra's public port (4444) and the ory-stack single-domain proxy (8443) in that namespace, for OIDC discovery and the JWKS. Set to null for non-enterprise deployments. | `string` | `null` | no |
 | <a name="input_persist_backend_url"></a> [persist\_backend\_url](#input\_persist\_backend\_url) | S3 connection URL for persist backend | `string` | n/a | yes |
 | <a name="input_pod_labels"></a> [pod\_labels](#input\_pod\_labels) | Labels for the materialize instance pod | `map(string)` | `{}` | no |
 | <a name="input_pod_security_enforce"></a> [pod\_security\_enforce](#input\_pod\_security\_enforce) | Enforce the restricted Pod Security Standard on the instance namespace, so Kubernetes rejects pods that don't meet it. The namespace always warns and audits against restricted. Only applies when create\_namespace is true. | `bool` | `true` | no |

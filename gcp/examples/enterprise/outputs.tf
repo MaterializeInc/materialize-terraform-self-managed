@@ -171,8 +171,18 @@ output "logs_url" {
 }
 
 output "grafana_url" {
-  description = "Internal URL for Grafana. Reach it with `kubectl -n monitoring port-forward svc/grafana 3000:80`."
+  description = "Where Grafana answers: https at its hostname when one is set, and otherwise http at its load balancer's address."
   value       = var.enable_observability ? module.monitoring[0].grafana_url : null
+}
+
+output "grafana_load_balancer_address" {
+  description = "Address of Grafana's load balancer, which dns_fqdns.grafana points at when var.dns is set. Null until the cloud assigns one, or when var.enable_observability is false."
+  value       = var.enable_observability ? module.monitoring[0].grafana_load_balancer_address : null
+}
+
+output "dns_fqdns" {
+  description = "Browser-facing hostnames from var.dns, keyed console, balancerd, hydra, kratos, auth, polis and grafana, and single_domain when var.ory_single_domain_fqdn is set. Null when var.dns is unset."
+  value       = var.dns != null ? module.dns[0].fqdns : null
 }
 
 output "grafana_admin_password" {
@@ -201,7 +211,7 @@ output "ory" {
     ui_external_url           = module.ory.ui_external_url
     polis_external_url        = module.ory.polis_external_url
     oauth2_client_secret_name = module.ory.oauth2_client_secret_name
-    materialize_console_fqdn  = var.materialize_console_fqdn
+    materialize_console_fqdn  = local.hostnames.console
     lb_addresses              = module.ory.lb_addresses
   }
 }

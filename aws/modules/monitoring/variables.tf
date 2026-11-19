@@ -261,6 +261,8 @@ variable "datadog_metrics" {
 
     `min_importance` is the cost lever — Datadog bills per custom metric, so it defaults to
     `essential` rather than the `recommended` the other destinations use.
+
+    `logs_endpoint` has no effect: this exports metrics only.
   EOT
   type = object({
     site            = optional(string, "datadoghq.com")
@@ -598,14 +600,13 @@ variable "grafana_service_port" {
   description = <<-EOT
     Port the Grafana Service listens on, which the `TargetGroupBinding` references.
 
-    Must match the chart's `grafana.service.port`. It is a variable rather than a constant because
-    in-cluster TLS will move it: Grafana stops serving plain HTTP, and the Service port moves with
-    it. Nothing here writes the value into the chart yet — see the TODO on the `monitoring` module
-    block — so changing it alone would point the target group at a port the Service does not have.
+    Must match the chart's `grafana.service.port`. Null, the default, follows the monitoring
+    module: 443 when it serves Grafana over HTTPS (`certificates_enabled`, `issuer_ref` and
+    `grafana_external_dns_names` all set), and 80 otherwise. Nothing here writes the value into the
+    chart, so set it only alongside a `grafana.service.port` in `additional_values`.
   EOT
   type        = number
-  default     = 80
-  nullable    = false
+  default     = null
 }
 
 variable "grafana_nlb_name" {
@@ -642,16 +643,16 @@ variable "grafana_load_balancer" {
     chart cannot see it, and the check that a public load balancer is not left wide open lives in
     this module instead.
 
-    L4, matching GCP, Azure, and the Materialize console. It terminates no TLS: Grafana serves plain
-    HTTP until something in front of it, or Grafana itself, holds a certificate, which is DEP-195's
-    work. Set `root_url` and `security.cookie_secure` through `additional_values` once one does.
+    L4, matching GCP, Azure, and the Materialize console. It terminates no TLS. With `issuer_ref`
+    and `grafana_external_dns_names`, Grafana serves HTTPS itself with the certificate issued for
+    those names, the target group's health check switches to HTTPS, and `host` has to be one of
+    those names. Without them Grafana serves plain HTTP.
 
     `private_ipv4_addresses` (internal) and `eip_allocation_ids` (internet-facing) pre-allocate the
     addresses, one per entry in `subnet_ids` and in the same order.
 
-    `listener_port` is what the load balancer accepts on. It is separate from `grafana_service_port`
-    — the port the target group registers against — so that in-cluster TLS can move the Service
-    without moving the load balancer's front door.
+    `listener_port` is what the load balancer accepts on, 443 when Grafana serves HTTPS and 80
+    otherwise. It is separate from `grafana_service_port`, the port the `TargetGroupBinding` names.
 
     Null leaves Grafana on a ClusterIP Service, reachable only with `kubectl port-forward`.
   EOT
@@ -664,13 +665,25 @@ variable "grafana_load_balancer" {
 
     internal                         = optional(bool, true)
     host                             = optional(string, null)
-    listener_port                    = optional(number, 80)
+    listener_port                    = optional(number)
     enable_cross_zone_load_balancing = optional(bool, true)
     private_ipv4_addresses           = optional(list(string), null)
     eip_allocation_ids               = optional(list(string), null)
   })
 
   default = null
+
+  # Conditionals rather than ||: Terraform before 1.12 evaluates both sides of
+  # ||, so a null load balancer or host would still be dereferenced.
+  validation {
+    condition = (
+      var.grafana_load_balancer == null ? true :
+      var.grafana_load_balancer.host == null ? true :
+      !(var.certificates_enabled && var.issuer_ref != null && length(var.grafana_external_dns_names) > 0) ? true :
+      contains([for name in var.grafana_external_dns_names : lower(name)], lower(var.grafana_load_balancer.host))
+    )
+    error_message = "grafana_load_balancer.host must be one of grafana_external_dns_names: Grafana serves the certificate issued for those names, so a browser reaching it at any other host rejects it."
+  }
 
   validation {
     condition = var.grafana_load_balancer == null ? true : (
@@ -787,7 +800,8 @@ variable "issuer_ref" {
     operator configures certificates once: `issuer_ref` for names a browser
     resolves, `internal_issuer_ref` for in-cluster ones. A public ACME issuer
     can sign the first and cannot sign the second — nothing will issue a
-    certificate for `*.cluster.local`.
+    certificate for `*.cluster.local`. Unlike that module's `issuer_ref`, this one never signs
+    the internal certificates; see `internal_issuer_ref`.
   EOT
   type = object({
     name = string
@@ -802,13 +816,33 @@ variable "issuer_ref" {
   default = null
 }
 
+variable "issuer_ca" {
+  description = <<-EOT
+    How the monitoring stack's scrape of Grafana verifies the certificate `issuer_ref` signs,
+    when Grafana serves HTTPS.
+
+    `"public"`, the default, verifies against the scraper's system roots, for a publicly trusted
+    issuer such as Let's Encrypt, whose certificate Secrets carry no `ca.crt`. `"secret"` verifies
+    against the `ca.crt` cert-manager writes into the certificate's Secret, for an issuer the
+    system roots do not cover: a self-signed or private CA issuer, or Vault.
+  EOT
+  type        = string
+  default     = "public"
+  nullable    = false
+
+  validation {
+    condition     = contains(["public", "secret"], var.issuer_ca)
+    error_message = "issuer_ca must be \"public\" or \"secret\"."
+  }
+}
+
 variable "internal_issuer_ref" {
   description = <<-EOT
     cert-manager (Cluster)Issuer for the **internal** certificates the stack's
-    components present to each other. Falls back to `issuer_ref`, then to the
-    chart bootstrapping a self-signed root scoped to this release.
+    components present to each other. When null, the chart bootstraps a
+    self-signed root scoped to this release, whether or not `issuer_ref` is set.
 
-    Leaving it null is the recommended shape rather than a fallback. None of the
+    Leaving it null is the recommended shape. None of the
     receiving components implements per-client authorization, so "signed by the
     CA we trust" is the entire authorization decision — pointing this at the
     cluster's general-purpose issuer reduces that to "has any certificate".
@@ -838,6 +872,11 @@ variable "grafana_external_dns_names" {
     balancer terminates with a cloud-managed certificate — ACM, Google
     Certificate Manager, Azure Key Vault — the wiring is an annotation carrying
     an ARN or resource ID on `grafana_load_balancer`, and this list stays empty.
+
+    With `issuer_ref` and `certificates_enabled`, Grafana serves HTTPS with
+    this certificate on Service port 443, and `root_url` defaults to the first
+    name. `issuer_ca` says how the monitoring stack's own scrape of Grafana
+    trusts the issuer.
   EOT
   type        = list(string)
   default     = []
@@ -862,6 +901,25 @@ variable "certificate_renew_before" {
   description = "How long before expiry cert-manager renews, as a Go duration. Null uses the chart's default. See the warning on `certificate_duration`."
   type        = string
   default     = null
+}
+
+variable "secret_filter" {
+  description = <<-EOT
+    What the Alloy gateway's secret filter does with log lines: `off`, `shadow`, or `on`. Null uses
+    the monitoring module's default, which leaves the filter off.
+
+    `on` replaces each credential the filter finds with `<redacted:RULE_ID>` before the line is
+    stored. `shadow` stores every line as it arrives, plus a redacted copy of each line the filter
+    would have changed, labeled `secretfilter="shadow"`. Run `shadow` first to see what `on` would
+    replace in your logs. Both scan every log line the gateway handles, which costs gateway CPU.
+
+    The filter is an extra layer of protection, not the control: configure each component not to
+    log credentials in the first place. A mode set through `additional_values` overrides this. See
+    https://materializeinc.github.io/materialize-monitoring/operating/production-best-practices/secret-filtering/.
+  EOT
+  # TODO(DEP-313): the monitoring module's default moves to `on`; restate it here on that bump.
+  type    = string
+  default = null
 }
 
 variable "additional_values" {

@@ -71,6 +71,9 @@ module "db" {
   # from final_snapshot_identifier_prefix (default "final") plus a random suffix.
   skip_final_snapshot              = var.skip_final_snapshot
   final_snapshot_identifier_prefix = var.final_snapshot_identifier_prefix
+  copy_tags_to_snapshot            = var.copy_tags_to_snapshot
+
+  deletion_protection = var.deletion_protection
 
   tags = var.tags
 

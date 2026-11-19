@@ -3,14 +3,14 @@
 | Name | Version |
 | ---- | ------- |
 | <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | >= 1.10 |
-| <a name="requirement_kubectl"></a> [kubectl](#requirement\_kubectl) | 2.4.1 |
+| <a name="requirement_kubectl"></a> [kubectl](#requirement\_kubectl) | 3.0.1 |
 | <a name="requirement_kubernetes"></a> [kubernetes](#requirement\_kubernetes) | >= 2.10.0, < 2.39.0 |
 
 ## Providers
 
 | Name | Version |
 | ---- | ------- |
-| <a name="provider_kubectl"></a> [kubectl](#provider\_kubectl) | 2.4.1 |
+| <a name="provider_kubectl"></a> [kubectl](#provider\_kubectl) | 3.0.1 |
 | <a name="provider_kubernetes"></a> [kubernetes](#provider\_kubernetes) | >= 2.10.0, < 2.39.0 |
 
 ## Modules
@@ -21,8 +21,8 @@ No modules.
 
 | Name | Type |
 | ---- | ---- |
-| [kubectl_manifest.nodeclass](https://registry.terraform.io/providers/alekc/kubectl/2.4.1/docs/resources/manifest) | resource |
-| [kubectl_manifest.nodepool](https://registry.terraform.io/providers/alekc/kubectl/2.4.1/docs/resources/manifest) | resource |
+| [kubectl_manifest.nodeclass](https://registry.terraform.io/providers/alekc/kubectl/3.0.1/docs/resources/manifest) | resource |
+| [kubectl_manifest.nodepool](https://registry.terraform.io/providers/alekc/kubectl/3.0.1/docs/resources/manifest) | resource |
 | [kubernetes_cluster_role.disk_setup](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/cluster_role) | resource |
 | [kubernetes_cluster_role_binding.disk_setup](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/cluster_role_binding) | resource |
 | [kubernetes_daemonset.disk_setup](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/daemonset) | resource |
@@ -34,7 +34,7 @@ No modules.
 | Name | Description | Type | Default | Required |
 | ---- | ----------- | ---- | ------- | :------: |
 | <a name="input_disk_setup_container_resource_config"></a> [disk\_setup\_container\_resource\_config](#input\_disk\_setup\_container\_resource\_config) | Resource configuration for disk setup init container | <pre>object({<br/>    memory_limit   = string<br/>    memory_request = string<br/>    cpu_request    = string<br/>  })</pre> | <pre>{<br/>  "cpu_request": "50m",<br/>  "memory_limit": "128Mi",<br/>  "memory_request": "128Mi"<br/>}</pre> | no |
-| <a name="input_disk_setup_image"></a> [disk\_setup\_image](#input\_disk\_setup\_image) | Docker image for the disk setup script | `string` | `"materialize/ephemeral-storage-setup-image:v0.6.0"` | no |
+| <a name="input_disk_setup_image"></a> [disk\_setup\_image](#input\_disk\_setup\_image) | Docker image for the disk setup script | `string` | `"materialize/ephemeral-storage-setup-image:v0.6.3"` | no |
 | <a name="input_disk_setup_name"></a> [disk\_setup\_name](#input\_disk\_setup\_name) | Name used for disk setup Kubernetes resources (namespace, daemonset, service account, cluster role, cluster role binding). Defaults to "<name>-disk-setup". | `string` | `null` | no |
 | <a name="input_disruption"></a> [disruption](#input\_disruption) | Configuration for node disruption. | `any` | <pre>{<br/>  "budgets": [<br/>    {<br/>      "nodes": "10%"<br/>    }<br/>  ],<br/>  "consolidateAfter": "60s",<br/>  "consolidationPolicy": "WhenEmpty"<br/>}</pre> | no |
 | <a name="input_expire_after"></a> [expire\_after](#input\_expire\_after) | Time after which the node will expire. | `string` | `"Never"` | no |

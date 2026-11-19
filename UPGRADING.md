@@ -8,6 +8,68 @@ We follow semantic versioning with our tags. If a particular version requires ad
 
 <!-- scriv-insert-here -->
 
+## v19.0.0
+
+### The Ory stack runs ory-selfservice and enforces stricter sign-in rules
+
+`ory-stack` replaces `oryd/kratos-selfservice-ui-node` with `materialize/ory-selfservice` v0.3.2 and tightens what an IdP can assert. [`kubernetes/modules/ory-selfservice-ui/UPGRADING.md`](kubernetes/modules/ory-selfservice-ui/UPGRADING.md) lists every change. If you already run the Ory stack:
+
+1. **Set the new inputs before applying.**
+   - `allowed_email_domains` on every entry in `upstream_identity_providers` and `saml_providers`. Sign-in with any other email domain fails.
+   - `require_email_verified = false` on OIDC providers that don't send `email_verified`, such as Microsoft Entra ID.
+   - `kratos_cookie_domain` (`ory_kratos_cookie_domain` in the examples). It was derived from the Kratos hostname before. Use the narrowest domain that covers Kratos and the UI.
+2. **On AWS, expect two database passwords to rotate.** Each RDS instance now has its own password, so the Hydra and Polis passwords change and the Kratos one is kept. The pods restart with the new DSNs during the apply.
+3. **Have everyone sign in again through the IdP after the apply.** Tokens now take `email` and `groups` from the identity's `metadata_public`, which the IdP mapper writes at sign-in. Until a user signs in through the IdP again, consent and token refreshes are refused. Remove the old `groups` trait, which the schema no longer allows, and end every session so the next sign-in goes to the IdP:
+
+   ```bash
+   kubectl -n ory port-forward svc/kratos-admin 4434 &
+   kubectl -n ory port-forward svc/hydra-admin 4445 &
+   # Past 500 identities, repeat with the page_token from the Link header.
+   for id in $(curl -s 'localhost:4434/admin/identities?page_size=500' | jq -r '.[].id'); do
+     curl -s -X PATCH "localhost:4434/admin/identities/$id" -H 'content-type: application/json' \
+       -d '[{"op":"remove","path":"/traits/groups"}]' >/dev/null
+     curl -s -X DELETE "localhost:4434/admin/identities/$id/sessions"
+     curl -s -X DELETE "localhost:4445/admin/oauth2/auth/sessions/login?subject=$id"
+   done
+   ```
+
+   The PATCH fails harmlessly for identities without a `groups` trait.
+
+## v18.1.0
+
+### Monitoring stack moves to materialize-monitoring v1.7.1
+
+The `monitoring` modules now pin `materialize-monitoring/v1.7.1`, up from v1.6.0.
+Nothing needs to change before you apply.
+If your `additional_values` sets chart values, check the last item below.
+
+- **The gateway's secret filter can be turned on.**
+  The AWS, GCP, and Azure `monitoring` modules take a new `secret_filter` input: `off` (the default), `shadow`, or `on`.
+  `on` replaces each credential the filter finds in a log line with `<redacted:RULE_ID>` before the line is stored.
+  `shadow` leaves every line as it was and adds a redacted copy of each line `on` would have changed, labeled `secretfilter="shadow"`, so you can see what the filter catches before you turn it on.
+  Both scan every log line the gateway handles, which costs gateway CPU.
+  The examples show the input commented out.
+  See [Secret filtering](https://materializeinc.github.io/materialize-monitoring/operating/production-best-practices/secret-filtering/).
+- **A Materialize Ingress dashboard** (`env-ingress`) shows rate, errors, and latency for each hop into an environment: the cloud load balancer, balancerd, the console, and environmentd's SQL and HTTP APIs.
+  Its Load Balancer tab draws the load balancer metrics that `provider_metrics` pulls.
+  On GCP and Azure, the `simple` examples' pull finds Materialize's load balancer when `enable_provider_metrics` is on.
+  On AWS, also uncomment `network_load_balancers` in the `simple` example's `provider_metrics`.
+  balancerd's latency and server-side error panels need Materialize v26.50.0, and say so on older versions.
+- **New alerts in the default set** fire on nodes that are cordoned or marked for removal: `materialize-node-draining`, `materialize-node-drain-slow`, and `materialize-node-drain-stuck` for nodes running environmentd or clusterd, and `node-drain-stuck` for the rest.
+  They link to the [Node drains](https://materializeinc.github.io/materialize-monitoring/operating/runbooks/node-drains/) runbook.
+- **Most of the stack's pods restart once** during the apply, including the Alloy gateway and every Loki pod, because most of its images and subcharts move.
+- **Metrics sent to a Datadog site outside the US** go to that site's own intake.
+  Before, they went to the US intake.
+  `datadog_metrics.logs_endpoint` has no effect.
+- **If `additional_values` sets chart values**, check them against the new release:
+  - `pipeline.logging.gateway.destination.loki`, `pipeline.metrics.gateway.destination.prometheusRemoteWrite`, and both `pipeline.*.gateway.destination.otel` blocks are deprecated.
+    They still apply, and the render warns.
+    Move each to `pipeline.destinations`; see [Where the gateway writes logs](https://materializeinc.github.io/materialize-monitoring/logs-and-events/storing/#destinations), [Upgrading from `prometheusRemoteWrite`](https://materializeinc.github.io/materialize-monitoring/metrics/storing/#upgrading-from-prometheusremotewrite), and [Move off the deprecated `otel` block](https://materializeinc.github.io/materialize-monitoring/metrics/storing/#otel-migration).
+  - The Loki chart refuses `loki.minio`, and any other top-level `loki.*` key it doesn't define.
+
+The full list is in the [v1.7.0 release notes](https://github.com/MaterializeInc/materialize-monitoring/releases/tag/materialize-monitoring/v1.7.0).
+[v1.7.1](https://github.com/MaterializeInc/materialize-monitoring/releases/tag/materialize-monitoring/v1.7.1) changes only Alertmanager's config reloader image, which arm64 nodes can't pull in v1.7.0.
+
 ## v18.0.0
 
 Kubernetes version 1.35 on AWS and Azure.
@@ -197,7 +259,7 @@ If the cluster gets these CRDs from elsewhere, such as kube-prometheus-stack, se
 With `internal_load_balancer = false`, Hydra, Kratos, the selfservice UI and Polis now admit only `ingress_cidr_blocks` (plus the cluster's own addresses), like the Materialize load balancers already did. If your root sets a narrower `ingress_cidr_blocks` than `0.0.0.0/0`, the next apply locks them down. Before applying:
 
 - **Add every address that reaches Ory:** where your users sign in from, and any server that calls Hydra on its own, such as an MCP connector in claude.ai or ChatGPT. Anthropic's outbound range is `160.79.104.0/21`; use the published egress ranges of any other connector.
-- **If Okta pushes SCIM to Polis, generate Okta's ranges first:** `./scripts/update-okta-ip-ranges.sh <cloud>/examples/enterprise <okta-cell>`. Without `okta-scim-source-ranges.json`, Polis no longer admits Okta and provisioning stops. On GCP, that file and `ory_polis_source_ranges` replace `ingress_cidr_blocks` for Polis, as before, so add your users' addresses to `ory_polis_source_ranges`.
+- **If Okta pushes SCIM to Polis, generate Okta's ranges first:** `./scripts/update-okta-ip-ranges.sh <cloud>/examples/enterprise <okta-cell>`. Without `okta-scim-source-ranges.json`, Polis no longer admits Okta and provisioning stops. That file and `ory_polis_source_ranges` replace `ingress_cidr_blocks` for Polis, so add your users' addresses to `ory_polis_source_ranges`.
 
 ### The examples use Premium SSD v2 for the metadata database
 

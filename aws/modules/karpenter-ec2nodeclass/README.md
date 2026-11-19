@@ -6,7 +6,7 @@
 | <a name="requirement_aws"></a> [aws](#requirement\_aws) | ~> 6.0 |
 | <a name="requirement_deepmerge"></a> [deepmerge](#requirement\_deepmerge) | ~> 1.0, < 1.4.0 |
 | <a name="requirement_helm"></a> [helm](#requirement\_helm) | ~> 2.0, < 2.18.0 |
-| <a name="requirement_kubectl"></a> [kubectl](#requirement\_kubectl) | 2.4.1 |
+| <a name="requirement_kubectl"></a> [kubectl](#requirement\_kubectl) | 3.0.1 |
 | <a name="requirement_kubernetes"></a> [kubernetes](#requirement\_kubernetes) | ~> 2.0, < 2.39.0 |
 | <a name="requirement_random"></a> [random](#requirement\_random) | ~> 3.0, < 3.10.0 |
 
@@ -14,7 +14,7 @@
 
 | Name | Version |
 | ---- | ------- |
-| <a name="provider_kubectl"></a> [kubectl](#provider\_kubectl) | 2.4.1 |
+| <a name="provider_kubectl"></a> [kubectl](#provider\_kubectl) | 3.0.1 |
 
 ## Modules
 
@@ -24,14 +24,15 @@ No modules.
 
 | Name | Type |
 | ---- | ---- |
-| [kubectl_manifest.ec2nodeclass](https://registry.terraform.io/providers/alekc/kubectl/2.4.1/docs/resources/manifest) | resource |
+| [kubectl_manifest.ec2nodeclass](https://registry.terraform.io/providers/alekc/kubectl/3.0.1/docs/resources/manifest) | resource |
 
 ## Inputs
 
 | Name | Description | Type | Default | Required |
 | ---- | ----------- | ---- | ------- | :------: |
 | <a name="input_ami_selector_terms"></a> [ami\_selector\_terms](#input\_ami\_selector\_terms) | Terms for selecting which AMI to launch. See https://karpenter.sh/docs/tasks/managing-amis/ for more information. Only Bottlerocket AMIs are supported by this terraform code. | `list(any)` | n/a | yes |
-| <a name="input_disk_setup_image"></a> [disk\_setup\_image](#input\_disk\_setup\_image) | Docker image for disk bootstraping when swap is enabled. | `string` | `"docker.io/materialize/ephemeral-storage-setup-image:v0.6.0"` | no |
+| <a name="input_disk_setup_image"></a> [disk\_setup\_image](#input\_disk\_setup\_image) | Docker image for disk bootstraping when swap is enabled. | `string` | `"docker.io/materialize/ephemeral-storage-setup-image:v0.6.3"` | no |
+| <a name="input_enable_user_namespaces"></a> [enable\_user\_namespaces](#input\_enable\_user\_namespaces) | Whether to let Kubernetes run pods in user namespaces (`hostUsers: false`) on these nodes, by setting the `user.max_user_namespaces` sysctl, which Bottlerocket sets to 0. Needed for the operator module's `enable_user_namespaces`. Changing this replaces the nodes. | `bool` | `true` | no |
 | <a name="input_instance_profile"></a> [instance\_profile](#input\_instance\_profile) | Name of the instance profile to assign to nodes. | `string` | n/a | yes |
 | <a name="input_instance_types"></a> [instance\_types](#input\_instance\_types) | List of instance types to support. | `list(string)` | n/a | yes |
 | <a name="input_name"></a> [name](#input\_name) | Name of the EC2NodeClass. | `string` | n/a | yes |

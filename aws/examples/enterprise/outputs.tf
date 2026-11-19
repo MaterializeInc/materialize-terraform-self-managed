@@ -139,7 +139,7 @@ output "logs_url" {
 }
 
 output "grafana_url" {
-  description = "Internal URL for Grafana. Reach it with `kubectl -n monitoring port-forward svc/grafana 3000:80`."
+  description = "Where Grafana answers: https at its hostname when one is set, and otherwise http at its load balancer's address."
   value       = var.enable_observability ? module.monitoring[0].grafana_url : null
 }
 
@@ -174,7 +174,7 @@ output "ory" {
     ui_external_url           = module.ory.ui_external_url
     polis_external_url        = module.ory.polis_external_url
     oauth2_client_secret_name = module.ory.oauth2_client_secret_name
-    materialize_console_fqdn  = var.materialize_console_fqdn
+    materialize_console_fqdn  = local.hostnames.console
   }
 }
 
@@ -187,6 +187,11 @@ output "polis_admin_api_keys" {
 output "ory_lb_addresses" {
   description = "Ingress addresses of the Ory-side browser-facing LoadBalancers (hydra, kratos, ui, polis). Feed these into your DNS records for the corresponding hostnames. AWS populates the hostname key, not ip."
   value       = module.ory.lb_addresses
+}
+
+output "dns_fqdns" {
+  description = "Browser-facing hostnames from var.dns, keyed console, balancerd, hydra, kratos, auth, polis and grafana. Null when var.dns is unset."
+  value       = var.dns != null ? module.dns[0].fqdns : null
 }
 
 output "materialize_oidc" {

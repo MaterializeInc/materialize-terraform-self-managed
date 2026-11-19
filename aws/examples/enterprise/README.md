@@ -11,7 +11,7 @@ Ory enterprise images are pulled through the Materialize-hosted registry proxy a
 Everything from the [simple example](../simple/README.md), plus:
 
 ### Ory Databases
-- **Separate RDS instances** (one per Ory component): PostgreSQL 18. Kratos and Hydra always, Polis added when `enable_polis = true`.
+- **Separate RDS instances** (one per Ory component, each with its own password): PostgreSQL 18. Kratos and Hydra always, Polis added when `enable_polis = true`.
 - **Instance class**: db.t3.small (suitable for Ory workloads)
 - **Storage**: 20GB with autoscaling up to 50GB
 - **Network Access**: Private subnets only, same VPC as the Materialize database
@@ -31,7 +31,7 @@ Everything from the [simple example](../simple/README.md), plus:
 
 ### Ory Polis (optional, SAML-to-OIDC bridge)
 - **Helm release**: Deployed in the `ory` namespace when `enable_polis = true`
-- **Purpose**: Accepts a customer's SAML IdP on one side and exposes an OIDC provider on the other so Kratos can consume it as an upstream social sign-in. Also exposes a SCIM endpoint for IdP-driven user provisioning.
+- **Purpose**: Accepts a customer's SAML IdP on one side and exposes an OIDC provider on the other so Kratos can consume it as an upstream social sign-in. Also exposes a SCIM endpoint, which is not wired to Kratos yet (see below).
 - **Chart and image**: Both pulled through the Materialize OEL registry proxy with the license-key JWT, no separate credential required
 - Off by default. Set `enable_polis = true` and `ory_polis_fqdn` to deploy.
 
@@ -42,7 +42,9 @@ OKTA_SAML_METADATA=~/Downloads/metadata.xml \
   ./scripts/polis-register.sh aws/examples/enterprise
 ```
 
-It registers (or re-reads, idempotently) the connection and directory, then prints the `upstream_oidc_providers` block to add to `terraform.tfvars` and the remaining Okta admin-console steps.
+It registers (or re-reads, idempotently) the connection and directory, writes their credentials to `aws/examples/enterprise/polis-credentials.txt` (mode 0600, gitignored), and prints the `saml_providers` block to add to `terraform.tfvars` and the remaining Okta admin-console steps. Pass `--print-secrets` to also print the credentials. In the Okta SAML app, set the Single sign-on URL to `https://<ory_polis_fqdn>/api/oauth/saml` and the Audience URI (SP Entity ID) to `https://saml.boxyhq.com`, Polis's default entity ID.
+
+**SCIM does not deprovision yet.** Nothing syncs the Polis SCIM directory into Kratos, so deactivating a user in Okta does not end their Materialize access. It ends when their Kratos session expires (8 hours by default, `kratos_session_lifespan_seconds` on the `ory-stack` module) or the token hook's max auth age passes, plus the life of any access token already issued. Delete the user's Kratos identity to end it sooner.
 
 ---
 
@@ -71,6 +73,7 @@ k8s_apiserver_authorized_networks = ["203.0.113.0/24"]
 ory_hydra_fqdn             = "hydra.mz.example.com"
 ory_ui_fqdn                = "auth.mz.example.com"
 ory_kratos_fqdn            = "kratos.mz.example.com"
+ory_kratos_cookie_domain   = "mz.example.com"
 materialize_console_fqdn   = "console.mz.example.com"
 materialize_balancerd_fqdn = "balancerd.mz.example.com"
 
@@ -80,24 +83,56 @@ tags = {
 }
 ```
 
+#### Hostnames from a Route 53 hosted zone
+
+With a Route 53 hosted zone, replace the five hostname variables and `ory_kratos_cookie_domain` with
+`dns`, and the example takes every browser-facing hostname from one stem domain and creates
+their records:
+
+```hcl
+dns = {
+  zone_id     = "Z0123456789ABCDEFGHIJ" # the Route 53 hosted zone's ID
+  stem_domain = "mz.example.com"        # defaults to the zone's domain
+  letsencrypt = {
+    acme_email = "platform-team@example.com"
+  }
+}
+```
+
+That gives the console `mz.example.com`, and balancerd, Hydra, Kratos, the selfservice UI,
+Polis and Grafana `balancerd.`, `hydra.`, `kratos.`, `auth.`, `polis.` and `grafana.` under
+it; `dns.subdomains` renames any of them, keyed `console`, `balancerd`, `hydra`, `kratos`,
+`auth`, `polis` and `grafana`. Kratos's session cookie is scoped to the stem domain unless
+`ory_kratos_cookie_domain` is set. The example never creates or changes the zone itself.
+Grafana's record is created when the observability stack is on. The `dns_fqdns` output lists every hostname.
+
+The load balancers answer on DNS names, so every record is a CNAME, and a CNAME cannot sit at
+the zone's apex. Keep `stem_domain` below the apex, or move the console off `"@"` with
+`dns.subdomains`. `letsencrypt` is
+described under [TLS Certificates](#tls-certificates).
+
 **Required Variables:**
 - `aws_profile`: AWS CLI profile for authentication
 - `name_prefix`: Prefix for all resource names
 - `license_key`: Materialize license key JWT. Used for Materialize itself and as the password authenticating to the Ory registry proxy. Must carry the `ory` entitlement.
 - `tags`: Map of tags to apply to resources
 - `k8s_apiserver_authorized_networks`: List of CIDR blocks allowed to reach the EKS cluster endpoint. No default; pass `["0.0.0.0/0"]` for lab use, or a tight allowlist for production.
-- `ory_hydra_fqdn`, `ory_ui_fqdn`, `ory_kratos_fqdn`, `materialize_console_fqdn`, `materialize_balancerd_fqdn`: Public hostnames for the five browser-facing endpoints (Hydra OAuth2, Kratos public API, selfservice UI, Materialize console, and balancerd, which serves the SQL-over-HTTP endpoint the console JS calls from the browser)
+- `ory_hydra_fqdn`, `ory_ui_fqdn`, `ory_kratos_fqdn`, `materialize_console_fqdn`, `materialize_balancerd_fqdn`: Public hostnames for the five browser-facing endpoints (Hydra OAuth2, Kratos public API, selfservice UI, Materialize console, and balancerd, which serves the SQL-over-HTTP endpoint the console JS calls from the browser) Required unless `dns` is set, and rejected when it is.
+- `ory_kratos_cookie_domain`: Domain the Kratos session cookie is scoped to. It must cover the Kratos and selfservice UI hostnames, and every host under it receives the session cookie, so use the narrowest such domain, ideally one that holds only these hostnames. Required unless `dns` is set, which scopes it to the stem domain.
 
 **Optional Variables:**
 - `aws_region`: AWS region (defaults to `us-east-1`)
-- `ingress_cidr_blocks`: List of CIDR blocks allowed to reach the NLBs, both Materialize's and Ory's (no effect when `internal_load_balancer = true`). The Ory NLBs also admit the cluster's NAT gateway IPs and VPC CIDR, because pods call the Ory hostnames. Servers that call Hydra themselves need to be in the list too, such as MCP connectors in claude.ai or ChatGPT, which reach Hydra from the provider's own servers; Anthropic's outbound range is `160.79.104.0/21` ([published here](https://platform.claude.com/docs/en/api/ip-addresses)). Polis also admits Okta's SCIM egress ranges when `okta-scim-source-ranges.json` exists; generate it with `./scripts/update-okta-ip-ranges.sh aws/examples/enterprise <your-okta-cell>`.
+- `ingress_cidr_blocks`: List of CIDR blocks allowed to reach the NLBs, both Materialize's and Ory's (no effect when `internal_load_balancer = true`). The Ory NLBs also admit the cluster's NAT gateway IPs and VPC CIDR, because pods call the Ory hostnames. Servers that call Hydra themselves need to be in the list too, such as MCP connectors in claude.ai or ChatGPT, which reach Hydra from the provider's own servers; Anthropic's outbound range is `160.79.104.0/21` ([published here](https://platform.claude.com/docs/en/api/ip-addresses)). Polis uses its own allowlist instead when `ory_polis_source_ranges` is set or `okta-scim-source-ranges.json` exists; generate the latter with `./scripts/update-okta-ip-ranges.sh aws/examples/enterprise <your-okta-cell>`.
 - `internal_load_balancer`: Whether to use an internal load balancer (defaults to `true`). Set to `false` for prod-like demos validated against real DNS.
 - `enable_observability`: Enable Prometheus and Grafana monitoring stack (defaults to `true`)
-- `enable_ory_service_monitors`: Scrape Kratos's and Hydra's metrics into the monitoring stack (defaults to `true`). Ory serves them only on its admin listener, so this admits the monitoring gateway to the whole Kratos and Hydra admin API, which has no authentication of its own. Set it to `false` where the monitoring namespace is not trusted as much as the Ory one.
-- `grafana_host`: Hostname to reach Grafana on (defaults to `null`). The NLB is created either way and answers on a DNS name of its own; setting this is what makes Grafana's `root_url` — and so its share links, alert notification links, and OAuth redirect URIs — correct. DNS for the name is yours to create. Exposure follows `internal_load_balancer` and `ingress_cidr_blocks`, the same as the Materialize load balancer. The NLB terminates no TLS; that is DEP-195's work.
+- `enable_ory_service_monitors`: Scrape Kratos's and Hydra's metrics into the monitoring stack (defaults to `true`). Ory serves them only on its unauthenticated admin listener, so the monitoring gateway scrapes a proxy in the Ory namespace that serves only the metrics path, and is never admitted to the admin API itself.
+- `grafana_host`: Hostname to reach Grafana on (defaults to `null`). The NLB is created either way and answers on a DNS name of its own; setting this is what makes Grafana's `root_url` — and so its share links, alert notification links, and OAuth redirect URIs — correct. DNS for the name is yours to create. With `dns` set, leave it unset; Grafana's hostname comes from `dns`. With a hostname either way, Grafana serves HTTPS on port 443 with a certificate from the console's issuer. Exposure follows `internal_load_balancer` and `ingress_cidr_blocks`, the same as the Materialize load balancer. The NLB terminates no TLS; that is DEP-195's work.
+- `dns`: An existing Route 53 hosted zone to take every browser-facing hostname from, in place of the hostname variables (defaults to `null`). See [Hostnames from a Route 53 hosted zone](#hostnames-from-a-route-53-hosted-zone).
 - `enable_polis`: Deploy Ory Polis alongside Kratos and Hydra (defaults to `false`). When `true`, also set `ory_polis_fqdn` and create the corresponding DNS record. A dedicated RDS instance is provisioned for the polis database.
-- `ory_polis_fqdn`: Public hostname for Polis. Required when `enable_polis = true`.
+- `ory_polis_fqdn`: Public hostname for Polis. Required when `enable_polis = true`, unless `dns` is set.
 - `polis_helm_values`: Additional Helm values for the Polis chart. Escape hatch for overriding resources, node selectors, tolerations, etc.
+- `ory_polis_source_ranges`: Extra CIDRs, besides Okta's SCIM egress ranges from `okta-scim-source-ranges.json`, allowed to reach the public Polis load balancer. Together they replace `ingress_cidr_blocks` for Polis. The browser reaches Polis directly for the SAML and OIDC hops, so add the public egress addresses your browsers appear as (VPN/NAT egress, office range). Leave both unset to apply `ingress_cidr_blocks` to Polis like the other Ory load balancers.
+- `upstream_identity_providers`, `saml_providers`: The IdPs users sign in with. Every entry needs `allowed_email_domains`, the email domains that IdP may sign in (exact lowercase domains, subdomains listed separately); a sign-in from any other domain fails. `allowed_groups` and `group_prefix` limit which of its groups reach Materialize. OIDC entries refuse emails the IdP does not mark verified (`require_email_verified`, default `true`); Microsoft Entra ID does not send `email_verified` by default, so set it to `false` there and rely on `allowed_email_domains`.
 - TLS certificate options (`cert_issuer_ref`, …): see [TLS Certificates](#tls-certificates) below.
 
 ### Step 2: Deploy
@@ -129,7 +164,7 @@ curl http://localhost:4445/admin/health/ready
 cert-manager provisions every TLS certificate in this stack. The example uses two issuers:
 
 - An always-created in-cluster **self-signed** `ClusterIssuer` for the internal mTLS cert (which has `*.cluster.local` SANs that public ACME issuers like Let's Encrypt cannot sign).
-- A configurable issuer for the browser-facing certs (Materialize console / balancerd, Hydra, Kratos, selfservice UI). Defaults to the same self-signed issuer; override via `var.cert_issuer_ref` to plug in a real one (corporate CA, Let's Encrypt, etc.).
+- A configurable issuer for the browser-facing certs (Materialize console / balancerd, Hydra, Kratos, selfservice UI). Defaults to the same self-signed issuer. `dns.letsencrypt` switches it to Let's Encrypt for hostnames in a Route 53 hosted zone, and `var.cert_issuer_ref` plugs in any other issuer (corporate CA, Let's Encrypt with another DNS provider, etc.).
 
 ### Default: self-signed for everything (demo / air-gapped)
 
@@ -146,6 +181,30 @@ spec:
 
 Use this mode for offline demos or air-gapped clusters where no real domain or DNS provider is available.
 
+### Let's Encrypt for hostnames in a Route 53 hosted zone
+
+With `dns` set, add `letsencrypt` to it:
+
+```hcl
+dns = {
+  zone_id     = "Z0123456789ABCDEFGHIJ" # the Route 53 hosted zone's ID
+  stem_domain = "mz.example.com"        # defaults to the zone's domain
+  letsencrypt = {
+    acme_email = "platform-team@example.com"
+  }
+}
+```
+
+cert-manager then answers ACME DNS-01 challenges in the zone as an IAM role, assumed through IRSA, that may change only the `_acme-challenge` TXT records under the stem domain,
+and Let's Encrypt signs the browser-facing certs, Grafana's among them, which Grafana serves itself over HTTPS on port 443. It does not need the load balancers to be
+reachable from the internet, so it works with `internal_load_balancer = true`. `letsencrypt`
+and `cert_issuer_ref` are alternatives; set one.
+
+The issuer starts on Let's Encrypt staging, whose certificates neither browsers nor the monitoring stack's scrape of Grafana trust. Once
+`kubectl get certificates -A` shows every certificate ready, set `acme_server_prod = true` in
+`letsencrypt` and apply again. The issuer's name changes with it, so cert-manager reissues the
+certificates from production.
+
 ### Bring your own browser-facing issuer
 
 Set:
@@ -154,12 +213,18 @@ Set:
 cert_issuer_ref = {
   name = "your-existing-cluster-issuer"
   kind = "ClusterIssuer"  # or "Issuer"
+  ca   = "secret"         # or "public", the default
 }
 ```
 
 The browser-facing certs use this issuer; the internal mTLS cert continues to use the self-signed cluster issuer. Customers typically bring a corporate CA, an existing trust-manager bundle, or an ACME issuer (Let's Encrypt) backed by their preferred DNS-01 / HTTP-01 solver.
 
+`ca` tells the monitoring stack's scrape of Grafana how to verify Grafana's certificate. Use `"public"`, the default, for a publicly trusted issuer such as Let's Encrypt, whose certificate Secrets carry no `ca.crt`. Use `"secret"` for an issuer that writes its CA into each certificate Secret's `ca.crt`, such as a corporate CA issuer, so the scrape verifies against that CA.
+
 #### Example: Let's Encrypt with Cloudflare DNS-01
+
+For hostnames with Route 53, `dns.letsencrypt` above does this for you. For another DNS
+provider, write the issuer yourself.
 
 If you don't already have a `ClusterIssuer` in the cluster, here's a copyable starting point. Drop into your root module, customize, then point `cert_issuer_ref` at it. The same pattern works with any cert-manager solver: swap the `solvers` block for Route53, Azure DNS, Cloud DNS, HTTP-01, etc.
 
@@ -231,7 +296,7 @@ module "materialize_enterprise" {
 }
 ```
 
-After `terraform apply`, create CNAME (or ALIAS) records for your hostnames (Hydra, Kratos, selfservice UI, Materialize console, and Polis when `enable_polis = true`) pointing at the NLB DNS names. cert-manager issues certs once DNS resolves (typically 1 to 2 minutes for the first issuance).
+After `terraform apply`, create CNAME (or ALIAS) records for your hostnames (Hydra, Kratos, selfservice UI, Materialize console, and Polis when `enable_polis = true`) pointing at the NLB DNS names, unless `dns` set them up. cert-manager issues certs once DNS resolves (typically 1 to 2 minutes for the first issuance).
 
 ---
 

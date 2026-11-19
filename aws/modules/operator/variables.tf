@@ -7,7 +7,7 @@ variable "name_prefix" {
 variable "operator_version" {
   description = "Version of the Materialize operator to install"
   type        = string
-  default     = "v26.48.2" # META: helm-chart version
+  default     = "v26.50.2" # META: helm-chart version
   nullable    = false
 }
 
@@ -117,6 +117,13 @@ variable "install_v1_crd" {
   description = "Install v1 of the Materialize CRD."
   type        = bool
   default     = true
+  nullable    = false
+}
+
+variable "enable_user_namespaces" {
+  description = "Whether to run the operator, environmentd, clusterd, balancerd and console pods in Kubernetes user namespaces (`hostUsers: false`), so root in a container maps to an unprivileged user on the node. Nodes must allow user namespaces; the AWS node modules set the sysctl Bottlerocket needs. On AWS, apply the node module change and let every node be replaced before turning this on, or pods scheduled on old nodes fail to start. Changing this for an existing Materialize instance takes effect on its next rollout."
+  type        = bool
+  default     = false
   nullable    = false
 }
 

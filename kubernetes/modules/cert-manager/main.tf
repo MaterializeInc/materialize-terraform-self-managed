@@ -27,6 +27,41 @@ resource "helm_release" "cert_manager" {
     value = var.enable_service_monitor
   }
 
+  # Annotations on cert-manager's Kubernetes service account, which is how a
+  # DNS-01 solver gets a cloud identity (GKE Workload Identity, IRSA). Values
+  # are set as strings so that one such as "true" stays a string.
+  dynamic "set" {
+    for_each = var.service_account_annotations
+    content {
+      name  = "serviceAccount.annotations.${replace(set.key, ".", "\\.")}"
+      value = set.value
+      type  = "string"
+    }
+  }
+
+  # IRSA and Azure Workload Identity inject credentials when a pod is admitted,
+  # and a ServiceAccount change alone rolls nothing, so the controller pods carry
+  # a checksum of the annotations and restart when they change.
+  dynamic "set" {
+    for_each = length(var.service_account_annotations) > 0 ? { "checksum/service-account-annotations" = sha256(jsonencode(var.service_account_annotations)) } : {}
+    content {
+      name  = "podAnnotations.${set.key}"
+      value = set.value
+      type  = "string"
+    }
+  }
+
+  # Labels on the controller pods, the ones that solve ACME challenges. Azure
+  # Workload Identity selects pods by the azure.workload.identity/use label.
+  dynamic "set" {
+    for_each = var.pod_labels
+    content {
+      name  = "podLabels.${replace(set.key, ".", "\\.")}"
+      value = set.value
+      type  = "string"
+    }
+  }
+
   # Add node selectors for cert-manager pods if provided
   dynamic "set" {
     for_each = var.node_selector

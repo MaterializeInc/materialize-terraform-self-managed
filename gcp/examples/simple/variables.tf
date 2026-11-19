@@ -122,9 +122,14 @@ variable "enable_node_upgrade_rollout_trigger" {
 }
 
 variable "grafana_host" {
-  description = "Hostname to reach Grafana on. Optional: the load balancer answers on an IP regardless, but Grafana builds share links, alert notification links, and OAuth redirect URIs from `root_url`, which is only correct once this is set. DNS for the name is yours to create."
+  description = "Hostname to reach Grafana on. Optional: the load balancer answers on an IP regardless, but Grafana builds share links, alert notification links, and OAuth redirect URIs from `root_url`, which is only correct once this is set. DNS for the name is yours to create. With `dns` set, leave this unset; Grafana's hostname comes from `dns`. With a hostname, Grafana serves HTTPS on port 443, with a certificate from the console's issuer."
   type        = string
   default     = null
+
+  validation {
+    condition     = var.grafana_host == null || var.dns == null
+    error_message = "Set grafana_host or dns, not both: with dns, Grafana's hostname is dns.subdomains.grafana under the stem domain."
+  }
 }
 
 variable "grafana_allow_public_access" {
@@ -145,4 +150,38 @@ variable "grafana_allow_public_access" {
   type        = bool
   default     = false
   nullable    = false
+}
+
+variable "dns" {
+  description = <<-EOT
+    An existing Cloud DNS managed zone to put the console, balancerd and Grafana hostnames in.
+    They sit under `stem_domain`, which defaults to the zone's domain: the console on
+    `stem_domain` itself, and balancerd and Grafana on subdomains of those names. `subdomains`
+    overrides any of them, keyed `console`, `balancerd` and `grafana`, with `"@"` for the stem
+    itself. The example creates the console and balancerd records, and Grafana's when the
+    observability stack is on. The zone itself is never created or changed.
+
+    With `letsencrypt` set, cert-manager answers ACME DNS-01 challenges in the zone, and a Let's
+    Encrypt issuer signs the console, balancerd and Grafana certificates while the internal
+    ones stay self-signed. The issuer starts on Let's Encrypt staging, as
+    `<name_prefix>-letsencrypt-staging`; once staging has issued every certificate, set
+    `acme_server_prod = true` and apply again. While the issuer is on staging, browsers do not
+    trust its certificates, and the monitoring stack's scrape of Grafana fails.
+  EOT
+  type = object({
+    zone_name       = string
+    zone_project_id = optional(string)
+    stem_domain     = optional(string)
+    subdomains      = optional(map(string), {})
+    letsencrypt = optional(object({
+      acme_email       = string
+      acme_server_prod = optional(bool, false)
+    }))
+  })
+  default = null
+
+  validation {
+    condition     = alltrue([for key in keys(try(var.dns.subdomains, {})) : contains(["console", "balancerd", "grafana"], key)])
+    error_message = "dns.subdomains keys must be console, balancerd or grafana."
+  }
 }

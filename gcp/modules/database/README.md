@@ -33,11 +33,13 @@ No resources.
 | <a name="input_databases"></a> [databases](#input\_databases) | List of additional databases to create | <pre>list(object({<br/>    name      = string<br/>    charset   = optional(string, "UTF8")<br/>    collation = optional(string, "en_US.UTF8")<br/>  }))</pre> | n/a | yes |
 | <a name="input_db_version"></a> [db\_version](#input\_db\_version) | The PostgreSQL version to use | `string` | `"POSTGRES_18"` | no |
 | <a name="input_delete_timeout"></a> [delete\_timeout](#input\_delete\_timeout) | Timeout for delete operations | `string` | `"45m"` | no |
+| <a name="input_deletion_protection"></a> [deletion\_protection](#input\_deletion\_protection) | Whether to block deleting the instance, both in Terraform and in Cloud SQL itself (API, gcloud and the console). Set it to false before a planned destroy. | `bool` | `false` | no |
 | <a name="input_disk_autoresize"></a> [disk\_autoresize](#input\_disk\_autoresize) | Enable automatic increase of disk size | `bool` | `true` | no |
 | <a name="input_disk_autoresize_limit"></a> [disk\_autoresize\_limit](#input\_disk\_autoresize\_limit) | The maximum size to which storage can be auto increased | `number` | `0` | no |
 | <a name="input_disk_size"></a> [disk\_size](#input\_disk\_size) | The disk size for the database instance in GB | `number` | `null` | no |
 | <a name="input_disk_type"></a> [disk\_type](#input\_disk\_type) | The disk type for the database instance | `string` | `"PD_SSD"` | no |
 | <a name="input_edition"></a> [edition](#input\_edition) | Cloud SQL edition. ENTERPRISE accepts the legacy tier names (db-custom-N-M, db-f1-micro, etc.); ENTERPRISE\_PLUS only accepts predefined db-perf-optimized-N-* tiers. Defaults to ENTERPRISE so the tier inputs the example modules pass keep working when a project's default is set to ENTERPRISE\_PLUS. | `string` | `"ENTERPRISE"` | no |
+| <a name="input_final_backup_retention_days"></a> [final\_backup\_retention\_days](#input\_final\_backup\_retention\_days) | When set, Cloud SQL takes a final backup when the instance is deleted and keeps it for this many days. Null takes no final backup. | `number` | `null` | no |
 | <a name="input_labels"></a> [labels](#input\_labels) | Labels to apply to Cloud SQL instances | `map(string)` | `{}` | no |
 | <a name="input_maintenance_window_day"></a> [maintenance\_window\_day](#input\_maintenance\_window\_day) | Day of week for maintenance window (1-7) | `number` | `7` | no |
 | <a name="input_maintenance_window_hour"></a> [maintenance\_window\_hour](#input\_maintenance\_window\_hour) | Hour of day for maintenance window (0-23) | `number` | `3` | no |
@@ -48,6 +50,7 @@ No resources.
 | <a name="input_project_id"></a> [project\_id](#input\_project\_id) | The ID of the project where resources will be created | `string` | n/a | yes |
 | <a name="input_random_instance_name"></a> [random\_instance\_name](#input\_random\_instance\_name) | Append a random suffix to the instance name to avoid name collisions after deletion (GCP reserves deleted instance names for ~1 week) | `bool` | `false` | no |
 | <a name="input_region"></a> [region](#input\_region) | The region where resources will be created | `string` | n/a | yes |
+| <a name="input_retain_backups_on_delete"></a> [retain\_backups\_on\_delete](#input\_retain\_backups\_on\_delete) | Whether Cloud SQL keeps the instance's automated backups after the instance is deleted, for their normal retention. When false, deleting the instance deletes its backups. | `bool` | `false` | no |
 | <a name="input_tier"></a> [tier](#input\_tier) | The machine tier for the database instance | `string` | n/a | yes |
 | <a name="input_update_timeout"></a> [update\_timeout](#input\_update\_timeout) | Timeout for update operations | `string` | `"45m"` | no |
 | <a name="input_user_deletion_policy"></a> [user\_deletion\_policy](#input\_user\_deletion\_policy) | Deletion policy for users | `string` | `"ABANDON"` | no |

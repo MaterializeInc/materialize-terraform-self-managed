@@ -100,6 +100,41 @@ To restrict Load Balancer access to specific IP ranges:
 ingress_cidr_blocks = ["203.0.113.0/24", "198.51.100.0/24"]
 ```
 
+### Hostnames and Let's Encrypt from a Route 53 hosted zone
+
+With a Route 53 hosted zone, the example can put the console and balancerd on hostnames in it and get
+publicly trusted certificates for them from Let's Encrypt:
+
+```hcl
+dns = {
+  zone_id     = "Z0123456789ABCDEFGHIJ" # the Route 53 hosted zone's ID
+  stem_domain = "mz.example.com"        # defaults to the zone's domain
+  letsencrypt = {
+    acme_email = "platform-team@example.com"
+  }
+}
+```
+
+The console answers on `mz.example.com` and balancerd on `balancerd.mz.example.com`, and
+`dns.subdomains` renames either of them or Grafana's `grafana.mz.example.com`. The example
+creates the console and balancerd records and never creates or changes the zone itself.
+It also creates Grafana's record when the observability stack is on. The `dns_fqdns` output lists every hostname.
+
+The load balancers answer on DNS names, so every record is a CNAME, and a CNAME cannot sit at
+the zone's apex. Keep `stem_domain` below the apex, or move the console off `"@"` with
+`dns.subdomains`.
+
+With `letsencrypt` set, cert-manager answers DNS-01 challenges in the zone as
+an IAM role, assumed through IRSA, that may change only the `_acme-challenge` TXT records under the stem domain. The console, balancerd and Grafana certificates come from Let's Encrypt, and the
+internal ones stay self-signed. Grafana serves its certificate itself, over HTTPS on port 443. The issuer starts on Let's Encrypt staging, whose certificates neither browsers nor the monitoring stack's scrape of Grafana trust. Once
+`kubectl get certificates -A` shows every certificate ready, set `acme_server_prod = true` in
+`letsencrypt` and apply again. The issuer's name changes with it, so cert-manager reissues the
+certificates from production.
+
+With `internal_load_balancer = true`, the default, the records point at internal load balancers, so the names resolve
+publicly but answer only inside the network. Let's Encrypt works either way, because DNS-01
+never connects to the load balancers.
+
 ---
 
 ### Step 2: Deploy Materialize
@@ -163,7 +198,7 @@ Grafana is deployed in the `monitoring` namespace with pre-configured Materializ
 
 Its own state — users, service accounts and tokens, annotations, and dashboard versions created through the UI — is kept in a dedicated `db.t4g.micro` RDS instance, provisioned whenever `enable_observability` is on. It is part of the `monitoring` module block; set `grafana_database = null` there to skip it and accept losing that state on every pod restart.
 
-Grafana also gets a Network Load Balancer whenever `enable_observability` is on — internal by default, following the same `internal_load_balancer` and `ingress_cidr_blocks` variables as the Materialize load balancer. Read its address from the Service, or set `grafana_host` so Grafana's own links are correct too. It terminates no TLS, so the port-forward below stays the private path.
+Grafana also gets a Network Load Balancer whenever `enable_observability` is on — internal by default, following the same `internal_load_balancer` and `ingress_cidr_blocks` variables as the Materialize load balancer. Read its address from the Service, or set `grafana_host` so Grafana's own links are correct too. The load balancer terminates no TLS, so the port-forward below stays the private path. With a hostname, from `grafana_host` or `dns`, Grafana serves HTTPS on port 443 with a certificate from the console's issuer.
 
 #### Port Forwarding
 
@@ -172,6 +207,8 @@ kubectl port-forward svc/grafana 3000:80 -n monitoring
 ```
 
 Then open [http://localhost:3000](http://localhost:3000) in your browser.
+
+With a hostname set, Grafana serves HTTPS: forward `3000:443` instead and open https://localhost:3000, accepting the certificate warning, because the certificate names Grafana's hostname rather than localhost.
 
 #### Login Credentials
 

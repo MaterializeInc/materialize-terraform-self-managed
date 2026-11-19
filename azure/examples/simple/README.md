@@ -128,6 +128,38 @@ To restrict Load Balancer access to specific IP ranges:
 ingress_cidr_blocks = ["203.0.113.0/24", "198.51.100.0/24"]
 ```
 
+### Hostnames and Let's Encrypt from an Azure DNS zone
+
+With an Azure DNS zone, the example can put the console and balancerd on hostnames in it and get
+publicly trusted certificates for them from Let's Encrypt:
+
+```hcl
+dns = {
+  zone_name                = "example.com"
+  zone_resource_group_name = "dns-zones"       # in the subscription the azurerm provider uses
+  stem_domain              = "mz.example.com"  # defaults to the zone's domain
+  letsencrypt = {
+    acme_email = "platform-team@example.com"
+  }
+}
+```
+
+The console answers on `mz.example.com` and balancerd on `balancerd.mz.example.com`, and
+`dns.subdomains` renames either of them or Grafana's `grafana.mz.example.com`. The example
+creates the console and balancerd records, and Grafana's when the observability stack is on, and
+never creates or changes the zone itself. The `dns_fqdns` output lists every hostname.
+
+With `letsencrypt` set, cert-manager answers DNS-01 challenges in the zone as
+a managed identity, through Azure Workload Identity, with DNS Zone Contributor on that zone only. The console, balancerd and Grafana certificates come from Let's Encrypt, and the
+internal ones stay self-signed. Grafana serves its certificate itself, over HTTPS on port 443. The issuer starts on Let's Encrypt staging, whose certificates neither browsers nor the monitoring stack's scrape of Grafana trust. Once
+`kubectl get certificates -A` shows every certificate ready, set `acme_server_prod = true` in
+`letsencrypt` and apply again. The issuer's name changes with it, so cert-manager reissues the
+certificates from production.
+
+With `internal_load_balancer = true`, the default, the records point at internal addresses, so the names resolve
+publicly but answer only inside the network. Let's Encrypt works either way, because DNS-01
+never connects to the load balancers.
+
 ---
 
 ### Step 2: Deploy Materialize
@@ -191,7 +223,7 @@ Grafana is deployed in the `monitoring` namespace with pre-configured Materializ
 
 Its own state — users, service accounts and tokens, annotations, and dashboard versions created through the UI — is kept in a dedicated `B_Standard_B1ms` PostgreSQL Flexible Server, provisioned whenever `enable_observability` is on. It is part of the `monitoring` module block; set `grafana_database = null` there to skip it and accept losing that state on every pod restart.
 
-Grafana also gets an Azure load balancer whenever `enable_observability` is on — internal by default, following the same `internal_load_balancer` and `ingress_cidr_blocks` variables as the Materialize load balancers. Read its address from the Service, or set `grafana_host` so Grafana's own links are correct too. The port-forward below works regardless.
+Grafana also gets an Azure load balancer whenever `enable_observability` is on — internal by default, following the same `internal_load_balancer` and `ingress_cidr_blocks` variables as the Materialize load balancers. Read its address from the Service, or set `grafana_host` so Grafana's own links are correct too. The port-forward below works regardless. With a hostname, from `grafana_host` or `dns`, Grafana serves HTTPS on port 443 with a certificate from the console's issuer.
 
 #### Port Forwarding
 
@@ -200,6 +232,8 @@ kubectl port-forward svc/grafana 3000:80 -n monitoring
 ```
 
 Then open [http://localhost:3000](http://localhost:3000) in your browser.
+
+With a hostname set, Grafana serves HTTPS: forward `3000:443` instead and open https://localhost:3000, accepting the certificate warning, because the certificate names Grafana's hostname rather than localhost.
 
 #### Login Credentials
 

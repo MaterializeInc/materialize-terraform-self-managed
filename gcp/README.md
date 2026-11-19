@@ -28,6 +28,7 @@ GCP Specific Modules:
 | [`modules/database`](./modules/database)        | Cloud SQL PostgreSQL for Materialize metadata                 |
 | [`modules/storage`](./modules/storage)          | Cloud Storage bucket with HMAC keys for S3-compatible access   |
 | [`modules/load_balancers`](./modules/load_balancers) | GCP Load Balancers for Materialize instance access      |
+| [`modules/dns`](./modules/dns)                  | Records under a stem domain in an existing Cloud DNS zone, and cert-manager's DNS-01 identity |
 | [`modules/operator`](./modules/operator)        | Materialize Kubernetes operator installation                   |
 | [`modules/monitoring`](./modules/monitoring)     | Observability stack (Loki, Thanos, Grafana, Alloy) with GCS buckets and Workload Identity |
 

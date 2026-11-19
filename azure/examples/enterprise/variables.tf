@@ -93,22 +93,51 @@ variable "ory_oel_image_tag" {
   description = "Image tag for OEL images."
   type        = string
   # renovate: datasource=docker depName=ory-artifacts/ory-enterprise/hydra-oel registryUrl=https://ory.registry.cloud.materialize.com
-  default = "26.3.17"
+  default = "26.4.19"
 }
 
 variable "ory_hydra_fqdn" {
-  description = "External hostname for the Hydra OAuth2 public API. Used as the OIDC issuer URL. Example: hydra.internal.example.com"
+  description = "External hostname for the Hydra OAuth2 public API. Used as the OIDC issuer URL. Set this or `dns`, not both. Example: hydra.internal.example.com"
   type        = string
+  default     = null
+
+  validation {
+    condition     = (var.ory_hydra_fqdn == null) != (var.dns == null)
+    error_message = "Set ory_hydra_fqdn or dns, not both: with dns, this hostname is dns.subdomains.hydra under the stem domain."
+  }
 }
 
 variable "ory_ui_fqdn" {
-  description = "External hostname for the Ory selfservice UI (login/consent pages). Example: auth.internal.example.com"
+  description = "External hostname for the Ory selfservice UI (login/consent pages). Set this or `dns`, not both. Example: auth.internal.example.com"
   type        = string
+  default     = null
+
+  validation {
+    condition     = (var.ory_ui_fqdn == null) != (var.dns == null)
+    error_message = "Set ory_ui_fqdn or dns, not both: with dns, this hostname is dns.subdomains.auth under the stem domain."
+  }
 }
 
 variable "ory_kratos_fqdn" {
-  description = "External hostname for the Kratos public API. Kratos flows return browser-facing URLs using this hostname. Example: kratos.internal.example.com"
+  description = "External hostname for the Kratos public API. Kratos flows return browser-facing URLs using this hostname. Set this or `dns`, not both. Example: kratos.internal.example.com"
   type        = string
+  default     = null
+
+  validation {
+    condition     = (var.ory_kratos_fqdn == null) != (var.dns == null)
+    error_message = "Set ory_kratos_fqdn or dns, not both: with dns, this hostname is dns.subdomains.kratos under the stem domain."
+  }
+}
+
+variable "ory_kratos_cookie_domain" {
+  description = "Domain Kratos scopes its session cookie to. It must cover both ory_kratos_fqdn and ory_ui_fqdn, and every host under it receives the session cookie, so pick the narrowest such domain, ideally one that holds only these hostnames. Example: mz.example.com for kratos.mz.example.com and auth.mz.example.com. Defaults to the stem domain when `dns` is set, and is required otherwise."
+  type        = string
+  default     = null
+
+  validation {
+    condition     = var.ory_kratos_cookie_domain != null || var.dns != null
+    error_message = "Set ory_kratos_cookie_domain, or set dns to scope the cookie to its stem domain."
+  }
 }
 
 variable "enable_polis" {
@@ -119,9 +148,14 @@ variable "enable_polis" {
 }
 
 variable "ory_polis_fqdn" {
-  description = "External hostname for Ory Polis (SAML-to-OIDC bridge). Used as the NEXTAUTH_URL so SAML and OAuth callbacks redirect through it. Required when enable_polis is true. Example: polis.internal.example.com"
+  description = "External hostname for Ory Polis (SAML-to-OIDC bridge). Used as the NEXTAUTH_URL so SAML and OAuth callbacks redirect through it. Required when enable_polis is true, unless `dns` is set. Example: polis.internal.example.com"
   type        = string
   default     = null
+
+  validation {
+    condition     = var.ory_polis_fqdn == null || var.dns == null
+    error_message = "Set ory_polis_fqdn or dns, not both: with dns, Polis's hostname is dns.subdomains.polis under the stem domain."
+  }
 }
 
 variable "polis_helm_values" {
@@ -130,35 +164,73 @@ variable "polis_helm_values" {
   default     = {}
 }
 
+variable "ory_polis_source_ranges" {
+  description = "Extra CIDRs, besides Okta's SCIM egress ranges from okta-scim-source-ranges.json, allowed to reach the public Polis LoadBalancer. The browser reaches Polis directly for the SAML and OIDC hops, so set these to the public egress addresses your browsers appear as (VPN/NAT egress, office range). loadBalancerSourceRanges is a cloud firewall rule matched against the source IP as the cloud sees the packet, so a private VPC or tailnet CIDR (e.g. 100.64.0.0/10 or 10.x) will not match a browser coming over the internet and will lock those hops out. Combined with the Okta ranges and applied as loadBalancerSourceRanges. Leave empty to keep Polis unrestricted."
+  type        = list(string)
+  default     = []
+  nullable    = false
+}
+
 variable "materialize_console_fqdn" {
-  description = "External hostname for the Materialize console. Used to construct the OAuth2 redirect URI. Example: materialize.internal.example.com"
+  description = "External hostname for the Materialize console. Used to construct the OAuth2 redirect URI. Set this or `dns`, not both. Example: materialize.internal.example.com"
   type        = string
+  default     = null
+
+  validation {
+    condition     = (var.materialize_console_fqdn == null) != (var.dns == null)
+    error_message = "Set materialize_console_fqdn or dns, not both: with dns, this hostname is dns.subdomains.console under the stem domain."
+  }
 }
 
 variable "materialize_balancerd_fqdn" {
-  description = "External hostname for balancerd (the SQL wire-protocol endpoint). The Materialize console's browser-side JS calls balancerd directly, so an externally-accessed console needs balancerd reachable too. Point an A record at the balancerd LB IP after apply. Example: balancerd.internal.example.com"
+  description = "External hostname for balancerd (the SQL wire-protocol endpoint). The Materialize console's browser-side JS calls balancerd directly, so an externally-accessed console needs balancerd reachable too. Point an A record at the balancerd LB IP after apply. Set this or `dns`, not both. Example: balancerd.internal.example.com"
   type        = string
+  default     = null
+
+  validation {
+    condition     = (var.materialize_balancerd_fqdn == null) != (var.dns == null)
+    error_message = "Set materialize_balancerd_fqdn or dns, not both: with dns, this hostname is dns.subdomains.balancerd under the stem domain."
+  }
 }
 
 variable "cert_issuer_ref" {
-  description = "Bring-your-own cert-manager (Cluster)Issuer used to sign the browser-facing TLS certs (Materialize console / balancerd, Hydra, Kratos, selfservice UI). When null, the example falls back to the built-in self-signed issuer for browser-facing certs (the demo path). The internal mTLS cert (with *.cluster.local SANs) always uses the self-signed cluster issuer because public ACME issuers like Let's Encrypt cannot sign cluster.local. See the README for an example of plugging in a Let's Encrypt + Cloudflare DNS-01 issuer."
+  description = "Bring-your-own cert-manager (Cluster)Issuer used to sign the browser-facing TLS certs (Materialize console / balancerd, Hydra, Kratos, selfservice UI). When null, the example falls back to the built-in self-signed issuer for browser-facing certs (the demo path). The internal mTLS cert (with *.cluster.local SANs) always uses the self-signed cluster issuer because public ACME issuers like Let's Encrypt cannot sign cluster.local. See the README for an example of plugging in a Let's Encrypt + Cloudflare DNS-01 issuer. `ca` says how the monitoring stack's scrape of Grafana trusts the issuer's certificates: `\"public\"`, the default, for a publicly trusted issuer such as Let's Encrypt, and `\"secret\"` for one that writes its CA into each certificate Secret's `ca.crt`, such as a private CA issuer."
   type = object({
     name = string
     kind = string
+    ca   = optional(string, "public")
   })
   default = null
+
+  validation {
+    condition     = var.cert_issuer_ref == null ? true : contains(["public", "secret"], var.cert_issuer_ref.ca)
+    error_message = "cert_issuer_ref.ca must be \"public\" or \"secret\"."
+  }
+
+  validation {
+    condition     = var.cert_issuer_ref == null || try(var.dns.letsencrypt, null) == null
+    error_message = "Set cert_issuer_ref or dns.letsencrypt, not both."
+  }
 }
 
 variable "upstream_identity_providers" {
-  description = "Upstream OIDC providers to expose as social sign-in methods on the Kratos selfservice UI. Each entry renders as a 'Sign in with X' button on the login page. Leave as [] for password-only login. Register the redirect URI https://<ory_kratos_fqdn>/self-service/methods/oidc/callback/<id> at the upstream IdP."
+  description = <<-EOT
+    Upstream OIDC providers to expose as social sign-in methods on the Kratos selfservice UI. Each entry renders as a 'Sign in with X' button on the login page. Register the redirect URI https://<ory_kratos_fqdn>/self-service/methods/oidc/callback/<id> at the upstream IdP.
+
+    Each provider only signs in emails under its allowed_email_domains (exact, lowercase domains; list subdomains separately). allowed_groups and group_prefix limit which of its groups reach Materialize. require_email_verified (default true) refuses emails the provider does not mark verified; Microsoft Entra ID does not send email_verified by default, so set it false there and rely on allowed_email_domains.
+  EOT
   type = list(object({
-    id            = string
-    provider      = optional(string, "generic")
-    client_id     = string
-    client_secret = string
-    issuer_url    = string
-    scope         = optional(list(string), ["openid", "email", "profile"])
-    label         = optional(string)
+    id                     = string
+    provider               = optional(string, "generic")
+    client_id              = string
+    client_secret          = string
+    issuer_url             = string
+    scope                  = optional(list(string), ["openid", "email", "profile"])
+    label                  = optional(string)
+    allowed_email_domains  = list(string)
+    allowed_groups         = optional(list(string))
+    group_prefix           = optional(string)
+    require_email_verified = optional(bool, true)
   }))
   default   = []
   nullable  = false
@@ -166,17 +238,21 @@ variable "upstream_identity_providers" {
 }
 
 variable "saml_providers" {
-  description = "SAML sign-in providers exposed via the Kratos SAML method, for Ory Polis (the jackson SAML-to-OIDC bridge). Each entry renders a 'Sign in with X' button whose SAML callback is https://<ory_kratos_fqdn>/self-service/methods/saml/callback/<id>. Leave as [] for none. Use this instead of upstream_identity_providers for Polis, since jackson is a SAML method rather than an OIDC provider."
+  description = "SAML sign-in providers exposed via the Kratos SAML method, for Ory Polis (the jackson SAML-to-OIDC bridge). Each entry renders a 'Sign in with X' button whose SAML callback is https://<ory_kratos_fqdn>/self-service/methods/saml/callback/<id>. Leave as [] for none. allowed_email_domains, allowed_groups and group_prefix work as in upstream_identity_providers; require_email_verified defaults to false, since SAML assertions carry no email_verified claim."
   # raw_idp_metadata_xml is not set here: main.tf reads it from idp-metadata.xml
   # in this directory and injects it, so the large XML stays out of tfvars.
   type = list(object({
-    id            = string
-    label         = optional(string)
-    client_id     = string
-    client_secret = string
-    issuer_url    = string
-    auth_url      = string
-    token_url     = string
+    id                     = string
+    label                  = optional(string)
+    client_id              = string
+    client_secret          = string
+    issuer_url             = string
+    auth_url               = string
+    token_url              = string
+    allowed_email_domains  = list(string)
+    allowed_groups         = optional(list(string))
+    group_prefix           = optional(string)
+    require_email_verified = optional(bool, false)
   }))
   default   = []
   nullable  = false
@@ -196,9 +272,14 @@ variable "balancerd_parameters" {
 }
 
 variable "grafana_host" {
-  description = "Optional hostname to reach Grafana on. The load balancer is created regardless and answers on an IP; setting this configures Grafana's `root_url` for share links, alert notifications, and OAuth redirects. DNS for this name is yours to create."
+  description = "Optional hostname to reach Grafana on. The load balancer is created regardless and answers on an IP; setting this configures Grafana's `root_url` for share links, alert notifications, and OAuth redirects. DNS for this name is yours to create. With `dns` set, leave this unset; Grafana's hostname comes from `dns`. With a hostname, Grafana serves HTTPS on port 443, with a certificate from the console's issuer."
   type        = string
   default     = null
+
+  validation {
+    condition     = var.grafana_host == null || var.dns == null
+    error_message = "Set grafana_host or dns, not both: with dns, Grafana's hostname is dns.subdomains.grafana under the stem domain."
+  }
 }
 
 variable "grafana_allow_public_access" {
@@ -216,6 +297,13 @@ variable "grafana_allow_public_access" {
     upstream firewall or an authenticating proxy. It is set by the infrastructure test harness,
     whose clusters are ephemeral and whose runners need a public address.
   EOT
+  type        = bool
+  default     = false
+  nullable    = false
+}
+
+variable "ory_enable_dynamic_client_registration" {
+  description = "Let MCP clients such as Claude Code register themselves with Hydra and sign in to Materialize's MCP endpoint at https://<materialize_console_fqdn>/api/mcp. Anyone who can reach Hydra can register a client, and those clients only get the MCP endpoint as their audience. Changing it updates Materialize's oidc_audience, which takes effect on the next rollout (change force_rollout)."
   type        = bool
   default     = false
   nullable    = false
@@ -249,12 +337,53 @@ variable "direct_oidc" {
 
 variable "enable_ory_service_monitors" {
   description = <<-EOT
-    Scrape Kratos's and Hydra's metrics into the monitoring stack. Ory serves them only on its admin
-    listener, so this admits the monitoring gateway to the whole Kratos and Hydra admin API, which
-    has no authentication of its own and can sign anyone in to Materialize. Set it to false where
-    the monitoring namespace is not trusted as much as the Ory one.
+    Scrape Kratos's and Hydra's metrics into the monitoring stack. Ory serves them only on its
+    unauthenticated admin listener, so the monitoring gateway scrapes a proxy in the Ory namespace
+    that serves only the metrics path, and is never admitted to the admin API itself.
   EOT
   type        = bool
   default     = true
   nullable    = false
+}
+
+variable "dns" {
+  description = <<-EOT
+    An existing Azure DNS zone to take every browser-facing hostname from, instead of setting
+    `materialize_console_fqdn`, `materialize_balancerd_fqdn`, `ory_hydra_fqdn`,
+    `ory_kratos_fqdn`, `ory_ui_fqdn`, `ory_polis_fqdn` and `grafana_host` one by one. The zone is
+    named by `zone_name` (such as example.com) and `zone_resource_group_name`, in the
+    subscription the azurerm provider uses. The hostnames sit under `stem_domain`, which
+    defaults to the zone's domain: the console on `stem_domain` itself, and the rest on the
+    subdomains `balancerd`, `hydra`, `kratos`, `auth` (the selfservice UI), `polis` and
+    `grafana`. `subdomains` overrides any of them, keyed `console`, `balancerd`, `hydra`,
+    `kratos`, `auth`, `polis` and `grafana`, with `"@"` for the stem itself. Kratos's session
+    cookie is scoped to the stem domain unless `ory_kratos_cookie_domain` is set.
+
+    The example creates the records for the console, balancerd, the selfservice UI, Hydra and
+    Kratos, Polis when `enable_polis` is true, and Grafana when the observability stack is on.
+    The zone itself is never created or changed.
+
+    With `letsencrypt` set, cert-manager answers ACME DNS-01 challenges in the zone, and a Let's
+    Encrypt issuer signs the browser-facing certificates, Grafana's among them, while the
+    internal ones stay self-signed. It replaces `cert_issuer_ref`, so set one or the other. The issuer starts on
+    Let's Encrypt staging, as `<name_prefix>-letsencrypt-staging`; once staging has issued every
+    certificate, set `acme_server_prod = true` and apply again. While the issuer is on staging, browsers do not
+    trust its certificates, and the monitoring stack's scrape of Grafana fails.
+  EOT
+  type = object({
+    zone_name                = string
+    zone_resource_group_name = string
+    stem_domain              = optional(string)
+    subdomains               = optional(map(string), {})
+    letsencrypt = optional(object({
+      acme_email       = string
+      acme_server_prod = optional(bool, false)
+    }))
+  })
+  default = null
+
+  validation {
+    condition     = alltrue([for key in keys(try(var.dns.subdomains, {})) : contains(["console", "balancerd", "hydra", "kratos", "auth", "polis", "grafana"], key)])
+    error_message = "dns.subdomains keys must be console, balancerd, hydra, kratos, auth, polis or grafana."
+  }
 }

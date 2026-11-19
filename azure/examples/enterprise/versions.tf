@@ -4,7 +4,7 @@ terraform {
   required_providers {
     azurerm = {
       source  = "hashicorp/azurerm"
-      version = "5.7.0"
+      version = "5.14.0"
     }
     kubernetes = {
       source  = "hashicorp/kubernetes"
@@ -24,7 +24,7 @@ terraform {
     }
     kubectl = {
       source  = "alekc/kubectl"
-      version = "2.4.1"
+      version = "3.0.1"
     }
     # Declared so users can drop in a local okta.tf (gitignored) to automate
     # the Okta SAML app + assignments for the Polis SCIM/SAML e2e test. Not

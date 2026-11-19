@@ -42,6 +42,7 @@ AWS Specific Modules:
 | [`modules/storage`](./modules/storage)                | S3 bucket with IRSA for Materialize persistence            |
 | [`modules/aws-lbc`](./modules/aws-lbc)                | AWS Load Balancer Controller for NLB management            |
 | [`modules/nlb`](./modules/nlb)                        | Network Load Balancer for Materialize instance access      |
+| [`modules/dns`](./modules/dns)                        | Records under a stem domain in an existing Route 53 zone, and cert-manager's DNS-01 role |
 | [`modules/operator`](./modules/operator)              | Materialize Kubernetes operator installation               |
 | [`modules/monitoring`](./modules/monitoring)           | Observability stack (Loki, Thanos, Grafana, Alloy) with S3 buckets and IRSA roles |
 

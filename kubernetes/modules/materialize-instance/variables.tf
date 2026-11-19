@@ -56,11 +56,22 @@ variable "license_key" {
   sensitive   = true
 }
 
+variable "environment_id" {
+  description = "UUID for the instance's spec.environmentId, which locates its catalog in the persist backend. Null lets the operator take it from the license key, or generate a random one when the key carries none. Set it to recreate an instance on existing data, for example in a new cluster or region, to the value the old instance runs with (`kubectl get materialize <name> -n <namespace> -o jsonpath='{.spec.environmentId}'`); a different UUID boots an empty environment next to that data. It must match the license key's environment ID when the key carries one. Never change it on a running instance."
+  type        = string
+  default     = null
+
+  validation {
+    condition     = var.environment_id == null ? true : can(regex("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$", var.environment_id))
+    error_message = "environment_id must be a UUID, such as 0b5e6c2e-3f1a-4c6d-9e8f-1a2b3c4d5e6f."
+  }
+}
+
 # Environmentd Configuration
 variable "environmentd_version" {
   description = "Version of environmentd to use"
   type        = string
-  default     = "v26.48.2" # META: mz version
+  default     = "v26.50.2" # META: mz version
   nullable    = false
 }
 
@@ -295,7 +306,7 @@ variable "monitoring_namespace" {
 }
 
 variable "ory_namespace" {
-  description = "Namespace of the Ory stack. When set, creates a NetworkPolicy allowing pods in this instance's namespace to egress to the Ory namespace (used for OIDC flows against Hydra). Set to null for non-enterprise deployments."
+  description = "Namespace of the Ory stack. When set, creates a NetworkPolicy allowing pods in this instance's namespace to reach Hydra's public port (4444) and the ory-stack single-domain proxy (8443) in that namespace, for OIDC discovery and the JWKS. Set to null for non-enterprise deployments."
   type        = string
   default     = null
 }

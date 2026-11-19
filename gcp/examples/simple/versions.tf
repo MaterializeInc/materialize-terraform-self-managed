@@ -20,15 +20,15 @@ terraform {
     }
     random = {
       source  = "hashicorp/random"
-      version = "~> 3.1, < 3.9.0"
+      version = "~> 3.1, < 3.10.0"
     }
     deepmerge = {
       source  = "isometry/deepmerge"
-      version = "~> 1.0, < 1.3.0"
+      version = "~> 1.0, < 1.4.0"
     }
     kubectl = {
       source  = "alekc/kubectl"
-      version = "2.4.1"
+      version = "3.0.1"
     }
   }
 }

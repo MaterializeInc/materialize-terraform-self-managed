@@ -166,7 +166,9 @@ locals {
   # https://learn.microsoft.com/en-us/azure/aks/concepts-storage#storage-classes
   storage_class = "managed-csi"
 
-  # Ory database DSNs
+  # Ory database DSNs. All three share the server's admin login: azurerm cannot
+  # create Postgres roles, so per-service users need a Postgres connection
+  # (the postgresql provider or a bootstrap job) that this example does not set up.
   ory_kratos_dsn = format(
     "postgres://%s:%s@%s/%s?sslmode=require",
     module.ory_database.administrator_login,
@@ -203,16 +205,62 @@ locals {
     ["${module.networking.nat_gateway_public_ip}/32", local.vnet_config.address_space],
   )
 
-  # Okta's SCIM egress ranges, written by scripts/update-okta-ip-ranges.sh.
-  # Okta pushes SCIM to Polis from its own cloud, so Polis admits them too.
+  # Okta's SCIM egress ranges (generate with scripts/update-okta-ip-ranges.sh),
+  # plus any operator ranges, applied as the Polis LB allowlist.
   okta_scim_source_ranges = fileexists("${path.module}/okta-scim-source-ranges.json") ? jsondecode(file("${path.module}/okta-scim-source-ranges.json")) : []
+  polis_lb_source_ranges  = concat(local.okta_scim_source_ranges, var.ory_polis_source_ranges)
 
-  # cert-manager ClusterIssuer for browser-facing TLS. Defaults to the built-in
-  # self-signed issuer; override via var.cert_issuer_ref to plug in a real one.
-  cert_issuer = var.cert_issuer_ref != null ? var.cert_issuer_ref : {
+  # cert-manager ClusterIssuer for browser-facing TLS: var.cert_issuer_ref when
+  # set, the Let's Encrypt issuer when var.dns.letsencrypt is set, and the
+  # built-in self-signed issuer otherwise.
+  letsencrypt = try(var.dns.letsencrypt, null) != null
+  cert_issuer = var.cert_issuer_ref != null ? {
+    name = var.cert_issuer_ref.name
+    kind = var.cert_issuer_ref.kind
+    } : local.letsencrypt ? {
+    name = module.letsencrypt_cluster_issuer[0].issuer_name
+    kind = "ClusterIssuer"
+    } : {
     name = module.self_signed_cluster_issuer.issuer_name
     kind = "ClusterIssuer"
   }
+  # How the monitoring stack's scrape of Grafana trusts local.cert_issuer's
+  # certificates: the system roots for a public issuer, and for the self-signed
+  # issuer, the CA cert-manager writes into each certificate Secret's ca.crt.
+  cert_issuer_ca = var.cert_issuer_ref != null ? var.cert_issuer_ref.ca : local.letsencrypt ? "public" : "secret"
+
+  # Browser-facing hostnames: from var.dns when it is set, and from the
+  # per-hostname variables otherwise. "@" is the stem domain itself.
+  dns_subdomains = merge({
+    console   = "@"
+    balancerd = "balancerd"
+    hydra     = "hydra"
+    kratos    = "kratos"
+    auth      = "auth"
+    polis     = "polis"
+    grafana   = "grafana"
+  }, try(var.dns.subdomains, {}))
+
+  hostnames = var.dns != null ? module.dns[0].fqdns : merge(
+    # Validation requires these five when var.dns is unset, but static analysis
+    # evaluates their null defaults regardless, so a null becomes "" here rather
+    # than reaching the string templates that build Ory's and the console's URLs.
+    {
+      for key, name in {
+        console   = var.materialize_console_fqdn
+        balancerd = var.materialize_balancerd_fqdn
+        hydra     = var.ory_hydra_fqdn
+        kratos    = var.ory_kratos_fqdn
+        auth      = var.ory_ui_fqdn
+      } : key => name == null ? "" : name
+    },
+    {
+      polis   = var.ory_polis_fqdn
+      grafana = var.grafana_host
+    },
+  )
+
+  kratos_cookie_domain = var.ory_kratos_cookie_domain != null ? var.ory_kratos_cookie_domain : module.dns[0].stem_domain
 
 }
 
@@ -465,7 +513,7 @@ module "coredns" {
   # Resolve the Polis FQDN to its internal service in-cluster (hairpin fix).
   # Built here, not from module.ory, to avoid a cycle: ory depends_on coredns.
   extra_rewrites = var.enable_polis ? [{
-    from = var.ory_polis_fqdn
+    from = local.hostnames.polis
     to   = "polis-internal.${local.ory_namespace}.svc.cluster.local"
   }] : []
 
@@ -481,6 +529,11 @@ module "cert_manager" {
 
   node_selector = local.generic_node_labels
 
+  # The identity cert-manager answers DNS-01 challenges with, for the Let's
+  # Encrypt issuer when var.dns.letsencrypt is set.
+  service_account_annotations = local.letsencrypt ? module.dns[0].cert_manager_service_account_annotations : {}
+  pod_labels                  = local.letsencrypt ? module.dns[0].cert_manager_pod_labels : {}
+
   depends_on = [
     module.aks,
     module.coredns,
@@ -494,6 +547,22 @@ module "self_signed_cluster_issuer" {
   source = "../../../kubernetes/modules/self-signed-cluster-issuer"
 
   name_prefix = var.name_prefix
+
+  depends_on = [
+    module.cert_manager,
+  ]
+}
+
+# Publicly trusted certificates for the browser-facing hostnames, when
+# var.dns.letsencrypt is set. It answers DNS-01 challenges in var.dns's zone.
+module "letsencrypt_cluster_issuer" {
+  count  = local.letsencrypt ? 1 : 0
+  source = "../../../kubernetes/modules/cert-manager/letsencrypt-cluster-issuer"
+
+  name_prefix      = var.name_prefix
+  acme_email       = var.dns.letsencrypt.acme_email
+  acme_server_prod = var.dns.letsencrypt.acme_server_prod
+  solvers          = [module.dns[0].acme_dns01_solver]
 
   depends_on = [
     module.cert_manager,
@@ -569,6 +638,15 @@ module "monitoring" {
   # narrowed to fewer zones than `minDomains` leaves Thanos Receive and Loki's
   # ingesters Pending forever rather than merely unbalanced.
   min_zones = length(local.availability_zones)
+
+  # The gateway's secret filter, which replaces each credential it finds in a
+  # log line with `<redacted:RULE_ID>` before the line is stored. Off unless set
+  # here, because it scans every log line the gateway handles. `shadow` costs
+  # the same scan and leaves every line as it was, adding a redacted copy of
+  # each line `on` would have changed, labeled `secretfilter="shadow"`. Run it
+  # first to see what the filter catches in your logs.
+  #
+  # secret_filter = "shadow"
 
   # Datadog and generic OTLP (Honeycomb, Grafana Cloud, your own collector) fan
   # out the same way, and need no cloud resources — so they are set here rather
@@ -652,12 +730,12 @@ module "monitoring" {
   grafana_load_balancer = {
     internal            = var.internal_load_balancer
     ingress_cidr_blocks = var.ingress_cidr_blocks
-    host                = var.grafana_host
+    host                = local.hostnames.grafana
   }
 
   tags = var.tags
 
-  # Certificates are on by default and no issuer is named here, so the chart
+  # Certificates are on by default and no internal issuer is named here, so the chart
   # bootstraps a self-signed root scoped to the monitoring release. That is
   # deliberate, and the reason this differs from `module.materialize_instance`
   # above: none of the components behind Grafana implements per-client
@@ -666,12 +744,14 @@ module "monitoring" {
   # that to "has any certificate". Set `internal_issuer_ref` to share one
   # knowingly.
   #
-  # `issuer_ref` stays unset for a second reason: it is the *browser-facing*
-  # issuer and only issues anything alongside `grafana_external_dns_names`,
-  # which is empty because `grafana_host` is unset by default. The load balancer
-  # answers on its own DNS name either way; set `grafana_host` and you have a
-  # name worth certifying, but browser-facing TLS also needs Grafana itself to
-  # serve HTTPS, which these examples do not yet do.
+  # `issuer_ref` is the *browser-facing* issuer, the console's, and issues only
+  # alongside `grafana_external_dns_names`. Whenever Grafana has a hostname, that
+  # issuer signs a certificate for it and Grafana serves HTTPS on port 443.
+  # `issuer_ca` says how the monitoring stack's own scrape of Grafana trusts the
+  # certificate.
+  issuer_ref                 = local.hostnames.grafana != null ? local.cert_issuer : null
+  issuer_ca                  = local.cert_issuer_ca
+  grafana_external_dns_names = local.hostnames.grafana != null ? [local.hostnames.grafana] : []
 
   depends_on = [
     # cert-manager, because the monitoring stack issues Certificates by default
@@ -687,6 +767,10 @@ module "monitoring" {
 }
 
 locals {
+  # Materialize's MCP endpoint, which self-registered MCP clients are granted as
+  # their audience when dynamic client registration is on.
+  mcp_audience = var.ory_enable_dynamic_client_registration ? ["https://${local.hostnames.console}/api/mcp"] : []
+
   # Which provider Materialize trusts. var.direct_oidc wins when set, so an
   # existing provider stays authoritative while Ory runs beside it; clearing it
   # is the cutover.
@@ -698,7 +782,7 @@ locals {
     console_oidc_scopes       = var.direct_oidc.scopes
     } : {
     oidc_issuer                  = module.ory.hydra_external_url
-    oidc_audience                = jsonencode([module.ory.oauth2_client_id])
+    oidc_audience                = jsonencode(concat([module.ory.oauth2_client_id], local.mcp_audience))
     oidc_authentication_claim    = "email"
     console_oidc_client_id       = module.ory.oauth2_client_id
     console_oidc_scopes          = "openid email"
@@ -744,8 +828,8 @@ module "materialize_instance" {
 
   # Browser-facing SANs. balancerd is reached from the console JS in the
   # browser, so it also needs a publicly trusted cert + DNS record.
-  console_extra_dns_names   = [var.materialize_console_fqdn]
-  balancerd_extra_dns_names = [var.materialize_balancerd_fqdn]
+  console_extra_dns_names   = [local.hostnames.console]
+  balancerd_extra_dns_names = [local.hostnames.balancerd]
 
   # OIDC config; with Ory, client_id is the Hydra Maester-generated UUID read
   # from the OAuth2 client Secret (var.direct_oidc supplies its own).
@@ -780,6 +864,50 @@ module "load_balancers" {
   materialize_console_port = 443
 }
 
+# Records for the browser-facing hostnames in an existing Azure DNS zone, and
+# cert-manager's DNS-01 identity when var.dns.letsencrypt is set. Only names go
+# into subdomains; the load balancer addresses go into records, so the names can
+# feed Materialize and Ory, whose load balancers answer on them, without a cycle.
+module "dns" {
+  count  = var.dns != null ? 1 : 0
+  source = "../../modules/dns"
+
+  prefix                   = var.name_prefix
+  zone_name                = var.dns.zone_name
+  zone_resource_group_name = var.dns.zone_resource_group_name
+  stem_domain              = var.dns.stem_domain
+  tags                     = var.tags
+
+  subdomains = {
+    console   = { subdomain = local.dns_subdomains.console }
+    balancerd = { subdomain = local.dns_subdomains.balancerd }
+    auth      = { subdomain = local.dns_subdomains.auth }
+    hydra     = { subdomain = local.dns_subdomains.hydra }
+    kratos    = { subdomain = local.dns_subdomains.kratos }
+    polis     = { subdomain = local.dns_subdomains.polis, create = var.enable_polis }
+    # Its address is the one the monitoring module reads back from Grafana's
+    # Service, which the Helm release waits on.
+    grafana = { subdomain = local.dns_subdomains.grafana, create = var.enable_observability }
+  }
+  records = merge(
+    {
+      console   = [module.load_balancers.console_load_balancer_ip]
+      balancerd = [module.load_balancers.balancerd_load_balancer_ip]
+      auth      = [module.ory.lb_addresses.ui.ip]
+      hydra     = [module.ory.lb_addresses.hydra.ip]
+      kratos    = [module.ory.lb_addresses.kratos.ip]
+    },
+    var.enable_polis ? { polis = [module.ory.lb_addresses.polis.ip] } : {},
+    var.enable_observability ? { grafana = compact([module.monitoring[0].grafana_load_balancer_address]) } : {},
+  )
+
+  cert_manager_dns01 = local.letsencrypt ? {
+    oidc_issuer_url     = module.aks.cluster_oidc_issuer_url
+    resource_group_name = azurerm_resource_group.materialize.name
+    location            = var.location
+  } : null
+}
+
 
 # Ory stack (Kratos + Hydra + selfservice UI + Materialize bridge).
 # Example feeds cloud-specific inputs (DSNs, LB annotations, cert issuer)
@@ -792,9 +920,13 @@ module "ory" {
 
   namespace = local.ory_namespace
 
-  hydra_fqdn  = var.ory_hydra_fqdn
-  kratos_fqdn = var.ory_kratos_fqdn
-  ui_fqdn     = var.ory_ui_fqdn
+  hydra_fqdn  = local.hostnames.hydra
+  kratos_fqdn = local.hostnames.kratos
+  ui_fqdn     = local.hostnames.auth
+
+  # Kratos and the selfservice UI are on separate hostnames, so the session
+  # cookie needs a domain covering both.
+  kratos_cookie_domain = local.kratos_cookie_domain
 
   kratos_dsn = local.ory_kratos_dsn
   hydra_dsn  = local.ory_hydra_dsn
@@ -804,7 +936,7 @@ module "ory" {
   # Polis chart and image are pulled through the Materialize OEL registry proxy
   # using the license-key JWT, no separate credential required.
   enable_polis = var.enable_polis
-  polis_fqdn   = var.enable_polis ? var.ory_polis_fqdn : null
+  polis_fqdn   = var.enable_polis ? local.hostnames.polis : null
   polis_dsn    = var.enable_polis ? local.ory_polis_dsn : null
 
   polis_helm_values = var.polis_helm_values
@@ -814,11 +946,16 @@ module "ory" {
   license_key_jwt = var.license_key
 
   cert_issuer_ref                 = local.cert_issuer
-  cert_issuer_signs_cluster_local = var.cert_issuer_ref == null
+  cert_issuer_signs_cluster_local = var.cert_issuer_ref == null && !local.letsencrypt
 
-  # Materialize integration: OAuth2 client CRD + ory-side ingress NetworkPolicy.
+  # Materialize integration: OAuth2 client CRD + ingress from Materialize to Hydra.
   materialize_namespace    = local.materialize_instance_namespace
-  materialize_console_fqdn = var.materialize_console_fqdn
+  materialize_console_fqdn = local.hostnames.console
+
+  # MCP clients such as Claude Code register themselves and get the MCP endpoint
+  # as their audience.
+  enable_dynamic_client_registration = var.ory_enable_dynamic_client_registration
+  dcr_audience_allowlist             = local.mcp_audience
 
   # externalTrafficPolicy=Local makes Azure probe the kubelet's healthCheckNodePort
   # (always HTTP) instead of the TLS-only app port, which otherwise flaps backends
@@ -826,12 +963,19 @@ module "ory" {
   lb_external_traffic_policy = "Local"
 
   # Firewall the public Ory LoadBalancers like the Materialize ones, through
-  # loadBalancerSourceRanges, which Azure enforces in the LB's NSG.
-  lb_overrides = var.internal_load_balancer ? {} : {
-    for role in ["hydra", "kratos", "ui", "polis"] : role => {
-      source_ranges = role == "polis" ? concat(local.ory_lb_source_ranges, local.okta_scim_source_ranges) : local.ory_lb_source_ranges
-    }
-  }
+  # loadBalancerSourceRanges, which Azure enforces in the LB's NSG. Polis keeps
+  # its own allowlist when ory_polis_source_ranges is set or
+  # okta-scim-source-ranges.json exists (Okta's SCIM egress plus your ranges),
+  # so a default ingress_cidr_blocks of 0.0.0.0/0 never reopens a Polis locked
+  # to Okta.
+  lb_overrides = merge(
+    var.internal_load_balancer ? {} : {
+      for role in ["hydra", "kratos", "ui", "polis"] : role => { source_ranges = local.ory_lb_source_ranges }
+    },
+    length(local.polis_lb_source_ranges) > 0 ? {
+      polis = { source_ranges = local.polis_lb_source_ranges }
+    } : {},
+  )
 
   # Azure Load Balancer annotations. Internal LB uses the AKS internal flag.
   lb_annotations = var.internal_load_balancer ? {

@@ -58,6 +58,7 @@ locals {
       args = {
         enableLicenseKeyChecks = var.enable_license_key_checks
         installV1CRD           = var.install_v1_crd
+        enableUserNamespaces   = var.enable_user_namespaces
       }
       image = var.orchestratord_version == null ? {} : {
         tag = var.orchestratord_version

@@ -39,11 +39,13 @@
 | <a name="input_backup_window"></a> [backup\_window](#input\_backup\_window) | Preferred backup window | `string` | `"03:00-06:00"` | no |
 | <a name="input_cluster_name"></a> [cluster\_name](#input\_cluster\_name) | Name of the EKS cluster | `string` | n/a | yes |
 | <a name="input_cluster_security_group_id"></a> [cluster\_security\_group\_id](#input\_cluster\_security\_group\_id) | Security group ID of the EKS cluster | `string` | n/a | yes |
+| <a name="input_copy_tags_to_snapshot"></a> [copy\_tags\_to\_snapshot](#input\_copy\_tags\_to\_snapshot) | Whether to copy the database's tags to its snapshots, including the final snapshot. Tag-scoped IAM policies need this to manage the snapshots. | `bool` | `false` | no |
 | <a name="input_create_kms_key"></a> [create\_kms\_key](#input\_create\_kms\_key) | Whether to create a new KMS key for RDS encryption. If false and kms\_key\_id is not specified, the default AWS managed key will be used. | `bool` | `false` | no |
 | <a name="input_database_name"></a> [database\_name](#input\_database\_name) | Name of the database to create | `string` | n/a | yes |
 | <a name="input_database_password"></a> [database\_password](#input\_database\_password) | Password for the database | `string` | n/a | yes |
 | <a name="input_database_subnet_ids"></a> [database\_subnet\_ids](#input\_database\_subnet\_ids) | List of subnet IDs for the database | `list(string)` | n/a | yes |
 | <a name="input_database_username"></a> [database\_username](#input\_database\_username) | Username for the database | `string` | n/a | yes |
+| <a name="input_deletion_protection"></a> [deletion\_protection](#input\_deletion\_protection) | Whether to block deleting the database. While true, Terraform and the AWS API refuse to delete it, so set it to false before a planned destroy. | `bool` | `false` | no |
 | <a name="input_final_snapshot_identifier_prefix"></a> [final\_snapshot\_identifier\_prefix](#input\_final\_snapshot\_identifier\_prefix) | Prefix for the final snapshot name taken when skip\_final\_snapshot is false. The RDS module appends the DB identifier and a random suffix to keep it unique. Ignored when skip\_final\_snapshot is true. | `string` | `"final"` | no |
 | <a name="input_instance_class"></a> [instance\_class](#input\_instance\_class) | Instance class for the RDS instance | `string` | n/a | yes |
 | <a name="input_iops"></a> [iops](#input\_iops) | Provisioned IOPS. Only valid for gp3 (>=400GiB), io1, io2. Null uses the type's baseline. | `number` | `null` | no |

@@ -63,8 +63,10 @@ resource "kubernetes_config_map" "balancerd_params" {
 
 # Create the Materialize instance using the kubectl_manifest resource
 resource "kubectl_manifest" "materialize_instance" {
-  field_manager   = "terraform"
-  force_conflicts = true
+  field_manager = "terraform"
+  # Client-side apply (the default). If server_side_apply is ever enabled,
+  # decide whether Terraform should force field ownership (force_conflicts).
+
 
   upgrade_api_version = true
 
@@ -160,6 +162,11 @@ resource "kubectl_manifest" "materialize_instance" {
       } : {},
       var.environmentd_startup_probe != null ? {
         environmentdStartupProbe = var.environmentd_startup_probe
+      } : {},
+      # Omitted when unset, so the operator keeps choosing it and existing
+      # manifests are unchanged.
+      var.environment_id != null ? {
+        environmentId = var.environment_id
       } : {}
     )
   })
@@ -302,7 +309,9 @@ resource "kubernetes_network_policy_v1" "allow_api_server_egress" {
   }
 }
 
-# Egress from this namespace to the Ory namespace (JWKS fetch, OIDC flows).
+# Egress from this namespace to the Ory namespace, for OIDC discovery and the
+# JWKS: Hydra's public port, or the single-domain proxy in front of it. The pod
+# labels are the ones the ory-stack module deploys them with.
 resource "kubernetes_network_policy_v1" "allow_ory_egress" {
   count = var.enable_network_policies && var.ory_namespace != null ? 1 : 0
 
@@ -322,6 +331,35 @@ resource "kubernetes_network_policy_v1" "allow_ory_egress" {
             "kubernetes.io/metadata.name" = var.ory_namespace
           }
         }
+        pod_selector {
+          match_labels = {
+            "app.kubernetes.io/name"     = "hydra"
+            "app.kubernetes.io/instance" = "hydra"
+          }
+        }
+      }
+      ports {
+        protocol = "TCP"
+        port     = 4444
+      }
+    }
+
+    egress {
+      to {
+        namespace_selector {
+          match_labels = {
+            "kubernetes.io/metadata.name" = var.ory_namespace
+          }
+        }
+        pod_selector {
+          match_labels = {
+            "app.kubernetes.io/name" = "ory-single-domain-proxy"
+          }
+        }
+      }
+      ports {
+        protocol = "TCP"
+        port     = 8443
       }
     }
   }

@@ -148,6 +148,11 @@ output "balancerd_load_balancer_ip" {
   value       = module.load_balancers.balancerd_load_balancer_ip
 }
 
+output "dns_fqdns" {
+  description = "Hostnames from var.dns, keyed console, balancerd and grafana. Null when var.dns is unset."
+  value       = var.dns != null ? module.dns[0].fqdns : null
+}
+
 output "external_login_password_mz_system" {
   description = "Password for the external login to the Materialize instance"
   value       = random_password.external_login_password_mz_system.result
@@ -166,8 +171,13 @@ output "logs_url" {
 }
 
 output "grafana_url" {
-  description = "Internal URL for Grafana. Reach it with `kubectl -n monitoring port-forward svc/grafana 3000:80`."
+  description = "Where Grafana answers: https at its hostname when one is set, and otherwise http at its load balancer's address."
   value       = var.enable_observability ? module.monitoring[0].grafana_url : null
+}
+
+output "grafana_load_balancer_address" {
+  description = "Address of Grafana's load balancer, which dns_fqdns.grafana points at when var.dns is set. Null until the cloud assigns one, or when var.enable_observability is false."
+  value       = var.enable_observability ? module.monitoring[0].grafana_load_balancer_address : null
 }
 
 output "grafana_admin_password" {
