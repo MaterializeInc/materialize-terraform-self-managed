@@ -778,53 +778,36 @@ async fn verify_ory(dir: &Path, kubeconfig: &Path, ory: &OryOutput) -> Result<()
     .context("Hydra Maester did not register the Materialize OAuth2 client")?;
     println!("  [ok] Hydra Maester wrote the OAuth2 client Secret {secret}");
 
-    // A throwaway client_credentials client, created through the admin API.
-    let client = retry(MAX_ATTEMPTS, INTERVAL, on_retry, || {
-        with_port_forward(
-            kubeconfig,
-            ns,
-            HYDRA_ADMIN_SERVICE,
-            HYDRA_ADMIN_PORT,
-            |port| async move {
-                let body = run_cmd_output(Command::new("curl").args([
-                    "-sS",
-                    "--fail",
-                    "--max-time",
-                    "30",
-                    "-H",
-                    "Content-Type: application/json",
-                    "-d",
-                    r#"{"client_name":"kind-ci","grant_types":["client_credentials"]}"#,
-                    &format!("http://127.0.0.1:{port}/admin/clients"),
-                ]))
-                .await?;
-                serde_json::from_str::<serde_json::Value>(&body)
-                    .context("Hydra admin returned invalid JSON")
-            },
-        )
-    })
-    .await
-    .context("Failed to create a Hydra OAuth2 client")?;
-    let (Some(client_id), Some(client_secret)) = (
-        client["client_id"].as_str(),
-        client["client_secret"].as_str(),
-    ) else {
-        bail!("Hydra admin response has no client_id/client_secret");
-    };
-
-    let credentials = format!("{client_id}:{client_secret}");
-    let token_args = ["-u", &credentials, "-d", "grant_type=client_credentials"];
+    // Throwaway client_credentials clients from the admin API. The
+    // selfservice UI's token hook gives machine tokens only to clients the
+    // operator marked as managed, so the unmarked one proves the hook runs.
+    let managed = create_hydra_client(kubeconfig, ns, true).await?;
+    let token_args = ["-u", &managed, "-d", "grant_type=client_credentials"];
     let token = retry(MAX_ATTEMPTS, INTERVAL, on_retry, || {
         with_port_forward(kubeconfig, ns, &hydra.name, 443, |port| {
             curl_json(&ca, &hydra.host, port, "/oauth2/token", &token_args)
         })
     })
     .await
-    .context("Hydra did not issue a client_credentials token")?;
+    .context("Hydra did not issue a client_credentials token to a managed client")?;
     if token["access_token"].as_str().is_none_or(str::is_empty) {
         bail!("Hydra's token response has no access_token");
     }
-    println!("  [ok] Hydra issued a client_credentials token");
+    println!("  [ok] Hydra issued a client_credentials token to a managed client");
+
+    let unmanaged = create_hydra_client(kubeconfig, ns, false).await?;
+    let token_args = ["-u", &unmanaged, "-d", "grant_type=client_credentials"];
+    let status = retry(MAX_ATTEMPTS, INTERVAL, on_retry, || {
+        with_port_forward(kubeconfig, ns, &hydra.name, 443, |port| {
+            curl_status(&ca, &hydra.host, port, "/oauth2/token", &token_args)
+        })
+    })
+    .await
+    .context("Token request for an unmanaged client failed")?;
+    if status != 403 {
+        bail!("expected the token hook to refuse an unmanaged client with 403, got {status}");
+    }
+    println!("  [ok] the token hook refused a client that is not operator-managed");
 
     for &(component, path) in ORY_HEALTH_PATHS {
         let Some(svc) = ory.services.get(component) else {
@@ -863,6 +846,77 @@ async fn curl_https(
             .arg(format!("https://{host}:{port}{path}")),
     )
     .await
+}
+
+/// Like [`curl_https`], but returns the HTTP status instead of failing on
+/// an error status.
+async fn curl_status(ca: &Path, host: &str, port: u16, path: &str, extra: &[&str]) -> Result<u16> {
+    let code = run_cmd_output(
+        Command::new("curl")
+            .args(["-sS", "-o", "/dev/null", "-w", "%{http_code}"])
+            .args(["--max-time", "30", "--cacert"])
+            .arg(ca)
+            .arg("--resolve")
+            .arg(format!("{host}:{port}:127.0.0.1"))
+            .args(extra)
+            .arg(format!("https://{host}:{port}{path}")),
+    )
+    .await?;
+    code.parse()
+        .with_context(|| format!("curl printed no HTTP status: {code:?}"))
+}
+
+/// Creates a `client_credentials` client through Hydra's admin API and
+/// returns `client_id:client_secret`. `managed` sets the metadata marker the
+/// selfservice UI's token hook trusts, as an operator's client would have.
+async fn create_hydra_client(kubeconfig: &Path, ns: &str, managed: bool) -> Result<String> {
+    let body = serde_json::json!({
+        "client_name": if managed { "kind-ci-managed" } else { "kind-ci-unmanaged" },
+        "grant_types": ["client_credentials"],
+        "metadata": { "materialize_managed": managed },
+    })
+    .to_string();
+    let client = retry(
+        10,
+        std::time::Duration::from_secs(6),
+        |attempt, err| println!("  Attempt {attempt}/10: {err:#}, retrying in 6s..."),
+        || {
+            with_port_forward(
+                kubeconfig,
+                ns,
+                HYDRA_ADMIN_SERVICE,
+                HYDRA_ADMIN_PORT,
+                |port| {
+                    let body = body.as_str();
+                    async move {
+                        let out = run_cmd_output(Command::new("curl").args([
+                            "-sS",
+                            "--fail",
+                            "--max-time",
+                            "30",
+                            "-H",
+                            "Content-Type: application/json",
+                            "-d",
+                            body,
+                            &format!("http://127.0.0.1:{port}/admin/clients"),
+                        ]))
+                        .await?;
+                        serde_json::from_str::<serde_json::Value>(&out)
+                            .context("Hydra admin returned invalid JSON")
+                    }
+                },
+            )
+        },
+    )
+    .await
+    .context("Failed to create a Hydra OAuth2 client")?;
+    let (Some(id), Some(secret)) = (
+        client["client_id"].as_str(),
+        client["client_secret"].as_str(),
+    ) else {
+        bail!("Hydra admin response has no client_id/client_secret");
+    };
+    Ok(format!("{id}:{secret}"))
 }
 
 async fn curl_json(
