@@ -198,11 +198,11 @@ locals {
   okta_scim_source_ranges = fileexists("${path.module}/okta-scim-source-ranges.json") ? jsondecode(file("${path.module}/okta-scim-source-ranges.json")) : []
   polis_lb_source_ranges  = concat(local.okta_scim_source_ranges, var.ory_polis_source_ranges)
 
-  # Sources allowed through the public Ory LBs: ingress_cidr_blocks plus the
-  # cluster itself. GKE serves a pod's traffic to an LB IP inside the cluster,
+  # Sources allowed through the public Ory LBs: the console's allowlist plus
+  # the cluster itself. GKE serves a pod's traffic to an LB IP inside the cluster,
   # so it arrives from the node subnet or the pod and service ranges.
   ory_lb_source_ranges = concat(
-    var.ingress_cidr_blocks,
+    local.ingress_cidrs.console,
     [local.subnets[0].cidr],
     [for r in local.subnets[0].secondary_ranges : r.ip_cidr_range],
   )
@@ -734,7 +734,7 @@ module "monitoring" {
   # is what lets `root_url` be correct.
   grafana_load_balancer = {
     internal            = var.internal_load_balancer
-    ingress_cidr_blocks = var.ingress_cidr_blocks
+    ingress_cidr_blocks = local.ingress_cidrs.grafana
     host                = local.hostnames.grafana
   }
 
@@ -852,19 +852,30 @@ module "materialize_instance" {
   ]
 }
 
+# Allowlist per group of load balancers: var.ingress_cidr_blocks_by_service where
+# set, var.ingress_cidr_blocks otherwise.
+locals {
+  ingress_cidrs = {
+    for service in ["console", "balancerd", "grafana"] :
+    service => coalesce(var.ingress_cidr_blocks_by_service[service], var.ingress_cidr_blocks)
+  }
+}
+
 # Configure load balancers for external access to Materialize services
 module "load_balancers" {
   source = "../../modules/load_balancers"
 
-  project_id                 = var.project_id
-  network_name               = module.networking.network_name
-  prefix                     = var.name_prefix
-  node_service_account_email = module.gke.service_account_email
-  internal                   = var.internal_load_balancer
-  ingress_cidr_blocks        = var.ingress_cidr_blocks
-  instance_name              = local.materialize_instance_name
-  namespace                  = local.materialize_instance_namespace
-  resource_id                = module.materialize_instance.instance_resource_id
+  project_id                    = var.project_id
+  network_name                  = module.networking.network_name
+  prefix                        = var.name_prefix
+  node_service_account_email    = module.gke.service_account_email
+  internal                      = var.internal_load_balancer
+  ingress_cidr_blocks           = var.ingress_cidr_blocks
+  console_ingress_cidr_blocks   = local.ingress_cidrs.console
+  balancerd_ingress_cidr_blocks = local.ingress_cidrs.balancerd
+  instance_name                 = local.materialize_instance_name
+  namespace                     = local.materialize_instance_namespace
+  resource_id                   = module.materialize_instance.instance_resource_id
 
   # Serve the console on 443 (the canonical HTTPS port) so browser OIDC
   # redirects to https://<materialize_console_fqdn>/auth/callback resolve without
@@ -983,8 +994,8 @@ module "ory" {
 
   # Firewall the public Ory LBs to ory_lb_source_ranges. Polis keeps its own
   # allowlist when ory_polis_source_ranges is set or okta-scim-source-ranges.json
-  # exists (Okta's SCIM egress plus your ranges), so a default
-  # ingress_cidr_blocks of 0.0.0.0/0 never reopens a Polis locked to Okta.
+  # exists (Okta's SCIM egress plus your ranges), so a default console
+  # allowlist of 0.0.0.0/0 never reopens a Polis locked to Okta.
   lb_overrides = merge(
     var.internal_load_balancer ? {} : {
       for role in ["hydra", "kratos", "ui", "polis"] : role => { source_ranges = local.ory_lb_source_ranges }
