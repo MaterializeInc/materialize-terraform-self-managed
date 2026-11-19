@@ -73,6 +73,23 @@
       ],
       "versioning": "regex:^(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)$",
       "groupName": "Ory OEL images"
+    },
+    {
+      "description": [
+        "nginx-unprivileged fronts internet-facing traffic (the Polis TLS sidecar) and nginx ships security",
+        "fixes as plain patch releases, so the shared preset's 3-day minimumReleaseAge would hold a CVE fix",
+        "back after the image is finally published. osvVulnerabilityAlerts does not help here: OSV has no",
+        "data for Docker image tags. Its own group keeps the bump out of the `regex non-breaking` PR, so it",
+        "can merge without waiting on unrelated updates."
+      ],
+      "matchDatasources": [
+        "docker"
+      ],
+      "matchPackageNames": [
+        "nginxinc/nginx-unprivileged"
+      ],
+      "minimumReleaseAge": null,
+      "groupName": "nginx-unprivileged"
     }
   ],
   "customManagers": [
