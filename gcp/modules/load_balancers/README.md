@@ -10,8 +10,8 @@
 
 | Name | Version |
 | ---- | ------- |
-| <a name="provider_google"></a> [google](#provider\_google) | >= 8.0, < 9 |
-| <a name="provider_kubernetes"></a> [kubernetes](#provider\_kubernetes) | ~> 2.0, < 2.39.0 |
+| <a name="provider_google"></a> [google](#provider\_google) | 8.12.0 |
+| <a name="provider_kubernetes"></a> [kubernetes](#provider\_kubernetes) | 2.38.0 |
 
 ## Modules
 
@@ -21,8 +21,10 @@ No modules.
 
 | Name | Type |
 | ---- | ---- |
+| [google_compute_firewall.external_console_rules](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/compute_firewall) | resource |
 | [google_compute_firewall.external_rules](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/compute_firewall) | resource |
 | [google_compute_firewall.health_checks](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/compute_firewall) | resource |
+| [google_compute_firewall.internal_console_rules](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/compute_firewall) | resource |
 | [google_compute_firewall.internal_rules](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/compute_firewall) | resource |
 | [kubernetes_service.balancerd_load_balancer](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/service) | resource |
 | [kubernetes_service.console_load_balancer](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/service) | resource |
@@ -32,7 +34,9 @@ No modules.
 
 | Name | Description | Type | Default | Required |
 | ---- | ----------- | ---- | ------- | :------: |
-| <a name="input_ingress_cidr_blocks"></a> [ingress\_cidr\_blocks](#input\_ingress\_cidr\_blocks) | List of CIDR blocks allowed to reach the load balancers. For internal load balancers, use the ranges of clients in the VPC, peered VPCs, or on-prem networks. | `list(string)` | n/a | yes |
+| <a name="input_balancerd_ingress_cidr_blocks"></a> [balancerd\_ingress\_cidr\_blocks](#input\_balancerd\_ingress\_cidr\_blocks) | CIDR blocks allowed to reach the balancerd load balancer (pgwire and the HTTP API), in place of `ingress_cidr_blocks`. Null uses `ingress_cidr_blocks`. | `list(string)` | `null` | no |
+| <a name="input_console_ingress_cidr_blocks"></a> [console\_ingress\_cidr\_blocks](#input\_console\_ingress\_cidr\_blocks) | CIDR blocks allowed to reach the console load balancer, in place of `ingress_cidr_blocks`. Null uses `ingress_cidr_blocks`. | `list(string)` | `null` | no |
+| <a name="input_ingress_cidr_blocks"></a> [ingress\_cidr\_blocks](#input\_ingress\_cidr\_blocks) | List of CIDR blocks allowed to reach the load balancers. For internal load balancers, use the ranges of clients in the VPC, peered VPCs, or on-prem networks. `console_ingress_cidr_blocks` and `balancerd_ingress_cidr_blocks` override it per load balancer. | `list(string)` | n/a | yes |
 | <a name="input_instance_name"></a> [instance\_name](#input\_instance\_name) | The name of the Materialize instance. | `string` | n/a | yes |
 | <a name="input_internal"></a> [internal](#input\_internal) | Whether the load balancer is internal to the VPC. Defaults to true (private) to allow internal access to Materialize. Set to false for public access. | `bool` | `true` | no |
 | <a name="input_materialize_balancerd_https_port"></a> [materialize\_balancerd\_https\_port](#input\_materialize\_balancerd\_https\_port) | HTTPS port configuration for Materialize balancerd service | `number` | `6876` | no |
