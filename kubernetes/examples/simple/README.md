@@ -7,6 +7,7 @@ This example deploys self-managed Materialize onto a Kubernetes cluster you alre
 - **cert-manager** and a **self-signed ClusterIssuer** for TLS between Materialize components
 - **Materialize operator** (`orchestratord`), installed from the [Helm chart](https://materializeinc.github.io/materialize/) into the `materialize` namespace, with the v1 CRD and its conversion webhook enabled, plus an `allow-materialize-operator` NetworkPolicy that keeps the chart's own operator policy from cutting it off on CNIs that enforce NetworkPolicy
 - **Materialize instance** (`main`) in the `materialize-environment` namespace, with password authentication for `mz_system`
+- Optionally, with `enable_ory = true`, the **Ory identity stack** (Kratos, Hydra, the selfservice UI and Polis) in the `ory` namespace. Its Services are ClusterIP and its hostnames are their in-cluster names, so it is reachable only from inside the cluster. It needs a PostgreSQL database per component (`ory_kratos_dsn`, `ory_hydra_dsn`, `ory_polis_dsn`) and a license key with the `ory` entitlement. Materialize keeps password authentication here; the cloud `enterprise` examples show Materialize signing in through Ory.
 
 ## What You Bring
 

@@ -178,6 +178,18 @@ variable "materialize_console_extra_fqdns" {
 
 # Load balancer cloud-specific knobs ------------------------------------------
 
+variable "service_type" {
+  description = "Type of the Services that expose Hydra, Kratos, the selfservice UI and Polis (or the single-domain proxy) on port 443. \"LoadBalancer\" gives each a cloud load balancer and waits for its address. \"ClusterIP\" keeps them in-cluster, for clusters without load balancer support (such as kind) or when something else fronts them; the lb_* inputs then have no effect and every lb_addresses entry is null."
+  type        = string
+  default     = "LoadBalancer"
+  nullable    = false
+
+  validation {
+    condition     = contains(["LoadBalancer", "ClusterIP"], var.service_type)
+    error_message = "service_type must be one of: LoadBalancer, ClusterIP."
+  }
+}
+
 variable "lb_annotations" {
   description = "Annotations applied to all the public LoadBalancer Services (Hydra, Kratos, UI, and Polis when enabled). Use this to set cloud-specific LB knobs (Azure internal flag, GKE LB type, AWS LBC settings). Per-service values in lb_overrides are merged on top."
   type        = map(string)

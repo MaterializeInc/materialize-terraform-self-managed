@@ -18,6 +18,9 @@ locals {
   # Polis is optional and gated by var.enable_polis.
   wire_polis = var.enable_polis
 
+  # The lb_* inputs only apply to LoadBalancer Services.
+  load_balancer = var.service_type == "LoadBalancer"
+
   # Hostname portion of var.oel_registry (everything before the first '/').
   # Used as the dockerconfigjson auths key on the imagePullSecret, and as the
   # image.registry / chart_registry for Polis (whose chart takes registry and
@@ -654,15 +657,15 @@ resource "kubernetes_service_v1" "ory_lb" {
   }
 
   spec {
-    type                    = "LoadBalancer"
-    load_balancer_class     = var.lb_load_balancer_class
-    external_traffic_policy = var.lb_external_traffic_policy
+    type                    = var.service_type
+    load_balancer_class     = local.load_balancer ? var.lb_load_balancer_class : null
+    external_traffic_policy = local.load_balancer ? var.lb_external_traffic_policy : null
     # Enforced by the cloud controller in the provider firewall, so it applies
     # even when the cluster datapath ignores NetworkPolicy (see lb_source_cidrs).
-    load_balancer_source_ranges = try(var.lb_overrides[each.value.role].source_ranges, null)
+    load_balancer_source_ranges = local.load_balancer ? try(var.lb_overrides[each.value.role].source_ranges, null) : null
     # Pin a reserved static IP, e.g. so a firewalled public LB (Polis) has a
     # stable address to allowlist. Null lets the cloud assign an ephemeral one.
-    load_balancer_ip = try(var.lb_overrides[each.value.role].load_balancer_ip, null)
+    load_balancer_ip = local.load_balancer ? try(var.lb_overrides[each.value.role].load_balancer_ip, null) : null
 
     selector = {
       "app.kubernetes.io/name"     = each.value.app_name
@@ -677,7 +680,7 @@ resource "kubernetes_service_v1" "ory_lb" {
     }
   }
 
-  wait_for_load_balancer = true
+  wait_for_load_balancer = local.load_balancer
 
   lifecycle {
     ignore_changes = [
@@ -1182,11 +1185,11 @@ resource "kubernetes_service_v1" "single_domain_proxy_lb" {
   }
 
   spec {
-    type                        = "LoadBalancer"
-    load_balancer_class         = var.lb_load_balancer_class
-    external_traffic_policy     = var.lb_external_traffic_policy
-    load_balancer_source_ranges = try(var.lb_overrides["single_domain"].source_ranges, null)
-    load_balancer_ip            = try(var.lb_overrides["single_domain"].load_balancer_ip, null)
+    type                        = var.service_type
+    load_balancer_class         = local.load_balancer ? var.lb_load_balancer_class : null
+    external_traffic_policy     = local.load_balancer ? var.lb_external_traffic_policy : null
+    load_balancer_source_ranges = local.load_balancer ? try(var.lb_overrides["single_domain"].source_ranges, null) : null
+    load_balancer_ip            = local.load_balancer ? try(var.lb_overrides["single_domain"].load_balancer_ip, null) : null
 
     selector = { "app.kubernetes.io/name" = local.single_domain_proxy_name }
 
@@ -1198,7 +1201,7 @@ resource "kubernetes_service_v1" "single_domain_proxy_lb" {
     }
   }
 
-  wait_for_load_balancer = true
+  wait_for_load_balancer = local.load_balancer
 
   lifecycle {
     ignore_changes = [

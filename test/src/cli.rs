@@ -199,6 +199,10 @@ pub enum InitProvider {
     Kind {
         #[clap(flatten)]
         common: CommonInitArgs,
+        /// Leave out the Ory stack, e.g. with a license key that lacks the
+        /// ory entitlement its images are pulled with.
+        #[arg(long)]
+        skip_ory: bool,
     },
 }
 
@@ -217,7 +221,7 @@ impl InitProvider {
             InitProvider::Aws { common, .. }
             | InitProvider::Azure { common, .. }
             | InitProvider::Gcp { common, .. }
-            | InitProvider::Kind { common } => common,
+            | InitProvider::Kind { common, .. } => common,
         }
     }
 

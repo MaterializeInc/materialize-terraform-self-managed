@@ -6,7 +6,7 @@ use tokio::process::Command;
 use crate::helpers::{
     ci_log_group, kubectl, read_tfvars, retry, run_cmd, run_cmd_output, write_lifecycle,
 };
-use crate::types::{CloudProvider, TerraformOutputs, TfVars};
+use crate::types::{CloudProvider, OryOutput, TerraformOutputs, TfVars};
 
 /// Runs verification commands against an applied test environment.
 pub async fn phase_verify(dir: &Path) -> Result<()> {
@@ -68,6 +68,17 @@ pub async fn phase_verify(dir: &Path) -> Result<()> {
                 .context("Missing terraform output: load balancer endpoint")?;
             println!("\nVerifying Materialize SQL connectivity at {endpoint}...");
             verify_sql_connection(endpoint, &outputs).await?;
+        }
+
+        if let Some(ory) = outputs.ory() {
+            println!(
+                "\nVerifying the Ory stack in namespace {}...",
+                ory.namespace
+            );
+            if let Err(e) = verify_ory(dir, &kubeconfig, ory).await {
+                dump_ory_diagnostics(&kubeconfig, &ory.namespace).await;
+                return Err(e);
+            }
         }
 
         write_lifecycle(dir, "verify", "completed").await?;
@@ -192,13 +203,6 @@ async fn verify_materialize_instance(kubeconfig: &Path, namespace: &str, name: &
 async fn dump_materialize_diagnostics(kubeconfig: &Path, namespace: &str, name: &str) {
     println!("\n--- diagnostics: Materialize CR did not become UpToDate ---");
 
-    async fn run_section(label: &str, kubeconfig: &Path, args: &[&str]) {
-        println!("\n>>> {label}");
-        if let Err(e) = run_cmd(kubectl(kubeconfig).args(args)).await {
-            println!("(diagnostic command failed: {e:#})");
-        }
-    }
-
     let materialize_ref = format!("materialize/{name}");
     run_section(
         "kubectl describe materialize",
@@ -240,6 +244,15 @@ async fn dump_materialize_diagnostics(kubeconfig: &Path, namespace: &str, name: 
     .await;
 
     println!("\n--- end diagnostics ---");
+}
+
+/// Runs one diagnostic kubectl command, logging rather than returning its
+/// failure so the rest of a dump still runs.
+async fn run_section(label: &str, kubeconfig: &Path, args: &[&str]) {
+    println!("\n>>> {label}");
+    if let Err(e) = run_cmd(kubectl(kubeconfig).args(args)).await {
+        println!("(diagnostic command failed: {e:#})");
+    }
 }
 
 /// The expected pod types and their minimum counts in the materialize namespace.
@@ -536,10 +549,10 @@ async fn verify_sql_connection_via_port_forward(
             );
         },
         || async {
-            let (mut child, port) = spawn_port_forward(kubeconfig, namespace, service).await?;
-            let result = sql_select_1("127.0.0.1", port, password).await;
-            child.kill().await.ok();
-            result
+            with_port_forward(kubeconfig, namespace, service, 6875, |port| {
+                sql_select_1("127.0.0.1", port, password)
+            })
+            .await
         },
     )
     .await
@@ -549,13 +562,33 @@ async fn verify_sql_connection_via_port_forward(
     Ok(())
 }
 
-/// Spawns `kubectl port-forward` to the given service's SQL port and returns
-/// the child process along with the local port. Port 0 lets the kernel pick a
+/// Runs `f` with the local port of a `kubectl port-forward` to the given
+/// service port, closing the tunnel afterwards.
+async fn with_port_forward<T, F, Fut>(
+    kubeconfig: &Path,
+    namespace: &str,
+    service: &str,
+    remote_port: u16,
+    f: F,
+) -> Result<T>
+where
+    F: FnOnce(u16) -> Fut,
+    Fut: std::future::Future<Output = Result<T>>,
+{
+    let (mut child, port) = spawn_port_forward(kubeconfig, namespace, service, remote_port).await?;
+    let result = f(port).await;
+    child.kill().await.ok();
+    result
+}
+
+/// Spawns `kubectl port-forward` to the given service port and returns the
+/// child process along with the local port. Port 0 lets the kernel pick a
 /// free local port, which kubectl reports on stdout.
 async fn spawn_port_forward(
     kubeconfig: &Path,
     namespace: &str,
     service: &str,
+    remote_port: u16,
 ) -> Result<(tokio::process::Child, u16)> {
     use tokio::io::{AsyncBufReadExt, BufReader};
 
@@ -563,7 +596,7 @@ async fn spawn_port_forward(
         .args([
             "port-forward",
             &format!("svc/{service}"),
-            "0:6875",
+            &format!("0:{remote_port}"),
             "-n",
             namespace,
         ])
@@ -590,7 +623,7 @@ async fn spawn_port_forward(
         .and_then(|addr| addr.rsplit(':').next())
         .and_then(|p| p.parse().ok())
         .with_context(|| format!("Could not parse port-forward output: {line}"))?;
-    println!("  Forwarding 127.0.0.1:{port} to {service}:6875");
+    println!("  Forwarding 127.0.0.1:{port} to {service}:{remote_port}");
     Ok((child, port))
 }
 
@@ -639,4 +672,239 @@ async fn sql_select_1(host: &str, port: u16, password: &str) -> Result<String> {
             .env("PGSSLMODE", "require"),
     )
     .await
+}
+
+/// cert-manager writes the issuing CA into every certificate Secret as
+/// `ca.crt`, and all the Ory certificates come from the same issuer.
+const ORY_CA_SECRET: &str = "hydra-tls";
+
+/// Hydra's admin API Service, named by the Hydra chart. Plain HTTP.
+const HYDRA_ADMIN_SERVICE: &str = "hydra-admin";
+const HYDRA_ADMIN_PORT: u16 = 4445;
+
+/// Health endpoints on each component's public port, checked after Hydra.
+const ORY_HEALTH_PATHS: &[(&str, &str)] = &[
+    ("kratos", "/health/ready"),
+    ("ui", "/health/ready"),
+    ("polis", "/api/health"),
+];
+
+/// Checks the Ory stack end to end from outside the cluster: every
+/// deployment is up, Hydra serves discovery under the configured issuer,
+/// Hydra Maester registered the Materialize OAuth2 client, Hydra issues a
+/// token (which goes through the selfservice UI's token hook), and Kratos,
+/// the UI and Polis report healthy. Every HTTPS call verifies the service's
+/// certificate for its real hostname.
+async fn verify_ory(dir: &Path, kubeconfig: &Path, ory: &OryOutput) -> Result<()> {
+    const MAX_ATTEMPTS: u32 = 10;
+    const INTERVAL: std::time::Duration = std::time::Duration::from_secs(6);
+    let on_retry = |attempt: u32, err: &anyhow::Error| {
+        println!(
+            "  Attempt {attempt}/{MAX_ATTEMPTS}: {err:#}, retrying in {}s...",
+            INTERVAL.as_secs()
+        );
+    };
+    let ns = ory.namespace.as_str();
+
+    run_cmd(kubectl(kubeconfig).args([
+        "wait",
+        "--for=condition=Available",
+        "deployment",
+        "--all",
+        "-n",
+        ns,
+        "--timeout=600s",
+    ]))
+    .await
+    .context("Ory deployments did not become Available within timeout")?;
+    println!("  [ok] all deployments are Available");
+
+    let ca = dir.join("ory-ca.crt");
+    let ca_pem = run_cmd_output(kubectl(kubeconfig).args([
+        "get",
+        "secret",
+        ORY_CA_SECRET,
+        "-n",
+        ns,
+        "-o",
+        r#"go-template={{index .data "ca.crt" | base64decode}}"#,
+    ]))
+    .await
+    .context("Failed to read the Ory CA certificate")?;
+    tokio::fs::write(&ca, format!("{ca_pem}\n")).await?;
+
+    let hydra = ory.service("hydra")?;
+    let discovery = retry(MAX_ATTEMPTS, INTERVAL, on_retry, || {
+        with_port_forward(kubeconfig, ns, &hydra.name, 443, |port| {
+            curl_json(
+                &ca,
+                &hydra.host,
+                port,
+                "/.well-known/openid-configuration",
+                &[],
+            )
+        })
+    })
+    .await
+    .context("Hydra discovery failed")?;
+    let issuer = discovery["issuer"].as_str().unwrap_or_default();
+    if issuer != ory.issuer {
+        bail!(
+            "Hydra advertises issuer {issuer:?}, expected {:?}",
+            ory.issuer
+        );
+    }
+    println!("  [ok] Hydra discovery advertises issuer {issuer}");
+
+    let secret = ory.oauth2_client_secret_name.as_str();
+    retry(30, INTERVAL, on_retry, || async {
+        let client_id = run_cmd_output(kubectl(kubeconfig).args([
+            "get",
+            "secret",
+            secret,
+            "-n",
+            ns,
+            "--ignore-not-found",
+            "-o",
+            "jsonpath={.data.CLIENT_ID}",
+        ]))
+        .await?;
+        if client_id.is_empty() {
+            bail!("Hydra Maester has not written {secret} yet");
+        }
+        Ok(())
+    })
+    .await
+    .context("Hydra Maester did not register the Materialize OAuth2 client")?;
+    println!("  [ok] Hydra Maester wrote the OAuth2 client Secret {secret}");
+
+    // A throwaway client_credentials client, created through the admin API.
+    let client = retry(MAX_ATTEMPTS, INTERVAL, on_retry, || {
+        with_port_forward(
+            kubeconfig,
+            ns,
+            HYDRA_ADMIN_SERVICE,
+            HYDRA_ADMIN_PORT,
+            |port| async move {
+                let body = run_cmd_output(Command::new("curl").args([
+                    "-sS",
+                    "--fail",
+                    "--max-time",
+                    "30",
+                    "-H",
+                    "Content-Type: application/json",
+                    "-d",
+                    r#"{"client_name":"kind-ci","grant_types":["client_credentials"]}"#,
+                    &format!("http://127.0.0.1:{port}/admin/clients"),
+                ]))
+                .await?;
+                serde_json::from_str::<serde_json::Value>(&body)
+                    .context("Hydra admin returned invalid JSON")
+            },
+        )
+    })
+    .await
+    .context("Failed to create a Hydra OAuth2 client")?;
+    let (Some(client_id), Some(client_secret)) = (
+        client["client_id"].as_str(),
+        client["client_secret"].as_str(),
+    ) else {
+        bail!("Hydra admin response has no client_id/client_secret");
+    };
+
+    let credentials = format!("{client_id}:{client_secret}");
+    let token_args = ["-u", &credentials, "-d", "grant_type=client_credentials"];
+    let token = retry(MAX_ATTEMPTS, INTERVAL, on_retry, || {
+        with_port_forward(kubeconfig, ns, &hydra.name, 443, |port| {
+            curl_json(&ca, &hydra.host, port, "/oauth2/token", &token_args)
+        })
+    })
+    .await
+    .context("Hydra did not issue a client_credentials token")?;
+    if token["access_token"].as_str().is_none_or(str::is_empty) {
+        bail!("Hydra's token response has no access_token");
+    }
+    println!("  [ok] Hydra issued a client_credentials token");
+
+    for &(component, path) in ORY_HEALTH_PATHS {
+        let Some(svc) = ory.services.get(component) else {
+            continue;
+        };
+        retry(MAX_ATTEMPTS, INTERVAL, on_retry, || {
+            with_port_forward(kubeconfig, ns, &svc.name, 443, |port| {
+                curl_https(&ca, &svc.host, port, path, &[])
+            })
+        })
+        .await
+        .with_context(|| format!("{component} is not healthy at {path}"))?;
+        println!("  [ok] {component} is healthy");
+    }
+
+    Ok(())
+}
+
+/// Requests `https://<host>:<port><path>` through a port-forward on `port`.
+/// `--resolve` sends the real hostname to 127.0.0.1, so the certificate is
+/// checked against it and against `ca`. `extra` is passed to curl as is.
+async fn curl_https(
+    ca: &Path,
+    host: &str,
+    port: u16,
+    path: &str,
+    extra: &[&str],
+) -> Result<String> {
+    run_cmd_output(
+        Command::new("curl")
+            .args(["-sS", "--fail", "--max-time", "30", "--cacert"])
+            .arg(ca)
+            .arg("--resolve")
+            .arg(format!("{host}:{port}:127.0.0.1"))
+            .args(extra)
+            .arg(format!("https://{host}:{port}{path}")),
+    )
+    .await
+}
+
+async fn curl_json(
+    ca: &Path,
+    host: &str,
+    port: u16,
+    path: &str,
+    extra: &[&str],
+) -> Result<serde_json::Value> {
+    let body = curl_https(ca, host, port, path, extra).await?;
+    serde_json::from_str(&body).with_context(|| format!("{path} returned invalid JSON"))
+}
+
+async fn dump_ory_diagnostics(kubeconfig: &Path, namespace: &str) {
+    println!("\n--- diagnostics: Ory stack ---");
+    run_section(
+        "kubectl get pods (Ory namespace)",
+        kubeconfig,
+        &["get", "pods", "-n", namespace, "-o", "wide"],
+    )
+    .await;
+    run_section(
+        "kubectl get events (Ory namespace)",
+        kubeconfig,
+        &["get", "events", "-n", namespace, "--sort-by=.lastTimestamp"],
+    )
+    .await;
+    run_section(
+        "kubectl logs (Ory namespace, last 50 lines per pod)",
+        kubeconfig,
+        &[
+            "logs",
+            "-n",
+            namespace,
+            "-l",
+            "app.kubernetes.io/name",
+            "--tail=50",
+            "--all-containers",
+            "--prefix",
+            "--max-log-requests=20",
+        ],
+    )
+    .await;
+    println!("\n--- end diagnostics ---");
 }
