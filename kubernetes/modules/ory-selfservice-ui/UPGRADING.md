@@ -67,8 +67,8 @@ are unchanged, so users stay signed in across the roll in both directions.
 
 What the image, `ory-kratos` and `ory-stack` enforce together:
 
-Existing deployments have a few steps to take; see the v19.0.0 upgrade notes in the
-[root README](../../../README.md#upgrade-notes).
+Existing deployments have a few steps to take; see the v19.0.0 section of the
+[root UPGRADING.md](../../../UPGRADING.md#v1900).
 
 - **`email` and `groups` come from the identity's `metadata_public`, never its traits.**
   During SSO registration Kratos keeps any `traits` the user submits over the IdP mapper's
