@@ -1,3 +1,8 @@
+locals {
+  console_ingress_cidr_blocks   = var.console_ingress_cidr_blocks != null ? var.console_ingress_cidr_blocks : var.ingress_cidr_blocks
+  balancerd_ingress_cidr_blocks = var.balancerd_ingress_cidr_blocks != null ? var.balancerd_ingress_cidr_blocks : var.ingress_cidr_blocks
+}
+
 resource "kubernetes_service" "console_load_balancer" {
   metadata {
     name      = "mz${var.resource_id}-console-lb"
@@ -10,7 +15,7 @@ resource "kubernetes_service" "console_load_balancer" {
   spec {
     type                        = "LoadBalancer"
     external_traffic_policy     = "Local"
-    load_balancer_source_ranges = var.ingress_cidr_blocks
+    load_balancer_source_ranges = local.console_ingress_cidr_blocks
 
     selector = {
       "materialize.cloud/name" = "mz${var.resource_id}-console"
@@ -52,7 +57,7 @@ resource "kubernetes_service" "balancerd_load_balancer" {
   spec {
     type                        = "LoadBalancer"
     external_traffic_policy     = "Local"
-    load_balancer_source_ranges = var.ingress_cidr_blocks
+    load_balancer_source_ranges = local.balancerd_ingress_cidr_blocks
 
     selector = {
       "materialize.cloud/name" = "mz${var.resource_id}-balancerd"
@@ -88,42 +93,84 @@ resource "kubernetes_service" "balancerd_load_balancer" {
   wait_for_load_balancer = true
 }
 
-# Custom firewall rule to allow ingress traffic to Materialize nodes (External LB)
-# For external load balancers, this restricts access to specific external IP ranges
-# This rule targets specific nodes via service account instead of all cluster nodes
+# Custom firewall rules to allow ingress traffic to Materialize nodes (External LB).
+# For external load balancers, these restrict access to specific external IP
+# ranges. They target specific nodes via service account instead of all cluster
+# nodes. The console and balancerd each have a rule, so each can take its own
+# allowlist.
+resource "google_compute_firewall" "external_console_rules" {
+  count = var.internal ? 0 : 1
+
+  project     = var.project_id
+  name        = "${var.prefix}-lb-external-console-ingress-rule"
+  network     = var.network_name
+  description = "Allow external traffic from specified CIDR blocks to the Materialize console via External Load Balancer (custom rule targeting specific service account)"
+  direction   = "INGRESS"
+  allow {
+    protocol = "tcp"
+    ports    = ["8080"]
+  }
+  source_ranges           = local.console_ingress_cidr_blocks
+  target_service_accounts = [var.node_service_account_email]
+}
+
+# The balancerd rule keeps the name and address the shared rule had, so an
+# existing deployment updates it in place. It waits for the console rule, so the
+# console port stays open while it moves from one rule to the other.
 resource "google_compute_firewall" "external_rules" {
   count = var.internal ? 0 : 1
 
   project     = var.project_id
   name        = "${var.prefix}-lb-external-ingress-rule"
   network     = var.network_name
-  description = "Allow external traffic from specified CIDR blocks to Materialize nodes via External Load Balancer (custom rule targeting specific service account)"
+  description = "Allow external traffic from specified CIDR blocks to Materialize balancerd via External Load Balancer (custom rule targeting specific service account)"
   direction   = "INGRESS"
   allow {
     protocol = "tcp"
-    ports    = ["8080", "6875", "6876"]
+    ports    = ["6875", "6876"]
   }
-  source_ranges           = var.ingress_cidr_blocks
+  source_ranges           = local.balancerd_ingress_cidr_blocks
+  target_service_accounts = [var.node_service_account_email]
+
+  depends_on = [google_compute_firewall.external_console_rules]
+}
+
+# Firewall rules to allow client traffic to Materialize nodes (Internal LB).
+# GKE L4 firewall reconciliation is disabled, so GKE creates no allow rule for
+# internal LoadBalancer Services; without these only the node subnet can
+# connect. As with the external rules, the console and balancerd each have one.
+resource "google_compute_firewall" "internal_console_rules" {
+  count = var.internal ? 1 : 0
+
+  project     = var.project_id
+  name        = "${var.prefix}-lb-internal-console-ingress-rule"
+  network     = var.network_name
+  description = "Allow internal traffic from specified CIDR blocks to the Materialize console via Internal Load Balancer (custom rule targeting specific service account)"
+  direction   = "INGRESS"
+  allow {
+    protocol = "tcp"
+    ports    = ["8080"]
+  }
+  source_ranges           = local.console_ingress_cidr_blocks
   target_service_accounts = [var.node_service_account_email]
 }
 
-# Firewall rule to allow client traffic to Materialize nodes (Internal LB)
-# GKE L4 firewall reconciliation is disabled, so GKE creates no allow rule for
-# internal LoadBalancer Services; without this only the node subnet can connect
 resource "google_compute_firewall" "internal_rules" {
   count = var.internal ? 1 : 0
 
   project     = var.project_id
   name        = "${var.prefix}-lb-internal-ingress-rule"
   network     = var.network_name
-  description = "Allow internal traffic from specified CIDR blocks to Materialize nodes via Internal Load Balancer (custom rule targeting specific service account)"
+  description = "Allow internal traffic from specified CIDR blocks to Materialize balancerd via Internal Load Balancer (custom rule targeting specific service account)"
   direction   = "INGRESS"
   allow {
     protocol = "tcp"
-    ports    = ["8080", "6875", "6876"]
+    ports    = ["6875", "6876"]
   }
-  source_ranges           = var.ingress_cidr_blocks
+  source_ranges           = local.balancerd_ingress_cidr_blocks
   target_service_accounts = [var.node_service_account_email]
+
+  depends_on = [google_compute_firewall.internal_console_rules]
 }
 
 # Firewall rule to allow GCP health check traffic
