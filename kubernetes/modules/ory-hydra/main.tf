@@ -142,8 +142,13 @@ locals {
       valueFrom = { secretKeyRef = { name = local.token_hook_secret_name, key = "api-key" } }
     }] : [],
     # Adds the CA that signs the hook's certificate without dropping public
-    # roots. Hydra can only read it through landlock_config's allowed path.
-    local.token_hook_ca_secret != null ? [{ name = "SSL_CERT_DIR", value = local.token_hook_ca_mount }] : [],
+    # roots. The OEL build defaults to Go's embedded root bundle
+    # (x509usefallbackroots=1), which ignores SSL_CERT_DIR, so switch back to
+    # the system store for it to apply.
+    local.token_hook_ca_secret != null ? [
+      { name = "SSL_CERT_DIR", value = local.token_hook_ca_mount },
+      { name = "GODEBUG", value = "x509usefallbackroots=0" },
+    ] : [],
   )
 
   # Always emitted: empty lists are the chart's own defaults, and helm_values
@@ -189,13 +194,6 @@ locals {
   } : {}
 
   oauth2_config = length(local.token_hook_config) > 0 ? { oauth2 = local.token_hook_config } : {}
-
-  # The OEL build sandboxes its own filesystem access with Landlock and reads
-  # SSL_CERT_DIR only from allowed paths. A directory rule also covers the
-  # files kubelet swaps in when cert-manager renews the CA Secret.
-  landlock_config = local.token_hook_ca_secret != null ? {
-    security = { landlock = { allowed_paths = [local.token_hook_ca_mount] } }
-  } : {}
 
   # Hydra fetches client-supplied URIs (jwks_uri, request_uri, sector_identifier_uri,
   # backchannel logout) and the token hook with the same HTTP client, so refuse
@@ -281,7 +279,7 @@ locals {
             private_ip_exception_urls  = local.private_ip_exception_urls
           }
         }
-      }, local.oauth2_config, local.landlock_config)
+      }, local.oauth2_config)
     }
 
     deployment = {
