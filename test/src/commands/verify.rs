@@ -993,7 +993,7 @@ async fn probe_hydra_image(dir: &Path, kubeconfig: &Path, ns: &str) {
     let script = format!(
         "echo '>>> probe: /etc/ssl'; ls -laR {rootfs}/etc/ssl 2>&1 | head -40; \
          echo '>>> probe: cert files'; find {rootfs} -xdev \\( -name '*.crt' -o -name '*.pem' -o -name 'cert.pem' \\) 2>/dev/null | head -20; \
-         echo '>>> probe: image Env'; crictl inspecti -o json {image} | grep -A15 '\"Env\"'"
+         echo '>>> probe: image config'; crictl inspecti -o json {image} | grep -v -i 'sha256\\|digest' | head -80; true"
     );
     match run_cmd_output(Command::new("docker").args(["exec", &node, "sh", "-c", &script])).await {
         Ok(out) => println!("{out}"),
