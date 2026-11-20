@@ -308,72 +308,26 @@ resource "helm_release" "metrics_server" {
   chart      = "metrics-server"
   version    = var.metrics_server_version
 
-  # Configuration values based on metrics_server_values
-  dynamic "set" {
-    for_each = var.metrics_server_values.skip_tls_verification ? [1] : []
-    content {
-      name  = "args[0]"
-      value = "--kubelet-insecure-tls"
-    }
-  }
-
-  set {
-    name  = "metrics.enabled"
-    value = var.metrics_server_values.metrics_enabled
-  }
-
-  # Scrapes the HTTPS port that `metrics.enabled` opens to unauthenticated
-  # `/metrics` reads. The chart renders the monitor only with both on, and does
-  # not check for the monitoring.coreos.com API first.
-  set {
-    name  = "serviceMonitor.enabled"
-    value = var.enable_metrics_server_service_monitor
-  }
-
-  # Add node selectors for metrics-server pods if provided
-  dynamic "set" {
-    for_each = var.operator_node_selector
-    content {
-      name  = "nodeSelector.${set.key}"
-      value = set.value
-    }
-  }
-
-  # Add tolerations for metrics-server pods if provided
-  dynamic "set" {
-    for_each = length(var.tolerations) > 0 ? range(length(var.tolerations)) : []
-    content {
-      name  = "tolerations[${set.value}].key"
-      value = var.tolerations[set.value].key
-    }
-  }
-
-  dynamic "set" {
-    for_each = length(var.tolerations) > 0 ? range(length(var.tolerations)) : []
-    content {
-      name  = "tolerations[${set.value}].operator"
-      value = var.tolerations[set.value].operator
-    }
-  }
-
-  dynamic "set" {
-    for_each = length(var.tolerations) > 0 ? [
-      for i, toleration in var.tolerations : i
-      if toleration.value != null
-    ] : []
-    content {
-      name  = "tolerations[${set.value}].value"
-      value = var.tolerations[set.value].value
-    }
-  }
-
-  dynamic "set" {
-    for_each = length(var.tolerations) > 0 ? range(length(var.tolerations)) : []
-    content {
-      name  = "tolerations[${set.value}].effect"
-      value = var.tolerations[set.value].effect
-    }
-  }
+  set = concat(
+    # Configuration values based on metrics_server_values
+    var.metrics_server_values.skip_tls_verification ? [
+      { name = "args[0]", value = "--kubelet-insecure-tls" },
+    ] : [],
+    [
+      { name = "metrics.enabled", value = var.metrics_server_values.metrics_enabled },
+      # Scrapes the HTTPS port that `metrics.enabled` opens to unauthenticated
+      # `/metrics` reads. The chart renders the monitor only with both on, and does
+      # not check for the monitoring.coreos.com API first.
+      { name = "serviceMonitor.enabled", value = var.enable_metrics_server_service_monitor },
+    ],
+    # Add node selectors for metrics-server pods if provided
+    [for k, v in var.operator_node_selector : { name = "nodeSelector.${k}", value = v }],
+    # Add tolerations for metrics-server pods if provided
+    [for i, t in var.tolerations : { name = "tolerations[${i}].key", value = t.key }],
+    [for i, t in var.tolerations : { name = "tolerations[${i}].operator", value = t.operator }],
+    [for i, t in var.tolerations : { name = "tolerations[${i}].value", value = t.value } if t.value != null],
+    [for i, t in var.tolerations : { name = "tolerations[${i}].effect", value = t.effect }],
+  )
 
   depends_on = [
     kubernetes_namespace.monitoring

@@ -59,78 +59,38 @@ resource "helm_release" "vpc_cni" {
   version    = var.chart_version
   namespace  = local.namespace
 
-  # The chart owns the service account. On clusters created with EKS module
-  # v20 and earlier the pre-existing bootstrap service account was annotated
-  # for Helm adoption by terraform_data.annotate_existing_resources; on newer
-  # clusters nothing bootstraps the CNI, so the chart must create it.
-  set {
-    name  = "serviceAccount.create"
-    value = "true"
-  }
-
-  set {
-    name  = "serviceAccount.name"
-    value = local.service_account_name
-  }
-
-  set {
-    name  = "serviceAccount.annotations.eks\\.amazonaws\\.com/role-arn"
-    value = aws_iam_role.vpc_cni.arn
-  }
-
-  # Network Policy configuration
-  set {
-    name  = "enableNetworkPolicy"
-    value = tostring(var.enable_network_policy)
-  }
-
-  dynamic "set" {
-    for_each = var.enable_network_policy ? [1] : []
-    content {
-      name  = "nodeAgent.enablePolicyEventLogs"
-      value = tostring(var.enable_policy_event_logs)
-    }
-  }
-
-  # https://github.com/aws/amazon-vpc-cni-k8s#cni-configuration-variables
-  # Prefix delegation settings
-  dynamic "set" {
-    for_each = var.enable_prefix_delegation ? [1] : []
-    content {
-      name  = "env.ENABLE_PREFIX_DELEGATION"
-      value = "true"
-    }
-  }
-
-  dynamic "set" {
-    for_each = var.enable_prefix_delegation ? [1] : []
-    content {
-      name  = "env.WARM_PREFIX_TARGET"
-      value = tostring(var.warm_prefix_target)
-    }
-  }
-
-  # IP management settings
-  dynamic "set" {
-    for_each = var.minimum_ip_target != null ? [1] : []
-    content {
-      name  = "env.MINIMUM_IP_TARGET"
-      value = tostring(var.minimum_ip_target)
-    }
-  }
-
-  dynamic "set" {
-    for_each = var.warm_ip_target != null ? [1] : []
-    content {
-      name  = "env.WARM_IP_TARGET"
-      value = tostring(var.warm_ip_target)
-    }
-  }
-
-  set {
-    name  = "originalMatchLabels"
-    value = "true"
-  }
+  set = concat(
+    [
+      # The chart owns the service account. On clusters created with EKS module
+      # v20 and earlier the pre-existing bootstrap service account was annotated
+      # for Helm adoption by terraform_data.annotate_existing_resources; on newer
+      # clusters nothing bootstraps the CNI, so the chart must create it.
+      { name = "serviceAccount.create", value = "true" },
+      { name = "serviceAccount.name", value = local.service_account_name },
+      { name = "serviceAccount.annotations.eks\\.amazonaws\\.com/role-arn", value = aws_iam_role.vpc_cni.arn },
+      # Network Policy configuration
+      { name = "enableNetworkPolicy", value = tostring(var.enable_network_policy) },
+    ],
+    var.enable_network_policy ? [
+      { name = "nodeAgent.enablePolicyEventLogs", value = tostring(var.enable_policy_event_logs) },
+    ] : [],
+    # https://github.com/aws/amazon-vpc-cni-k8s#cni-configuration-variables
+    # Prefix delegation settings
+    var.enable_prefix_delegation ? [
+      { name = "env.ENABLE_PREFIX_DELEGATION", value = "true" },
+      { name = "env.WARM_PREFIX_TARGET", value = tostring(var.warm_prefix_target) },
+    ] : [],
+    # IP management settings
+    var.minimum_ip_target != null ? [
+      { name = "env.MINIMUM_IP_TARGET", value = tostring(var.minimum_ip_target) },
+    ] : [],
+    var.warm_ip_target != null ? [
+      { name = "env.WARM_IP_TARGET", value = tostring(var.warm_ip_target) },
+    ] : [],
+    [
+      { name = "originalMatchLabels", value = "true" },
+    ],
+  )
 
   depends_on = [
     aws_iam_role_policy_attachment.vpc_cni,

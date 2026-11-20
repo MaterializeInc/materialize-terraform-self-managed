@@ -8,7 +8,7 @@ terraform {
     }
     helm = {
       source  = "hashicorp/helm"
-      version = ">= 2.5.0, < 2.18.0"
+      version = ">= 3.0.0, < 3.4.0"
     }
     random = {
       source  = "hashicorp/random"
@@ -27,7 +27,7 @@ provider "kubernetes" {
 }
 
 provider "helm" {
-  kubernetes {
+  kubernetes = {
     config_path    = var.kubeconfig_path
     config_context = var.kube_context
   }
