@@ -73,10 +73,16 @@ resource "kubectl_manifest" "materialize_instance" {
   yaml_body = jsonencode({
     apiVersion = "materialize.cloud/${var.crd_version}"
     kind       = "Materialize"
-    metadata = {
-      name      = var.instance_name
-      namespace = var.instance_namespace
-    }
+    # annotations is omitted when empty, so existing manifests are unchanged.
+    metadata = merge(
+      {
+        name      = var.instance_name
+        namespace = var.instance_namespace
+      },
+      length(var.annotations) > 0 ? {
+        annotations = var.annotations
+      } : {}
+    )
     spec = merge(
       {
         environmentdImageRef         = "materialize/environmentd:${var.environmentd_version}"
