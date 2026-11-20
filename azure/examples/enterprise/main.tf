@@ -488,6 +488,9 @@ module "storage" {
   subnets                        = [module.networking.aks_subnet_id]
   container_name                 = local.storage_container_name
   versioning                     = false
+  # Shorter than the module default of 30 days, so that deleted blobs are not
+  # kept in soft delete for a month.
+  version_ttl = 7
 
   # Workload identity federation configuration
   workload_identity_id      = module.aks.workload_identity_id
