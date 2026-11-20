@@ -36,6 +36,7 @@ No modules.
 
 | Name | Description | Type | Default | Required |
 | ---- | ----------- | ---- | ------- | :------: |
+| <a name="input_annotations"></a> [annotations](#input\_annotations) | Annotations for the Materialize resource itself. Set `materialize.cloud/last-known-active-generation` to the old resource's `status.activeGeneration` when recreating an instance on existing data, for example after restoring a backup, so that the operator deploys the next generation and not generation 1, which the existing catalog fences out. The operator reads that annotation only when it first creates the resource's status, so it must be set when the resource is created; leaving it set or removing it later has no effect. | `map(string)` | `{}` | no |
 | <a name="input_authenticator_kind"></a> [authenticator\_kind](#input\_authenticator\_kind) | Kind of authenticator to use for Materialize instance | `string` | `"None"` | no |
 | <a name="input_balancer_cpu_request"></a> [balancer\_cpu\_request](#input\_balancer\_cpu\_request) | CPU request for balancer | `string` | `"100m"` | no |
 | <a name="input_balancer_memory_limit"></a> [balancer\_memory\_limit](#input\_balancer\_memory\_limit) | Memory limit for balancer | `string` | `"256Mi"` | no |

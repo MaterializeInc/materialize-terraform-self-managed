@@ -67,6 +67,13 @@ variable "environment_id" {
   }
 }
 
+variable "annotations" {
+  description = "Annotations for the Materialize resource itself. Set `materialize.cloud/last-known-active-generation` to the old resource's `status.activeGeneration` when recreating an instance on existing data, for example after restoring a backup, so that the operator deploys the next generation and not generation 1, which the existing catalog fences out. The operator reads that annotation only when it first creates the resource's status, so it must be set when the resource is created; leaving it set or removing it later has no effect."
+  type        = map(string)
+  default     = {}
+  nullable    = false
+}
+
 # Environmentd Configuration
 variable "environmentd_version" {
   description = "Version of environmentd to use"
