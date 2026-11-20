@@ -964,36 +964,16 @@ async fn dump_ory_diagnostics(kubeconfig: &Path, namespace: &str) {
     println!("\n--- end diagnostics ---");
 }
 
-// TEMP: #686 review. Prints the CA files and image ENV of the running Hydra
-// container from the kind node.
-async fn probe_hydra_image(dir: &Path, kubeconfig: &Path, ns: &str) {
+// TEMP: #686 review. Prints the Hydra image's Env from the kind node.
+async fn probe_hydra_image(dir: &Path, _kubeconfig: &Path, _ns: &str) {
     let node = format!(
         "{}-control-plane",
         dir.file_name().unwrap().to_string_lossy()
     );
-    let ids = run_cmd_output(kubectl(kubeconfig).args([
-        "get",
-        "pods",
-        "-n",
-        ns,
-        "-o",
-        r#"jsonpath={range .items[*].status.containerStatuses[?(@.name=="hydra")]}{.containerID} {.imageID}{end}"#,
-    ]))
-    .await
-    .unwrap_or_default();
-    let mut ids = ids.split_whitespace();
-    let (Some(cid), Some(image)) = (ids.next(), ids.next()) else {
-        println!(">>> probe: no hydra container found");
-        return;
-    };
-    let rootfs = format!(
-        "/run/containerd/io.containerd.runtime.v2.task/k8s.io/{}/rootfs",
-        cid.trim_start_matches("containerd://")
-    );
-    let script = format!(
-        "echo '>>> probe: image config'; crictl inspecti -o json {image} > /tmp/img.json 2>&1; wc -c /tmp/img.json; grep -i -B2 -A12 '\"env\"' /tmp/img.json; head -c 800 /tmp/img.json; echo; crictl images 2>&1 | grep -i hydra; true"
-    );
-    match run_cmd_output(Command::new("docker").args(["exec", &node, "sh", "-c", &script])).await {
+    let script = "echo '>>> probe: image config'; \
+        crictl inspecti -o json ory.registry.cloud.materialize.com/ory-artifacts/ory-enterprise/hydra-oel:26.4.19 > /tmp/img.json 2>&1; \
+        wc -c /tmp/img.json; grep -i -B2 -A15 '\"env\"' /tmp/img.json; true";
+    match run_cmd_output(Command::new("docker").args(["exec", &node, "sh", "-c", script])).await {
         Ok(out) => println!("{out}"),
         Err(e) => println!(">>> probe failed: {e:#}"),
     }
