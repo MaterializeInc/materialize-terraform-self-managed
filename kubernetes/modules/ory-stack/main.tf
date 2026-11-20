@@ -391,9 +391,10 @@ module "ory_kratos" {
   # The token hook reads the last IdP sign-in from expired sessions too.
   cleanup_keep_last_seconds = local.selfservice_ui_token_hook_enabled ? max(21600, var.selfservice_ui_token_hook_max_auth_age_seconds) : 21600
 
-  secrets_default = var.kratos_secrets_default
-  secrets_cookie  = var.kratos_secrets_cookie
-  secrets_cipher  = var.kratos_secrets_cipher
+  secrets_default  = var.kratos_secrets_default
+  secrets_cookie   = var.kratos_secrets_cookie
+  secrets_cipher   = var.kratos_secrets_cipher
+  secrets_supplied = var.secrets_supplied
 
   image_repository   = "${var.oel_registry}/ory-enterprise-kratos/kratos-oel"
   image_tag          = var.oel_image_tag
@@ -467,8 +468,9 @@ module "ory_hydra" {
   dsn        = var.hydra_dsn
   issuer_url = local.hydra_external_url
 
-  secrets_system = var.hydra_secrets_system
-  secrets_cookie = var.hydra_secrets_cookie
+  secrets_system   = var.hydra_secrets_system
+  secrets_cookie   = var.hydra_secrets_cookie
+  secrets_supplied = var.secrets_supplied
 
   image_repository   = "${var.oel_registry}/ory-enterprise/hydra-oel"
   image_tag          = var.oel_image_tag

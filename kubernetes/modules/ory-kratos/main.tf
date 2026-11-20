@@ -7,19 +7,19 @@ resource "kubernetes_namespace" "kratos" {
 }
 
 resource "random_password" "secrets_default" {
-  count   = var.secrets_default == null ? 1 : 0
+  count   = var.secrets_supplied ? 0 : (var.secrets_default == null ? 1 : 0)
   length  = 32
   special = false
 }
 
 resource "random_password" "secrets_cookie" {
-  count   = var.secrets_cookie == null ? 1 : 0
+  count   = var.secrets_supplied ? 0 : (var.secrets_cookie == null ? 1 : 0)
   length  = 32
   special = false
 }
 
 resource "random_password" "secrets_cipher" {
-  count   = var.secrets_cipher == null ? 1 : 0
+  count   = var.secrets_supplied ? 0 : (var.secrets_cipher == null ? 1 : 0)
   length  = 32
   special = false
 }
@@ -78,9 +78,9 @@ resource "kubernetes_secret" "kratos" {
 locals {
   namespace = var.create_namespace ? kubernetes_namespace.kratos[0].metadata[0].name : var.namespace
 
-  secrets_default = var.secrets_default != null ? var.secrets_default : random_password.secrets_default[0].result
-  secrets_cookie  = var.secrets_cookie != null ? var.secrets_cookie : random_password.secrets_cookie[0].result
-  secrets_cipher  = var.secrets_cipher != null ? var.secrets_cipher : random_password.secrets_cipher[0].result
+  secrets_default = var.secrets_default != null ? var.secrets_default : one(random_password.secrets_default[*].result)
+  secrets_cookie  = var.secrets_cookie != null ? var.secrets_cookie : one(random_password.secrets_cookie[*].result)
+  secrets_cipher  = var.secrets_cipher != null ? var.secrets_cipher : one(random_password.secrets_cipher[*].result)
 
   smtp_enabled = var.smtp_connection_uri != null
 

@@ -40,6 +40,18 @@ variable "dsn" {
   nullable    = false
 }
 
+variable "secrets_supplied" {
+  description = "Set to true when passing both `secrets_system` and `secrets_cookie`. Terraform then knows at plan time that no secrets are generated, which it needs when the values are only known at apply time, for example a `random_password` in the same configuration."
+  type        = bool
+  default     = false
+  nullable    = false
+
+  validation {
+    condition     = !var.secrets_supplied || (var.secrets_system != null && var.secrets_cookie != null)
+    error_message = "secrets_supplied is true, so `secrets_system` and `secrets_cookie` must both be set."
+  }
+}
+
 variable "secrets_system" {
   description = "System secret for signing and encryption. Must be at least 16 characters. If not set, a random 32-character secret will be generated."
   type        = string
