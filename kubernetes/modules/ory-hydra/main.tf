@@ -141,9 +141,16 @@ locals {
       name      = "OAUTH2_TOKEN_HOOK_AUTH_CONFIG_VALUE"
       valueFrom = { secretKeyRef = { name = local.token_hook_secret_name, key = "api-key" } }
     }] : [],
-    # Go reads SSL_CERT_DIR in addition to the system bundle file, so this adds
-    # the CA that signs the hook's certificate without dropping public roots.
-    local.token_hook_ca_secret != null ? [{ name = "SSL_CERT_DIR", value = local.token_hook_ca_mount }] : [],
+    # Adds the CA that signs the hook's certificate without dropping public
+    # roots. The OEL build defaults to Go's embedded root bundle
+    # (x509usefallbackroots=1 in go.mod), which ignores SSL_CERT_DIR, so switch
+    # back to the system store: the image's SSL_CERT_FILE bundle plus this CA.
+    # Checked on hydra-oel 26.4.19: it ships /etc/ssl/certs/ca-certificates.crt
+    # and sets no GODEBUG of its own.
+    local.token_hook_ca_secret != null ? [
+      { name = "SSL_CERT_DIR", value = local.token_hook_ca_mount },
+      { name = "GODEBUG", value = "x509usefallbackroots=0" },
+    ] : [],
   )
 
   # Always emitted: empty lists are the chart's own defaults, and helm_values

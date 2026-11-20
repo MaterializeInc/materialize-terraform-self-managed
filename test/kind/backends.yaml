@@ -1,12 +1,24 @@
 # In-cluster stand-ins for the backends the kubernetes/examples/simple root
-# expects you to bring: PostgreSQL for metadata and RustFS (an S3-compatible
-# object store) for persist. Test fixtures only -- hardcoded credentials,
-# ephemeral storage. Applied by the harness right after the kind cluster is
-# created.
+# expects you to bring: PostgreSQL for metadata (plus one database per Ory
+# component) and RustFS (an S3-compatible object store) for persist. Test
+# fixtures only -- hardcoded credentials, ephemeral storage. Applied by the
+# harness right after the kind cluster is created.
 apiVersion: v1
 kind: Namespace
 metadata:
   name: backends
+---
+# Runs once on the empty data directory, before postgres accepts connections.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-init
+  namespace: backends
+data:
+  ory.sql: |
+    CREATE DATABASE kratos;
+    CREATE DATABASE hydra;
+    CREATE DATABASE polis;
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -49,9 +61,14 @@ spec:
           volumeMounts:
             - name: data
               mountPath: /var/lib/postgresql/data
+            - name: init
+              mountPath: /docker-entrypoint-initdb.d
       volumes:
         - name: data
           emptyDir: {}
+        - name: init
+          configMap:
+            name: postgres-init
 ---
 apiVersion: v1
 kind: Service

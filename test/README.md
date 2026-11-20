@@ -33,7 +33,7 @@ cargo run -- run aws \
 
 ## Local kind runs (self-managed)
 
-The `kind` provider runs the non-cloud-specific part of the test surface on your laptop, with no cloud credentials. It deploys `kubernetes/examples/simple` -- the customer-facing example for existing (non-cloud-managed) clusters -- onto a local kind cluster, with in-cluster PostgreSQL (metadata) and RustFS (persist) test backends from `test/kind/backends.yaml` standing in for the backends a customer would bring. This exercises the `kubernetes/` modules (`cert-manager`, `self-signed-cluster-issuer`, `materialize-instance`); the cloud-only modules (networking, managed clusters, load balancers, IAM, monitoring) are out of scope by construction and remain covered by the cloud providers.
+The `kind` provider runs the non-cloud-specific part of the test surface on your laptop, with no cloud credentials. It deploys `kubernetes/examples/simple` -- the customer-facing example for existing (non-cloud-managed) clusters -- onto a local kind cluster, with in-cluster PostgreSQL (metadata) and RustFS (persist) test backends from `test/kind/backends.yaml` standing in for the backends a customer would bring. This exercises the `kubernetes/` modules (`cert-manager`, `self-signed-cluster-issuer`, `materialize-instance`, and the Ory modules through `ory-stack`); the cloud-only modules (networking, managed clusters, load balancers, IAM, monitoring) are out of scope by construction and remain covered by the cloud providers.
 
 Additional prerequisites: Docker, `kind`, `kubectl`.
 
@@ -41,7 +41,9 @@ Additional prerequisites: Docker, `kind`, `kubectl`.
 cargo run -- run kind --owner "Your Name" --license-key-file /path/to/license.key
 ```
 
-`init` creates a kind cluster named after the test run ID (so kind runs coexist with any other kind clusters and with each other), writes its kubeconfig into the test run directory, and deploys the test backends; `apply` deploys the example into it with terraform; `verify` runs the same checks as the cloud providers, except that the node-local-dns/CoreDNS checks are skipped (kind keeps its stock DNS) and SQL connectivity goes through a `kubectl port-forward` to balancerd instead of a load balancer; `destroy` deletes the kind cluster.
+`init` creates a kind cluster named after the test run ID (so kind runs coexist with any other kind clusters and with each other), writes its kubeconfig into the test run directory, and deploys the test backends; `apply` deploys the example into it with terraform; `verify` runs the same checks as the cloud providers, except that the node-local-dns/CoreDNS checks are skipped (kind keeps its stock DNS) and SQL connectivity goes through a `kubectl port-forward` to balancerd instead of a load balancer, and the Ory stack is checked through port-forwards too (deployments Available, Hydra discovery and issuer, the Materialize OAuth2 client registered by Hydra Maester, a `client_credentials` token for an operator-managed client and the token hook refusing an unmanaged one, and the Kratos, selfservice UI and Polis health endpoints, all over TLS verified against the self-signed CA); `destroy` deletes the kind cluster.
+
+The Ory images are pulled through the Materialize registry proxy with the license key, so the key needs the `ory` entitlement. Pass `--skip-ory` to `init kind` or `run kind` to leave Ory out.
 
 The staged workflow works as on the clouds, and is the fast path for iterating: keep the cluster up and re-run `verify` (or `sync` + `apply` after changing module code) without recreating anything:
 
