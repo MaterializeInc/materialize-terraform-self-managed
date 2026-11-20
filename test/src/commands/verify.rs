@@ -76,7 +76,7 @@ pub async fn phase_verify(dir: &Path) -> Result<()> {
                 ory.namespace
             );
             if let Err(e) = verify_ory(dir, &kubeconfig, ory).await {
-                dump_ory_diagnostics(dir, &kubeconfig, &ory.namespace).await;
+                dump_ory_diagnostics(&kubeconfig, &ory.namespace).await;
                 return Err(e);
             }
         }
@@ -718,6 +718,7 @@ async fn verify_ory(dir: &Path, kubeconfig: &Path, ory: &OryOutput) -> Result<()
     .await
     .context("Ory deployments did not become Available within timeout")?;
     println!("  [ok] all deployments are Available");
+    probe_hydra_image(dir, kubeconfig, ns).await; // TEMP: #686 review
 
     let ca = dir.join("ory-ca.crt");
     let ca_pem = run_cmd_output(kubectl(kubeconfig).args([
@@ -930,40 +931,8 @@ async fn curl_json(
     serde_json::from_str(&body).with_context(|| format!("{path} returned invalid JSON"))
 }
 
-async fn dump_ory_diagnostics(dir: &Path, kubeconfig: &Path, namespace: &str) {
+async fn dump_ory_diagnostics(kubeconfig: &Path, namespace: &str) {
     println!("\n--- diagnostics: Ory stack ---");
-    run_section(
-        "Hydra container env names, mounts and volumes",
-        kubeconfig,
-        &[
-            "get",
-            "deployment",
-            "hydra",
-            "-n",
-            namespace,
-            "-o",
-            r#"jsonpath={range .spec.template.spec.containers[?(@.name=="hydra")]}{.env[*].name}{"\n"}{.volumeMounts}{"\n"}{end}{.spec.template.spec.volumes}{"\n"}"#,
-        ],
-    )
-    .await;
-    run_section(
-        "token hook CA directory in the Hydra pod",
-        kubeconfig,
-        &[
-            "exec",
-            "deploy/hydra",
-            "-c",
-            "hydra",
-            "-n",
-            namespace,
-            "--",
-            "ls",
-            "-la",
-            "/etc/hydra/token-hook-ca/",
-        ],
-    )
-    .await;
-    diagnose_ory_certs(dir, kubeconfig, namespace).await;
     run_section(
         "kubectl get pods (Ory namespace)",
         kubeconfig,
@@ -995,62 +964,39 @@ async fn dump_ory_diagnostics(dir: &Path, kubeconfig: &Path, namespace: &str) {
     println!("\n--- end diagnostics ---");
 }
 
-/// Prints who issued the Ory CA and certificates, and whether the selfservice
-/// UI's in-cluster listener (the token hook Hydra calls) verifies against the
-/// `ca.crt` Hydra is given for it.
-async fn diagnose_ory_certs(dir: &Path, kubeconfig: &Path, namespace: &str) {
-    println!("\n>>> Ory certificates");
-    for (secret, key) in [
-        ("hydra-tls", "ca.crt"),
-        ("ory-selfservice-ui-tls", "ca.crt"),
-        ("ory-selfservice-ui-tls", "tls.crt"),
-    ] {
-        let path = dir.join(format!("diag-{secret}-{key}"));
-        let pem = run_cmd_output(kubectl(kubeconfig).args([
-            "get",
-            "secret",
-            secret,
-            "-n",
-            namespace,
-            "-o",
-            &format!(r#"go-template={{{{index .data "{key}" | base64decode}}}}"#),
-        ]))
-        .await;
-        let result = match pem {
-            Ok(pem) if !pem.is_empty() => {
-                tokio::fs::write(&path, format!("{pem}\n")).await.ok();
-                run_cmd_output(
-                    Command::new("openssl")
-                        .args([
-                            "x509",
-                            "-noout",
-                            "-subject",
-                            "-issuer",
-                            "-ext",
-                            "subjectAltName",
-                            "-in",
-                        ])
-                        .arg(&path),
-                )
-                .await
-            }
-            Ok(_) => Err(anyhow::anyhow!("empty")),
-            Err(e) => Err(e),
-        };
-        match result {
-            Ok(out) => println!("{secret}/{key}:\n{out}"),
-            Err(e) => println!("{secret}/{key}: {e:#}"),
-        }
-    }
-
-    let host = format!("ory-selfservice-ui.{namespace}.svc.cluster.local");
-    let ca = dir.join("diag-ory-selfservice-ui-tls-ca.crt");
-    let result = with_port_forward(kubeconfig, namespace, "ory-selfservice-ui", 3000, |port| {
-        curl_https(&ca, &host, port, "/health/ready", &[])
-    })
-    .await;
-    match result {
-        Ok(_) => println!("UI token hook listener verifies against ory-selfservice-ui-tls ca.crt"),
-        Err(e) => println!("UI token hook listener does NOT verify against its ca.crt: {e:#}"),
+// TEMP: #686 review. Prints the CA files and image ENV of the running Hydra
+// container from the kind node.
+async fn probe_hydra_image(dir: &Path, kubeconfig: &Path, ns: &str) {
+    let node = format!(
+        "{}-control-plane",
+        dir.file_name().unwrap().to_string_lossy()
+    );
+    let ids = run_cmd_output(kubectl(kubeconfig).args([
+        "get",
+        "pods",
+        "-n",
+        ns,
+        "-o",
+        r#"jsonpath={range .items[*].status.containerStatuses[?(@.name=="hydra")]}{.containerID} {.imageID}{end}"#,
+    ]))
+    .await
+    .unwrap_or_default();
+    let mut ids = ids.split_whitespace();
+    let (Some(cid), Some(image)) = (ids.next(), ids.next()) else {
+        println!(">>> probe: no hydra container found");
+        return;
+    };
+    let rootfs = format!(
+        "/run/containerd/io.containerd.runtime.v2.task/k8s.io/{}/rootfs",
+        cid.trim_start_matches("containerd://")
+    );
+    let script = format!(
+        "echo '>>> probe: /etc/ssl'; ls -laR {rootfs}/etc/ssl 2>&1 | head -40; \
+         echo '>>> probe: cert files'; find {rootfs} -xdev \\( -name '*.crt' -o -name '*.pem' -o -name 'cert.pem' \\) 2>/dev/null | head -20; \
+         echo '>>> probe: image Env'; crictl inspecti -o json {image} | grep -A15 '\"Env\"'"
+    );
+    match run_cmd_output(Command::new("docker").args(["exec", &node, "sh", "-c", &script])).await {
+        Ok(out) => println!("{out}"),
+        Err(e) => println!(">>> probe failed: {e:#}"),
     }
 }
