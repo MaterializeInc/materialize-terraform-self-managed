@@ -143,8 +143,10 @@ locals {
     }] : [],
     # Adds the CA that signs the hook's certificate without dropping public
     # roots. The OEL build defaults to Go's embedded root bundle
-    # (x509usefallbackroots=1), which ignores SSL_CERT_DIR, so switch back to
-    # the system store for it to apply.
+    # (x509usefallbackroots=1 in go.mod), which ignores SSL_CERT_DIR, so switch
+    # back to the system store: the image's SSL_CERT_FILE bundle plus this CA.
+    # Checked on hydra-oel 26.4.19: it ships /etc/ssl/certs/ca-certificates.crt
+    # and sets no GODEBUG of its own.
     local.token_hook_ca_secret != null ? [
       { name = "SSL_CERT_DIR", value = local.token_hook_ca_mount },
       { name = "GODEBUG", value = "x509usefallbackroots=0" },
