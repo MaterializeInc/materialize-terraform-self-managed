@@ -96,7 +96,7 @@ variable "versioning" {
 }
 
 variable "version_ttl" {
-  description = "Delete previous blob versions after this many days, with blob soft delete retaining them for the same period. Azure ages versions from creation, so the recovery window after a blob is deleted is between version_ttl and 2 * version_ttl days. Null disables both."
+  description = "Delete previous blob versions after this many days, with blob soft delete retaining them for the same period. Azure ages versions from creation, so the recovery window after a blob is deleted is between version_ttl and 2 * version_ttl days. Restoring a metadata database backup needs every blob that backup references, so keep this longer than the database's backup retention. Null disables both."
   type        = number
-  default     = 7
+  default     = 30
 }

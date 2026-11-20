@@ -582,7 +582,10 @@ module "storage" {
   # For testing purposes, we are disabling versioning to allow for easier cleanup.
   # SSE-S3 encryption remains enabled by default for this example.
   enable_bucket_versioning = false
-  enable_bucket_encryption = true
+  # Shorter than the module default of 30 days, since this example keeps no
+  # noncurrent versions worth restoring.
+  noncurrent_version_expiration_days = 7
+  enable_bucket_encryption           = true
 
   # IRSA configuration
   oidc_provider_arn         = module.eks.oidc_provider_arn
