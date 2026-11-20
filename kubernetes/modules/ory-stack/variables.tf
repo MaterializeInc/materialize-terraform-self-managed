@@ -501,6 +501,18 @@ variable "polis_chart_version" {
 # exact same values. When left null, the sub-modules generate random secrets
 # that live only in Terraform state.
 
+variable "secrets_supplied" {
+  description = "Set to true when passing all of `kratos_secrets_default`, `kratos_secrets_cookie`, `kratos_secrets_cipher`, `hydra_secrets_system` and `hydra_secrets_cookie`. Terraform then knows at plan time that no secrets are generated, which it needs when the values are only known at apply time, for example a `random_password` in the same configuration."
+  type        = bool
+  default     = false
+  nullable    = false
+
+  validation {
+    condition     = !var.secrets_supplied || (var.kratos_secrets_default != null && var.kratos_secrets_cookie != null && var.kratos_secrets_cipher != null && var.hydra_secrets_system != null && var.hydra_secrets_cookie != null)
+    error_message = "secrets_supplied is true, so all five Kratos and Hydra secrets must be set."
+  }
+}
+
 variable "hydra_secrets_system" {
   description = "Hydra system secret. Encrypts data at rest in Hydra's database, including its signing keys. When null, a random secret is generated. Losing or rotating it makes the existing Hydra database unreadable."
   type        = string
