@@ -366,3 +366,48 @@ resource "kubernetes_network_policy_v1" "allow_ory_egress" {
 
   depends_on = [kubernetes_namespace.instance]
 }
+
+# Egress to the GKE metadata server, where pods get Workload Identity tokens for
+# native GCS persist (gcs://). Token requests go to 169.254.169.254:80; on
+# Dataplane V2 the gke-metadata-server also answers on 169.254.169.252:988, and
+# Cilium can enforce policy on the post-DNAT destination, so allow both. Same
+# rules as the operator module's allow_metadata_server_egress.
+resource "kubernetes_network_policy_v1" "allow_metadata_server_egress" {
+  count = var.enable_network_policies && var.allow_metadata_server_egress ? 1 : 0
+
+  metadata {
+    name      = "allow-metadata-server-egress"
+    namespace = var.instance_namespace
+  }
+
+  spec {
+    pod_selector {}
+    policy_types = ["Egress"]
+
+    egress {
+      to {
+        ip_block {
+          cidr = "169.254.169.254/32"
+        }
+      }
+      ports {
+        protocol = "TCP"
+        port     = 80
+      }
+    }
+
+    egress {
+      to {
+        ip_block {
+          cidr = "169.254.169.252/32"
+        }
+      }
+      ports {
+        protocol = "TCP"
+        port     = 988
+      }
+    }
+  }
+
+  depends_on = [kubernetes_namespace.instance]
+}

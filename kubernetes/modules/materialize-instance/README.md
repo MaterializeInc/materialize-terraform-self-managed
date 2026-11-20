@@ -27,6 +27,7 @@ No modules.
 | [kubernetes_namespace.instance](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/namespace) | resource |
 | [kubernetes_network_policy_v1.allow_api_server_egress](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/network_policy_v1) | resource |
 | [kubernetes_network_policy_v1.allow_kube_system_egress](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/network_policy_v1) | resource |
+| [kubernetes_network_policy_v1.allow_metadata_server_egress](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/network_policy_v1) | resource |
 | [kubernetes_network_policy_v1.allow_monitoring_ingress](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/network_policy_v1) | resource |
 | [kubernetes_network_policy_v1.allow_ory_egress](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/network_policy_v1) | resource |
 | [kubernetes_secret.materialize_backend](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/secret) | resource |
@@ -36,6 +37,7 @@ No modules.
 
 | Name | Description | Type | Default | Required |
 | ---- | ----------- | ---- | ------- | :------: |
+| <a name="input_allow_metadata_server_egress"></a> [allow\_metadata\_server\_egress](#input\_allow\_metadata\_server\_egress) | On GKE, allow the instance's pods to reach the metadata server (169.254.169.254:80 and 169.254.169.252:988) for Workload Identity tokens, which native GCS persist (gcs://) needs when network policies are enforced. Only applies when enable\_network\_policies is true. | `bool` | `false` | no |
 | <a name="input_authenticator_kind"></a> [authenticator\_kind](#input\_authenticator\_kind) | Kind of authenticator to use for Materialize instance | `string` | `"None"` | no |
 | <a name="input_balancer_cpu_request"></a> [balancer\_cpu\_request](#input\_balancer\_cpu\_request) | CPU request for balancer | `string` | `"100m"` | no |
 | <a name="input_balancer_memory_limit"></a> [balancer\_memory\_limit](#input\_balancer\_memory\_limit) | Memory limit for balancer | `string` | `"256Mi"` | no |
@@ -67,7 +69,7 @@ No modules.
 | <a name="input_metadata_backend_url"></a> [metadata\_backend\_url](#input\_metadata\_backend\_url) | PostgreSQL connection URL for metadata backend | `string` | n/a | yes |
 | <a name="input_monitoring_namespace"></a> [monitoring\_namespace](#input\_monitoring\_namespace) | Namespace where monitoring resources (Prometheus) are installed. Used for network policy to allow metrics scraping. | `string` | `"monitoring"` | no |
 | <a name="input_ory_namespace"></a> [ory\_namespace](#input\_ory\_namespace) | Namespace of the Ory stack. When set, creates a NetworkPolicy allowing pods in this instance's namespace to reach Hydra's public port (4444) and the ory-stack single-domain proxy (8443) in that namespace, for OIDC discovery and the JWKS. Set to null for non-enterprise deployments. | `string` | `null` | no |
-| <a name="input_persist_backend_url"></a> [persist\_backend\_url](#input\_persist\_backend\_url) | S3 connection URL for persist backend | `string` | n/a | yes |
+| <a name="input_persist_backend_url"></a> [persist\_backend\_url](#input\_persist\_backend\_url) | Persist blob URL: s3:// (S3, or S3-compatible such as GCS with an HMAC key), gcs:// (native GCS, Materialize v26.48.0 and later), or the Azure Blob URL | `string` | n/a | yes |
 | <a name="input_pod_labels"></a> [pod\_labels](#input\_pod\_labels) | Labels for the materialize instance pod | `map(string)` | `{}` | no |
 | <a name="input_pod_security_enforce"></a> [pod\_security\_enforce](#input\_pod\_security\_enforce) | Enforce the restricted Pod Security Standard on the instance namespace, so Kubernetes rejects pods that don't meet it. The namespace always warns and audits against restricted. Only applies when create\_namespace is true. | `bool` | `true` | no |
 | <a name="input_request_rollout"></a> [request\_rollout](#input\_request\_rollout) | UUID to request a rollout (v1alpha1 only, ignored for v1) | `string` | `"00000000-0000-0000-0000-000000000001"` | no |
