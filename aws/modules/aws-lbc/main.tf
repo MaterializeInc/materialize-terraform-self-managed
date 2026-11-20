@@ -301,42 +301,21 @@ resource "helm_release" "aws_load_balancer_controller" {
   version    = "3.6.2"
   namespace  = "kube-system"
 
-  set {
-    name  = "clusterName"
-    value = var.eks_cluster_name
-  }
-  set {
-    name  = "serviceAccount.create"
-    value = false
-  }
-  set {
-    name  = "serviceAccount.name"
-    value = var.service_account_name
-  }
-  set {
-    name  = "region"
-    value = var.region
-  }
-  set {
-    name  = "vpcId"
-    value = var.vpc_id
-  }
-  # Unlike most charts here, this one does not check for the
-  # monitoring.coreos.com API first, so enabling it without the CRDs fails the
-  # install.
-  set {
-    name  = "serviceMonitor.enabled"
-    value = var.enable_service_monitor
-  }
-
-  # Add node selectors for AWS Load Balancer Controller pods if provided
-  dynamic "set" {
-    for_each = var.node_selector
-    content {
-      name  = "nodeSelector.${replace(set.key, ".", "\\.")}"
-      value = set.value
-    }
-  }
+  set = concat(
+    [
+      { name = "clusterName", value = var.eks_cluster_name },
+      { name = "serviceAccount.create", value = false },
+      { name = "serviceAccount.name", value = var.service_account_name },
+      { name = "region", value = var.region },
+      { name = "vpcId", value = var.vpc_id },
+      # Unlike most charts here, this one does not check for the
+      # monitoring.coreos.com API first, so enabling it without the CRDs fails the
+      # install.
+      { name = "serviceMonitor.enabled", value = var.enable_service_monitor },
+    ],
+    # Add node selectors for AWS Load Balancer Controller pods if provided
+    [for k, v in var.node_selector : { name = "nodeSelector.${replace(k, ".", "\\.")}", value = v }],
+  )
 
   depends_on = [
     kubernetes_service_account.aws_load_balancer_controller,

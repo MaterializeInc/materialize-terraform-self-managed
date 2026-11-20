@@ -37,7 +37,7 @@ provider "registry.terraform.io/alekc/kubectl" {
 
 provider "registry.terraform.io/hashicorp/helm" {
   version     = "3.3.0"
-  constraints = ">= 2.5.0, < 3.4.0"
+  constraints = ">= 3.0.0, < 3.4.0"
   hashes = [
     "h1:1W61QZBpbLnK+YyoQ8CgXXHFjCqim9tPIiLNgG15hkU=",
     "h1:9CH3RuBvF+Xf3vtGqFORRjO07uCTbQOqa308uHVGztc=",

@@ -251,65 +251,37 @@ resource "helm_release" "ebs_csi_driver" {
   version    = var.chart_version
   namespace  = var.namespace
 
-  set {
-    name  = "controller.serviceAccount.create"
-    value = "true"
-  }
-
-  set {
-    name  = "controller.serviceAccount.name"
-    value = var.service_account_name
-  }
-
-  set {
-    name  = "controller.serviceAccount.annotations.eks\\.amazonaws\\.com/role-arn"
-    value = aws_iam_role.ebs_csi_driver.arn
-  }
-
-  set {
-    name  = "controller.serviceAccount.automountServiceAccountToken"
-    value = "true"
-  }
-
-  # Volumes provisioned by the CSI driver are created by its IRSA role, so
-  # neither provider default_tags nor instance tags reach them. Tag them
-  # explicitly to satisfy tag-enforcement policies (e.g. the scratch
-  # account's RequireTagsScratch SCP). These go on the controller rather than
-  # in the StorageClass's tagSpecification parameters: StorageClass parameters
-  # are immutable, so a tag change there replaces the StorageClass, and the
-  # fixed `gp3` name can't be replaced create-before-destroy.
-  dynamic "set" {
-    for_each = var.tags
-    content {
-      name  = "controller.extraVolumeTags.${replace(replace(set.key, ".", "\\."), "=", "\\=")}"
-      value = set.value
+  set = concat(
+    [
+      { name = "controller.serviceAccount.create", value = "true" },
+      { name = "controller.serviceAccount.name", value = var.service_account_name },
+      { name = "controller.serviceAccount.annotations.eks\\.amazonaws\\.com/role-arn", value = aws_iam_role.ebs_csi_driver.arn },
+      { name = "controller.serviceAccount.automountServiceAccountToken", value = "true" },
+    ],
+    # Volumes provisioned by the CSI driver are created by its IRSA role, so
+    # neither provider default_tags nor instance tags reach them. Tag them
+    # explicitly to satisfy tag-enforcement policies (e.g. the scratch
+    # account's RequireTagsScratch SCP). These go on the controller rather than
+    # in the StorageClass's tagSpecification parameters: StorageClass parameters
+    # are immutable, so a tag change there replaces the StorageClass, and the
+    # fixed `gp3` name can't be replaced create-before-destroy.
+    [for k, v in var.tags : {
+      name  = "controller.extraVolumeTags.${replace(replace(k, ".", "\\."), "=", "\\=")}"
+      value = v
       type  = "string"
-    }
-  }
-
-  # Metrics Services, and a ServiceMonitor for each: the controller's AWS API
-  # calls and each of its sidecars, and on every node the per-volume EBS
-  # statistics, including time spent over the volume's provisioned IOPS and
-  # throughput. The chart renders the ServiceMonitors only when the
-  # monitoring.coreos.com API already exists.
-  set {
-    name  = "controller.enableMetrics"
-    value = var.enable_service_monitor
-  }
-
-  set {
-    name  = "node.enableMetrics"
-    value = var.enable_service_monitor
-  }
-
-  # Add node selectors for controller pods if provided
-  dynamic "set" {
-    for_each = var.node_selector
-    content {
-      name  = "controller.nodeSelector.${replace(set.key, ".", "\\.")}"
-      value = set.value
-    }
-  }
+    }],
+    [
+      # Metrics Services, and a ServiceMonitor for each: the controller's AWS API
+      # calls and each of its sidecars, and on every node the per-volume EBS
+      # statistics, including time spent over the volume's provisioned IOPS and
+      # throughput. The chart renders the ServiceMonitors only when the
+      # monitoring.coreos.com API already exists.
+      { name = "controller.enableMetrics", value = var.enable_service_monitor },
+      { name = "node.enableMetrics", value = var.enable_service_monitor },
+    ],
+    # Add node selectors for controller pods if provided
+    [for k, v in var.node_selector : { name = "controller.nodeSelector.${replace(k, ".", "\\.")}", value = v }],
+  )
 
   depends_on = [
     aws_iam_role_policy_attachment.ebs_csi_driver
