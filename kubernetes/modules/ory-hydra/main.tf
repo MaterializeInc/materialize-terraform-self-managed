@@ -7,13 +7,13 @@ resource "kubernetes_namespace" "hydra" {
 }
 
 resource "random_password" "secrets_system" {
-  count   = var.secrets_system == null ? 1 : 0
+  count   = var.secrets_supplied ? 0 : (var.secrets_system == null ? 1 : 0)
   length  = 32
   special = false
 }
 
 resource "random_password" "secrets_cookie" {
-  count   = var.secrets_cookie == null ? 1 : 0
+  count   = var.secrets_supplied ? 0 : (var.secrets_cookie == null ? 1 : 0)
   length  = 32
   special = false
 }
@@ -36,8 +36,8 @@ resource "kubernetes_secret" "hydra" {
 locals {
   namespace = var.create_namespace ? kubernetes_namespace.hydra[0].metadata[0].name : var.namespace
 
-  secrets_system = var.secrets_system != null ? var.secrets_system : random_password.secrets_system[0].result
-  secrets_cookie = var.secrets_cookie != null ? var.secrets_cookie : random_password.secrets_cookie[0].result
+  secrets_system = var.secrets_system != null ? var.secrets_system : one(random_password.secrets_system[*].result)
+  secrets_cookie = var.secrets_cookie != null ? var.secrets_cookie : one(random_password.secrets_cookie[*].result)
 
   # Key names the chart reads when secret.nameOverride points at an existing Secret.
   secret_data = {
