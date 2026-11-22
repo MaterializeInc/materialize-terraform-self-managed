@@ -26,7 +26,7 @@ output "cluster_location" {
 
 output "service_account_email" {
   description = "The email of the GKE service account"
-  value       = google_service_account.gke_sa.email
+  value       = local.node_service_account_email
 }
 
 output "workload_identity_sa_email" {

@@ -17,7 +17,7 @@ variable "prefix" {
 
   validation {
     condition = (
-      length(coalesce(var.node_service_account_id, "${var.prefix}-gke-sa")) <= 30 &&
+      (var.node_service_account_email != null || length(coalesce(var.node_service_account_id, "${var.prefix}-gke-sa")) <= 30) &&
       length(coalesce(var.workload_identity_service_account_id, "${var.prefix}-materialize-sa")) <= 30
     )
     error_message = "Service account ids derived from prefix exceed 30 characters. Use a prefix of at most 15 characters, or set node_service_account_id and workload_identity_service_account_id."
@@ -33,6 +33,18 @@ variable "node_service_account_id" {
   validation {
     condition     = var.node_service_account_id == null || can(regex("^[a-z][-a-z0-9]{4,28}[a-z0-9]$", var.node_service_account_id))
     error_message = "node_service_account_id must be 6-30 characters of lowercase letters, digits, and hyphens, starting with a letter and not ending with a hyphen."
+  }
+}
+
+variable "node_service_account_email" {
+  description = "Email of an existing service account for GKE nodes, including the cluster's temporary default pool. When set, the module does not create the node service account, and the caller can grant actAs on this account alone instead of project-wide. Must be known at plan time. Setting it on an existing cluster forces the cluster to be replaced."
+  type        = string
+  default     = null
+  nullable    = true
+
+  validation {
+    condition     = var.node_service_account_email == null || var.node_service_account_id == null
+    error_message = "Set at most one of node_service_account_email and node_service_account_id."
   }
 }
 
