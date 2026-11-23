@@ -94,7 +94,20 @@ pub enum TfVars {
         /// The in-cluster backends from test/kind/backends.yaml.
         metadata_backend_url: String,
         persist_backend_url: String,
+        /// The example's optional Ory stack; `None` with `--skip-ory`.
+        #[serde(flatten)]
+        ory: Option<KindOryTfVars>,
     },
+}
+
+/// Turns on the kubernetes example's Ory stack, backed by the databases
+/// test/kind/backends.yaml creates.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct KindOryTfVars {
+    pub enable_ory: bool,
+    pub ory_kratos_dsn: String,
+    pub ory_hydra_dsn: String,
+    pub ory_polis_dsn: String,
 }
 
 impl TfVars {
@@ -159,6 +172,35 @@ pub struct TerraformOutputs {
     /// kind only: the balancerd service verify port-forwards to reach SQL.
     #[serde(default)]
     pub balancerd_service_name: Option<TfOutput<String>>,
+
+    /// kind only: the Ory stack, null when the example leaves it off.
+    #[serde(default)]
+    pub ory: Option<TfOutput<Option<OryOutput>>>,
+}
+
+/// The kubernetes example's `ory` output.
+#[derive(Debug, Deserialize)]
+pub struct OryOutput {
+    pub namespace: String,
+    pub issuer: String,
+    pub oauth2_client_secret_name: String,
+    /// Keyed by component: hydra, kratos, ui and, when deployed, polis.
+    pub services: HashMap<String, OryService>,
+}
+
+/// An Ory Service on port 443 and the hostname its certificate is issued for.
+#[derive(Debug, Deserialize)]
+pub struct OryService {
+    pub name: String,
+    pub host: String,
+}
+
+impl OryOutput {
+    pub fn service(&self, component: &str) -> Result<&OryService> {
+        self.services
+            .get(component)
+            .with_context(|| format!("Missing Ory service in terraform output: {component}"))
+    }
 }
 
 impl TerraformOutputs {
@@ -187,10 +229,63 @@ impl TerraformOutputs {
             })
     }
 
+    pub fn ory(&self) -> Option<&OryOutput> {
+        self.ory.as_ref().and_then(|o| o.value.as_ref())
+    }
+
     pub fn mz_password(&self) -> Result<&str> {
         self.external_login_password_mz_system
             .as_ref()
             .map(|o| o.value.as_str())
             .context("Missing output: external_login_password_mz_system")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn kind_tfvars(ory: Option<KindOryTfVars>) -> TfVars {
+        TfVars::Kind {
+            common: CommonTfVars {
+                name_prefix: "t".into(),
+                license_key: "k".into(),
+                internal_load_balancer: None,
+                grafana_allow_public_access: None,
+                helm_chart: None,
+                use_local_chart: None,
+                orchestratord_version: None,
+                environmentd_version: None,
+            },
+            kubeconfig_path: "./kubeconfig".into(),
+            metadata_backend_url: "m".into(),
+            persist_backend_url: "p".into(),
+            ory,
+        }
+    }
+
+    #[test]
+    fn kind_ory_tfvars_round_trip() {
+        let ory = KindOryTfVars {
+            enable_ory: true,
+            ory_kratos_dsn: "k".into(),
+            ory_hydra_dsn: "h".into(),
+            ory_polis_dsn: "p".into(),
+        };
+        let json = serde_json::to_value(kind_tfvars(Some(ory))).unwrap();
+        assert_eq!(json["enable_ory"], true);
+        assert_eq!(json["ory_hydra_dsn"], "h");
+        let TfVars::Kind { ory, .. } = serde_json::from_value(json).unwrap() else {
+            panic!("not kind");
+        };
+        assert!(ory.is_some());
+
+        // --skip-ory, and runs initialized before Ory was added.
+        let json = serde_json::to_value(kind_tfvars(None)).unwrap();
+        assert!(json.get("enable_ory").is_none());
+        let TfVars::Kind { ory, .. } = serde_json::from_value(json).unwrap() else {
+            panic!("not kind");
+        };
+        assert!(ory.is_none());
     }
 }

@@ -9,7 +9,7 @@ use crate::helpers::{
     ci_log_group, example_dir, generate_test_run_id, project_root, run_cmd, run_cmd_output,
     runs_dir, upload_tfvars_to_backend, write_lifecycle,
 };
-use crate::types::{CloudProvider, CommonTfVars, TfVars};
+use crate::types::{CloudProvider, CommonTfVars, KindOryTfVars, TfVars};
 
 /// Initializes a new test run: copies example .tf files, writes tfvars,
 /// runs `terraform init`. Returns the path to the new test run directory.
@@ -217,12 +217,18 @@ fn build_tfvars(provider_args: &InitProvider, test_run_id: &str) -> Result<TfVar
     };
 
     Ok(match provider_args {
-        InitProvider::Kind { .. } => TfVars::Kind {
+        InitProvider::Kind { skip_ory, .. } => TfVars::Kind {
             common: common_tf,
             kubeconfig_path: "./kubeconfig".into(),
             // The in-cluster backends from test/kind/backends.yaml.
-            metadata_backend_url: "postgres://materialize:materialize@postgres.backends.svc.cluster.local:5432/materialize?sslmode=disable".into(),
+            metadata_backend_url: kind_postgres_url("materialize"),
             persist_backend_url: "s3://rustfsadmin:rustfsadmin@materialize/persist?endpoint=http%3A%2F%2Frustfs.backends.svc.cluster.local%3A9000&region=us-east-1".into(),
+            ory: (!skip_ory).then(|| KindOryTfVars {
+                enable_ory: true,
+                ory_kratos_dsn: kind_postgres_url("kratos"),
+                ory_hydra_dsn: kind_postgres_url("hydra"),
+                ory_polis_dsn: kind_postgres_url("polis"),
+            }),
         },
         InitProvider::Aws {
             aws_region,
@@ -284,6 +290,13 @@ fn build_tfvars(provider_args: &InitProvider, test_run_id: &str) -> Result<TfVar
             ]),
         },
     })
+}
+
+/// A database on the kind test PostgreSQL from test/kind/backends.yaml.
+fn kind_postgres_url(database: &str) -> String {
+    format!(
+        "postgres://materialize:materialize@postgres.backends.svc.cluster.local:5432/{database}?sslmode=disable"
+    )
 }
 
 /// Writes a `dev_variables.tf` file into the test run directory, defining

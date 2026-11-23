@@ -63,3 +63,61 @@ variable "environmentd_version" {
   type        = string
   default     = null
 }
+
+variable "enable_ory" {
+  description = "Deploy the Ory identity stack (Kratos, Hydra, the selfservice UI and, with ory_enable_polis, Polis) into the ory namespace, reachable in-cluster only. Needs a license key with the ory entitlement, which the Ory images are pulled with, and the ory_*_dsn databases."
+  type        = bool
+  default     = false
+  nullable    = false
+}
+
+variable "ory_enable_polis" {
+  description = "Also deploy Ory Polis (the SAML-to-OIDC bridge) when enable_ory is true. Needs ory_polis_dsn."
+  type        = bool
+  default     = true
+  nullable    = false
+}
+
+variable "ory_kratos_dsn" {
+  description = "PostgreSQL connection URL for the Kratos database, e.g. postgres://user:pass@host:5432/kratos?sslmode=require. Required when enable_ory is true."
+  type        = string
+  default     = null
+  sensitive   = true
+
+  validation {
+    condition     = !var.enable_ory || var.ory_kratos_dsn != null
+    error_message = "ory_kratos_dsn must be set when enable_ory is true."
+  }
+}
+
+variable "ory_hydra_dsn" {
+  description = "PostgreSQL connection URL for the Hydra database, e.g. postgres://user:pass@host:5432/hydra?sslmode=require. Required when enable_ory is true."
+  type        = string
+  default     = null
+  sensitive   = true
+
+  validation {
+    condition     = !var.enable_ory || var.ory_hydra_dsn != null
+    error_message = "ory_hydra_dsn must be set when enable_ory is true."
+  }
+}
+
+variable "ory_polis_dsn" {
+  description = "PostgreSQL connection URL for the Polis database, e.g. postgres://user:pass@host:5432/polis?sslmode=require. Required when enable_ory and ory_enable_polis are true."
+  type        = string
+  default     = null
+  sensitive   = true
+
+  validation {
+    condition     = !(var.enable_ory && var.ory_enable_polis) || var.ory_polis_dsn != null
+    error_message = "ory_polis_dsn must be set when enable_ory and ory_enable_polis are true."
+  }
+}
+
+variable "ory_oel_image_tag" {
+  description = "Image tag for the Ory Kratos and Hydra images."
+  type        = string
+  # renovate: datasource=docker depName=ory-artifacts/ory-enterprise/hydra-oel registryUrl=https://ory.registry.cloud.materialize.com
+  default  = "26.4.20"
+  nullable = false
+}
