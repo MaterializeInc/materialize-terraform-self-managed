@@ -1,6 +1,8 @@
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result, bail};
+use serde::de::DeserializeOwned;
+use serde::{Deserialize, Serialize};
 use tokio::process::Command;
 
 use crate::helpers::{
@@ -734,7 +736,7 @@ async fn verify_ory(dir: &Path, kubeconfig: &Path, ory: &OryOutput) -> Result<()
     tokio::fs::write(&ca, format!("{ca_pem}\n")).await?;
 
     let hydra = ory.service("hydra")?;
-    let discovery = retry(MAX_ATTEMPTS, INTERVAL, on_retry, || {
+    let discovery: OidcDiscovery = retry(MAX_ATTEMPTS, INTERVAL, on_retry, || {
         with_port_forward(kubeconfig, ns, &hydra.name, 443, |port| {
             curl_json(
                 &ca,
@@ -747,7 +749,7 @@ async fn verify_ory(dir: &Path, kubeconfig: &Path, ory: &OryOutput) -> Result<()
     })
     .await
     .context("Hydra discovery failed")?;
-    let issuer = discovery["issuer"].as_str().unwrap_or_default();
+    let issuer = discovery.issuer;
     if issuer != ory.issuer {
         bail!(
             "Hydra advertises issuer {issuer:?}, expected {:?}",
@@ -783,14 +785,14 @@ async fn verify_ory(dir: &Path, kubeconfig: &Path, ory: &OryOutput) -> Result<()
     // operator marked as managed, so the unmarked one proves the hook runs.
     let managed = create_hydra_client(kubeconfig, ns, true).await?;
     let token_args = ["-u", &managed, "-d", "grant_type=client_credentials"];
-    let token = retry(MAX_ATTEMPTS, INTERVAL, on_retry, || {
+    let token: TokenResponse = retry(MAX_ATTEMPTS, INTERVAL, on_retry, || {
         with_port_forward(kubeconfig, ns, &hydra.name, 443, |port| {
             curl_json(&ca, &hydra.host, port, "/oauth2/token", &token_args)
         })
     })
     .await
     .context("Hydra did not issue a client_credentials token to a managed client")?;
-    if token["access_token"].as_str().is_none_or(str::is_empty) {
+    if token.access_token.is_empty() {
         bail!("Hydra's token response has no access_token");
     }
     println!("  [ok] Hydra issued a client_credentials token to a managed client");
@@ -870,13 +872,18 @@ async fn curl_status(ca: &Path, host: &str, port: u16, path: &str, extra: &[&str
 /// returns `client_id:client_secret`. `managed` sets the metadata marker the
 /// selfservice UI's token hook trusts, as an operator's client would have.
 async fn create_hydra_client(kubeconfig: &Path, ns: &str, managed: bool) -> Result<String> {
-    let body = serde_json::json!({
-        "client_name": if managed { "kind-ci-managed" } else { "kind-ci-unmanaged" },
-        "grant_types": ["client_credentials"],
-        "metadata": { "materialize_managed": managed },
-    })
-    .to_string();
-    let client = retry(
+    let body = serde_json::to_string(&NewHydraClient {
+        client_name: if managed {
+            "kind-ci-managed"
+        } else {
+            "kind-ci-unmanaged"
+        },
+        grant_types: &["client_credentials"],
+        metadata: HydraClientMetadata {
+            materialize_managed: managed,
+        },
+    })?;
+    let client: HydraClient = retry(
         10,
         std::time::Duration::from_secs(6),
         |attempt, err| println!("  Attempt {attempt}/10: {err:#}, retrying in 6s..."),
@@ -901,8 +908,7 @@ async fn create_hydra_client(kubeconfig: &Path, ns: &str, managed: bool) -> Resu
                             &format!("http://127.0.0.1:{port}/admin/clients"),
                         ]))
                         .await?;
-                        serde_json::from_str::<serde_json::Value>(&out)
-                            .context("Hydra admin returned invalid JSON")
+                        serde_json::from_str(&out).context("Hydra admin returned invalid JSON")
                     }
                 },
             )
@@ -910,22 +916,47 @@ async fn create_hydra_client(kubeconfig: &Path, ns: &str, managed: bool) -> Resu
     )
     .await
     .context("Failed to create a Hydra OAuth2 client")?;
-    let (Some(id), Some(secret)) = (
-        client["client_id"].as_str(),
-        client["client_secret"].as_str(),
-    ) else {
-        bail!("Hydra admin response has no client_id/client_secret");
-    };
-    Ok(format!("{id}:{secret}"))
+    Ok(format!("{}:{}", client.client_id, client.client_secret))
 }
 
-async fn curl_json(
+/// The part of Hydra's OpenID discovery document the test checks.
+#[derive(Deserialize)]
+struct OidcDiscovery {
+    issuer: String,
+}
+
+#[derive(Deserialize)]
+struct TokenResponse {
+    access_token: String,
+}
+
+/// Body of Hydra's `POST /admin/clients`.
+#[derive(Serialize)]
+struct NewHydraClient<'a> {
+    client_name: &'a str,
+    grant_types: &'a [&'a str],
+    metadata: HydraClientMetadata,
+}
+
+#[derive(Serialize)]
+struct HydraClientMetadata {
+    materialize_managed: bool,
+}
+
+/// The created client, as Hydra's admin API returns it.
+#[derive(Deserialize)]
+struct HydraClient {
+    client_id: String,
+    client_secret: String,
+}
+
+async fn curl_json<T: DeserializeOwned>(
     ca: &Path,
     host: &str,
     port: u16,
     path: &str,
     extra: &[&str],
-) -> Result<serde_json::Value> {
+) -> Result<T> {
     let body = curl_https(ca, host, port, path, extra).await?;
     serde_json::from_str(&body).with_context(|| format!("{path} returned invalid JSON"))
 }

@@ -118,6 +118,6 @@ variable "ory_oel_image_tag" {
   description = "Image tag for the Ory Kratos and Hydra images."
   type        = string
   # renovate: datasource=docker depName=ory-artifacts/ory-enterprise/hydra-oel registryUrl=https://ory.registry.cloud.materialize.com
-  default  = "26.4.19"
+  default  = "26.4.20"
   nullable = false
 }
