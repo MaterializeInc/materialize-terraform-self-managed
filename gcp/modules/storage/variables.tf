@@ -63,7 +63,7 @@ variable "lifecycle_rules" {
 }
 
 variable "version_ttl" {
-  description = "Delete noncurrent object versions after this many days. Null disables the rule."
+  description = "Delete noncurrent object versions after this many days. Restoring a metadata database backup needs every blob that backup references, so keep this longer than the database's backup retention. Null disables the rule."
   type        = number
-  default     = 7
+  default     = 30
 }

@@ -45,7 +45,7 @@ variable "chart_version" {
   description = "Polis Helm chart version. See the Ory Polis release notes for the version that pairs with your OEL image tag."
   type        = string
   # renovate: datasource=docker depName=ory-artifacts/helm-oel-polis/polis-oel registryUrl=https://ory.registry.cloud.materialize.com
-  default  = "0.0.64"
+  default  = "0.0.65"
   nullable = false
 }
 
@@ -279,9 +279,9 @@ variable "tls_sidecar_image" {
   })
   default = {
     registry   = "docker.io"
-    repository = "nginxinc/nginx-unprivileged"
-    # renovate: datasource=docker depName=nginxinc/nginx-unprivileged
-    tag = "1.30.6-alpine@sha256:f5116ed4606f3eb015dd4a8e28cb9b351476dc0ad4bc6e9f93b19cec130cdf03"
+    repository = "nginx/nginx-unprivileged"
+    # renovate: datasource=docker depName=nginx/nginx-unprivileged
+    tag = "1.30.7-alpine@sha256:0c53a1f2890c3526bfd201440f0fd3970e5b78f80630f58284aad0d34b5ec7bd"
   }
   nullable = false
 }

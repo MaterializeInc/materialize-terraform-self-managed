@@ -19,9 +19,9 @@ variable "enable_bucket_versioning" {
 }
 
 variable "noncurrent_version_expiration_days" {
-  description = "Expire noncurrent object versions after this many days. Null disables the rule."
+  description = "Expire noncurrent object versions after this many days. Restoring a metadata database backup needs every blob that backup references, so keep this longer than the database's backup retention. Null disables the rule."
   type        = number
-  default     = 7
+  default     = 30
 }
 
 variable "enable_bucket_encryption" {
