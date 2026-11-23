@@ -121,7 +121,9 @@ variable "oel_registry" {
 variable "oel_image_tag" {
   description = "Tag for the OEL Kratos and Hydra images."
   type        = string
-  nullable    = false
+  # renovate: datasource=docker depName=ory-artifacts/ory-enterprise/hydra-oel registryUrl=https://ory.registry.cloud.materialize.com
+  default  = "26.4.21"
+  nullable = false
 }
 
 variable "license_key_jwt" {
