@@ -155,6 +155,12 @@ variable "deletion_protection" {
   nullable    = false
 }
 
+variable "terraform_deletion_protection" {
+  description = "Whether Terraform itself also refuses to destroy the instance. This flag lives only in Terraform state, so lifting the Cloud SQL protection by hand does not clear it. Null follows deletion_protection. False leaves the protection to Cloud SQL alone, which Terraform reads back on refresh."
+  type        = bool
+  default     = null
+}
+
 variable "retain_backups_on_delete" {
   description = "Whether Cloud SQL keeps the instance's automated backups after the instance is deleted, for their normal retention. When false, deleting the instance deletes its backups."
   type        = bool
