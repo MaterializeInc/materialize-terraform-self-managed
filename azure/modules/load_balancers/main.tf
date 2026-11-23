@@ -1,3 +1,8 @@
+locals {
+  console_ingress_cidr_blocks   = var.console_ingress_cidr_blocks != null ? var.console_ingress_cidr_blocks : var.ingress_cidr_blocks
+  balancerd_ingress_cidr_blocks = var.balancerd_ingress_cidr_blocks != null ? var.balancerd_ingress_cidr_blocks : var.ingress_cidr_blocks
+}
+
 resource "kubernetes_service" "console_load_balancer" {
   metadata {
     name      = "mz${var.resource_id}-console-lb"
@@ -10,7 +15,7 @@ resource "kubernetes_service" "console_load_balancer" {
   spec {
     type                        = "LoadBalancer"
     external_traffic_policy     = "Local"
-    load_balancer_source_ranges = var.internal ? null : var.ingress_cidr_blocks
+    load_balancer_source_ranges = var.internal ? null : local.console_ingress_cidr_blocks
     selector = {
       "materialize.cloud/name" = "mz${var.resource_id}-console"
     }
@@ -47,7 +52,7 @@ resource "kubernetes_service" "balancerd_load_balancer" {
   spec {
     type                        = "LoadBalancer"
     external_traffic_policy     = "Local"
-    load_balancer_source_ranges = var.internal ? null : var.ingress_cidr_blocks
+    load_balancer_source_ranges = var.internal ? null : local.balancerd_ingress_cidr_blocks
     selector = {
       "materialize.cloud/name" = "mz${var.resource_id}-balancerd"
     }

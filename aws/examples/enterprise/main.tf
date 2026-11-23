@@ -810,7 +810,7 @@ module "monitoring" {
     vpc_id                 = module.networking.vpc_id
     subnet_ids             = var.internal_load_balancer ? module.networking.private_subnet_ids : module.networking.public_subnet_ids
     node_security_group_id = module.eks.node_security_group_id
-    ingress_cidr_blocks    = var.ingress_cidr_blocks
+    ingress_cidr_blocks    = local.ingress_cidrs.grafana
 
     internal = var.internal_load_balancer
     host     = local.hostnames.grafana
@@ -849,6 +849,15 @@ module "monitoring" {
   ]
 }
 
+# Allowlist per group of load balancers: var.ingress_cidr_blocks_by_service where
+# set, var.ingress_cidr_blocks otherwise. A null ingress_cidr_blocks stays null.
+locals {
+  ingress_cidrs = {
+    for service in ["console", "balancerd", "grafana"] :
+    service => var.ingress_cidr_blocks_by_service[service] != null ? var.ingress_cidr_blocks_by_service[service] : var.ingress_cidr_blocks
+  }
+}
+
 # 11. Setup dedicated NLB for Materialize instance
 module "materialize_nlb" {
   source = "../../modules/nlb"
@@ -863,6 +872,8 @@ module "materialize_nlb" {
   mz_resource_id                   = module.materialize_instance.instance_resource_id
   node_security_group_id           = module.eks.node_security_group_id
   ingress_cidr_blocks              = var.ingress_cidr_blocks
+  console_ingress_cidr_blocks      = local.ingress_cidrs.console
+  balancerd_ingress_cidr_blocks    = local.ingress_cidrs.balancerd
 
   # Serve the console on 443 (the canonical HTTPS port) so browser OIDC
   # redirects to https://<materialize_console_fqdn>/auth/callback resolve without
@@ -971,7 +982,7 @@ module "ory" {
   # loadBalancerSourceRanges into the NLB security group's inbound rules.
   # Polis keeps its own allowlist when ory_polis_source_ranges is set or
   # okta-scim-source-ranges.json exists (Okta's SCIM egress plus your ranges),
-  # so a default ingress_cidr_blocks of 0.0.0.0/0 never reopens a Polis locked
+  # so a default console allowlist of 0.0.0.0/0 never reopens a Polis locked
   # to Okta.
   lb_overrides = merge(
     var.internal_load_balancer || local.ory_lb_source_ranges == null ? {} : {
@@ -1199,12 +1210,12 @@ locals {
 
   kratos_cookie_domain = var.ory_kratos_cookie_domain != null ? var.ory_kratos_cookie_domain : module.dns[0].stem_domain
 
-  # Sources allowed through the public Ory NLBs: ingress_cidr_blocks plus the
-  # cluster itself. Pods that call the Ory hostnames reach these NLBs from
+  # Sources allowed through the public Ory NLBs: the console's allowlist plus
+  # the cluster itself. Pods that call the Ory hostnames reach these NLBs from
   # the VPC, and an internet-facing NLB sees them as the NAT gateways' public
-  # IPs. A null ingress_cidr_blocks leaves the NLBs unrestricted.
-  ory_lb_source_ranges = var.ingress_cidr_blocks == null ? null : concat(
-    var.ingress_cidr_blocks,
+  # IPs. A null console allowlist leaves the NLBs unrestricted.
+  ory_lb_source_ranges = local.ingress_cidrs.console == null ? null : concat(
+    local.ingress_cidrs.console,
     [for ip in module.networking.nat_public_ips : "${ip}/32"],
     [module.networking.vpc_cidr_block],
   )

@@ -29,6 +29,8 @@ No modules.
 
 | Name | Description | Type | Default | Required |
 | ---- | ----------- | ---- | ------- | :------: |
+| <a name="input_balancerd_ingress_cidr_blocks"></a> [balancerd\_ingress\_cidr\_blocks](#input\_balancerd\_ingress\_cidr\_blocks) | CIDR blocks allowed to reach the balancerd load balancer (pgwire and the HTTP API), in place of `ingress_cidr_blocks`. Null uses `ingress_cidr_blocks`. | `list(string)` | `null` | no |
+| <a name="input_console_ingress_cidr_blocks"></a> [console\_ingress\_cidr\_blocks](#input\_console\_ingress\_cidr\_blocks) | CIDR blocks allowed to reach the console load balancer, in place of `ingress_cidr_blocks`. Null uses `ingress_cidr_blocks`. | `list(string)` | `null` | no |
 | <a name="input_ingress_cidr_blocks"></a> [ingress\_cidr\_blocks](#input\_ingress\_cidr\_blocks) | CIDR blocks that are allowed to reach the Azure LoadBalancers (used for load\_balancer\_source\_ranges on public LBs). | `list(string)` | <pre>[<br/>  "0.0.0.0/0"<br/>]</pre> | no |
 | <a name="input_instance_name"></a> [instance\_name](#input\_instance\_name) | The name of the Materialize instance. | `string` | n/a | yes |
 | <a name="input_internal"></a> [internal](#input\_internal) | Whether the load balancer is internal to the VNet. Defaults to true (internal) to allow internal access to Materialize. Set to false for public access. | `bool` | `true` | no |

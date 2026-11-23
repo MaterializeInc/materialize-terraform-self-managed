@@ -39,6 +39,32 @@ variable "ingress_cidr_blocks" {
   }
 }
 
+variable "console_ingress_cidr_blocks" {
+  description = "CIDR blocks allowed to reach the console load balancer, in place of `ingress_cidr_blocks`. Null uses `ingress_cidr_blocks`."
+  type        = list(string)
+  default     = null
+
+  validation {
+    condition = var.console_ingress_cidr_blocks == null || (length(coalesce(var.console_ingress_cidr_blocks, [])) > 0 && alltrue([
+      for cidr in coalesce(var.console_ingress_cidr_blocks, []) : can(cidrhost(cidr, 0))
+    ]))
+    error_message = "console_ingress_cidr_blocks must be null, or non-empty and contain valid CIDR notation."
+  }
+}
+
+variable "balancerd_ingress_cidr_blocks" {
+  description = "CIDR blocks allowed to reach the balancerd load balancer (pgwire and the HTTP API), in place of `ingress_cidr_blocks`. Null uses `ingress_cidr_blocks`."
+  type        = list(string)
+  default     = null
+
+  validation {
+    condition = var.balancerd_ingress_cidr_blocks == null || (length(coalesce(var.balancerd_ingress_cidr_blocks, [])) > 0 && alltrue([
+      for cidr in coalesce(var.balancerd_ingress_cidr_blocks, []) : can(cidrhost(cidr, 0))
+    ]))
+    error_message = "balancerd_ingress_cidr_blocks must be null, or non-empty and contain valid CIDR notation."
+  }
+}
+
 variable "materialize_console_port" {
   description = "Port configuration for Materialize console service"
   type        = number

@@ -2,6 +2,9 @@ locals {
   # AWS load balancer name_prefix has a maximum length of 6 characters
   # We trim the name_prefix to ensure it fits within this limit
   trimmed_name_prefix = substr(var.name_prefix, 0, min(6, length(var.name_prefix)))
+
+  console_ingress_cidr_blocks   = var.console_ingress_cidr_blocks != null ? var.console_ingress_cidr_blocks : var.ingress_cidr_blocks
+  balancerd_ingress_cidr_blocks = var.balancerd_ingress_cidr_blocks != null ? var.balancerd_ingress_cidr_blocks : var.ingress_cidr_blocks
 }
 
 resource "aws_security_group" "nlb" {
@@ -28,8 +31,10 @@ resource "aws_vpc_security_group_egress_rule" "nlb_egress" {
 
 # Create separate ingress rules to avoid duplicate rule errors during upgrades
 # https://github.com/hashicorp/terraform-provider-aws/issues/38526
+# pgwire and HTTP take the balancerd allowlist, and the console its own. Rules
+# stay keyed by CIDR, so an allowlist that doesn't change leaves its rules alone.
 resource "aws_vpc_security_group_ingress_rule" "nlb_pgwire" {
-  for_each          = var.create_security_group ? toset(var.ingress_cidr_blocks) : toset([])
+  for_each          = var.create_security_group ? toset(local.balancerd_ingress_cidr_blocks) : toset([])
   description       = "Allow Materialize pgwire from ${each.value}"
   from_port         = 6875
   to_port           = 6875
@@ -41,7 +46,7 @@ resource "aws_vpc_security_group_ingress_rule" "nlb_pgwire" {
 }
 
 resource "aws_vpc_security_group_ingress_rule" "nlb_http" {
-  for_each          = var.create_security_group ? toset(var.ingress_cidr_blocks) : toset([])
+  for_each          = var.create_security_group ? toset(local.balancerd_ingress_cidr_blocks) : toset([])
   description       = "Allow Materialize HTTP from ${each.value}"
   from_port         = 6876
   to_port           = 6876
@@ -53,7 +58,7 @@ resource "aws_vpc_security_group_ingress_rule" "nlb_http" {
 }
 
 resource "aws_vpc_security_group_ingress_rule" "nlb_console" {
-  for_each          = var.create_security_group ? toset(var.ingress_cidr_blocks) : toset([])
+  for_each          = var.create_security_group ? toset(local.console_ingress_cidr_blocks) : toset([])
   description       = "Allow Materialize Console/Health from ${each.value}"
   from_port         = var.console_listener_port
   to_port           = var.console_listener_port

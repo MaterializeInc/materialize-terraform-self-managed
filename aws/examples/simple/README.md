@@ -72,6 +72,7 @@ tags = {
 **Optional Variables:**
 - `k8s_apiserver_authorized_networks`: List of CIDR blocks allowed to access the EKS cluster endpoint (defaults to `["0.0.0.0/0"]`)
 - `ingress_cidr_blocks`: List of CIDR blocks allowed to reach the Load Balancer (defaults to `["0.0.0.0/0"]`)
+- `ingress_cidr_blocks_by_service`: Per-service allowlists that replace `ingress_cidr_blocks` for one group of load balancers (defaults to `{}`, so every group uses `ingress_cidr_blocks`). `console` covers the console, `balancerd` covers pgwire (6875) and the HTTP API (6876), and `grafana` covers Grafana. For example, `{ console = ["203.0.113.0/24"], balancerd = ["198.51.100.10/32"] }` lets an office reach the console while only one host reaches pgwire.
 - `internal_load_balancer`: Whether to use an internal load balancer (defaults to `true`)
 
 ### Configuring Cluster Endpoint Public Access CIDRs
