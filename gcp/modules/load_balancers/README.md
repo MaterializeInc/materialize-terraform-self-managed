@@ -10,8 +10,8 @@
 
 | Name | Version |
 | ---- | ------- |
-| <a name="provider_google"></a> [google](#provider\_google) | 8.12.0 |
-| <a name="provider_kubernetes"></a> [kubernetes](#provider\_kubernetes) | 2.38.0 |
+| <a name="provider_google"></a> [google](#provider\_google) | >= 8.0, < 9 |
+| <a name="provider_kubernetes"></a> [kubernetes](#provider\_kubernetes) | ~> 2.0, < 2.39.0 |
 
 ## Modules
 
