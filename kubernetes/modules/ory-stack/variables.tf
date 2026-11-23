@@ -502,7 +502,7 @@ variable "polis_chart_version" {
 # that live only in Terraform state.
 
 variable "secrets_supplied" {
-  description = "Set to true when passing all of `kratos_secrets_default`, `kratos_secrets_cookie`, `kratos_secrets_cipher`, `hydra_secrets_system` and `hydra_secrets_cookie`. Terraform then knows at plan time that no secrets are generated, which it needs when the values are only known at apply time, for example a `random_password` in the same configuration."
+  description = "Set to true when passing all of `kratos_secrets_default`, `kratos_secrets_cookie`, `kratos_secrets_cipher`, `hydra_secrets_system` and `hydra_secrets_cookie`, and, when `enable_polis` is true, `polis_admin_api_keys`, `polis_nextauth_secret`, `polis_db_encryption_key` and `polis_client_secret_verifier`. Terraform then knows at plan time that no secrets are generated, which it needs when the values are only known at apply time, for example a `random_password` in the same configuration."
   type        = bool
   default     = false
   nullable    = false
@@ -510,6 +510,11 @@ variable "secrets_supplied" {
   validation {
     condition     = !var.secrets_supplied || (var.kratos_secrets_default != null && var.kratos_secrets_cookie != null && var.kratos_secrets_cipher != null && var.hydra_secrets_system != null && var.hydra_secrets_cookie != null)
     error_message = "secrets_supplied is true, so all five Kratos and Hydra secrets must be set."
+  }
+
+  validation {
+    condition     = !var.secrets_supplied || !var.enable_polis || (var.polis_admin_api_keys != null && var.polis_nextauth_secret != null && var.polis_db_encryption_key != null && var.polis_client_secret_verifier != null)
+    error_message = "secrets_supplied and enable_polis are true, so all four Polis secrets must be set."
   }
 }
 
@@ -557,6 +562,13 @@ variable "polis_admin_api_keys" {
 
 variable "polis_db_encryption_key" {
   description = "Symmetric key used by Polis to encrypt sensitive fields at rest in its database. When null, a random 32-character key is generated. WARNING: rotating invalidates existing encrypted records."
+  type        = string
+  default     = null
+  sensitive   = true
+}
+
+variable "polis_client_secret_verifier" {
+  description = "Secret Polis accepts as the client_secret for any connection addressed by tenant and product. When null, a random secret is generated."
   type        = string
   default     = null
   sensitive   = true

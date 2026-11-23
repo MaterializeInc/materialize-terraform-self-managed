@@ -98,6 +98,25 @@ variable "db_encryption_key" {
   sensitive   = true
 }
 
+variable "client_secret_verifier" {
+  description = "Secret Polis accepts as the client_secret for any connection addressed by tenant and product. If null, a random 48-character secret is generated."
+  type        = string
+  default     = null
+  sensitive   = true
+}
+
+variable "secrets_supplied" {
+  description = "Set to true when passing all of `admin_api_keys`, `nextauth_secret`, `db_encryption_key` and `client_secret_verifier`. Terraform then knows at plan time that no secrets are generated, which it needs when the values are only known at apply time, for example a `random_password` in the same configuration."
+  type        = bool
+  default     = false
+  nullable    = false
+
+  validation {
+    condition     = !var.secrets_supplied || (var.admin_api_keys != null && var.nextauth_secret != null && var.db_encryption_key != null && var.client_secret_verifier != null)
+    error_message = "secrets_supplied is true, so admin_api_keys, nextauth_secret, db_encryption_key and client_secret_verifier must all be set."
+  }
+}
+
 variable "db_ssl" {
   description = "Whether Polis should connect to its database over TLS. Maps to the chart's dbSSL value and the DB_SSL env var."
   type        = bool
