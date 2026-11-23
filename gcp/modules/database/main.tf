@@ -19,7 +19,7 @@ module "postgresql" {
   region               = var.region
   tier                 = var.tier
   edition              = var.edition
-  deletion_protection  = var.deletion_protection
+  deletion_protection  = coalesce(var.terraform_deletion_protection, var.deletion_protection)
 
   deletion_protection_enabled = var.deletion_protection
   retain_backups_on_delete    = var.retain_backups_on_delete
