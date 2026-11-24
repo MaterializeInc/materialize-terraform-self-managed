@@ -173,11 +173,11 @@ jobs:
           git -c http.https://github.com/.extraheader="AUTHORIZATION: basic $auth" \
             push --force origin "$branch"
 
-          # A bigger bump renames the version, so close notes PRs for any other
-          # version: merging one would release the wrong version.
+          # A bigger bump renames the version, so close the bot's notes PRs for
+          # any other version: merging one would release the wrong version.
           BRANCH="$branch" gh pr list --repo "$GITHUB_REPOSITORY" --state open --limit 200 \
-            --json number,headRefName \
-            --jq '.[] | select((.headRefName | startswith("upgrade-notes-v")) and .headRefName != env.BRANCH) | .number' \
+            --json number,headRefName,author \
+            --jq '.[] | select(.author.login == "materialize-bot" and (.headRefName | startswith("upgrade-notes-v")) and .headRefName != env.BRANCH) | .number' \
             | while read -r stale; do
                 gh pr close "$stale" --repo "$GITHUB_REPOSITORY" --delete-branch \
                   --comment "Superseded by the upgrade notes PR for $VERSION."

@@ -61,6 +61,19 @@ jobs:
             exit 1
           fi
 
+      # scriv collects a fragment that is still only the template's comment
+      # without complaint, so the note would be silently empty.
+      - name: Require a title in each upgrade note
+        run: |
+          status=0
+          for note in $(git diff --name-only --no-renames --diff-filter=AM HEAD^1 HEAD -- 'changelog.d/*.md'); do
+            if ! grep -qE '^### ' "$note"; then
+              echo "::error file=$note::$note has no '### ' title line, see CONTRIBUTING.md."
+              status=1
+            fi
+          done
+          exit $status
+
   ci-success:
     runs-on: ubuntu-latest
     needs:

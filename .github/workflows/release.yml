@@ -26,9 +26,17 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          notes=$(scriv print --version "$GITHUB_REF_NAME" 2>/dev/null || true)
+          # As in tag.yml: only a release with a section in UPGRADING.md has
+          # notes, and then scriv must print them.
           args=()
-          if [ -n "$notes" ]; then args=(--notes "$(printf '## Upgrade notes\n\n%s' "$notes")"); fi
+          if grep -qxF "## $GITHUB_REF_NAME" UPGRADING.md; then
+            notes=$(scriv print --version "$GITHUB_REF_NAME")
+            if [ -z "$notes" ]; then
+              echo "::error::scriv printed nothing for the $GITHUB_REF_NAME section of UPGRADING.md"
+              exit 1
+            fi
+            args=(--notes "$(printf '## Upgrade notes\n\n%s' "$notes")")
+          fi
 
           gh release create "$GITHUB_REF_NAME" \
             --repo "$GITHUB_REPOSITORY" \
