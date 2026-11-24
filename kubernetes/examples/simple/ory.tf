@@ -37,7 +37,6 @@ module "ory" {
   polis_fqdn   = var.ory_enable_polis ? local.ory_hosts.polis : null
   polis_dsn    = var.ory_enable_polis ? var.ory_polis_dsn : null
 
-  oel_image_tag   = var.ory_oel_image_tag
   license_key_jwt = var.license_key
 
   cert_issuer_ref = {
