@@ -122,7 +122,7 @@ variable "oel_image_tag" {
   description = "Tag for the OEL Kratos and Hydra images."
   type        = string
   # renovate: datasource=docker depName=ory-artifacts/ory-enterprise/hydra-oel registryUrl=https://ory.registry.cloud.materialize.com
-  default  = "26.4.21"
+  default  = "26.4.22"
   nullable = false
 }
 
@@ -486,7 +486,7 @@ variable "polis_oel_image_tag" {
   description = "Tag for the Polis OEL image. Polis releases independently of Kratos/Hydra, so it has its own tag knob."
   type        = string
   # renovate: datasource=docker depName=ory-artifacts/ory-enterprise-polis/polis-oel registryUrl=https://ory.registry.cloud.materialize.com
-  default  = "26.4.21"
+  default  = "26.4.22"
   nullable = false
 }
 
