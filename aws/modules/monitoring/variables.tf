@@ -128,13 +128,6 @@ variable "enable_bucket_versioning" {
   nullable    = false
 }
 
-variable "manage_bucket_public_access_block" {
-  description = "Manage each telemetry bucket's S3 Block Public Access configuration, with all four settings on. Set false when the role that applies this module may not call `s3:PutBucketPublicAccessBlock`, as under Materialize's BYOC deployer boundary. S3 turns all four settings on for every bucket it creates, so false still leaves a new bucket blocked; it only stops Terraform from asserting it. Switching an existing install to false deletes the configuration this module created, which turns Block Public Access off on those buckets."
-  type        = bool
-  default     = true
-  nullable    = false
-}
-
 variable "logs_retention_days" {
   description = "Expire Loki objects after this many days. Null disables the lifecycle rule and leaves retention entirely to Loki's compactor."
   type        = number
