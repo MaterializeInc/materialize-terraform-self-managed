@@ -7,13 +7,13 @@ resource "kubernetes_namespace" "polis" {
 }
 
 resource "random_password" "admin_api_keys" {
-  count   = var.admin_api_keys == null ? 1 : 0
+  count   = var.secrets_supplied ? 0 : (var.admin_api_keys == null ? 1 : 0)
   length  = 32
   special = false
 }
 
 resource "random_password" "nextauth_secret" {
-  count   = var.nextauth_secret == null ? 1 : 0
+  count   = var.secrets_supplied ? 0 : (var.nextauth_secret == null ? 1 : 0)
   length  = 32
   special = false
 }
@@ -21,12 +21,18 @@ resource "random_password" "nextauth_secret" {
 # Polis accepts this as the client_secret for any connection addressed by
 # tenant/product, and defaults it to "dummy".
 resource "random_password" "client_secret_verifier" {
+  count   = var.secrets_supplied ? 0 : (var.client_secret_verifier == null ? 1 : 0)
   length  = 48
   special = false
 }
 
+moved {
+  from = random_password.client_secret_verifier
+  to   = random_password.client_secret_verifier[0]
+}
+
 resource "random_password" "db_encryption_key" {
-  count   = var.db_encryption_key == null ? 1 : 0
+  count   = var.secrets_supplied ? 0 : (var.db_encryption_key == null ? 1 : 0)
   length  = 32
   special = false
 }
@@ -42,9 +48,10 @@ resource "tls_private_key" "openid_rsa" {
 locals {
   namespace = var.create_namespace ? kubernetes_namespace.polis[0].metadata[0].name : var.namespace
 
-  admin_api_keys    = var.admin_api_keys != null ? var.admin_api_keys : random_password.admin_api_keys[0].result
-  nextauth_secret   = var.nextauth_secret != null ? var.nextauth_secret : random_password.nextauth_secret[0].result
-  db_encryption_key = var.db_encryption_key != null ? var.db_encryption_key : random_password.db_encryption_key[0].result
+  admin_api_keys         = var.admin_api_keys != null ? var.admin_api_keys : one(random_password.admin_api_keys[*].result)
+  nextauth_secret        = var.nextauth_secret != null ? var.nextauth_secret : one(random_password.nextauth_secret[*].result)
+  db_encryption_key      = var.db_encryption_key != null ? var.db_encryption_key : one(random_password.db_encryption_key[*].result)
+  client_secret_verifier = var.client_secret_verifier != null ? var.client_secret_verifier : one(random_password.client_secret_verifier[*].result)
 
   secret_name = "${var.release_name}-config"
 
@@ -57,7 +64,7 @@ locals {
     API_KEYS                = local.admin_api_keys
     NEXTAUTH_SECRET         = local.nextauth_secret
     POLIS_DB_ENCRYPTION_KEY = local.db_encryption_key
-    CLIENT_SECRET_VERIFIER  = random_password.client_secret_verifier.result
+    CLIENT_SECRET_VERIFIER  = local.client_secret_verifier
     OPENID_RSA_PRIVATE_KEY  = base64encode(tls_private_key.openid_rsa.private_key_pem_pkcs8)
     OPENID_RSA_PUBLIC_KEY   = base64encode(tls_private_key.openid_rsa.public_key_pem)
   }

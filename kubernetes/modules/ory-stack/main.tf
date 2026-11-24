@@ -628,9 +628,11 @@ module "ory_polis" {
   image_tag          = var.polis_oel_image_tag
   image_pull_secrets = [kubernetes_secret.ory_oel_registry.metadata[0].name]
 
-  admin_api_keys    = var.polis_admin_api_keys
-  nextauth_secret   = var.polis_nextauth_secret
-  db_encryption_key = var.polis_db_encryption_key
+  admin_api_keys         = var.polis_admin_api_keys
+  nextauth_secret        = var.polis_nextauth_secret
+  db_encryption_key      = var.polis_db_encryption_key
+  client_secret_verifier = var.polis_client_secret_verifier
+  secrets_supplied       = var.secrets_supplied
 
   # cert-manager Secret consumed by the chart's TLS-terminating nginx sidecar.
   # Matches the Certificate created for the polis-tls entry in ory_certs above.
