@@ -185,7 +185,7 @@ resource "aws_s3_bucket" "telemetry" {
 }
 
 resource "aws_s3_bucket_public_access_block" "telemetry" {
-  for_each = aws_s3_bucket.telemetry
+  for_each = var.manage_bucket_public_access_block ? aws_s3_bucket.telemetry : {}
 
   bucket = each.value.id
 
