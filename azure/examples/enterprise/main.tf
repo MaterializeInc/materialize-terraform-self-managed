@@ -196,12 +196,12 @@ locals {
 
   ory_namespace = "ory"
 
-  # Sources allowed through the public Ory LoadBalancers. The cluster itself
-  # is included: pods that call the Ory hostnames resolve them to these LBs,
-  # and reach them from the VNet or, when the traffic leaves it, from the NAT
-  # gateway's address.
+  # Sources allowed through the public Ory LoadBalancers: the console's
+  # allowlist plus the cluster itself. Pods that call the Ory hostnames resolve
+  # them to these LBs, and reach them from the VNet or, when the traffic leaves
+  # it, from the NAT gateway's address.
   ory_lb_source_ranges = concat(
-    var.ingress_cidr_blocks,
+    local.ingress_cidrs.console,
     ["${module.networking.nat_gateway_public_ip}/32", local.vnet_config.address_space],
   )
 
@@ -732,7 +732,7 @@ module "monitoring" {
   # is what lets `root_url` be correct.
   grafana_load_balancer = {
     internal            = var.internal_load_balancer
-    ingress_cidr_blocks = var.ingress_cidr_blocks
+    ingress_cidr_blocks = local.ingress_cidrs.grafana
     host                = local.hostnames.grafana
   }
 
@@ -852,14 +852,25 @@ module "materialize_instance" {
   ]
 }
 
+# Allowlist per group of load balancers: var.ingress_cidr_blocks_by_service where
+# set, var.ingress_cidr_blocks otherwise.
+locals {
+  ingress_cidrs = {
+    for service in ["console", "balancerd", "grafana"] :
+    service => coalesce(var.ingress_cidr_blocks_by_service[service], var.ingress_cidr_blocks)
+  }
+}
+
 module "load_balancers" {
   source = "../../modules/load_balancers"
 
-  instance_name       = local.materialize_instance_name
-  namespace           = local.materialize_instance_namespace
-  resource_id         = module.materialize_instance.instance_resource_id
-  internal            = var.internal_load_balancer
-  ingress_cidr_blocks = var.internal_load_balancer ? null : var.ingress_cidr_blocks
+  instance_name                 = local.materialize_instance_name
+  namespace                     = local.materialize_instance_namespace
+  resource_id                   = module.materialize_instance.instance_resource_id
+  internal                      = var.internal_load_balancer
+  ingress_cidr_blocks           = var.internal_load_balancer ? null : var.ingress_cidr_blocks
+  console_ingress_cidr_blocks   = local.ingress_cidrs.console
+  balancerd_ingress_cidr_blocks = local.ingress_cidrs.balancerd
 
   # Serve the console on 443 (the canonical HTTPS port) so browser OIDC
   # redirects to https://<materialize_console_fqdn>/auth/callback resolve without
@@ -969,7 +980,7 @@ module "ory" {
   # loadBalancerSourceRanges, which Azure enforces in the LB's NSG. Polis keeps
   # its own allowlist when ory_polis_source_ranges is set or
   # okta-scim-source-ranges.json exists (Okta's SCIM egress plus your ranges),
-  # so a default ingress_cidr_blocks of 0.0.0.0/0 never reopens a Polis locked
+  # so a default console allowlist of 0.0.0.0/0 never reopens a Polis locked
   # to Okta.
   lb_overrides = merge(
     var.internal_load_balancer ? {} : {

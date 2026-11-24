@@ -628,7 +628,7 @@ module "monitoring" {
   # is what lets `root_url` be correct.
   grafana_load_balancer = {
     internal            = var.internal_load_balancer
-    ingress_cidr_blocks = var.ingress_cidr_blocks
+    ingress_cidr_blocks = local.ingress_cidrs.grafana
     host                = local.grafana_host
   }
 
@@ -726,14 +726,25 @@ module "materialize_instance" {
   ]
 }
 
+# Allowlist per group of load balancers: var.ingress_cidr_blocks_by_service where
+# set, var.ingress_cidr_blocks otherwise.
+locals {
+  ingress_cidrs = {
+    for service in ["console", "balancerd", "grafana"] :
+    service => coalesce(var.ingress_cidr_blocks_by_service[service], var.ingress_cidr_blocks)
+  }
+}
+
 module "load_balancers" {
   source = "../../modules/load_balancers"
 
-  instance_name       = local.materialize_instance_name
-  namespace           = local.materialize_instance_namespace
-  resource_id         = module.materialize_instance.instance_resource_id
-  internal            = var.internal_load_balancer
-  ingress_cidr_blocks = var.internal_load_balancer ? null : var.ingress_cidr_blocks
+  instance_name                 = local.materialize_instance_name
+  namespace                     = local.materialize_instance_namespace
+  resource_id                   = module.materialize_instance.instance_resource_id
+  internal                      = var.internal_load_balancer
+  ingress_cidr_blocks           = var.internal_load_balancer ? null : var.ingress_cidr_blocks
+  console_ingress_cidr_blocks   = local.ingress_cidrs.console
+  balancerd_ingress_cidr_blocks = local.ingress_cidrs.balancerd
 
   depends_on = [
     module.materialize_instance,

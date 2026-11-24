@@ -813,7 +813,7 @@ module "monitoring" {
     vpc_id                 = module.networking.vpc_id
     subnet_ids             = var.internal_load_balancer ? module.networking.private_subnet_ids : module.networking.public_subnet_ids
     node_security_group_id = module.eks.node_security_group_id
-    ingress_cidr_blocks    = var.ingress_cidr_blocks
+    ingress_cidr_blocks    = local.ingress_cidrs.grafana
 
     internal = var.internal_load_balancer
     host     = local.grafana_host
@@ -867,6 +867,15 @@ module "monitoring" {
 # differs.
 # ==============================================================================
 
+# Allowlist per group of load balancers: var.ingress_cidr_blocks_by_service where
+# set, var.ingress_cidr_blocks otherwise. A null ingress_cidr_blocks stays null.
+locals {
+  ingress_cidrs = {
+    for service in ["console", "balancerd", "grafana"] :
+    service => var.ingress_cidr_blocks_by_service[service] != null ? var.ingress_cidr_blocks_by_service[service] : var.ingress_cidr_blocks
+  }
+}
+
 # 11. Setup dedicated NLB for Materialize instance
 module "materialize_nlb" {
   source = "../../modules/nlb"
@@ -881,6 +890,8 @@ module "materialize_nlb" {
   mz_resource_id                   = module.materialize_instance.instance_resource_id
   node_security_group_id           = module.eks.node_security_group_id
   ingress_cidr_blocks              = var.ingress_cidr_blocks
+  console_ingress_cidr_blocks      = local.ingress_cidrs.console
+  balancerd_ingress_cidr_blocks    = local.ingress_cidrs.balancerd
 
   tags = var.tags
 

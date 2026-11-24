@@ -41,6 +41,8 @@
 
 | Name | Description | Type | Default | Required |
 | ---- | ----------- | ---- | ------- | :------: |
+| <a name="input_balancerd_ingress_cidr_blocks"></a> [balancerd\_ingress\_cidr\_blocks](#input\_balancerd\_ingress\_cidr\_blocks) | CIDR blocks allowed to reach the pgwire (6875) and HTTP API (6876) listeners, in place of `ingress_cidr_blocks`. Null uses `ingress_cidr_blocks`. | `list(string)` | `null` | no |
+| <a name="input_console_ingress_cidr_blocks"></a> [console\_ingress\_cidr\_blocks](#input\_console\_ingress\_cidr\_blocks) | CIDR blocks allowed to reach the console listener, in place of `ingress_cidr_blocks`. Null uses `ingress_cidr_blocks`. | `list(string)` | `null` | no |
 | <a name="input_console_listener_port"></a> [console\_listener\_port](#input\_console\_listener\_port) | External port the NLB listens on for the Materialize console. Defaults to 8080. Set to 443 for enterprise SSO deployments so browser OIDC redirects hit the canonical HTTPS port; the target group still forwards to the console pod on 8080. | `number` | `8080` | no |
 | <a name="input_create_security_group"></a> [create\_security\_group](#input\_create\_security\_group) | Whether to create a dedicated security group for the NLB with ingress rules for Materialize ports. Set to false if security groups are managed externally or not needed. | `bool` | `true` | no |
 | <a name="input_enable_cross_zone_load_balancing"></a> [enable\_cross\_zone\_load\_balancing](#input\_enable\_cross\_zone\_load\_balancing) | Whether to enable cross zone load balancing on the NLB. | `bool` | `true` | no |

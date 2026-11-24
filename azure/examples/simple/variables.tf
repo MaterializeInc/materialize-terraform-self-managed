@@ -37,6 +37,35 @@ variable "ingress_cidr_blocks" {
   }
 }
 
+variable "ingress_cidr_blocks_by_service" {
+  description = <<-EOT
+    Per-service allowlists that replace `ingress_cidr_blocks` for one group of load balancers. An
+    attribute left unset uses `ingress_cidr_blocks`.
+
+    - `console`: the console.
+    - `balancerd`: pgwire (6875) and the HTTP API (6876).
+    - `grafana`: Grafana, when observability is enabled.
+
+    As with `ingress_cidr_blocks`, these match the source address as the cloud sees it, and on an
+    internal load balancer they should be VPC, peered or on-prem ranges.
+  EOT
+  type = object({
+    console   = optional(list(string))
+    balancerd = optional(list(string))
+    grafana   = optional(list(string))
+  })
+  default  = {}
+  nullable = false
+
+  validation {
+    condition = alltrue([
+      for cidrs in values(var.ingress_cidr_blocks_by_service) :
+      cidrs == null ? true : length(cidrs) > 0 && alltrue([for cidr in cidrs : can(cidrhost(cidr, 0))])
+    ])
+    error_message = "Each ingress_cidr_blocks_by_service attribute must be unset, or a non-empty list of valid CIDRs."
+  }
+}
+
 variable "license_key" {
   description = "Materialize license key"
   type        = string
