@@ -184,15 +184,17 @@ resource "aws_s3_bucket" "telemetry" {
   }
 }
 
-resource "aws_s3_bucket_public_access_block" "telemetry" {
-  for_each = aws_s3_bucket.telemetry
+# The telemetry buckets' Block Public Access is S3's default, which turns all
+# four settings on for every bucket it creates. Managing it here took
+# `s3:PutBucketPublicAccessBlock`, which Materialize's BYOC deployer boundary
+# denies. An install that already manages the configuration forgets it rather
+# than deleting it, which would turn Block Public Access off on its buckets.
+removed {
+  from = aws_s3_bucket_public_access_block.telemetry
 
-  bucket = each.value.id
-
-  block_public_acls       = true
-  block_public_policy     = true
-  ignore_public_acls      = true
-  restrict_public_buckets = true
+  lifecycle {
+    destroy = false
+  }
 }
 
 resource "aws_s3_bucket_server_side_encryption_configuration" "telemetry" {
@@ -1085,6 +1087,5 @@ module "monitoring" {
   depends_on = [
     aws_iam_role_policy.telemetry,
     aws_iam_role_policy.gateway,
-    aws_s3_bucket_public_access_block.telemetry,
   ]
 }
