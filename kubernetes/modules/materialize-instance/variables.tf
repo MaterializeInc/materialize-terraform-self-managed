@@ -78,7 +78,7 @@ variable "annotations" {
 variable "environmentd_version" {
   description = "Version of environmentd to use"
   type        = string
-  default     = "v26.51.1" # META: mz version
+  default     = "v26.52.0" # META: mz version
   nullable    = false
 }
 
