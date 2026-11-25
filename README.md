@@ -181,7 +181,7 @@ repository without a tag or digest.
 | `{aws,azure,gcp}/modules/operator` | `orchestratord_image_repository` | Helm chart default (`materialize/orchestratord`) |
 | `kubernetes/modules/coredns` | `coredns_image_repository` | `coredns/coredns` |
 | `kubernetes/modules/ory-stack` | `selfservice_ui_image_repository` | `materialize/ory-selfservice` |
-| `azure/modules/nodepool`, `gcp/modules/nodepool`, `aws/modules/eks-node-group`, `aws/modules/karpenter-ec2nodeclass` | `disk_setup_image`[^dsi] | `materialize/ephemeral-storage-setup-image:<version>`, `docker.io/`-prefixed on AWS |
+| `azure/modules/nodepool`, `azure/modules/nap-nodepool`, `gcp/modules/nodepool`, `aws/modules/eks-node-group`, `aws/modules/karpenter-ec2nodeclass` | `disk_setup_image`[^dsi] | `materialize/ephemeral-storage-setup-image:<version>`, `docker.io/`-prefixed on AWS |
 
 [^dsi]: Unlike the others, `disk_setup_image` is a full image reference including the tag.
 
@@ -210,15 +210,20 @@ Two things to watch when stocking a mirror by hand:
 - Neither the operator Helm chart nor the Materialize CRD supports image pull
   secrets, so the mirror must be readable either anonymously or with credentials
   available to the nodes (for example an ECR pull through cache reached via the
-  node IAM role). The `ory-*` modules do accept `image_pull_secrets`.
+  node IAM role). The `ory-hydra`, `ory-kratos`, and `ory-polis` modules accept
+  `image_pull_secrets`; `ory-selfservice-ui` does not.
 
 The remaining third-party charts (cert-manager, metrics-server, node-local-dns,
 and the AWS addons) pull from registries without Docker Hub's rate limits —
 `quay.io`, `registry.k8s.io`, and public ECR — and so have no override. The
 `ory-kratos`, `ory-hydra`, and `ory-polis` images come from the Materialize OEL
 registry proxy and are redirected with the `oel_registry` and `polis_chart_*`
-variables. `{aws,azure,gcp}/modules/monitoring` deliberately names no Helm value
-paths, so redirect its images through `additional_values` and its charts through
+variables. Two Ory images still come from Docker Hub and have no dedicated
+variable: Hydra Maester (`oryd/hydra-maester`), set through `hydra_helm_values`
+at `hydra-maester.image`, and the Polis TLS sidecar (`nginx/nginx-unprivileged`),
+set through `polis_helm_values` at `tlsSidecar.image`.
+`{aws,azure,gcp}/modules/monitoring` deliberately names no Helm value paths, so
+redirect its images through `additional_values` and its charts through
 `chart_registry`.
 
 ## Migrating from the legacy modules
